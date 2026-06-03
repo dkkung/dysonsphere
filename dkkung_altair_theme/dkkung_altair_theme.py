@@ -1435,7 +1435,7 @@ def custom() -> alt.theme.ThemeConfig:
             },
             "range": {
                 # pass in a list outside of a dict to AVOID interpolations; define as {scheme: _} to USE interpolation, which will NOT use the maximum range of colors
-                "category": colors["DKolors"],
+                "category": {"scheme": colors["mpl_YlGnBu"]},
                 "diverging": {
                     "scheme": colors["mpl_YlGnBu"],
                 },
