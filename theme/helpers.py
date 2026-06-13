@@ -302,6 +302,62 @@ def add_jitter_offsets(
     )
 
 
+def save(
+    chart: alt.Chart,
+    filename: str,
+    ppi: int = 600,
+) -> None:
+    """
+    Save a chart as light and dark PNG and SVG files.
+
+    Produces four files from a single call:
+
+    - ``<filename>_light.png`` and ``<filename>_light.svg``
+    - ``<filename>_dark.png`` and ``<filename>_dark.svg``
+
+    Dark and light versions are rendered by temporarily toggling
+    ``darkmode`` in the theme options, leaving all other options intact.
+
+    Parameters
+    ----------
+    chart:
+        The Altair chart to save.
+    filename:
+        Extensionless path for the output files (e.g. ``"myplot"`` or
+        ``"plots/myplot"``). A bare name saves to the current working
+        directory, matching Altair's default behaviour.
+    ppi:
+        Pixel density for PNG output.
+
+    Examples
+    --------
+    ::
+
+        theme.options()
+        chart = alt.Chart(df).mark_point().encode(...)
+        theme.save(chart, "plots/myplot")
+        # writes: plots/myplot_light.png, plots/myplot_light.svg,
+        #         plots/myplot_dark.png,  plots/myplot_dark.svg
+    """
+    from pathlib import Path
+
+    if not alt.theme.options:
+        raise RuntimeError(
+            "theme.options() must be called before theme.save()."
+        )
+
+    base = Path(filename)
+    original_darkmode = alt.theme.options.get("darkmode", False)
+
+    try:
+        for mode, suffix in [(False, "_light"), (True, "_dark")]:
+            alt.theme.options["darkmode"] = mode
+            chart.save(str(base.parent / f"{base.name}{suffix}.png"), ppi=ppi)
+            chart.save(str(base.parent / f"{base.name}{suffix}.svg"))
+    finally:
+        alt.theme.options["darkmode"] = original_darkmode
+
+
 def _format_pvalue(p: float, decimals: int = 3) -> str:
     if p < 0.001:
         return "p < 0.001"
