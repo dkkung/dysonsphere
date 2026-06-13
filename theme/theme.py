@@ -20,7 +20,7 @@ def options(
     dashedLine=False,
     dashedRule=True,
     dashedWidth=[2, 2],
-    font="Graphik",
+    font="Helvetica Neue",
     fontSize=7,
     fontStyle="Normal",
     fontWeight=400,  # only multiples of 100; 300 = light, 400 = normal/regular
@@ -68,7 +68,9 @@ def options(
     alt.theme.options["grid"] = grid
     alt.theme.options["gridColor"] = gridColor
     alt.theme.options["legend"] = legend
-    alt.theme.options["legendOffset"] = legendOffset  # falls back to tickSize in custom()
+    alt.theme.options["legendOffset"] = (
+        legendOffset  # falls back to tickSize in custom()
+    )
     alt.theme.options["legendStroke"] = legendStroke
     alt.theme.options["markFillColor"] = markFillColor
     alt.theme.options["markFillOpacity"] = markFillOpacity
@@ -88,7 +90,6 @@ def options(
     alt.theme.options["viewBackgroundColor"] = viewBackgroundColor
     alt.theme.options["xTicks"] = xTicks
     alt.theme.options["yTicks"] = yTicks
-
 
 
 @alt.theme.register("custom", enable=True)
@@ -236,6 +237,9 @@ def custom():
                 "strokeColor": "white" if opts["darkmode"] else "black",
                 "strokeWidth": opts["axisWidth"] if opts["legendStroke"] else 0,
                 "symbolStrokeColor": "white" if opts["darkmode"] else "black",
+                "symbolStrokeWidth": opts["markStrokeWidth"]
+                if opts["markStrokeOpacity"] > 0
+                else 0,
                 "titleColor": "white" if opts["darkmode"] else "black",
                 "titleFont": opts["font"],
                 "titleFontSize": opts["fontSize"],
