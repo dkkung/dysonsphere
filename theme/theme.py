@@ -13,9 +13,10 @@ register.
 
 def options(
     angledX=False,
-    axisOffset=None,  # defaults to tickSize if not set, or 0 if topAndRightBorder is True
+    axisOffset=None,  # defaults to tickSize if not set, or 0 if border is True
     axisWidth=0.50,
     bandPadding=0.1,
+    border=False,
     chartHeight=150,
     chartWidth=150,
     darkmode=False,
@@ -41,7 +42,6 @@ def options(
     palette=None,
     ticks=True,
     tickSize=5,
-    topAndRightBorder=False,
     transparentBackground=True,
     verticalY=False,
     viewBackgroundColor="white",
@@ -88,7 +88,7 @@ def options(
     alt.theme.options["ticks"] = ticks
     alt.theme.options["tickSize"] = tickSize
     alt.theme.options["tickWidth"] = axisWidth
-    alt.theme.options["topAndRightBorder"] = topAndRightBorder
+    alt.theme.options["border"] = border
     alt.theme.options["transparentBackground"] = transparentBackground
     alt.theme.options["verticalY"] = verticalY
     alt.theme.options["viewBackgroundColor"] = viewBackgroundColor
@@ -131,7 +131,7 @@ def custom():
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
                 "offset": 0
-                if opts["topAndRightBorder"]
+                if opts["border"]
                 else (
                     opts["axisOffset"]
                     if opts["axisOffset"] is not None
@@ -359,7 +359,7 @@ def custom():
                 ),
                 "stroke": "white" if opts["darkmode"] else "black",
                 "strokeOpacity": (
-                    1 if opts["topAndRightBorder"] else 0
+                    1 if opts["border"] else 0
                 ),  # remove top and right axis borders
                 "strokeWidth": opts["axisWidth"],
             },
