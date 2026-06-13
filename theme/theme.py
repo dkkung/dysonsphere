@@ -208,10 +208,10 @@ def custom():
                 },
             },
             "circle": {
-                "fill": opts["markFillColor"],
+                "fill": "white",
                 "fillOpacity": opts["markFillOpacity"],
                 "size": opts["markSize"],
-                "stroke": opts["markStrokeColor"],
+                "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
             },
