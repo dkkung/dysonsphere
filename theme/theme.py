@@ -41,7 +41,7 @@ def options(
     markSize=None,  # defaults to min(chartWidth, chartHeight) * 0.1 if not set (10 for 100×100)
     markStroke="black",
     markStrokeOpacity=1,
-    markStrokeWidth=0.50,
+    markStrokeWidth=None,  # defaults to axisWidth if not set
     palette=None,
     strokeCap="round",  # "butt" | "round" | "square"
     ticks=True,
@@ -61,6 +61,8 @@ def options(
         closed = viewFill is not None  # auto-close when a view fill color is specified
     if markSize is None:
         markSize = min(chartWidth, chartHeight) * 0.1
+    if markStrokeWidth is None:
+        markStrokeWidth = axisWidth
 
     alt.theme.options = {}  # must reset options to remove stale keys
     alt.theme.options["angledX"] = angledX
@@ -383,14 +385,3 @@ def custom():
             },
         },
     }
-
-
-"""
-TO-DO LIST:
-- Try to add default paddingOutter and paddingInner values for all types of charts/marks.
-- Add support for area marks.
-    - Add support for gradients - linear and maybe radial.
-- Figure out why opacity decreases (or does color change?) for area marks when line = True.
-- Figure out why the Y axis and X axis have dissimilar domain widths on large plots.
-- Maybe change legend scale size?
-"""
