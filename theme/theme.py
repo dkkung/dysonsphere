@@ -1,4 +1,5 @@
 import altair as alt
+
 from .palettes import colors
 
 """
@@ -37,7 +38,7 @@ def options(
     markFillOpacity=1.0,
     markMedianFill="white",
     markMedianStroke="black",
-    markSize=None,  # defaults to min(chartWidth, chartHeight) * 0.1 if not set (10 for a default 100x100 px^2 chart)
+    markSize=None,  # defaults to min(chartWidth, chartHeight) * 0.1 if not set (10 for 100×100)
     markStroke="black",
     markStrokeOpacity=1,
     markStrokeWidth=0.50,
@@ -80,9 +81,7 @@ def options(
     alt.theme.options["grid"] = grid
     alt.theme.options["gridColor"] = gridColor
     alt.theme.options["legend"] = legend
-    alt.theme.options["legendOffset"] = (
-        legendOffset  # falls back to tickSize in custom()
-    )
+    alt.theme.options["legendOffset"] = legendOffset  # falls back to tickSize in custom()
     alt.theme.options["legendStroke"] = legendStroke
     alt.theme.options["markFill"] = markFill
     alt.theme.options["markFillOpacity"] = markFillOpacity
@@ -112,9 +111,7 @@ def custom():
     opts = alt.theme.options
     return {
         "background": (
-            None
-            if opts["transparentBackground"] or opts["darkmode"]
-            else opts["chartFill"]
+            None if opts["transparentBackground"] or opts["darkmode"] else opts["chartFill"]
         ),  # background of the entire view
         "config": {
             "area": {
@@ -131,9 +128,7 @@ def custom():
                 "domainWidth": opts["axisWidth"],
                 "grid": opts["grid"],
                 "gridCap": opts["strokeCap"],
-                "gridColor": (
-                    opts["gridColor"] if opts["darkmode"] else opts["gridColor"]
-                ),
+                "gridColor": (opts["gridColor"] if opts["darkmode"] else opts["gridColor"]),
                 "gridOpacity": 0.25,
                 "gridWidth": opts["axisWidth"],
                 "labelColor": "white" if opts["darkmode"] else "black",
@@ -143,11 +138,7 @@ def custom():
                 "labelFontWeight": opts["fontWeight"],
                 "offset": 0
                 if opts["closed"]
-                else (
-                    opts["axisOffset"]
-                    if opts["axisOffset"] is not None
-                    else opts["tickSize"]
-                ),
+                else (opts["axisOffset"] if opts["axisOffset"] is not None else opts["tickSize"]),
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
                 "tickColor": "white" if opts["darkmode"] else "black",
@@ -165,9 +156,9 @@ def custom():
                 ),  # keep label alignment distinct between X & Y
                 "labelAngle": 315 if opts["angledX"] else 0,
                 "ticks": True if opts["xTicks"] and opts["ticks"] else False,
-                "translate": 0
-                if opts["closed"]
-                else 0.5,  # sub-pixel shift so axis domain line falls on a pixel boundary; 0 when closed=True so domain line aligns with view stroke
+                # sub-pixel shift so axis domain line falls on a pixel boundary;
+                # 0 when closed=True so domain line aligns with view stroke
+                "translate": 0 if opts["closed"] else 0.5,
             },
             "axisY": {
                 "labelAlign": (
@@ -304,7 +295,7 @@ def custom():
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "range": {
-                # pass in a list outside of a dict to AVOID interpolations; define as {scheme: _} to USE interpolation, which will NOT use the maximum range of colors
+                # pass in a list to AVOID interpolation; use {scheme: _} to USE interpolation
                 "category": {
                     "scheme": opts["palette"]
                     if opts.get("palette") is not None
@@ -330,7 +321,7 @@ def custom():
                     if opts.get("palette") is not None
                     else colors["mpl_RdPu"]
                 },
-                # "symbol": ["circle", "square", "diamond", "triangle-up", "triangle-down", "cross"],
+                # "symbol": ["circle", "square", "diamond", "triangle-up", "triangle-down", "cross"],  # noqa: E501
                 # "strokeDash": [[1, 0], [4, 2], [2, 2], [4, 2, 1, 2], [1, 2]],
             },
             "rule": {
@@ -344,7 +335,7 @@ def custom():
             "scale": {
                 "bandPaddingInner": opts["bandPadding"],
                 "bandPaddingOuter": opts["bandPadding"],
-                "round": False,  # keeps band positions as floats so axis ticks align with mark centers
+                "round": False,  # floats keep band positions precise so ticks align with marks
             },
             "rect": {
                 "fill": opts["markFill"],
@@ -385,13 +376,9 @@ def custom():
                 "discreteWidth": opts["chartWidth"],
                 "discreteHeight": opts["chartHeight"],
                 "fill": (
-                    None
-                    if opts["transparentBackground"] or opts["darkmode"]
-                    else opts["viewFill"]
+                    None if opts["transparentBackground"] or opts["darkmode"] else opts["viewFill"]
                 ),
-                "stroke": ("white" if opts["darkmode"] else "black")
-                if opts["closed"]
-                else None,
+                "stroke": ("white" if opts["darkmode"] else "black") if opts["closed"] else None,
                 "strokeWidth": opts["axisWidth"],
             },
         },

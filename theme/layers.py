@@ -1,8 +1,8 @@
+import altair as alt
 import numpy as np
 import polars as pl
-import altair as alt
 
-from .transforms import add_jitter_offsets, add_beeswarm_offsets
+from .transforms import add_beeswarm_offsets, add_jitter_offsets
 
 
 def mark_violin(
@@ -88,8 +88,6 @@ def mark_violin(
     step = chart_width / (len(categories) + 2 * band_padding)
     band_center = step * (0.5 - band_padding)
 
-    n_groups = len(categories)
-
     violin_rows = []
     for group in categories:
         vals = df.filter(pl.col(x_col) == group)[y_col].to_numpy()
@@ -138,7 +136,13 @@ def mark_violin(
         .mark_line(**mark_kwargs)
         .encode(
             x=alt.X("__group:N", sort=categories, title=x_col, axis=x_axis),
-            xOffset=alt.XOffset("__violin_px:Q", scale=alt.Scale(domain=[-1, 1], range=[band_center - mark_size * 0.75, band_center + mark_size * 0.75])),
+            xOffset=alt.XOffset(
+                "__violin_px:Q",
+                scale=alt.Scale(
+                    domain=[-1, 1],
+                    range=[band_center - mark_size * 0.75, band_center + mark_size * 0.75],
+                ),
+            ),
             y=alt.Y("__y:Q", title=y_col),
             order=alt.Order("__order:Q"),
             color=alt.Color(
@@ -147,11 +151,7 @@ def mark_violin(
                 title=x_col if legend else None,
                 legend=alt.Legend() if legend else None,
                 **(
-                    {
-                        "scale": alt.Scale(
-                            range=palette if isinstance(palette, list) else [palette]
-                        )
-                    }
+                    {"scale": alt.Scale(range=palette if isinstance(palette, list) else [palette])}
                     if palette is not None
                     else {}
                 ),
@@ -297,19 +297,13 @@ def mark_strip(
         return alt.layer(points, median)
 
     if errorbar_extent == "sem":
-        error_expr = (pl.col(y_col).std() / pl.col(y_col).count().sqrt()).alias(
-            "__error"
-        )
+        error_expr = (pl.col(y_col).std() / pl.col(y_col).count().sqrt()).alias("__error")
     elif errorbar_extent == "sd":
         error_expr = pl.col(y_col).std().alias("__error")
     else:
-        raise ValueError(
-            f"errorbar_extent must be 'sem' or 'sd', got {errorbar_extent!r}"
-        )
+        raise ValueError(f"errorbar_extent must be 'sem' or 'sd', got {errorbar_extent!r}")
 
-    summary = df.group_by(x_col).agg(
-        [pl.col(y_col).median().alias("__median"), error_expr]
-    )
+    summary = df.group_by(x_col).agg([pl.col(y_col).median().alias("__median"), error_expr])
 
     errorbar_layer = (
         alt.Chart(summary)
@@ -546,28 +540,18 @@ def pvalue_layer(
     # --- p-value ---
     if pvalue is None:
         if df is None or x_col is None or y_col is None:
-            raise ValueError(
-                "df, x_col, and y_col are required when pvalue is not provided."
-            )
+            raise ValueError("df, x_col, and y_col are required when pvalue is not provided.")
 
         if test == "tukey_hsd":
-            _cats = (
-                categories
-                if categories is not None
-                else sorted(df[x_col].unique().to_list())
-            )
-            all_groups = [
-                df.filter(pl.col(x_col) == cat)[y_col].to_numpy() for cat in _cats
-            ]
+            _cats = categories if categories is not None else sorted(df[x_col].unique().to_list())
+            all_groups = [df.filter(pl.col(x_col) == cat)[y_col].to_numpy() for cat in _cats]
             result = _stats.tukey_hsd(*all_groups)
             pvalue = float(result.pvalue[_cats.index(group1)][_cats.index(group2)])
         else:
             a = df.filter(pl.col(x_col) == group1)[y_col].to_numpy()
             b = df.filter(pl.col(x_col) == group2)[y_col].to_numpy()
             _tests = {
-                "mannwhitneyu": lambda: (
-                    _stats.mannwhitneyu(a, b, alternative="two-sided").pvalue
-                ),
+                "mannwhitneyu": lambda: _stats.mannwhitneyu(a, b, alternative="two-sided").pvalue,
                 "ttest_ind": lambda: _stats.ttest_ind(a, b).pvalue,
                 "ttest_rel": lambda: _stats.ttest_rel(a, b).pvalue,
                 "wilcoxon": lambda: _stats.wilcoxon(a, b).pvalue,
@@ -587,9 +571,7 @@ def pvalue_layer(
     # --- y position ---
     if y is None:
         if df is None or x_col is None or y_col is None:
-            raise ValueError(
-                "y is required when df, x_col, and y_col are not provided."
-            )
+            raise ValueError("y is required when df, x_col, and y_col are not provided.")
         y = float(df.filter(pl.col(x_col).is_in([group1, group2]))[y_col].max()) + y_pad
 
     # --- resolve theme-linked defaults ---
@@ -603,9 +585,7 @@ def pvalue_layer(
     # --- categories and text x position ---
     if categories is None:
         if df is None or x_col is None:
-            raise ValueError(
-                "categories is required when df and x_col are not provided."
-            )
+            raise ValueError("categories is required when df and x_col are not provided.")
         categories = sorted(df[x_col].unique().to_list())
 
     band_w = chartWidth / len(categories)

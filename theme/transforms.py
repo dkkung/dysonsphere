@@ -1,6 +1,6 @@
+import altair as alt
 import numpy as np
 import polars as pl
-import altair as alt
 
 
 def beeswarm_offsets(
@@ -88,9 +88,7 @@ def beeswarm_offsets(
             for cx in [0.0] if k == 0 else [k * step, -k * step]:
                 ny = placed_y[:n_placed][nearby]
                 nx = placed_x[:n_placed][nearby]
-                if len(ny) == 0 or np.all(
-                    (ny - y) ** 2 + (nx - cx) ** 2 >= min_dist_sq
-                ):
+                if len(ny) == 0 or np.all((ny - y) ** 2 + (nx - cx) ** 2 >= min_dist_sq):
                     placed_y[n_placed] = y
                     placed_x[n_placed] = cx
                     n_placed += 1
@@ -225,6 +223,4 @@ def add_jitter_offsets(
         )
     """
     rng = np.random.default_rng(seed)
-    return df.with_columns(
-        pl.Series(out_col, rng.normal(0, scale, len(df)))
-    )
+    return df.with_columns(pl.Series(out_col, rng.normal(0, scale, len(df))))
