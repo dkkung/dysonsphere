@@ -33,10 +33,10 @@ def options(
     legend=True,
     legendOffset=None,  # defaults to tickSize if not set
     legendStroke=False,
-    markFillColor="black",
+    markFill="black",
     markFillOpacity=1.0,
     markSize=10,
-    markStrokeColor="black",
+    markStroke="black",
     markStrokeOpacity=1,
     markStrokeWidth=0.50,
     palette=None,
@@ -79,10 +79,10 @@ def options(
         legendOffset  # falls back to tickSize in custom()
     )
     alt.theme.options["legendStroke"] = legendStroke
-    alt.theme.options["markFillColor"] = markFillColor
+    alt.theme.options["markFill"] = markFill
     alt.theme.options["markFillOpacity"] = markFillOpacity
     alt.theme.options["markSize"] = markSize
-    alt.theme.options["markStrokeColor"] = markStrokeColor
+    alt.theme.options["markStroke"] = markStroke
     alt.theme.options["markStrokeOpacity"] = markStrokeOpacity
     alt.theme.options["markStrokeWidth"] = markStrokeWidth
     alt.theme.options["palette"] = (
@@ -110,9 +110,9 @@ def custom():
         ),  # background of the entire view
         "config": {
             "area": {
-                "fill": opts["markFillColor"],
+                "fill": opts["markFill"],
                 "fillOpacity": opts["markFillOpacity"],
-                "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                "stroke": "white" if opts["darkmode"] else opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
             },
@@ -170,9 +170,9 @@ def custom():
                 "translate": 0,
             },
             "bar": {
-                "fill": opts["markFillColor"],
+                "fill": opts["markFill"],
                 "fillOpacity": opts["markFillOpacity"],
-                "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                "stroke": "white" if opts["darkmode"] else opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
             },
@@ -183,9 +183,9 @@ def custom():
                     "thickness": opts["markStrokeWidth"],
                 },
                 "box": {
-                    # 'fill': opts['markFillColor'],
+                    # 'fill': opts['markFill'],
                     "fillOpacity": opts["markFillOpacity"],
-                    "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                    "stroke": "white" if opts["darkmode"] else opts["markStroke"],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
                 },
@@ -193,7 +193,7 @@ def custom():
                     "fill": ("black" if opts["darkmode"] else opts["viewFill"]),
                     "fillOpacity": opts["markFillOpacity"],
                     "size": opts["markSize"],
-                    "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                    "stroke": "white" if opts["darkmode"] else opts["markStroke"],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
                 },
@@ -201,7 +201,7 @@ def custom():
                     "fill": "white" if opts["darkmode"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
                     "size": opts["markSize"],
-                    "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                    "stroke": "white" if opts["darkmode"] else opts["markStroke"],
                     "strokeDash": [0, 0],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
@@ -211,7 +211,7 @@ def custom():
                     "fill": "white" if opts["darkmode"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
                     "size": 0,
-                    "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                    "stroke": "white" if opts["darkmode"] else opts["markStroke"],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
                 },
@@ -220,7 +220,7 @@ def custom():
                 "fill": "white",
                 "fillOpacity": opts["markFillOpacity"],
                 "size": opts["markSize"],
-                "stroke": "black" if opts["darkmode"] else opts["markStrokeColor"],
+                "stroke": "black" if opts["darkmode"] else opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
             },
@@ -276,10 +276,10 @@ def custom():
             },
             "point": {
                 "filled": True,
-                "fill": opts["markFillColor"],
+                "fill": opts["markFill"],
                 "fillOpacity": opts["markFillOpacity"],
                 "size": opts["markSize"],
-                "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                "stroke": opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
             },
@@ -326,17 +326,17 @@ def custom():
                 "round": False,  # keeps band positions as floats so axis ticks align with mark centers
             },
             "rect": {
-                "fill": opts["markFillColor"],
+                "fill": opts["markFill"],
                 "fillOpacity": opts["markFillOpacity"],
-                "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                "stroke": "white" if opts["darkmode"] else opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "square": {
-                "fill": opts["markFillColor"],
+                "fill": opts["markFill"],
                 "fillOpacity": opts["markFillOpacity"],
                 "size": opts["markSize"],
-                "stroke": opts["markStrokeColor"],
+                "stroke": opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
             },
