@@ -106,6 +106,7 @@ def mark_violin(
         "filled": True,
         "strokeWidth": strokeWidth,
         "fillOpacity": fillOpacity,
+        "strokeOpacity": 0 if stroke is None else 1,
     }
     if stroke is not None:
         mark_kwargs["stroke"] = stroke
@@ -134,7 +135,12 @@ def mark_violin(
 
     boxplot = (
         alt.Chart(df)
-        .mark_boxplot(color=boxplot_color, size=boxplot_size, ticks=False)
+        .mark_boxplot(
+            color=boxplot_color,
+            size=boxplot_size,
+            ticks=False,
+            rule={"stroke": boxplot_color},
+        )
         .encode(
             x=alt.X(f"{x_col}:N", sort=categories),
             y=alt.Y(f"{y_col}:Q", title=y_col),
@@ -271,19 +277,9 @@ def mark_strip(
 
     summary = df.group_by(x_col).agg([pl.col(y_col).median().alias("__median"), error_expr])
 
-    stroke_width = alt.theme.options.get("markStrokeWidth", 0.5)
-    mark_size = alt.theme.options.get("markSize", 10)
-    stroke_color = "white" if alt.theme.options.get("darkmode", False) else "black"
-
     errorbar_layer = (
         alt.Chart(summary)
-        .mark_errorbar(
-            thickness=stroke_width,
-            color=stroke_color,
-            opacity=1,
-            rule={"strokeDash": [0, 0]},
-            ticks={"size": mark_size, "strokeWidth": stroke_width, "opacity": 1},
-        )
+        .mark_errorbar()
         .encode(
             x=x,
             y=alt.Y("__median:Q", title=y_col),
@@ -343,9 +339,66 @@ def save(
         for mode, suffix in [(False, "_light"), (True, "_dark")]:
             alt.theme.options["darkmode"] = mode
             chart.save(str(base.parent / f"{base.name}{suffix}.png"), ppi=ppi)
-            chart.save(str(base.parent / f"{base.name}{suffix}.svg"))
+            svg_path = str(base.parent / f"{base.name}{suffix}.svg")
+            chart.save(svg_path)
+            _simplify_svg(svg_path)
     finally:
         alt.theme.options["darkmode"] = original_darkmode
+
+
+def _simplify_svg(path: str) -> None:
+    """
+    Reduce SVG grouping depth by inlining structurally redundant ``<g>`` elements.
+
+    Altair/Vega generates deeply nested ``<g>`` wrappers for its internal mark
+    grouping system (e.g. ``role-frame``, ``role-mark``, ``mark-symbol``). These
+    groups carry only a ``class`` attribute and have no effect on visual output,
+    but they require extra double-clicks to navigate in Adobe Illustrator and
+    other SVG editors.
+
+    This function removes those wrappers by inlining their children directly into
+    the parent element. Groups that carry any of the following attributes are
+    preserved because they affect rendering or layout: ``transform``,
+    ``clip-path``, ``opacity``, ``mask``, ``filter``, ``style``, ``id``.
+    Definition blocks (``<defs>``, ``<clipPath>``, ``<symbol>``) are left
+    entirely untouched.
+
+    The result is a flatter, editor-friendly SVG that renders identically to the
+    original.
+    """
+    import xml.etree.ElementTree as ET
+
+    NS = "http://www.w3.org/2000/svg"
+    ET.register_namespace("", NS)
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+
+    # Groups with any of these attributes affect rendering or layout — keep them
+    KEEP_ATTRS = {"transform", "clip-path", "opacity", "mask", "filter", "style", "id"}
+    # Don't recurse into definition blocks
+    SKIP_TAGS = {f"{{{NS}}}defs", f"{{{NS}}}clipPath", f"{{{NS}}}symbol"}
+
+    def _flatten(parent):
+        if parent.tag in SKIP_TAGS:
+            return
+        i = 0
+        while i < len(parent):
+            child = parent[i]
+            _flatten(child)
+            if child.tag == f"{{{NS}}}g" and not (set(child.attrib) & KEEP_ATTRS):
+                grandchildren = list(child)
+                parent.remove(child)
+                for j, gc in enumerate(grandchildren):
+                    parent.insert(i + j, gc)
+                if not grandchildren:
+                    i += 1
+            else:
+                i += 1
+
+    tree = ET.parse(path)
+    _flatten(tree.getroot())
+    with open(path, "w", encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="utf-8"?>\n')
+        f.write(ET.tostring(tree.getroot(), encoding="unicode"))
 
 
 def _format_pvalue(p: float, decimals: int = 3) -> str:
