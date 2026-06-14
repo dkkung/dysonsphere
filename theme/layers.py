@@ -15,6 +15,7 @@ def mark_violin(
     fillOpacity: float | None = None,
     stroke: str | None = None,
     strokeWidth: float | None = None,
+    labelAngle: int = -45,
     steps: int = 200,
 ) -> alt.LayerChart:
     """
@@ -76,42 +77,33 @@ def mark_violin(
     if strokeWidth is None:
         strokeWidth = alt.theme.options.get("markStrokeWidth", 0.5)
 
-    chartWidth = alt.theme.options.get("chartWidth", 150)
     n_groups = len(categories)
-    density_scale = 1.5 * boxplot_size * n_groups / chartWidth
-
-    group_idx = {g: i for i, g in enumerate(categories)}
 
     violin_rows = []
     for group in categories:
-        i = group_idx[group]
         vals = df.filter(pl.col(x_col) == group)[y_col].to_numpy()
         y_grid = np.linspace(float(vals.min()) - 1, float(vals.max()) + 1, steps)
         kde = gaussian_kde(vals)
         density = kde(y_grid)
-        density_norm = density / density.max() * density_scale
+        density_norm = density / density.max()
 
         for order, (y, d) in enumerate(zip(y_grid, density_norm)):
-            violin_rows.append({"__group": group, "__y": float(y), "__x": float(i) + d, "__order": order})
+            violin_rows.append({"__group": group, "__y": float(y), "__violin_px": float(d), "__order": order})
         for order, (y, d) in enumerate(zip(reversed(y_grid), reversed(density_norm))):
-            violin_rows.append({"__group": group, "__y": float(y), "__x": float(i) - d, "__order": steps + order})
+            violin_rows.append({"__group": group, "__y": float(y), "__violin_px": float(-d), "__order": steps + order})
 
     violin_df = pl.DataFrame(violin_rows)
 
-    df_pos = df.with_columns(
-        pl.col(x_col).replace(group_idx).cast(pl.Float64).alias("__x_pos")
-    )
-
-    x_domain = [-0.6, n_groups - 0.4]
-    label_expr = "[" + ", ".join(f"'{g}'" for g in categories) + "][round(datum.value)]"
     x_axis = alt.Axis(
-        values=list(range(n_groups)),
-        labelExpr=label_expr,
-        labelAngle=-45,
-        labelAlign="right",
+        labelAngle=labelAngle,
+        labelAlign="center" if labelAngle == 0 else "right",
     )
 
-    mark_kwargs = {"filled": True, "strokeWidth": strokeWidth, "fillOpacity": fillOpacity}
+    mark_kwargs = {
+        "filled": True,
+        "strokeWidth": strokeWidth,
+        "fillOpacity": fillOpacity,
+    }
     if stroke is not None:
         mark_kwargs["stroke"] = stroke
 
@@ -119,23 +111,28 @@ def mark_violin(
         alt.Chart(violin_df)
         .mark_line(**mark_kwargs)
         .encode(
+            x=alt.X("__group:N", sort=categories, title=x_col, axis=x_axis),
+            xOffset=alt.XOffset("__violin_px:Q"),
             y=alt.Y("__y:Q", title=y_col),
-            x=alt.X("__x:Q", title=x_col, scale=alt.Scale(domain=x_domain), axis=x_axis),
             order=alt.Order("__order:Q"),
             color=alt.Color(
                 "__group:N",
                 sort=categories,
                 legend=None,
-                **({"scale": alt.Scale(range=[violin_color])} if violin_color is not None else {}),
+                **(
+                    {"scale": alt.Scale(range=[violin_color])}
+                    if violin_color is not None
+                    else {}
+                ),
             ),
         )
     )
 
     boxplot = (
-        alt.Chart(df_pos)
+        alt.Chart(df)
         .mark_boxplot(color=boxplot_color, size=boxplot_size, ticks=False)
         .encode(
-            x=alt.X("__x_pos:Q", scale=alt.Scale(domain=x_domain)),
+            x=alt.X(f"{x_col}:N", sort=categories),
             y=alt.Y(f"{y_col}:Q", title=y_col),
         )
     )
@@ -183,9 +180,7 @@ def save(
     from pathlib import Path
 
     if not alt.theme.options:
-        raise RuntimeError(
-            "theme.options() must be called before theme.save()."
-        )
+        raise RuntimeError("theme.options() must be called before theme.save().")
 
     base = Path(filename)
     original_darkmode = alt.theme.options.get("darkmode", False)
