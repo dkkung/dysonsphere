@@ -79,6 +79,14 @@ def mark_violin(
         fillOpacity = alt.theme.options.get("markFillOpacity", 1.0)
     if strokeWidth is None:
         strokeWidth = alt.theme.options.get("markStrokeWidth", 0.5)
+    mark_size = alt.theme.options.get("markSize", 10)
+    band_padding = alt.theme.options.get("bandPadding", 0.1)
+    chart_width = alt.theme.options.get("chartWidth", 100)
+    # When xOffset is present, Vega-Lite sets paddingInner=0 on the outer band scale
+    # so step = W / (n + 2*paddingOuter) rather than W / (n + paddingInner).
+    # band_center is the xOffset value that places the violin over the boxplot center.
+    step = chart_width / (len(categories) + 2 * band_padding)
+    band_center = step * (0.5 - band_padding)
 
     n_groups = len(categories)
 
@@ -130,7 +138,7 @@ def mark_violin(
         .mark_line(**mark_kwargs)
         .encode(
             x=alt.X("__group:N", sort=categories, title=x_col, axis=x_axis),
-            xOffset=alt.XOffset("__violin_px:Q"),
+            xOffset=alt.XOffset("__violin_px:Q", scale=alt.Scale(domain=[-1, 1], range=[band_center - mark_size * 0.75, band_center + mark_size * 0.75])),
             y=alt.Y("__y:Q", title=y_col),
             order=alt.Order("__order:Q"),
             color=alt.Color(
