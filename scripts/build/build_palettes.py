@@ -61,30 +61,35 @@ import math
 
 # ── Build parameters ─────────────────────────────────────────────────────
 
-N_OUT_SEQ = 12          # stops per sequential palette
-N_OUT_DIVERG = 13       # stops per diverging palette (odd → white pivot)
-N_DENSE = 4000          # dense path resolution before arc-length resampling
+N_OUT_SEQ = 12  # stops per sequential palette
+N_OUT_DIVERG = 13  # stops per diverging palette (odd → white pivot)
+N_DENSE = 4000  # dense path resolution before arc-length resampling
 
 # Default chroma fractions (of gamut max at each L)
-SEQ_FRAC = 0.65         # sequential single-hue and multi-hue
-DIVERG_FRAC = 0.85      # diverging base palettes
-DIVERG_SAT_FRAC = 1.0   # *_sat diverging variants
+SEQ_FRAC = 0.65  # sequential single-hue and multi-hue
+DIVERG_FRAC = 0.85  # diverging base palettes
+DIVERG_SAT_FRAC = 1.0  # *_sat diverging variants
 
 
 # ── sRGB ↔ linear ───────────────────────────────────────────────────────
 
+
 def _lin(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
 
 def _gamma(c):
     return 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
 
+
 def _clamp(v):
     return max(0.0, min(1.0, v))
+
 
 def _hex_rgb(hx):
     h = hx.lstrip("#")
     return [int(h[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+
 
 def _rgb_hex(r, g, b):
     return "#{:02X}{:02X}{:02X}".format(
@@ -96,6 +101,7 @@ def _rgb_hex(r, g, b):
 
 # ── CIELAB (D65) ─────────────────────────────────────────────────────────
 
+
 def hex_to_lab(hx):
     r, g, b = [_lin(c) for c in _hex_rgb(hx)]
     X = 0.4124564 * r + 0.3575761 * g + 0.1804375 * b
@@ -103,8 +109,10 @@ def hex_to_lab(hx):
     Z = 0.0193339 * r + 0.1191920 * g + 0.9503041 * b
     Xn, Yn, Zn = 0.95047, 1.0, 1.08883
     d = 6 / 29
+
     def f(t):
-        return t ** (1 / 3) if t > d ** 3 else t / (3 * d * d) + 4 / 29
+        return t ** (1 / 3) if t > d**3 else t / (3 * d * d) + 4 / 29
+
     fx, fy, fz = f(X / Xn), f(Y / Yn), f(Z / Zn)
     return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
 
@@ -114,13 +122,19 @@ def lab_to_rgb(L, a, b):
     fx = fy + a / 500
     fz = fy - b / 200
     d = 6 / 29
+
     def finv(t):
-        return t ** 3 if t > d else 3 * d * d * (t - 4 / 29)
+        return t**3 if t > d else 3 * d * d * (t - 4 / 29)
+
     Xn, Yn, Zn = 0.95047, 1.0, 1.08883
-    X = Xn * finv(fx); Y = Yn * finv(fy); Z = Zn * finv(fz)
-    return ( 3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z,
-            -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z,
-             0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z)
+    X = Xn * finv(fx)
+    Y = Yn * finv(fy)
+    Z = Zn * finv(fz)
+    return (
+        3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z,
+        -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z,
+        0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z,
+    )
 
 
 def lab_to_hex(L, a, b):
@@ -145,25 +159,30 @@ def max_chroma_lab(L, h_rad):
 
 # ── Oklab (Ottosson 2020) ────────────────────────────────────────────────
 
+
 def hex_to_oklab(hx):
     r, g, b = [_lin(c) for c in _hex_rgb(hx)]
     l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
     m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
     s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
     l_, m_, s_ = l ** (1 / 3), m ** (1 / 3), s ** (1 / 3)
-    return ( 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
-             1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
-             0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_)
+    return (
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    )
 
 
 def oklab_to_rgb(L, a, b):
     l_ = L + 0.3963377774 * a + 0.2158037573 * b
     m_ = L - 0.1055613458 * a - 0.0638541728 * b
     s_ = L - 0.0894841775 * a - 1.2914855480 * b
-    l, m, s = l_ ** 3, m_ ** 3, s_ ** 3
-    return ( 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+    l, m, s = l_**3, m_**3, s_**3
+    return (
+        4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+    )
 
 
 def oklab_to_hex(L, a, b):
@@ -188,11 +207,12 @@ def max_chroma_oklab(L, h_rad):
 
 # ── Space-agnostic helpers ───────────────────────────────────────────────
 
+
 def _space(name):
     """Dispatch table for color space conversions."""
     return {
-        "oklab":  (hex_to_oklab, oklab_to_hex, max_chroma_oklab),
-        "cielab": (hex_to_lab,   lab_to_hex,   max_chroma_lab),
+        "oklab": (hex_to_oklab, oklab_to_hex, max_chroma_oklab),
+        "cielab": (hex_to_lab, lab_to_hex, max_chroma_lab),
     }[name]
 
 
@@ -219,11 +239,12 @@ def _arc_resample(Ld, ad, bd, n_out, to_hex):
     """Sample n_out stops at equal arc length along a dense (L, a, b) path."""
     arc = [0.0]
     for i in range(1, len(Ld)):
-        arc.append(arc[-1] + math.sqrt(
-            (Ld[i] - Ld[i - 1]) ** 2
-            + (ad[i] - ad[i - 1]) ** 2
-            + (bd[i] - bd[i - 1]) ** 2
-        ))
+        arc.append(
+            arc[-1]
+            + math.sqrt(
+                (Ld[i] - Ld[i - 1]) ** 2 + (ad[i] - ad[i - 1]) ** 2 + (bd[i] - bd[i - 1]) ** 2
+            )
+        )
     total = arc[-1]
     out, j = [], 0
     for k in range(n_out):
@@ -234,18 +255,20 @@ def _arc_resample(Ld, ad, bd, n_out, to_hex):
             out.append(to_hex(Ld[j], ad[j], bd[j]))
         else:
             ti = (target - arc[j - 1]) / (arc[j] - arc[j - 1])
-            out.append(to_hex(
-                Ld[j - 1] + ti * (Ld[j] - Ld[j - 1]),
-                ad[j - 1] + ti * (ad[j] - ad[j - 1]),
-                bd[j - 1] + ti * (bd[j] - bd[j - 1]),
-            ))
+            out.append(
+                to_hex(
+                    Ld[j - 1] + ti * (Ld[j] - Ld[j - 1]),
+                    ad[j - 1] + ti * (ad[j] - ad[j - 1]),
+                    bd[j - 1] + ti * (bd[j] - bd[j - 1]),
+                )
+            )
     return out
 
 
 # ── Recipe 1: sequential single-hue ──────────────────────────────────────
 
-def build_single_hue(hue_deg, L_lo, L_hi, *, space="oklab", frac=SEQ_FRAC,
-                     n=N_OUT_SEQ):
+
+def build_single_hue(hue_deg, L_lo, L_hi, *, space="oklab", frac=SEQ_FRAC, n=N_OUT_SEQ):
     """
     Fixed hue, L sweeping L_hi → L_lo, chroma at each L = frac × gamut_max.
     Equal arc-length resample to n stops.
@@ -268,6 +291,7 @@ def build_single_hue(hue_deg, L_lo, L_hi, *, space="oklab", frac=SEQ_FRAC,
 
 
 # ── Recipe 2: sequential multi-hue (keyframe path) ───────────────────────
+
 
 def build_multihue(keyframes, *, space="oklab", frac=SEQ_FRAC, n=N_OUT_SEQ):
     """
@@ -298,8 +322,16 @@ def build_multihue(keyframes, *, space="oklab", frac=SEQ_FRAC, n=N_OUT_SEQ):
 
 # ── Recipe 3: diverging (V-shape with white pivot) ───────────────────────
 
-def build_diverging(arm2_dark_hex, arm1_dark_hex, *, center_hex="#F6F6F6",
-                    space="oklab", frac=DIVERG_FRAC, n=N_OUT_DIVERG):
+
+def build_diverging(
+    arm2_dark_hex,
+    arm1_dark_hex,
+    *,
+    center_hex="#F6F6F6",
+    space="oklab",
+    frac=DIVERG_FRAC,
+    n=N_OUT_DIVERG,
+):
     """
     Two arms meeting at center_hex.  Each arm sampled at HALF stops along
     a chroma-decreasing V path; concatenated as
@@ -332,11 +364,12 @@ def build_diverging(arm2_dark_hex, arm1_dark_hex, *, center_hex="#F6F6F6",
         # (Pivot is inserted separately so it equals center_hex exactly.)
         arc = [0.0]
         for i in range(1, N_DENSE):
-            arc.append(arc[-1] + math.sqrt(
-                (Ld[i] - Ld[i - 1]) ** 2
-                + (ad[i] - ad[i - 1]) ** 2
-                + (bd[i] - bd[i - 1]) ** 2
-            ))
+            arc.append(
+                arc[-1]
+                + math.sqrt(
+                    (Ld[i] - Ld[i - 1]) ** 2 + (ad[i] - ad[i - 1]) ** 2 + (bd[i] - bd[i - 1]) ** 2
+                )
+            )
         total = arc[-1]
         out, j = [], 0
         for k in range(half):
@@ -347,11 +380,13 @@ def build_diverging(arm2_dark_hex, arm1_dark_hex, *, center_hex="#F6F6F6",
                 out.append(to_hex(Ld[j], ad[j], bd[j]))
             else:
                 ti = (target - arc[j - 1]) / (arc[j] - arc[j - 1])
-                out.append(to_hex(
-                    Ld[j - 1] + ti * (Ld[j] - Ld[j - 1]),
-                    ad[j - 1] + ti * (ad[j] - ad[j - 1]),
-                    bd[j - 1] + ti * (bd[j] - bd[j - 1]),
-                ))
+                out.append(
+                    to_hex(
+                        Ld[j - 1] + ti * (Ld[j] - Ld[j - 1]),
+                        ad[j - 1] + ti * (ad[j] - ad[j - 1]),
+                        bd[j - 1] + ti * (bd[j] - bd[j - 1]),
+                    )
+                )
         return out
 
     arm2 = build_arm(arm2_dark_hex, arm1_dark_hex)
@@ -361,16 +396,14 @@ def build_diverging(arm2_dark_hex, arm1_dark_hex, *, center_hex="#F6F6F6",
 
 # ── Recipe 4: chroma-scaling desaturation ────────────────────────────────
 
+
 def desaturate(hexes, scale, *, space="oklab"):
     """
     Preserve L; scale (a, b) by `scale` (< 1 to desaturate, > 1 to push
     further out of gamut → likely clipping).
     """
     hex_to, to_hex, _ = _space(space)
-    return [
-        to_hex(L, a * scale, b * scale)
-        for L, a, b in (hex_to(h) for h in hexes)
-    ]
+    return [to_hex(L, a * scale, b * scale) for L, a, b in (hex_to(h) for h in hexes)]
 
 
 # ── Palette specifications ──────────────────────────────────────────────
@@ -383,62 +416,98 @@ def desaturate(hexes, scale, *, space="oklab"):
 # L_lo varies by hue because some hues (yellow, cyan) lose their identity
 # in sRGB at very low L.
 SEQ_SINGLE_OKLAB = {
-    "blues":      (260, 0.22, 0.92),
-    "greens":     (140, 0.22, 0.92),
-    "purples":    (310, 0.22, 0.92),
-    "greys":      (0,   0.13, 0.94),  # any hue works at chroma=0
-    "reds":       (20,  0.22, 0.92),
-    "rose":       (350, 0.22, 0.92),
-    "yellows":    (110, 0.45, 0.92),
-    "cyans":      (200, 0.32, 0.92),
-    "magentas":   (330, 0.25, 0.92),
+    "blues": (260, 0.22, 0.92),
+    "greens": (140, 0.22, 0.92),
+    "purples": (310, 0.22, 0.92),
+    "greys": (0, 0.13, 0.94),  # any hue works at chroma=0
+    "reds": (20, 0.22, 0.92),
+    "rose": (350, 0.22, 0.92),
+    "yellows": (110, 0.45, 0.92),
+    "cyans": (200, 0.32, 0.92),
+    "magentas": (330, 0.25, 0.92),
     "byzantiums": (290, 0.22, 0.92),
-    "lavenders":  (285, 0.30, 0.95),
+    "lavenders": (285, 0.30, 0.95),
 }
 
 # Multi-hue Oklab keyframes.  Format: name → [(L, hue_deg), ...] light → dark.
 SEQ_MULTI_OKLAB = {
     # Warm-into-magenta sweep (ember stays in the warm/magenta arc).
     "ember": [
-        (0.93, 95), (0.78, 60), (0.62, 25), (0.46, 5),
-        (0.32, 340), (0.20, 320),
+        (0.93, 95),
+        (0.78, 60),
+        (0.62, 25),
+        (0.46, 5),
+        (0.32, 340),
+        (0.20, 320),
     ],
     # Warm cream → coral → magenta → indigo (deeper hue rotation than ember).
     "dusk": [
-        (0.93, 85), (0.78, 50), (0.62, 20), (0.46, 350),
-        (0.32, 305), (0.20, 270),
+        (0.93, 85),
+        (0.78, 50),
+        (0.62, 20),
+        (0.46, 350),
+        (0.32, 305),
+        (0.20, 270),
     ],
     # Cream → gold → green → forest.
     "moss": [
-        (0.93, 90), (0.78, 95), (0.62, 105), (0.46, 130),
-        (0.32, 145), (0.20, 150),
+        (0.93, 90),
+        (0.78, 95),
+        (0.62, 105),
+        (0.46, 130),
+        (0.32, 145),
+        (0.20, 150),
     ],
     # Yellow-green → green → blue (matplotlib analogue).
     "GnBu": [
-        (0.93, 110), (0.78, 130), (0.62, 160), (0.46, 195),
-        (0.32, 230), (0.20, 250),
+        (0.93, 110),
+        (0.78, 130),
+        (0.62, 160),
+        (0.46, 195),
+        (0.32, 230),
+        (0.20, 250),
     ],
     "YlGnBu": [
-        (0.93, 100), (0.78, 115), (0.62, 145), (0.46, 180),
-        (0.32, 220), (0.20, 250),
+        (0.93, 100),
+        (0.78, 115),
+        (0.62, 145),
+        (0.46, 180),
+        (0.32, 220),
+        (0.20, 250),
     ],
     # Cream-pink → magenta → purple.
     "candy": [
-        (0.93, 0), (0.78, 350), (0.62, 335), (0.46, 320),
-        (0.32, 295), (0.20, 275),
+        (0.93, 0),
+        (0.78, 350),
+        (0.62, 335),
+        (0.46, 320),
+        (0.32, 295),
+        (0.20, 275),
     ],
     # Vivid orange: light end slight yellow, dark end slight red.
     "oranges": [
-        (0.92, 95), (0.78, 80), (0.62, 65), (0.47, 50), (0.38, 40),
+        (0.92, 95),
+        (0.78, 80),
+        (0.62, 65),
+        (0.47, 50),
+        (0.38, 40),
     ],
     # Cool single-hue lagoon (deep navy → teal → mint).
     "lagoon": [
-        (0.93, 130), (0.82, 160), (0.62, 180), (0.42, 220), (0.20, 250),
+        (0.93, 130),
+        (0.82, 160),
+        (0.62, 180),
+        (0.42, 220),
+        (0.20, 250),
     ],
     # Showcase: purple-anchored cool sweep with uniform per-segment rotation.
     "bluestgrotto": [
-        (0.27, 285), (0.41, 260), (0.55, 230), (0.68, 200),
-        (0.80, 178), (0.93, 155),
+        (0.27, 285),
+        (0.41, 260),
+        (0.55, 230),
+        (0.68, 200),
+        (0.80, 178),
+        (0.93, 155),
     ],
 }
 
@@ -457,11 +526,12 @@ DIVERG_OKLAB = {
 
 # ── Main: build everything and print ─────────────────────────────────────
 
+
 def _print_palette(name, hexes):
     print(f'    "{name}": [')
     for h in hexes:
         print(f'        "{h}",')
-    print(f'    ],')
+    print(f"    ],")
 
 
 def main():
@@ -484,8 +554,8 @@ def main():
     print("\n# ─── Desaturation ladder example (bluestgrotto → bluergrotto → bluegrotto)")
     base = build_multihue(SEQ_MULTI_OKLAB["bluestgrotto"])
     _print_palette("bluestgrotto", base)
-    _print_palette("bluergrotto",  desaturate(base, 0.875))
-    _print_palette("bluegrotto",   desaturate(base, 0.75))
+    _print_palette("bluergrotto", desaturate(base, 0.875))
+    _print_palette("bluegrotto", desaturate(base, 0.75))
 
 
 if __name__ == "__main__":

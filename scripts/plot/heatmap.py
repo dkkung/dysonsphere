@@ -11,10 +11,12 @@ for cx, cy, s, n in [(2.5, 7.5, 0.6, 130), (7.5, 2.5, 0.7, 150), (5.0, 5.5, 1.0,
     xs.append(rng.normal(cx, s, n))
     ys.append(rng.normal(cy, s, n))
 
-df = pl.DataFrame({
-    "x": np.concatenate(xs).tolist(),
-    "y": np.concatenate(ys).tolist(),
-})
+df = pl.DataFrame(
+    {
+        "x": np.concatenate(xs).tolist(),
+        "y": np.concatenate(ys).tolist(),
+    }
+)
 
 palette = theme.palette_range("lagoon_4_oklab")
 

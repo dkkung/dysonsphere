@@ -65,7 +65,7 @@ GROUPS = [
             "greens",
             "purples",
             "lavenders",
-            "byzantiums",
+            "violets",
             "greys",
             "reds",
             "rose",
@@ -74,12 +74,18 @@ GROUPS = [
             "yellows",
             "cyans",
             "magentas",
+            "neongreens",
         ],
     ),
-    ("Sequential — Multi-hue analogs", ["ember", "dusk", "moss", "GnBu", "YlGnBu", "candy"]),
     (
-        "Sequential — Showcase multi-hue",
+        "Sequential — Multi-hue",
         [
+            "ember",
+            "dusk",
+            "moss",
+            "GnBu",
+            "YlGnBu",
+            "candy",
             "lagoon",
             "bluestlagoon",
             "bluestlagoon2",
@@ -99,17 +105,69 @@ GROUPS = [
         "Diverging",
         [
             "RdBu",
-            "RdBu_sat",
+            "RdYlBu",
             "PuGn",
-            "PuGn_sat",
-            "BrTe",
-            "BrTe_sat",
-            "GdBu",
-            "GdBu_sat",
             "MgGn",
-            "MgGn_sat",
-            "YlPu",
-            "YlPu_sat",
+            "PkTe",
+            "GdBu",
+            "BrTe",
+            "BrGn",
+        ],
+    ),
+    (
+        "Diverging — Sequential pairs",
+        [
+            "greensblues",
+            "redsblues",
+            "redsgreens",
+            "redscyans",
+            "redslavenders",
+            "redsviolets",
+            "redsneongreens",
+            "rosesblues",
+            "rosescyans",
+            "rosesgreens",
+            "rosesneongreens",
+            "orangesblues",
+            "orangescyans",
+            "orangespurples",
+            "orangeslavenders",
+            "orangesviolets",
+            "orangesneongreens",
+            "yellowsblues",
+            "yellowspurples",
+            "yellowslavenders",
+            "brownsblues",
+            "brownsgreens",
+            "brownscyans",
+            "brownsneongreens",
+            "magentasneongreens",
+            "magentasgreens",
+            "magentasblues",
+            "magentascyans",
+            "violetsoranges",
+            "violetsyellows",
+            "purplesgreens",
+            "purplesblues",
+            "purplesneongreens",
+            "lavendersgreens",
+            "lavendersblues",
+            "lavendersneongreens",
+            "cyanspurples",
+            "cyanslavenders",
+            "cyansviolets",
+            "greysblues",
+            "greysreds",
+            "greysgreens",
+            "greyscyans",
+            "greysyellows",
+            "greysoranges",
+            "greysmagentas",
+            "greysviolets",
+            "greysneongreens",
+            "greyspurples",
+            "greyslavender",
+            "greysrose",
         ],
     ),
 ]
@@ -133,10 +191,12 @@ _heat_xs, _heat_ys = [], []
 for _cx, _cy, _s, _n in [(2.5, 7.5, 0.6, 130), (7.5, 2.5, 0.7, 150), (5.0, 5.5, 1.0, 110)]:
     _heat_xs.append(_heat_rng.normal(_cx, _s, _n))
     _heat_ys.append(_heat_rng.normal(_cy, _s, _n))
-_heat_df = pl.DataFrame({
-    "x": np.concatenate(_heat_xs).tolist(),
-    "y": np.concatenate(_heat_ys).tolist(),
-})
+_heat_df = pl.DataFrame(
+    {
+        "x": np.concatenate(_heat_xs).tolist(),
+        "y": np.concatenate(_heat_ys).tolist(),
+    }
+)
 
 # Area chart: exact data from area_chart.py
 _AREA_GROUPS = ["Group A", "Group B", "Group C", "Group D"]
@@ -379,9 +439,7 @@ def _stacked_bar(key):
                 axis=alt.Axis(labelAngle=-45, labelAlign="right"),
             ),
             y=alt.Y("value:Q", title=None, stack="normalize", scale=alt.Scale(domain=[0, 1])),
-            color=alt.Color(
-                "type:N", sort=_SBAR_TYPES, title=None, scale=alt.Scale(range=palette)
-            ),
+            color=alt.Color("type:N", sort=_SBAR_TYPES, title=None, scale=alt.Scale(range=palette)),
         )
     )
 
@@ -568,6 +626,6 @@ if __name__ == "__main__":
 
     gallery = _build_gallery()
 
-    out = Path(__file__).parent.parent / "gallery" / "gallery.html"
+    out = Path(__file__).parent.parent.parent / "gallery.html"
     gallery.save(str(out))
     print(f"saved {out}")
