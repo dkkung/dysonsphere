@@ -366,6 +366,7 @@ def custom():
             "title": {
                 "color": "white" if opts["darkmode"] else "black",
                 "font": opts["font"],
+                "fontSize": opts["fontSize"],
                 "fontStyle": opts["fontStyle"],
                 "fontWeight": opts["fontWeight"],
                 "subtitleColor": "white" if opts["darkmode"] else "black",
