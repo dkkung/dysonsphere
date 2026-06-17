@@ -148,7 +148,7 @@ def mark_violin(
                 "__group:N",
                 sort=categories,
                 title=None,
-                legend=alt.Legend() if legend else None,
+                legend=alt.Legend(symbolType="circle") if legend else None,
                 **(
                     {"scale": alt.Scale(range=palette if isinstance(palette, list) else [palette])}
                     if palette is not None
