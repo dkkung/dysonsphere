@@ -18,7 +18,7 @@ for group in GROUPS:
 
 df = pl.DataFrame(rows)
 
-palette = theme.palette_range("blues_oklab", n=len(GROUPS))
+palette = theme.palette_range("bluergrotto", n=len(GROUPS))
 
 theme.options()
 

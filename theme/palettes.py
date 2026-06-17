@@ -290,6 +290,8 @@ colors = {
     # ── Showcase multi-hue sequential (Oklab, 65% gamut chroma, equal arc length) ─
     # Curated keyframe paths through Oklab designed to be perceptually uniform AND
     # aesthetically distinct from the mpl viridis/magma/plasma/inferno family.
+    # bluerlagoons: intermediate saturation (chroma scaled to 87.5% of bluestlagoon*).
+    # bluelagoons: desaturated companions (chroma scaled to 75% of bluestlagoon*).
     "lagoon": [
         "#081726",
         "#132936",
@@ -304,7 +306,7 @@ colors = {
         "#89F3BA",
         "#C1F7D2",
     ],
-    "bluestgrotto": [
+    "bluestlagoon": [
         "#11369E",
         "#20448A",
         "#2C558C",
@@ -318,7 +320,7 @@ colors = {
         "#7DE2C2",
         "#9BF2B7",
     ],
-    "bluestgrotto2": [
+    "bluestlagoon2": [
         "#11369E",
         "#214589",
         "#2E588D",
@@ -332,7 +334,7 @@ colors = {
         "#8FF3C3",
         "#C1F7D2",
     ],
-    "bluestgrotto3": [
+    "bluestlagoon3": [
         "#11369E",
         "#214589",
         "#2E588D",
@@ -346,7 +348,7 @@ colors = {
         "#8FF3C3",
         "#B0F99E",
     ],
-    "bluestgrotto4": [
+    "bluestlagoon4": [
         "#241A55",
         "#242879",
         "#11369E",
@@ -360,8 +362,7 @@ colors = {
         "#84F2C2",
         "#C1F7D2",
     ],
-    # Intermediate saturation (chroma scaled to 87.5% of bluestgrotto*)
-    "bluergrotto": [
+    "bluerlagoon": [
         "#183A93",
         "#264582",
         "#325585",
@@ -375,7 +376,7 @@ colors = {
         "#8ADFC3",
         "#A5EFBC",
     ],
-    "bluergrotto2": [
+    "bluerlagoon2": [
         "#183A93",
         "#274681",
         "#345886",
@@ -389,7 +390,7 @@ colors = {
         "#9BF0C6",
         "#C6F5D5",
     ],
-    "bluergrotto3": [
+    "bluerlagoon3": [
         "#183A93",
         "#274681",
         "#345886",
@@ -403,7 +404,7 @@ colors = {
         "#9BF0C6",
         "#B7F6A7",
     ],
-    "bluergrotto4": [
+    "bluerlagoon4": [
         "#241D4F",
         "#252B71",
         "#183A93",
@@ -417,8 +418,7 @@ colors = {
         "#92EFC5",
         "#C6F5D5",
     ],
-    # Desaturated companions (chroma scaled to 75% of bluestgrotto*)
-    "bluegrotto": [
+    "bluelagoon": [
         "#1F3D88",
         "#2B477A",
         "#38567F",
@@ -432,7 +432,7 @@ colors = {
         "#95DDC4",
         "#ADEDC0",
     ],
-    "bluegrotto2": [
+    "bluelagoon2": [
         "#1F3D88",
         "#2C4779",
         "#3A5980",
@@ -446,7 +446,7 @@ colors = {
         "#A6EDC9",
         "#CBF3D7",
     ],
-    "bluegrotto3": [
+    "bluelagoon3": [
         "#1F3D88",
         "#2C4779",
         "#3A5980",
@@ -460,7 +460,7 @@ colors = {
         "#A6EDC9",
         "#BEF4B0",
     ],
-    "bluegrotto4": [
+    "bluelagoon4": [
         "#241F4A",
         "#272E69",
         "#1F3D88",

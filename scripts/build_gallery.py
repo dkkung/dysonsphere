@@ -82,18 +82,18 @@ GROUPS = [
         "Sequential — Showcase multi-hue",
         [
             "lagoon",
-            "bluestgrotto",
-            "bluestgrotto2",
-            "bluestgrotto3",
-            "bluestgrotto4",
-            "bluergrotto",
-            "bluergrotto2",
-            "bluergrotto3",
-            "bluergrotto4",
-            "bluegrotto",
-            "bluegrotto2",
-            "bluegrotto3",
-            "bluegrotto4",
+            "bluestlagoon",
+            "bluestlagoon2",
+            "bluestlagoon3",
+            "bluestlagoon4",
+            "bluerlagoon",
+            "bluerlagoon2",
+            "bluerlagoon3",
+            "bluerlagoon4",
+            "bluelagoon",
+            "bluelagoon2",
+            "bluelagoon3",
+            "bluelagoon4",
         ],
     ),
     (
@@ -143,8 +143,7 @@ _area_rows = []
 for _t in np.linspace(0, 24, 100):
     for _grp, _base in zip(_AREA_GROUPS, _AREA_BASES):
         _area_rows.append(
-            {"time": float(_t), "group": _grp,
-             "value": max(0.0, _base + _area_rng.normal(0, 0.02))}
+            {"time": float(_t), "group": _grp, "value": max(0.0, _base + _area_rng.normal(0, 0.02))}
         )
 _area_df = pl.DataFrame(_area_rows)
 
@@ -153,21 +152,27 @@ _BOX_CATS = ["Group A", "Group B", "Group C", "Group D", "Group E"]
 _box_rng = np.random.default_rng(42)
 _box_raw = pl.DataFrame(
     {
-        "group": (["Group A"] * 200 + ["Group B"] * 200 + ["Group C"] * 200
-                  + ["Group D"] * 200 + ["Group E"] * 200),
+        "group": (
+            ["Group A"] * 200
+            + ["Group B"] * 200
+            + ["Group C"] * 200
+            + ["Group D"] * 200
+            + ["Group E"] * 200
+        ),
         "value": np.concatenate(
             [
                 _box_rng.normal(10, 2, 200),
                 _box_rng.normal(14, 2, 200),
                 _box_rng.normal(11, 2, 200),
                 _box_rng.normal(13, 2, 200),
-                _box_rng.normal(9,  2, 200),
+                _box_rng.normal(9, 2, 200),
             ]
         ),
     }
 )
-_box_df = add_beeswarm_offsets(_box_raw, y_col="value", group_by=["group"], step=10,
-                               height_px=W, markSize=5)
+_box_df = add_beeswarm_offsets(
+    _box_raw, y_col="value", group_by=["group"], step=10, height_px=W, markSize=5
+)
 
 # Line chart: 4 groups with slopes over 50 timepoints
 _LINE_GROUPS = ["Group A", "Group B", "Group C", "Group D"]
@@ -176,57 +181,90 @@ _line_slopes = {"Group A": 0.0, "Group B": 0.25, "Group C": 0.15, "Group D": -0.
 _line_rows = []
 for _grp in _LINE_GROUPS:
     for _t in np.linspace(0, 24, 50):
-        _line_rows.append({"group": _grp, "time": float(_t),
-                           "value": float(10 + _line_slopes[_grp] * _t + _line_rng.normal(0, 0.3))})
+        _line_rows.append(
+            {
+                "group": _grp,
+                "time": float(_t),
+                "value": float(10 + _line_slopes[_grp] * _t + _line_rng.normal(0, 0.3)),
+            }
+        )
 _line_df = pl.DataFrame(_line_rows)
 
 # Strip chart: 5 groups, 50 pts each
 _STRIP_CATS = ["Group A", "Group B", "Group C", "Group D", "Group E"]
 _strip_rng = np.random.default_rng(42)
-_strip_df = pl.DataFrame({
-    "group": (["Group A"] * 50 + ["Group B"] * 50 + ["Group C"] * 50
-              + ["Group D"] * 50 + ["Group E"] * 50),
-    "value": np.concatenate([
-        _strip_rng.normal(10, 2, 50), _strip_rng.normal(14, 2, 50),
-        _strip_rng.normal(11, 2, 50), _strip_rng.normal(13, 2, 50),
-        _strip_rng.normal(9,  2, 50),
-    ]).tolist(),
-})
+_strip_df = pl.DataFrame(
+    {
+        "group": (
+            ["Group A"] * 50
+            + ["Group B"] * 50
+            + ["Group C"] * 50
+            + ["Group D"] * 50
+            + ["Group E"] * 50
+        ),
+        "value": np.concatenate(
+            [
+                _strip_rng.normal(10, 2, 50),
+                _strip_rng.normal(14, 2, 50),
+                _strip_rng.normal(11, 2, 50),
+                _strip_rng.normal(13, 2, 50),
+                _strip_rng.normal(9, 2, 50),
+            ]
+        ).tolist(),
+    }
+)
 
 # Stacked bar: 5 groups, 2 types
 _SBAR_GROUPS = ["Group A", "Group B", "Group C", "Group D", "Group E"]
 _SBAR_TYPES = ["Type 1", "Type 2"]
 _sbar_rng = np.random.default_rng(42)
-_sbar_df = pl.DataFrame({
-    "group": ["Group A", "Group B", "Group C", "Group D", "Group E"] * 2,
-    "type": ["Type 1"] * 5 + ["Type 2"] * 5,
-    "value": _sbar_rng.integers(20, 80, 10).tolist(),
-})
+_sbar_df = pl.DataFrame(
+    {
+        "group": ["Group A", "Group B", "Group C", "Group D", "Group E"] * 2,
+        "type": ["Type 1"] * 5 + ["Type 2"] * 5,
+        "value": _sbar_rng.integers(20, 80, 10).tolist(),
+    }
+)
 
 # Violin: 5 groups (dropped 6th), 200 pts each
 _VIOLIN_CATS = ["Group A", "Group B", "Group C", "Group D", "Group E"]
 _violin_rng = np.random.default_rng(42)
-_violin_df = pl.DataFrame({
-    "group": (["Group A"] * 200 + ["Group B"] * 200 + ["Group C"] * 200
-              + ["Group D"] * 200 + ["Group E"] * 200),
-    "value": np.concatenate([
-        _violin_rng.normal(10, 2, 200), _violin_rng.normal(14, 2, 200),
-        _violin_rng.normal(11, 2, 200), _violin_rng.normal(13, 2, 200),
-        _violin_rng.normal(9,  2, 200),
-    ]).tolist(),
-})
+_violin_df = pl.DataFrame(
+    {
+        "group": (
+            ["Group A"] * 200
+            + ["Group B"] * 200
+            + ["Group C"] * 200
+            + ["Group D"] * 200
+            + ["Group E"] * 200
+        ),
+        "value": np.concatenate(
+            [
+                _violin_rng.normal(10, 2, 200),
+                _violin_rng.normal(14, 2, 200),
+                _violin_rng.normal(11, 2, 200),
+                _violin_rng.normal(13, 2, 200),
+                _violin_rng.normal(9, 2, 200),
+            ]
+        ).tolist(),
+    }
+)
 
 # Histogram: 3 groups, 150 pts each
 _HIST_GROUPS = ["Group A", "Group B", "Group C"]
 _hist_rng = np.random.default_rng(42)
-_hist_df = pl.DataFrame({
-    "group": ["Group A"] * 150 + ["Group B"] * 150 + ["Group C"] * 150,
-    "value": np.concatenate([
-        _hist_rng.normal(10, 2,   150),
-        _hist_rng.normal(13, 1.5, 150),
-        _hist_rng.normal(7,  3,   150),
-    ]).tolist(),
-})
+_hist_df = pl.DataFrame(
+    {
+        "group": ["Group A"] * 150 + ["Group B"] * 150 + ["Group C"] * 150,
+        "value": np.concatenate(
+            [
+                _hist_rng.normal(10, 2, 150),
+                _hist_rng.normal(13, 1.5, 150),
+                _hist_rng.normal(7, 3, 150),
+            ]
+        ).tolist(),
+    }
+)
 
 # Pre-compute viridis reference steps
 _VIR_STEPS = _de_steps("mpl_viridis")
@@ -234,8 +272,8 @@ _VIR_MAD = _mad_pct(_VIR_STEPS)
 
 # ── Layout constants ────────────────────────────────────────────────────────
 
-_N_ROW_CHARTS = 11   # colorspace, de_sparkline, area, scatter, line, boxplot,
-                     # strip, violin, stacked_bar, histogram, heatmap
+_N_ROW_CHARTS = 11  # colorspace, de_sparkline, area, scatter, line, boxplot,
+# strip, violin, stacked_bar, histogram, heatmap
 _ROW_SPACING = 6
 _SWATCH_W = _N_ROW_CHARTS * W + (_N_ROW_CHARTS - 1) * _ROW_SPACING  # 1160px
 
@@ -277,12 +315,16 @@ def _boxplot(key):
     n = len(p)
     box_colors = [p[round(i * (n - 1) / (len(_BOX_CATS) - 1))] for i in range(len(_BOX_CATS))]
     x_enc = alt.X(
-        "group:N", sort=_BOX_CATS, title=None,
+        "group:N",
+        sort=_BOX_CATS,
+        title=None,
         axis=alt.Axis(labelAngle=-45, labelAlign="right"),
     )
     y_enc = alt.Y("value:Q", title=None)
     color_enc = alt.Color(
-        "group:N", sort=_BOX_CATS, legend=None,
+        "group:N",
+        sort=_BOX_CATS,
+        legend=None,
         scale=alt.Scale(domain=_BOX_CATS, range=box_colors),
     )
     boxes = alt.Chart(_box_df).mark_boxplot().encode(x=x_enc, y=y_enc, color=color_enc)
@@ -318,8 +360,9 @@ def _area(key):
         .encode(
             x=alt.X("time:Q", title=None),
             y=alt.Y("value:Q", title=None, stack="normalize", scale=alt.Scale(domain=[0, 1])),
-            color=alt.Color("group:N", sort=_AREA_GROUPS, scale=alt.Scale(range=palette),
-                            legend=None),
+            color=alt.Color(
+                "group:N", sort=_AREA_GROUPS, scale=alt.Scale(range=palette), legend=None
+            ),
             order=alt.Order("group:N", sort="descending"),
         )
     )
@@ -335,14 +378,16 @@ def _line(key):
         .encode(
             x=alt.X("time:Q", title=None),
             y=alt.Y("value:Q", title=None),
-            color=alt.Color("group:N", sort=_LINE_GROUPS, scale=alt.Scale(range=palette),
-                            legend=None),
+            color=alt.Color(
+                "group:N", sort=_LINE_GROUPS, scale=alt.Scale(range=palette), legend=None
+            ),
         )
     )
 
 
-_strip_df_b = add_beeswarm_offsets(_strip_df, y_col="value", group_by=["group"],
-                                   step=5, height_px=W, markSize=8)
+_strip_df_b = add_beeswarm_offsets(
+    _strip_df, y_col="value", group_by=["group"], step=5, height_px=W, markSize=8
+)
 
 
 def _strip(key):
@@ -353,12 +398,17 @@ def _strip(key):
         alt.Chart(_strip_df_b)
         .mark_circle(clip=True)
         .encode(
-            x=alt.X("group:N", sort=_STRIP_CATS, title=None,
-                    axis=alt.Axis(labelAngle=-45, labelAlign="right")),
+            x=alt.X(
+                "group:N",
+                sort=_STRIP_CATS,
+                title=None,
+                axis=alt.Axis(labelAngle=-45, labelAlign="right"),
+            ),
             xOffset=alt.XOffset("beeswarm_x:Q"),
             y=alt.Y("value:Q", title=None),
-            color=alt.Color("group:N", sort=_STRIP_CATS, scale=alt.Scale(range=palette),
-                            legend=None),
+            color=alt.Color(
+                "group:N", sort=_STRIP_CATS, scale=alt.Scale(range=palette), legend=None
+            ),
         )
     )
 
@@ -367,8 +417,9 @@ def _violin(key):
     p = colors[key]
     n = len(p)
     palette = [p[round(i * (n - 1) / (len(_VIOLIN_CATS) - 1))] for i in range(len(_VIOLIN_CATS))]
-    return mark_violin(_violin_df, "group", "value", _VIOLIN_CATS, palette=palette, legend=False,
-                       labelAngle=-45)
+    return mark_violin(
+        _violin_df, "group", "value", _VIOLIN_CATS, palette=palette, legend=False, labelAngle=-45
+    )
 
 
 def _stacked_bar(key):
@@ -379,11 +430,16 @@ def _stacked_bar(key):
         alt.Chart(_sbar_df)
         .mark_bar()
         .encode(
-            x=alt.X("group:N", sort=_SBAR_GROUPS, title=None,
-                    axis=alt.Axis(labelAngle=-45, labelAlign="right")),
+            x=alt.X(
+                "group:N",
+                sort=_SBAR_GROUPS,
+                title=None,
+                axis=alt.Axis(labelAngle=-45, labelAlign="right"),
+            ),
             y=alt.Y("value:Q", title=None, stack="normalize", scale=alt.Scale(domain=[0, 1])),
-            color=alt.Color("type:N", sort=_SBAR_TYPES, scale=alt.Scale(range=palette),
-                            legend=None),
+            color=alt.Color(
+                "type:N", sort=_SBAR_TYPES, scale=alt.Scale(range=palette), legend=None
+            ),
         )
     )
 
@@ -398,8 +454,9 @@ def _histogram(key):
         .encode(
             x=alt.X("value:Q", title=None, bin=alt.Bin(maxbins=20)),
             y=alt.Y("count()", title=None),
-            color=alt.Color("group:N", sort=_HIST_GROUPS, scale=alt.Scale(range=palette),
-                            legend=None),
+            color=alt.Color(
+                "group:N", sort=_HIST_GROUPS, scale=alt.Scale(range=palette), legend=None
+            ),
         )
     )
 
@@ -419,7 +476,8 @@ def _de_sparkline(key):
 
     max_step = max(len(steps) - 1, len(_VIR_STEPS) - 1)
     x_enc = alt.X(
-        "step:Q", title="Step",
+        "step:Q",
+        title="Step",
         scale=alt.Scale(domain=[-0.5, max_step + 0.5]),
         axis=alt.Axis(tickMinStep=1),
     )
@@ -429,7 +487,8 @@ def _de_sparkline(key):
         alt.Chart(vir_df)
         .mark_line(point=True, color="#AAAAAA")
         .encode(
-            x=x_enc, y=y_enc,
+            x=x_enc,
+            y=y_enc,
             tooltip=[alt.Tooltip("step:Q"), alt.Tooltip("dE:Q", format=".4f", title="viridis ΔE")],
         )
     )
@@ -437,7 +496,8 @@ def _de_sparkline(key):
         alt.Chart(pal_df)
         .mark_line(point=True, color=mid_hex)
         .encode(
-            x=x_enc, y=y_enc,
+            x=x_enc,
+            y=y_enc,
             tooltip=[alt.Tooltip("step:Q"), alt.Tooltip("dE:Q", format=".4f", title="ΔE")],
         )
     )
@@ -449,18 +509,20 @@ def _colorspace(key):
     hexes = colors[key]
     labs = [_hex_to_oklab(h) for h in hexes]
     rows = [
-        {"hex": h, "a": round(a, 4), "b": round(b, 4), "L": round(L, 3),
-         "i": i, "label": f"#{i} {h}"}
+        {
+            "hex": h,
+            "a": round(a, 4),
+            "b": round(b, 4),
+            "L": round(L, 3),
+            "i": i,
+            "label": f"#{i} {h}",
+        }
         for i, (h, (L, a, b)) in enumerate(zip(hexes, labs))
     ]
     df = pl.DataFrame(rows)
     domain = [r["hex"] for r in rows]
 
-    line = (
-        alt.Chart(df)
-        .mark_line(color="black")
-        .encode(x="a:Q", y="b:Q", order="i:O")
-    )
+    line = alt.Chart(df).mark_line(color="black").encode(x="a:Q", y="b:Q", order="i:O")
     pts = (
         alt.Chart(df)
         .mark_circle(size=70)
@@ -476,11 +538,7 @@ def _colorspace(key):
             ],
         )
     )
-    return (
-        (line + pts)
-        .properties(title="Oklab a/b")
-        .resolve_scale(color="independent")
-    )
+    return (line + pts).properties(title="Oklab a/b").resolve_scale(color="independent")
 
 
 # ── Row: all charts for one palette key (landscape layout) ─────────────────
@@ -546,10 +604,7 @@ def _build_gallery():
                     continue
                 rows.append(_row(key, bk))
 
-    return (
-        alt.vconcat(*rows, spacing=12)
-        .resolve_scale(color="independent", opacity="independent")
-    )
+    return alt.vconcat(*rows, spacing=12).resolve_scale(color="independent", opacity="independent")
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────
@@ -557,7 +612,7 @@ def _build_gallery():
 if __name__ == "__main__":
     import theme as _theme
 
-    _theme.options(chartWidth=W, chartHeight=W, axisWidth=0.25)
+    _theme.options(chartWidth=W, chartHeight=W)
 
     gallery = _build_gallery()
 

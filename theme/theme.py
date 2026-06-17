@@ -15,7 +15,7 @@ register.
 def options(
     angledX=False,
     axisOffset=None,  # defaults to tickSize if not set, or 0 if closed is True
-    axisWidth=0.50,
+    axisWidth=0.25,
     bandPadding=0.1,
     closed=None,  # None = auto (True if viewFill is set, else False); set explicitly to override
     chartFill=None,  # defaults to "white" (light) or "#1e1e1e" (dark) based on darkmode
