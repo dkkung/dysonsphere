@@ -42,16 +42,19 @@ chart = (
 theme.save(chart, "plots/myplot")
 # writes: plots/myplot_light.png, plots/myplot_light.svg
 #         plots/myplot_dark.png,  plots/myplot_dark.svg
+#         plots/myplot_vegalite.json
 ```
 
 ---
 
 ## theme.options()
 
-Call before plotting to configure global theme defaults. Must be called before `theme.save()`.
+**Call before building any Altair charts to configure global theme defaults.**
 
 ```python
-theme.options(
+theme.options()  # apply defaults
+
+theme.options(   # custom configuration
     chartWidth=400,
     chartHeight=250,
     fontSize=8,
