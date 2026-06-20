@@ -18,8 +18,6 @@ for group in GROUPS:
 
 df = pl.DataFrame(rows)
 
-palette = theme.palette_range("lagoon_4_oklab", n=len(GROUPS))
-
 theme.options()
 
 chart = (
@@ -28,7 +26,7 @@ chart = (
     .encode(
         x=alt.X("time:Q", title="Time (h)"),
         y=alt.Y("value:Q", title="Response (AU)"),
-        color=alt.Color("group:N", sort=GROUPS, scale=alt.Scale(range=palette), title=None),
+        color=alt.Color("group:N", sort=GROUPS, title=None),
     )
 )
 

@@ -17,7 +17,7 @@ df = pl.DataFrame(
     }
 )
 
-palette = theme.palette_range("blues_oklab", n=2, start=11, stop=0, reverse=True)
+palette = theme.palette_range("greys", n=2)
 
 theme.options()
 

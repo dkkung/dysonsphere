@@ -26,8 +26,7 @@ df = pl.DataFrame(
 
 theme.options()
 
-palette = theme.palette_range("lagoon_4_oklab", n=len(CATEGORIES))
-chart = theme.mark_strip(df, "group", "value", CATEGORIES, palette=palette)
+chart = theme.mark_strip(df, "group", "value", CATEGORIES)
 
 theme.save(chart, "strip")
 print("saved strip")

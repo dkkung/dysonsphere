@@ -18,8 +18,6 @@ for group in GROUPS:
 
 df = pl.DataFrame(rows)
 
-palette = theme.palette_range("bluergrotto", n=len(GROUPS))
-
 theme.options()
 
 chart = (
@@ -33,7 +31,7 @@ chart = (
             axis=alt.Axis(tickMinStep=3),
         ),
         y=alt.Y("count()", title="Count"),
-        color=alt.Color("group:N", sort=GROUPS, scale=alt.Scale(range=palette), title=None),
+        color=alt.Color("group:N", sort=GROUPS, title=None),
     )
 )
 

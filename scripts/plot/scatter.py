@@ -14,10 +14,6 @@ x, y = x[mask], y[mask]
 
 df = pl.DataFrame({"x": x, "y": y})
 
-# palette = theme.palette_range("mpl_YlGnBu")
-# palette = theme.palette_range("RdPu_sat", reverse=False)
-palette = theme.palette_range("bluegrotto_oklab")
-
 theme.options()
 
 chart = (
@@ -26,11 +22,7 @@ chart = (
     .encode(
         x=alt.X("x:Q", title="X"),
         y=alt.Y("y:Q", title="Y"),
-        color=alt.Color(
-            "y:Q",
-            title=None,
-            scale=alt.Scale(range=palette),
-        ),
+        color=alt.Color("y:Q", title=None),
     )
 )
 

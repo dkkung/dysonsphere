@@ -148,7 +148,6 @@ def nuc_chart() -> alt.Chart:
 
 chart = alt.vconcat(
     seq_chart("proteins"),
-    seq_chart("proteins2"),
     nuc_chart(),
     spacing=20,
 ).resolve_scale(color="independent")

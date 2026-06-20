@@ -28,8 +28,6 @@ df = pl.DataFrame(
 )
 
 CATEGORIES = ["Up", "NS", "Down"]
-# palette = ["#C0392B", grey, "#2980B9"]
-palette = theme.palette_range("RdBu_oklab", n=3, start=0, stop=11, step=6)
 
 theme.options(chartWidth=200, markFillOpacity=0.9)
 
@@ -48,7 +46,6 @@ points = (
         color=alt.Color(
             "category:N",
             sort=CATEGORIES,
-            scale=alt.Scale(range=palette),
             title=None,
         ),
     )
