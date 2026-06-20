@@ -29,7 +29,7 @@ dev = [
 ]
 
 [project.urls]
-Repository = "https://github.com/dkkung/altair_custom_themes"
+Repository = "https://github.com/dkkung/petaurus"
 
 [build-system]
 requires = ["hatchling"]
