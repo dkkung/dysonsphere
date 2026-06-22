@@ -3,7 +3,8 @@ name = "dysonsphere"
 version = "0.4.0"
 description = "An Altair configuration wrapper with perceptually uniform palettes and chart utilities for publication-ready figures."
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "dkkung", email = "128324842+dkkung@users.noreply.github.com" }]
 keywords = ["altair", "vega-lite", "visualization", "color", "palette", "theme", "oklab"]
 classifiers = [
