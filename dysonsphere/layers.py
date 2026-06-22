@@ -256,17 +256,6 @@ def mark_strip(
     chart_width = alt.theme.options.get("chartWidth", 100)
     step = chart_width / (len(categories) + 2 * band_padding)
     band_center = step * (0.5 - band_padding)
-    # Vega floors tick SVG coordinates to integers: tick_i = floor(step*(padding+i+0.5)).
-    # Subtract each group's fractional offset so marks center exactly on the floor'd tick.
-    corrections = {
-        cat: -(step * (band_padding + i + 0.5) % 1)
-        for i, cat in enumerate(categories)
-    }
-    df = df.with_columns(
-        (pl.col(offset_col) + pl.col(x_col).map_elements(
-            lambda v: corrections.get(v, 0.0), return_dtype=pl.Float64
-        )).alias(offset_col)
-    )
     max_offset = float(df[offset_col].abs().max())
     offset_scale = alt.Scale(
         domain=[-max_offset, max_offset],
@@ -398,7 +387,11 @@ def save(
             alt.theme.options["darkmode"] = mode
             svg_path = str(base.parent / f"{base.name}{suffix}.svg")
             chart.save(svg_path)
-            _fix_tick_alignment(svg_path)
+            _fix_tick_alignment(
+                svg_path,
+                band_padding=alt.theme.options.get("bandPadding", 0.1),
+                chart_width=alt.theme.options.get("chartWidth", 100),
+            )
             _simplify_svg(svg_path)
             with open(svg_path, encoding="utf-8") as f:
                 svg_content = f.read()
@@ -409,13 +402,20 @@ def save(
         alt.theme.options["transparentBackground"] = original_transparent
 
 
-def _fix_tick_alignment(path: str) -> None:
-    """Move x-axis tick lines from Vega's floor'd integer positions to exact bar-mark centers.
+def _fix_tick_alignment(
+    path: str, band_padding: float = 0.1, chart_width: float = 100.0
+) -> None:
+    """Move x-axis tick lines from Vega's floor'd integer positions to exact mark centers.
 
     Vega snaps axis tick group transforms to integers for crisp screen rendering but
-    keeps bar/rect path coordinates as floats.  At high DPI (scale ≥ 4) this produces
-    visible misalignment.  We find every bar-rect path, compute its x-center, then
-    update the nearest axis-tick line transform to match.
+    keeps mark coordinates as floats.  At high DPI (scale ≥ 4) this produces visible
+    misalignment.
+
+    For bar charts: tick centers are read from the bar path data (aria-roledescription="bar").
+    For all other charts (strip, violin, scatter, etc.): band centers are computed
+    analytically from the number of categories and theme scale parameters, then ticks
+    are moved to those float positions.  This aligns ticks with every element in the
+    group — circles, median ticks, violin bodies — without any data manipulation.
     """
     import re
     import xml.etree.ElementTree as ET
@@ -427,9 +427,7 @@ def _fix_tick_alignment(path: str) -> None:
     tree = ET.parse(path)
     root = tree.getroot()
 
-    # Collect bar centers from paths with aria-roledescription="bar".
-    # This precisely targets mark_bar elements and excludes boxplot boxes,
-    # median ticks, and the view background rect.
+    # --- bar charts: read centers from path data ---
     bar_centers: list[float] = []
     for el in root.iter(f"{{{NS}}}path"):
         if el.get("aria-roledescription") != "bar":
@@ -439,29 +437,75 @@ def _fix_tick_alignment(path: str) -> None:
         if m:
             bar_centers.append(round(float(m.group(1)) + float(m.group(2)) / 2, 4))
 
-    if not bar_centers:
-        return
+    if bar_centers:
+        unique_centers = sorted(set(bar_centers))
 
-    unique_centers = sorted(set(bar_centers))
+        def nearest(tick_x: float) -> float | None:
+            c = min(unique_centers, key=lambda v: abs(v - tick_x))
+            return c if abs(c - tick_x) < 2.0 else None
 
-    def nearest(tick_x: float) -> float | None:
-        c = min(unique_centers, key=lambda v: abs(v - tick_x))
-        return c if abs(c - tick_x) < 2.0 else None
+        def apply_bar_fix(el: ET.Element) -> None:
+            for child in el:
+                if child.get("class", "") == "mark-rule role-axis-tick":
+                    for line in child:
+                        t = line.get("transform", "")
+                        m = re.match(r"translate\((\d+(?:\.\d+)?),0\)$", t)
+                        if m:
+                            c = nearest(float(m.group(1)))
+                            if c is not None:
+                                line.set("transform", f"translate({c},0)")
+                else:
+                    apply_bar_fix(child)
 
-    def fix_subtree(el: ET.Element) -> None:
-        for child in el:
-            if child.get("class", "") == "mark-rule role-axis-tick":
-                for line in child:
-                    t = line.get("transform", "")
-                    m = re.match(r"translate\((\d+(?:\.\d+)?),0\)$", t)
-                    if m:
-                        c = nearest(float(m.group(1)))
-                        if c is not None:
-                            line.set("transform", f"translate({c},0)")
-            else:
-                fix_subtree(child)
+        apply_bar_fix(root)
 
-    fix_subtree(root)
+    else:
+        # --- non-bar charts: compute band centers analytically ---
+        # Collect integer tick x positions from all x-axis tick groups.
+        tick_xs: list[float] = []
+
+        def collect_ticks(el: ET.Element) -> None:
+            for child in el:
+                if child.get("class", "") == "mark-rule role-axis-tick":
+                    for line in child:
+                        t = line.get("transform", "")
+                        m = re.match(r"translate\((\d+(?:\.\d+)?),0\)$", t)
+                        if m:
+                            v = float(m.group(1))
+                            if v > 0:
+                                tick_xs.append(v)
+                else:
+                    collect_ticks(child)
+
+        collect_ticks(root)
+        if not tick_xs:
+            return
+
+        # With xOffset encoding Vega sets paddingInner=0, so
+        # step = chart_width / (n + 2·paddingOuter)
+        # band_center_i = step · (paddingOuter + i + 0.5)
+        n = len(tick_xs)
+        step = chart_width / (n + 2 * band_padding)
+        sorted_ticks = sorted(tick_xs)
+        center_map = {
+            t: round(step * (band_padding + i + 0.5), 4)
+            for i, t in enumerate(sorted_ticks)
+        }
+
+        def apply_analytic_fix(el: ET.Element) -> None:
+            for child in el:
+                if child.get("class", "") == "mark-rule role-axis-tick":
+                    for line in child:
+                        t = line.get("transform", "")
+                        m = re.match(r"translate\((\d+(?:\.\d+)?),0\)$", t)
+                        if m:
+                            c = center_map.get(float(m.group(1)))
+                            if c is not None:
+                                line.set("transform", f"translate({c},0)")
+                else:
+                    apply_analytic_fix(child)
+
+        apply_analytic_fix(root)
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(ET.tostring(root, encoding="unicode"))
