@@ -16,7 +16,7 @@ import numpy as np
 import polars as pl
 import vl_convert as vlc
 
-import dysonsphere as theme
+import dysonsphere as ds
 from dysonsphere.export import _fix_tick_alignment
 
 CATEGORIES = ["Control", "Drug A", "Drug B", "Drug C"]
@@ -50,12 +50,12 @@ SCORES = {
 
 
 def build_multilabel_example():
-    theme.options(chartFill="white", palette="blues2")
+    ds.theme(chartFill="white", palette="blues2")
 
     out_base = str(Path(__file__).parent.parent.parent / "docs" / "multilabel_example")
 
     def make_chart() -> alt.HConcatChart:
-        chart = theme.mark_strip(df, "group", "value", CATEGORIES)
+        chart = ds.mark_strip(df, "group", "value", CATEGORIES)
         KWARGS = dict(categories=CATEGORIES, label_align="left")
 
         def corner_label(style_name: str) -> alt.LayerChart:
@@ -66,11 +66,11 @@ def build_multilabel_example():
             )
             return chart + label
 
-        pm = theme.add_multilabel(
+        pm = ds.add_multilabel(
             corner_label("plusminus"), CONDITIONS, style="plusminus", **KWARGS
         )
-        dot = theme.add_multilabel(corner_label("symbol"), CONDITIONS, style="symbol", **KWARGS)
-        txt = theme.add_multilabel(corner_label("text"), SCORES, style="text", **KWARGS)
+        dot = ds.add_multilabel(corner_label("symbol"), CONDITIONS, style="symbol", **KWARGS)
+        txt = ds.add_multilabel(corner_label("text"), SCORES, style="text", **KWARGS)
         return alt.hconcat(pm, dot, txt)
 
     out_png = Path(out_base + "_light.png")

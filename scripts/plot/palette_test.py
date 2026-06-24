@@ -4,7 +4,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 from dysonsphere.palettes import colors
 
 W = 65  # chart width / height
@@ -147,6 +147,6 @@ chart = alt.vconcat(
     spacing=8,
 ).resolve_scale(color="independent")
 
-theme.options(chartWidth=W, chartHeight=W)
-theme.save(chart, "palette_test")
+ds.theme(chartWidth=W, chartHeight=W)
+ds.save(chart, "palette_test")
 print("saved palette_test")

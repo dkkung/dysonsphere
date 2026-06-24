@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -14,7 +14,7 @@ x, y = x[mask], y[mask]
 
 df = pl.DataFrame({"x": x, "y": y})
 
-theme.options()
+ds.theme()
 
 chart = (
     alt.Chart(df)
@@ -26,5 +26,5 @@ chart = (
     )
 )
 
-theme.save(chart, "scatter", ppi=1200)
+ds.save(chart, "scatter", ppi=1200)
 print("saved scatter")

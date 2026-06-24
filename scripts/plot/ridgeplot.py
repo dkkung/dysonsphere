@@ -3,7 +3,7 @@ import numpy as np
 import polars as pl
 from scipy.stats import gaussian_kde
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -48,9 +48,9 @@ for i, group in enumerate(GROUPS):
 density_df = pl.DataFrame(density_rows)
 label_df = pl.DataFrame(label_rows)
 
-palette = theme.palette("mpl_YlGnBu", n=len(GROUPS), start=1)
+palette = ds.palette("mpl_YlGnBu", n=len(GROUPS), start=1)
 
-theme.options(chartWidth=200, legend=LEGEND)
+ds.theme(chartWidth=200, legend=LEGEND)
 
 ridges = (
     alt.Chart(density_df)
@@ -84,5 +84,5 @@ else:
     )
     chart = alt.layer(ridges, labels)
 
-theme.save(chart, "ridgeplot")
+ds.save(chart, "ridgeplot")
 print("saved ridgeplot")

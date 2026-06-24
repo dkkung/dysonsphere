@@ -4,7 +4,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 from dysonsphere.palettes import colors
 
 rng = np.random.default_rng(42)
@@ -24,9 +24,9 @@ for group in GROUPS:
 
 df = pl.DataFrame(rows)
 
-palette = theme.palette("blues2", n=len(GROUPS), start=0)
+palette = ds.palette("blues2", n=len(GROUPS), start=0)
 
-theme.options(chartWidth=200, chartHeight=120, legend=True)
+ds.theme(chartWidth=200, chartHeight=120, legend=True)
 
 base = alt.Chart(df).encode(
     x=alt.X("time:Q", title="Time (h)"),
@@ -48,5 +48,5 @@ line = base.mark_line(strokeWidth=0.75).encode(y=alt.Y("mean(value):Q", title="R
 chart = band + line
 
 out = str(Path(__file__).parent / "errorband")
-theme.save(chart, out)
+ds.save(chart, out)
 print(f"saved {out}")

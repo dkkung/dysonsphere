@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -18,7 +18,7 @@ for group in GROUPS:
 
 df = pl.DataFrame(rows)
 
-theme.options()
+ds.theme()
 
 chart = (
     alt.Chart(df)
@@ -35,5 +35,5 @@ chart = (
     )
 )
 
-theme.save(chart, "histogram")
+ds.save(chart, "histogram")
 print("saved histogram")

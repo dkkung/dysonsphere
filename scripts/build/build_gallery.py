@@ -667,7 +667,7 @@ def _build_gallery():
 if __name__ == "__main__":
     import dysonsphere as _theme
 
-    _theme.options(chartWidth=W, chartHeight=W)
+    _ds.theme(chartWidth=W, chartHeight=W)
 
     gallery = _build_gallery()
 

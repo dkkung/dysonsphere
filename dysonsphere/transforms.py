@@ -51,7 +51,7 @@ def beeswarm_offsets(
             .with_row_index("__idx")
             .group_by(["group", "time"])
             .map_groups(lambda g: g.with_columns(
-                pl.Series("beeswarm_x", theme.beeswarm_offsets(
+                pl.Series("beeswarm_x", ds.beeswarm_offsets(
                     g["value"].to_numpy(),
                     height_px=200,
                     spread=2.0,
@@ -161,7 +161,7 @@ def add_beeswarm(
     --------
     ::
 
-        df = theme.add_beeswarm(df, y_col="value", group_by=["group"], spread=2.0)
+        df = ds.add_beeswarm(df, y_col="value", group_by=["group"], spread=2.0)
 
         alt.Chart(df).mark_circle().encode(
             x=alt.X("group:N"),
@@ -224,7 +224,7 @@ def add_jitter(
     --------
     ::
 
-        df = theme.add_jitter(df, spread=5)
+        df = ds.add_jitter(df, spread=5)
 
         alt.Chart(df).mark_circle().encode(
             x=alt.X("group:N"),

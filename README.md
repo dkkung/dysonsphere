@@ -25,9 +25,9 @@ Requires Python 3.11+. Dependencies: `altair`, `numpy`, `polars`, `scipy`.
 ```python
 import altair as alt
 import polars as pl
-import dysonsphere as theme  # or: import dysonsphere
+import dysonsphere as ds  # or: import dysonsphere
 
-theme.options(chartWidth=300, chartHeight=200)
+ds.theme(chartWidth=300, chartHeight=200)
 
 chart = (
     alt.Chart(df)
@@ -35,11 +35,11 @@ chart = (
     .encode(
         x=alt.X("x:Q"),
         y=alt.Y("y:Q"),
-        color=alt.Color("y:Q", scale=alt.Scale(range=theme.palette("blues"))),
+        color=alt.Color("y:Q", scale=alt.Scale(range=ds.palette("blues"))),
     )
 )
 
-theme.save(chart, "plots/myplot")
+ds.save(chart, "plots/myplot")
 # writes: plots/myplot_light.png, plots/myplot_light.svg
 #         plots/myplot_dark.png,  plots/myplot_dark.svg
 #         plots/myplot_vegalite.json
@@ -47,14 +47,14 @@ theme.save(chart, "plots/myplot")
 
 ---
 
-## dysonsphere.options()
+## dysonsphere.theme()
 
 **Call before building any Altair charts to configure global theme defaults.**
 
 ```python
-theme.options()  # apply defaults
+ds.theme()  # apply defaults
 
-theme.options(   # custom configuration
+ds.theme(   # custom configuration
     chartWidth=400,
     chartHeight=250,
     fontSize=8,
@@ -119,11 +119,11 @@ blues = colors["blues"]   # list of 12 hex strings, light → dark
 Samples a slice or subset from any named palette.
 
 ```python
-theme.palette("blues")                     # all 12 stops
-theme.palette("blues", n=5)                # 5 evenly-spaced stops
-theme.palette("blues", start=3)            # stops 3–11
-theme.palette("blues", end=6, step=2)      # indices 0, 2, 4, 6
-theme.palette("blues", n=4, reverse=True)  # reversed
+ds.palette("blues")                     # all 12 stops
+ds.palette("blues", n=5)                # 5 evenly-spaced stops
+ds.palette("blues", start=3)            # stops 3–11
+ds.palette("blues", end=6, step=2)      # indices 0, 2, 4, 6
+ds.palette("blues", n=4, reverse=True)  # reversed
 ```
 
 | Parameter | Default | Description |
@@ -147,7 +147,7 @@ When no explicit `scale=` is set on a color encoding, Vega-Lite falls back to th
 | `heatmap` | `blues` | Rect/heatmap marks |
 | `diverging` | `redsblues` | Diverging scales |
 
-Setting `theme.options(palette="mypalette")` overrides all five types simultaneously.
+Setting `ds.theme(palette="mypalette")` overrides all five types simultaneously.
 
 ### Available palettes
 
@@ -182,7 +182,7 @@ See the [palette gallery](https://dkkung.github.io/dysonsphere/) for a visual ov
 ## Saving charts
 
 ```python
-theme.save(chart, "plots/myplot")
+ds.save(chart, "plots/myplot")
 # writes: plots/myplot_light.png, plots/myplot_light.svg
 #         plots/myplot_dark.png,  plots/myplot_dark.svg
 #         plots/myplot_vegalite.json
@@ -191,9 +191,9 @@ theme.save(chart, "plots/myplot")
 Produces light and dark PNG and SVG files from a single call. SVG output is post-processed to flatten Vega's redundant `<g>` wrappers, making it easier to navigate in Illustrator. A Vega-Lite JSON spec is also saved by default for full reproducibility.
 
 ```python
-theme.save(chart, "myplot", ppi=1200)               # default PPI; reduce for faster exports
-theme.save(chart, "myplot", save_vega_spec=False)    # skip the JSON spec
-theme.save(chart, "myplot", description="Figure 1")  # embed a description in the SVG
+ds.save(chart, "myplot", ppi=1200)               # default PPI; reduce for faster exports
+ds.save(chart, "myplot", save_vega_spec=False)    # skip the JSON spec
+ds.save(chart, "myplot", description="Figure 1")  # embed a description in the SVG
 ```
 
 ---
@@ -205,7 +205,7 @@ theme.save(chart, "myplot", description="Figure 1")  # embed a description in th
 Adds random Gaussian x-offsets to each row. Each offset is drawn independently from N(0, spread²) — ~68% of points fall within ±spread of centre, ~95% within ±2·spread. Points can overlap; use `add_beeswarm()` for small n where overlap is undesirable.
 
 ```python
-df = theme.add_jitter(df, spread=5)
+df = ds.add_jitter(df, spread=5)
 
 alt.Chart(df).mark_circle().encode(
     x=alt.X("group:N"),
@@ -225,7 +225,7 @@ alt.Chart(df).mark_circle().encode(
 Computes collision-avoiding x-offsets per group using an analytic method. Points are sorted by y position and placed greedily from the centre outward: for each point, the forbidden x intervals imposed by already-placed neighbours are computed exactly as `px ± √((2·spread)² − dy²)`, and the candidate closest to 0 outside all intervals is chosen. Better than jitter for small n; total width grows with n.
 
 ```python
-df = theme.add_beeswarm(df, y_col="value", group_by=["group"], spread=2.0)
+df = ds.add_beeswarm(df, y_col="value", group_by=["group"], spread=2.0)
 
 alt.Chart(df).mark_circle().encode(
     x=alt.X("group:N"),
@@ -252,14 +252,14 @@ alt.Chart(df).mark_circle().encode(
 CATEGORIES = ["Control", "Drug A", "Drug B"]
 
 # single comparison
-chart + theme.add_pvalue(
+chart + ds.add_pvalue(
     df, "group", "value",
     pairs=[("Control", "Drug A")],
     categories=CATEGORIES, chartWidth=300,
 )
 
 # multiple comparisons — brackets stacked automatically
-chart + theme.add_pvalue(
+chart + ds.add_pvalue(
     df, "group", "value",
     pairs=[("Control", "Drug A"), ("Control", "Drug B"), ("Drug A", "Drug B")],
     categories=CATEGORIES, chartWidth=300,
@@ -269,10 +269,10 @@ chart + theme.add_pvalue(
 From pre-computed p-values:
 
 ```python
-theme.add_pvalue(..., pvalues=[0.023], y_positions=[210])
+ds.add_pvalue(..., pvalues=[0.023], y_positions=[210])
 
 # batch
-theme.add_pvalue(..., pvalues=[0.002, 0.031])
+ds.add_pvalue(..., pvalues=[0.002, 0.031])
 ```
 
 **Parameters**
@@ -299,7 +299,7 @@ theme.add_pvalue(..., pvalues=[0.002, 0.031])
 
 ---
 
-## Grid labels
+## Multilabels
 
 `add_multilabel()` attaches a condition table directly below a chart, replacing its x-axis labels. `add_multilabel_detached()` returns the table as a standalone layer for manual composition with `alt.vconcat`.
 
@@ -311,12 +311,12 @@ CONDITIONS = {
 }
 
 # attached — x-axis labels replaced by the table
-theme.add_multilabel(chart, CONDITIONS, categories=CATEGORIES, style="plusminus")
+ds.add_multilabel(chart, CONDITIONS, categories=CATEGORIES, style="plusminus")
 
 # detached — compose manually
 alt.vconcat(
     chart,
-    theme.add_multilabel_detached(CONDITIONS, categories=CATEGORIES, style="symbol"),
+    ds.add_multilabel_detached(CONDITIONS, categories=CATEGORIES, style="symbol"),
 ).resolve_scale(x="shared")
 ```
 
@@ -324,14 +324,14 @@ alt.vconcat(
 
 Three `style` options are available: `"plusminus"` renders `True` as `+` and `False` as `−`, `"symbol"` renders `True` as a filled mark and `False` as an unfilled mark (shape set by the `symbol` parameter, default `"circle"`) with an optional connecting rule, and `"text"` renders raw values as strings centered under each category.
 
-![Grid labels example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/multilabel_example_light.png)
+![Multilabel example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/multilabel_example_light.png)
 
 | Parameter | Default | Description |
 |---|---|---|
 | `groups` | required | `{row_label: [bool, ...]}` — one `True`/`False` per category; non-bool values force `style="text"` |
 | `categories` | required | Ordered list of x-axis categories matching the main chart |
 | `style` | `"plusminus"` | `"plusminus"`, `"symbol"`, or `"text"` (auto-set when values are non-bool) |
-| `label_align` | `"left"` | `"left"` places row labels left of the grid; `"right"` places them right |
+| `label_align` | `"left"` | `"left"` places row labels left of the multilabel grid; `"right"` places them right |
 | `label_padding` | `0` | Gap in pixels between the plot boundary and the label text |
 | `order` | insertion order | Top-to-bottom row order |
 | `row_height` | `14` | Height in pixels per row |
@@ -343,10 +343,10 @@ Three `style` options are available: `"plusminus"` renders `True` as `+` and `Fa
 | `chartWidth` | theme default | Width of the annotation chart in pixels |
 | `fontSize` | theme default | Font size for symbols and row labels |
 
-> **Dark mode:** `"symbol"` style resolves fill colours from `theme.options()` at construction time. Pass a callable to `theme.save()` so the chart rebuilds after each darkmode toggle:
+> **Dark mode:** `"symbol"` style resolves fill colours from `ds.theme()` at construction time. Pass a callable to `ds.save()` so the chart rebuilds after each darkmode toggle:
 > ```python
-> theme.save(
->     lambda: theme.add_multilabel(chart, CONDITIONS, style="symbol", ...),
+> ds.save(
+>     lambda: ds.add_multilabel(chart, CONDITIONS, style="symbol", ...),
 >     "my_plot",
 > )
 > ```
@@ -360,11 +360,11 @@ Three `style` options are available: `"plusminus"` renders `True` as `+` and `Fa
 Violin plot with an embedded boxplot.
 
 ```python
-theme.options(chartWidth=300)
-palette = theme.palette("lavenders", n=len(CATEGORIES))
+ds.theme(chartWidth=300)
+palette = ds.palette("lavenders", n=len(CATEGORIES))
 
-chart = theme.mark_violin(df, "group", "value", CATEGORIES, palette=palette)
-theme.save(chart, "violin")
+chart = ds.mark_violin(df, "group", "value", CATEGORIES, palette=palette)
+ds.save(chart, "violin")
 ```
 
 | Parameter | Default | Description |
@@ -388,8 +388,8 @@ theme.save(chart, "violin")
 Jittered or beeswarm points with a median tick and optional mean ± error bars.
 
 ```python
-chart = theme.mark_strip(df, "group", "value", CATEGORIES)
-chart = theme.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
+chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
 ```
 
 | Parameter | Default | Description |

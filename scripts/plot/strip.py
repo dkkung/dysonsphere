@@ -1,7 +1,7 @@
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -24,9 +24,9 @@ df = pl.DataFrame(
     }
 )
 
-theme.options()
+ds.theme()
 
-chart = theme.mark_strip(df, "group", "value", CATEGORIES, spread=2)
+chart = ds.mark_strip(df, "group", "value", CATEGORIES, spread=2)
 
-theme.save(chart, "strip")
+ds.save(chart, "strip")
 print("saved strip")

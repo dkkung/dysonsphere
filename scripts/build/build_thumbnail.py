@@ -15,7 +15,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 import scripts.build.build_gallery as _bg
 from dysonsphere.layers import mark_violin
 from dysonsphere.palettes import colors
@@ -180,7 +180,7 @@ def _line_no_legend(key):
 
 
 def build_thumbnail():
-    theme.options(chartWidth=W, chartHeight=W, legend=False)
+    ds.theme(chartWidth=W, chartHeight=W, legend=False)
 
     _rs = dict(color="independent", opacity="independent")
     grid = alt.concat(

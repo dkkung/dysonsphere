@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -21,7 +21,7 @@ df = pl.DataFrame(
 
 CATEGORIES = ["Control", "Drug A", "Drug B"]
 
-theme.options(markSize=15)
+ds.theme(markSize=15)
 
 chart = (
     alt.Chart(df)
@@ -33,7 +33,7 @@ chart = (
     )
 )
 
-ann = theme.add_pvalue(
+ann = ds.add_pvalue(
     df,
     "group",
     "value",
@@ -44,5 +44,5 @@ ann = theme.add_pvalue(
     reverse=[("Control", "Drug B")],
 )
 
-theme.save(chart + ann, "p-value")
+ds.save(chart + ann, "p-value")
 print("saved p-value")

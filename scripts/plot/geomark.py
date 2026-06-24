@@ -10,7 +10,7 @@ from pathlib import Path
 import altair as alt
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 from dysonsphere.palettes import colors
 
 # ── County population (Census Bureau 2020 vintage county estimates) ───────────
@@ -33,7 +33,7 @@ county_pop = (
 
 # ── Chart ─────────────────────────────────────────────────────────────────────
 
-theme.options(
+ds.theme(
     chartWidth=700,
     chartHeight=430,
     legend=True,
@@ -72,5 +72,5 @@ chart = (
 )
 
 out = str(Path(__file__).parent / "geomark")
-theme.save(chart, out)
+ds.save(chart, out)
 print(f"saved {out}  ({len(county_pop)} counties)")

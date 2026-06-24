@@ -28,7 +28,7 @@ def mark_violin(
     Build an Altair layer combining a violin plot behind a boxplot.
 
     Returns a ``LayerChart`` that can be saved directly or composed with other
-    layers (e.g. ``theme.add_pvalue``).
+    layers (e.g. ``ds.add_pvalue``).
 
     Parameters
     ----------
@@ -63,12 +63,12 @@ def mark_violin(
     --------
     ::
 
-        theme.options(chartWidth=250)
-        chart = theme.mark_violin(df, "group", "value", CATEGORIES)
-        theme.save(chart, "violin")
+        ds.theme(chartWidth=250)
+        chart = ds.mark_violin(df, "group", "value", CATEGORIES)
+        ds.save(chart, "violin")
 
         # with optional outline and custom colors
-        chart = theme.mark_violin(
+        chart = ds.mark_violin(
             df, "group", "value", CATEGORIES,
             boxplot_size=10,
             palette="#AAAAAA",
@@ -194,7 +194,7 @@ def mark_strip(
     Build an Altair layer combining jittered or beeswarm points with a median indicator.
 
     Returns a ``LayerChart`` that can be saved directly or composed with other
-    layers (e.g. ``theme.add_pvalue``).
+    layers (e.g. ``ds.add_pvalue``).
 
     Parameters
     ----------
@@ -231,12 +231,12 @@ def mark_strip(
     --------
     ::
 
-        theme.options()
-        chart = theme.mark_strip(df, "group", "value", CATEGORIES)
-        theme.save(chart, "strip")
+        ds.theme()
+        chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+        ds.save(chart, "strip")
 
         # beeswarm variant
-        chart = theme.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
+        chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
     """
     if point_size is None:
         point_size = alt.theme.options.get("markSize", 10)
@@ -538,10 +538,10 @@ def add_pvalue(
         ``style='bracket'``.
     strokeWidth:
         Stroke width of bracket lines. Inherits ``axisWidth`` from
-        ``theme.options()`` when not set.
+        ``ds.theme()`` when not set.
     fontSize:
         Font size of p-value labels. Inherits ``fontSize`` from
-        ``theme.options()`` when not set.
+        ``ds.theme()`` when not set.
     reverse:
         List of ``(group1, group2)`` tuples identifying brackets to flip —
         text moves below the bar and ticks point upward.
@@ -553,8 +553,8 @@ def add_pvalue(
     Single comparison::
 
         CATEGORIES = ["Control", "Drug A", "Drug B"]
-        chart = theme.mark_strip(df, "group", "value", CATEGORIES)
-        chart + theme.add_pvalue(
+        chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+        chart + ds.add_pvalue(
             df, "group", "value",
             pairs=[("Control", "Drug A")],
             categories=CATEGORIES,
@@ -562,7 +562,7 @@ def add_pvalue(
 
     Multiple comparisons — brackets stacked automatically::
 
-        chart + theme.add_pvalue(
+        chart + ds.add_pvalue(
             df, "group", "value",
             pairs=[("Control", "Drug A"), ("Control", "Drug B"), ("Drug A", "Drug B")],
             test="mannwhitneyu",
@@ -571,7 +571,7 @@ def add_pvalue(
 
     From pre-computed p-values::
 
-        chart + theme.add_pvalue(
+        chart + ds.add_pvalue(
             df, "group", "value",
             pairs=[("Control", "Drug A"), ("Control", "Drug B")],
             pvalues=[0.012, 0.341],
@@ -746,15 +746,15 @@ def add_multilabel_detached(
         ``"square"``, ``"diamond"``, ``"triangle-up"``). Defaults to ``"circle"``.
     symbol_size:
         Area (in square pixels) of each symbol. Defaults to ``markSize * 4``
-        from ``theme.options()``.
+        from ``ds.theme()``.
     palette:
         List of colors used to fill annotation marks in ``"symbol"`` style.
         ``palette[0]`` overrides the ``False`` mark color and ``palette[-1]`` the
         ``True`` mark color. Overrides darkmode defaults when provided. Pass the
-        result of ``theme.palette()`` directly.
+        result of ``ds.palette()`` directly.
     strokeWidth:
         Stroke width applied to dot marks and the connecting rule. Defaults
-        to ``markStrokeWidth`` from ``theme.options()``.
+        to ``markStrokeWidth`` from ``ds.theme()``.
     connecting_line:
         When ``True`` (default), draws a horizontal rule spanning each consecutive
         run of ``True`` values in a row (``"symbol"`` style only). Set to ``False``
@@ -765,10 +765,10 @@ def add_multilabel_detached(
         Defaults to Vega-Lite's band scale default of ``0.1``.
     chartWidth:
         Width of the annotation chart in pixels. Inherits ``chartWidth`` from
-        ``theme.options()`` when not set.
+        ``ds.theme()`` when not set.
     fontSize:
         Font size for ``"text"`` style symbols and row labels. Inherits ``fontSize``
-        from ``theme.options()`` when not set.
+        from ``ds.theme()`` when not set.
     row_height:
         Height in pixels per annotation row.
 
@@ -789,11 +789,11 @@ def add_multilabel_detached(
 
     **Darkmode symbol colours** (``positive_color``, ``negative_fill``, ``negative_stroke``)
     are resolved from ``alt.theme.options`` at call time. When using ``style="symbol"``
-    with ``theme.save()``, pass a callable so the chart is rebuilt after each darkmode
+    with ``ds.save()``, pass a callable so the chart is rebuilt after each darkmode
     toggle::
 
-        theme.save(
-            lambda: theme.add_multilabel(chart, groups, style="symbol", ...),
+        ds.save(
+            lambda: ds.add_multilabel(chart, groups, style="symbol", ...),
             "my_plot",
         )
 
@@ -808,9 +808,9 @@ def add_multilabel_detached(
     ::
 
         CATEGORIES = ["Ctrl", "Drug A", "Drug B", "Drug C"]
-        theme.options(chartWidth=300)
-        chart = theme.mark_strip(df, "group", "value", CATEGORIES)
-        ann = theme.add_multilabel_detached(
+        ds.theme(chartWidth=300)
+        chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+        ann = ds.add_multilabel_detached(
             {
                 "dTAG^V-1":         [False, True,  True,  True],
                 "ZFC3H1 WT":        [False, False, True,  False],
@@ -912,7 +912,7 @@ def add_multilabel_detached(
 
     # --- symbol style ---
     # Colours are resolved at call time from alt.theme.options so that darkmode
-    # variants are correct. Use a callable with theme.save() to rebuild per variant.
+    # variants are correct. Use a callable with ds.save() to rebuild per variant.
     darkmode = alt.theme.options.get("darkmode", False)
     if darkmode:
         positive_color = "white"
@@ -1032,15 +1032,15 @@ def add_multilabel(
     --------
     ::
 
-        chart = theme.mark_strip(df, "group", "value", CATEGORIES)
-        composed = theme.add_multilabel(
+        chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+        composed = ds.add_multilabel(
             chart,
             {"dTAG^V-1": [False, True, True, True], "ZFC3H1 WT": [False, False, True, False]},
             categories=CATEGORIES,
             style="dots",
             label_align="right",
         )
-        theme.save(composed, "my_plot")
+        ds.save(composed, "my_plot")
     """
     import copy
 

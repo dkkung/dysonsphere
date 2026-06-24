@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -24,9 +24,9 @@ for group in GROUPS:
 
 df = pl.DataFrame(rows)
 
-palette = theme.palette("mpl_YlGnBu", n=len(GROUPS), start=2)
+palette = ds.palette("mpl_YlGnBu", n=len(GROUPS), start=2)
 
-theme.options()
+ds.theme()
 
 x = alt.X("condition:N", sort=CONDITIONS, title=None)
 color = alt.Color("group:N", sort=GROUPS, scale=alt.Scale(range=palette), title=None)
@@ -54,5 +54,5 @@ points = (
 
 chart = alt.layer(lines, points)
 
-theme.save(chart, "paired")
+ds.save(chart, "paired")
 print("saved paired")

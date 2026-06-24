@@ -1,7 +1,7 @@
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -30,10 +30,10 @@ df = pl.DataFrame(
     }
 )
 
-theme.options(angledX=True)
-palette = theme.palette("lavenders", n=len(CATEGORIES))
+ds.theme(angledX=True)
+palette = ds.palette("lavenders", n=len(CATEGORIES))
 
-chart = theme.mark_violin(df, "group", "value", CATEGORIES, palette=palette)
+chart = ds.mark_violin(df, "group", "value", CATEGORIES, palette=palette)
 
-theme.save(chart, "violin")
+ds.save(chart, "violin")
 print("saved violin")

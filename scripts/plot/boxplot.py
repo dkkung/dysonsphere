@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -31,17 +31,17 @@ df = pl.DataFrame(
 
 CATEGORIES = ["Control", "Drug A", "Drug B", "Drug C", "Drug D", "Drug E"]
 
-theme.options()
+ds.theme()
 
-df = theme.add_beeswarm(
+df = ds.add_beeswarm(
     df,
     y_col="value",
     group_by=["group"],
 )
 
-# palette = theme.palette("greys", n=1, start=2)
-# palette = theme.palette("mpl_viridis", n=len(CATEGORIES), start=4)
-palette = theme.palette("blues", n=6, start=0)
+# palette = ds.palette("greys", n=1, start=2)
+# palette = ds.palette("mpl_viridis", n=len(CATEGORIES), start=4)
+palette = ds.palette("blues", n=6, start=0)
 
 base = alt.Chart(df).encode(
     x=alt.X(
@@ -61,7 +61,7 @@ points = base.mark_circle(size=5).encode(
     xOffset=alt.XOffset("beeswarm_x:Q"),
 )
 
-ann = theme.add_pvalue(
+ann = ds.add_pvalue(
     df,
     "group",
     "value",
@@ -79,7 +79,7 @@ test = {
     "Condition B": [True, True, True, True, True, True],
 }
 
-plot = theme.add_multilabel(chart, test, categories=CATEGORIES, style="symbol", palette=palette)
+plot = ds.add_multilabel(chart, test, categories=CATEGORIES, style="symbol", palette=palette)
 
-theme.save(plot, "boxplot")
+ds.save(plot, "boxplot")
 print("saved boxplot")

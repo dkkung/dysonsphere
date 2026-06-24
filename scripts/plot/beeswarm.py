@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -29,9 +29,9 @@ df = pl.DataFrame(
     }
 )
 
-theme.options(angledX=True, markSize=3)
+ds.theme(angledX=True, markSize=3)
 
-df = theme.add_beeswarm(df, y_col="value", group_by=["group"])
+df = ds.add_beeswarm(df, y_col="value", group_by=["group"])
 
 summary = df.group_by("group").agg(
     [
@@ -65,5 +65,5 @@ errorbars = (
 
 chart = points + errorbars
 
-theme.save(chart, "beeswarm")
+ds.save(chart, "beeswarm")
 print("saved beeswarm")

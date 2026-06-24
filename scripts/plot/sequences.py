@@ -9,7 +9,7 @@ H (histidine) grouped with polar (imidazole side chain; H-bond donor/acceptor).
 import altair as alt
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 from dysonsphere.palettes import colors
 
 # ── Protein sequence ──────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ nuc_df = pl.DataFrame(
     ]
 )
 
-theme.options(chartWidth=int(chart_w), chartHeight=int(aa_chart_h))
+ds.theme(chartWidth=int(chart_w), chartHeight=int(aa_chart_h))
 
 
 def seq_chart(palette_name: str) -> alt.Chart:
@@ -152,5 +152,5 @@ chart = alt.vconcat(
     spacing=20,
 ).resolve_scale(color="independent")
 
-theme.save(chart, "sequences")
+ds.save(chart, "sequences")
 print("saved sequences")

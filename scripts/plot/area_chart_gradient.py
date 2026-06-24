@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -25,9 +25,9 @@ for t in TIMEPOINTS:
 
 df = pl.DataFrame(rows)
 
-palette = theme.palette("mpl_YlGnBu", n=10)
+palette = ds.palette("mpl_YlGnBu", n=10)
 
-theme.options(closed=False)
+ds.theme(closed=False)
 
 area = (
     alt.Chart(df)
@@ -50,5 +50,5 @@ area = (
 
 chart = alt.layer(area)
 
-theme.save(chart, "area_chart_gradient")
+ds.save(chart, "area_chart_gradient")
 print("saved area_chart_gradient")

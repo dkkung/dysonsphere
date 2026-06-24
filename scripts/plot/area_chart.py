@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -22,9 +22,9 @@ for t in TIMEPOINTS:
 
 df = pl.DataFrame(rows)
 
-palette = theme.palette("bluelagoon", n=len(GROUPS))
+palette = ds.palette("bluelagoon", n=len(GROUPS))
 
-theme.options()
+ds.theme()
 
 chart = (
     alt.Chart(df)
@@ -42,5 +42,5 @@ chart = (
     )
 )
 
-theme.save(chart, "area_chart")
+ds.save(chart, "area_chart")
 print("saved area_chart")

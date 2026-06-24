@@ -33,7 +33,7 @@ def save(
         The Altair chart to save, or a zero-argument callable that returns
         one. When a callable is provided it is called fresh for each
         light/dark variant — after ``darkmode`` has been toggled — so any
-        marks whose colours depend on ``theme.options()`` (e.g.
+        marks whose colours depend on ``ds.theme()`` (e.g.
         ``add_multilabel``) are rebuilt with the correct palette each
         time.
     filename:
@@ -52,19 +52,19 @@ def save(
     --------
     Static chart (existing behaviour)::
 
-        theme.options()
+        ds.theme()
         chart = alt.Chart(df).mark_point().encode(...)
-        theme.save(chart, "plots/myplot")
+        ds.save(chart, "plots/myplot")
 
     Callable — rebuilt per variant so dark-mode colours are correct::
 
-        theme.save(
-            lambda: theme.add_multilabel(chart, CONDITIONS, style="dots"),
+        ds.save(
+            lambda: ds.add_multilabel(chart, CONDITIONS, style="dots"),
             "plots/myplot",
         )
     """
     if not alt.theme.options:
-        raise RuntimeError("theme.options() must be called before theme.save().")
+        raise RuntimeError("ds.theme() must be called before ds.save().")
 
     # _resolve() is called once per variant (or once for the spec).
     # When chart is a callable it is re-invoked each time so that any

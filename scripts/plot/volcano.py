@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -29,7 +29,7 @@ df = pl.DataFrame(
 
 CATEGORIES = ["Up", "NS", "Down"]
 
-theme.options(chartWidth=200, markFillOpacity=0.9)
+ds.theme(chartWidth=200, markFillOpacity=0.9)
 
 points = (
     alt.Chart(df)
@@ -59,5 +59,5 @@ v_rule_neg = alt.Chart(alt.Data(values=[{"x": -FC_THRESH}])).mark_rule().encode(
 
 chart = points + h_rule + v_rule_pos + v_rule_neg
 
-theme.save(chart, "volcano")
+ds.save(chart, "volcano")
 print("saved volcano")

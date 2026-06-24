@@ -12,7 +12,7 @@ register.
 """
 
 
-def options(
+def theme(
     angledX=False,
     axisOffset=None,  # defaults to tickSize if not set, or 0 if closed is True
     axisWidth=0.25,
@@ -53,9 +53,9 @@ def options(
     yTicks=True,
 ):
     """
-    Set global configuration options for the custom theme.
+    Configure and register the dysonsphere Altair theme.
     Call this function when plotting to custom-set the
-    options to override the defaults.
+    keyword arguments to override the defaults.
     """
     if closed is None:
         closed = viewFill is not None  # auto-close when a view fill color is specified

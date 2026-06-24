@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -18,7 +18,7 @@ df = pl.DataFrame(
     }
 )
 
-theme.options()
+ds.theme()
 
 chart = (
     alt.Chart(df)
@@ -30,5 +30,5 @@ chart = (
     )
 )
 
-theme.save(chart, "heatmap")
+ds.save(chart, "heatmap")
 print("saved heatmap")

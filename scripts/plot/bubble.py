@@ -2,7 +2,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-import dysonsphere as theme
+import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
@@ -24,9 +24,9 @@ for cls in CLASSES:
 
 df = pl.DataFrame(rows)
 
-palette = theme.palette("mpl_YlGnBu", n=len(CLASSES), start=2)
+palette = ds.palette("mpl_YlGnBu", n=len(CLASSES), start=2)
 
-theme.options(chartWidth=200, chartHeight=200)
+ds.theme(chartWidth=200, chartHeight=200)
 
 chart = (
     alt.Chart(df)
@@ -43,5 +43,5 @@ chart = (
     )
 )
 
-theme.save(chart, "bubble")
+ds.save(chart, "bubble")
 print("saved bubble")
