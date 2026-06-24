@@ -41,13 +41,13 @@ df = theme.add_beeswarm(
 
 # palette = theme.palette("greys", n=1, start=2)
 # palette = theme.palette("mpl_viridis", n=len(CATEGORIES), start=4)
-palette = theme.palette("lavenders", n=6, start=0)
+palette = theme.palette("blues", n=6, start=0)
 
 base = alt.Chart(df).encode(
     x=alt.X(
         "group:N",
         sort=CATEGORIES,
-        title="Treatment",
+        # title="Treatment",
         axis=alt.Axis(labelAngle=-45, labelAlign="right"),
     ),
     y=alt.Y("value:Q", title="Response (AU)"),
@@ -61,25 +61,25 @@ points = base.mark_circle(size=5).encode(
     xOffset=alt.XOffset("beeswarm_x:Q"),
 )
 
-ann_a = theme.add_pvalue(
+ann = theme.add_pvalue(
     df,
     "group",
     "value",
-    pairs=[("Control", "Drug A")],
+    pairs=[("Control", "Drug A"), ("Control", "Drug B")],
     test="mannwhitneyu",
     categories=CATEGORIES,
-    y_positions=[21],
+    y_positions=[21, 25],
 )
 
-ann_b = theme.add_pvalue(
-    df,
-    "group",
-    "value",
-    pairs=[("Control", "Drug B")],
-    test="mannwhitneyu",
-    categories=CATEGORIES,
-    y_positions=[23],
-)
+chart = points + boxplot + ann
 
-theme.save(points + boxplot + ann_a + ann_b, "boxplot")
+test = {
+    "Control":     [False, False, False, False, False, False],
+    "Condition A": [True,  True,  False, False, True,  True],
+    "Condition B": [True,  True,  True,  True,  True,  True],
+}
+
+plot = theme.add_grid_labels(chart, test, categories=CATEGORIES, style="dots", palette=palette)
+
+theme.save(plot, "boxplot")
 print("saved boxplot")
