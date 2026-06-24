@@ -665,7 +665,7 @@ def _build_gallery():
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import dysonsphere as _theme
+    import dysonsphere as _ds
 
     _ds.theme(chartWidth=W, chartHeight=W)
 
