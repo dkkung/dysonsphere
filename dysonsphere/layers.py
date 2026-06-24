@@ -911,7 +911,7 @@ def add_grid_labels_detached(
 
     positive = (
         alt.Chart(plus_df)
-        .mark_point(filled=True, color=positive_color, strokeWidth=0, size=dot_size)
+        .mark_point(filled=True, color=positive_color, strokeWidth=strokeWidth, size=dot_size)
         .encode(x=x_enc, y=y_enc)
     )
     negative = (
@@ -943,7 +943,7 @@ def add_grid_labels_detached(
         lines = (
             alt.Chart(lines_df)
             # strokeDash=[0, 0] overrides the theme's dashedRule=True default.
-            .mark_rule(color=positive_color, strokeWidth=strokeWidth, strokeDash=[0, 0])
+            .mark_rule(strokeWidth=strokeWidth, strokeDash=[0, 0])
             .encode(
                 x=alt.X("__x_start:N", sort=categories),
                 x2="__x_end:N",
