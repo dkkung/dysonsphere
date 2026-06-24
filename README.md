@@ -249,19 +249,19 @@ alt.Chart(df).mark_circle().encode(
 `add_pvalue()` annotates one or more group comparisons with p-value brackets, stacking them automatically so they don't overlap. Combine with any chart using `+`.
 
 ```python
-CATEGORIES = ["Control", "Drug A", "Drug B"]
+CATEGORIES = ["Control", "Group A", "Group B"]
 
 # single comparison
 chart + ds.add_pvalue(
     df, "group", "value",
-    pairs=[("Control", "Drug A")],
+    pairs=[("Control", "Group A")],
     categories=CATEGORIES, chartWidth=300,
 )
 
 # multiple comparisons — brackets stacked automatically
 chart + ds.add_pvalue(
     df, "group", "value",
-    pairs=[("Control", "Drug A"), ("Control", "Drug B"), ("Drug A", "Drug B")],
+    pairs=[("Control", "Group A"), ("Control", "Group B"), ("Group A", "Group B")],
     categories=CATEGORIES, chartWidth=300,
 )
 ```
