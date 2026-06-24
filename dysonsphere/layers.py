@@ -693,7 +693,8 @@ def add_grid_labels_detached(
     style: str = "plusminus",
     label_align: str = "left",
     label_padding: int = 0,
-    dot_size: int | None = None,
+    symbol: str = "circle",
+    symbol_size: int | None = None,
     palette: list[str] | None = None,
     strokeWidth: float | None = None,
     connecting_line: bool = True,
@@ -729,30 +730,35 @@ def add_grid_labels_detached(
         Row display order (top to bottom). Defaults to ``dict`` insertion order.
     style:
         ``"plusminus"`` renders ``True`` as ``+`` and ``False`` as ``−``.
-        ``"dots"`` renders ``True`` as a filled circle and ``False`` as an unfilled
-        circle, with a horizontal rule connecting each consecutive run of ``True``
-        values in a row. ``"text"`` renders raw group values as center-aligned strings
-        and is forced automatically when any value is non-bool.
+        ``"symbol"`` renders ``True`` as a filled mark and ``False`` as an unfilled
+        mark, with a horizontal rule connecting each consecutive run of ``True`` values
+        in a row. The mark shape is controlled by ``symbol``. ``"text"`` renders raw
+        group values as center-aligned strings and is forced automatically when any
+        value is non-bool.
     label_align:
         ``"left"`` (default) places row labels to the left of the grid with
         right-aligned text. ``"right"`` places them to the right with left-aligned text.
     label_padding:
         Gap in pixels between the plot boundary and the label text. Vega-Lite's
         default is 2. Negative values pull the labels into the plot area.
-    dot_size:
-        Area (in square pixels) of each dot in ``"dots"`` style. Defaults to
-        ``markSize * 4`` from ``theme.options()``.
+    symbol:
+        Vega-Lite shape name for ``"symbol"`` style marks (e.g. ``"circle"``,
+        ``"square"``, ``"diamond"``, ``"triangle-up"``). Defaults to ``"circle"``.
+    symbol_size:
+        Area (in square pixels) of each symbol. Defaults to ``markSize * 4``
+        from ``theme.options()``.
     palette:
-        List of colors used to fill annotation marks. ``palette[0]`` is applied to
-        ``"-"`` marks and ``palette[-1]`` to ``"+"`` marks. Overrides the darkmode
-        defaults when provided. Pass the result of ``theme.palette()`` directly.
+        List of colors used to fill annotation marks in ``"symbol"`` style.
+        ``palette[0]`` overrides the ``False`` mark color and ``palette[-1]`` the
+        ``True`` mark color. Overrides darkmode defaults when provided. Pass the
+        result of ``theme.palette()`` directly.
     strokeWidth:
         Stroke width applied to dot marks and the connecting rule. Defaults
         to ``markStrokeWidth`` from ``theme.options()``.
     connecting_line:
-        When ``True`` (default), draws a horizontal rule spanning the
-        leftmost to rightmost ``"+"`` in each row. Set to ``False`` to show
-        dots only.
+        When ``True`` (default), draws a horizontal rule spanning each consecutive
+        run of ``True`` values in a row (``"symbol"`` style only). Set to ``False``
+        to show symbols only.
     y_padding:
         Inner padding between rows as a fraction of the band step (0–1).
         ``0`` means no gap; ``1`` means bands collapse to zero width.
@@ -781,13 +787,13 @@ def add_grid_labels_detached(
     **``align="center"``** is required on all ``mark_text`` content marks. Without it,
     Vega-Lite's vertical band placement drifts relative to other marks on some versions.
 
-    **Darkmode dot colours** (``positive_color``, ``negative_fill``, ``negative_stroke``)
-    are resolved from ``alt.theme.options`` at call time. When using ``style="dots"``
+    **Darkmode symbol colours** (``positive_color``, ``negative_fill``, ``negative_stroke``)
+    are resolved from ``alt.theme.options`` at call time. When using ``style="symbol"``
     with ``theme.save()``, pass a callable so the chart is rebuilt after each darkmode
     toggle::
 
         theme.save(
-            lambda: theme.add_grid_labels(chart, groups, style="dots", ...),
+            lambda: theme.add_grid_labels(chart, groups, style="symbol", ...),
             "my_plot",
         )
 
@@ -811,7 +817,7 @@ def add_grid_labels_detached(
                 "ZFC3H1(Δ730–747)": [False, False, False, True],
             },
             categories=CATEGORIES,
-            style="dots",
+            style="symbol",
         )
         alt.vconcat(chart, ann).resolve_scale(x="shared")
     """
@@ -833,8 +839,8 @@ def add_grid_labels_detached(
     if any(not isinstance(v, bool) for v in all_values):
         style = "text"
 
-    if style not in ("plusminus", "text", "dots"):
-        raise ValueError(f"style must be 'plusminus', 'text', or 'dots', got {style!r}")
+    if style not in ("plusminus", "text", "symbol"):
+        raise ValueError(f"style must be 'plusminus', 'text', or 'symbol', got {style!r}")
     if label_align not in ("left", "right"):
         raise ValueError(f"label_align must be 'left' or 'right', got {label_align!r}")
 
@@ -904,7 +910,7 @@ def add_grid_labels_detached(
         )
         return alt.layer(row_labels, layer).properties(width=chartWidth, height=chart_h)
 
-    # --- dot style ---
+    # --- symbol style ---
     # Colours are resolved at call time from alt.theme.options so that darkmode
     # variants are correct. Use a callable with theme.save() to rebuild per variant.
     darkmode = alt.theme.options.get("darkmode", False)
@@ -921,8 +927,8 @@ def add_grid_labels_detached(
         negative_fill = palette[0]
         positive_color = palette[-1]
 
-    if dot_size is None:
-        dot_size = alt.theme.options.get("markSize", 10) * 4
+    if symbol_size is None:
+        symbol_size = alt.theme.options.get("markSize", 10) * 4
     if strokeWidth is None:
         strokeWidth = alt.theme.options.get("markStrokeWidth", 0.25)
 
@@ -931,17 +937,24 @@ def add_grid_labels_detached(
 
     positive = (
         alt.Chart(plus_df)
-        .mark_point(filled=True, color=positive_color, strokeWidth=strokeWidth, size=dot_size)
+        .mark_point(
+            shape=symbol,
+            filled=True,
+            color=positive_color,
+            strokeWidth=strokeWidth,
+            size=symbol_size,
+        )
         .encode(x=x_enc, y=y_enc)
     )
     negative = (
         alt.Chart(minus_df)
         .mark_point(
+            shape=symbol,
             filled=True,
             fill=negative_fill,
             stroke=negative_stroke,
             strokeWidth=strokeWidth,
-            size=dot_size,
+            size=symbol_size,
         )
         .encode(x=x_enc, y=y_enc)
     )
@@ -955,7 +968,11 @@ def add_grid_labels_detached(
             else:
                 if len(run) >= 2:
                     line_rows.append(
-                        {"__label": label, "__x_start": categories[run[0]], "__x_end": categories[run[-1]]}  # noqa: E501
+                        {
+                            "__label": label,
+                            "__x_start": categories[run[0]],
+                            "__x_end": categories[run[-1]],
+                        }  # noqa: E501
                     )
                 run = []
         if len(run) >= 2:

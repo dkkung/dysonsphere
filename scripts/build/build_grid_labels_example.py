@@ -66,7 +66,7 @@ def build_grid_labels_example():
         pm = theme.add_grid_labels(
             corner_label("plusminus"), CONDITIONS, style="plusminus", **KWARGS
         )
-        dot = theme.add_grid_labels(corner_label("dots"), CONDITIONS, style="dots", **KWARGS)
+        dot = theme.add_grid_labels(corner_label("symbol"), CONDITIONS, style="symbol", **KWARGS)
         txt = theme.add_grid_labels(corner_label("text"), SCORES, style="text", **KWARGS)
         return alt.hconcat(pm, dot, txt)
 
