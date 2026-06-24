@@ -928,14 +928,19 @@ def add_grid_labels_detached(
 
     line_rows = []
     for label in row_order:
-        plus_idxs = [i for i, v in enumerate(groups[label]) if v == "+"]
-        if len(plus_idxs) >= 2:
+        run: list[int] = []
+        for i, v in enumerate(groups[label]):
+            if v == "+":
+                run.append(i)
+            else:
+                if len(run) >= 2:
+                    line_rows.append(
+                        {"__label": label, "__x_start": categories[run[0]], "__x_end": categories[run[-1]]}  # noqa: E501
+                    )
+                run = []
+        if len(run) >= 2:
             line_rows.append(
-                {
-                    "__label": label,
-                    "__x_start": categories[plus_idxs[0]],
-                    "__x_end": categories[plus_idxs[-1]],
-                }
+                {"__label": label, "__x_start": categories[run[0]], "__x_end": categories[run[-1]]}  # noqa: E501
             )
 
     if connecting_line and line_rows:
