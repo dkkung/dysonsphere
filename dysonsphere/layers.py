@@ -691,9 +691,10 @@ def add_grid_labels_detached(
     *,
     order: list[str] | None = None,
     style: str = "plusminus",
-    label_align: str = "right",
+    label_align: str = "left",
     label_padding: int = 0,
     dot_size: int | None = None,
+    palette: list[str] | None = None,
     strokeWidth: float | None = None,
     connecting_line: bool = True,
     y_padding: float | None = None,
@@ -719,20 +720,24 @@ def add_grid_labels_detached(
     order:
         Row display order (top to bottom). Defaults to ``dict`` insertion order.
     style:
-        ``"plusminus"`` renders literal ``+`` / ``−`` characters. ``"dot"`` renders
+        ``"plusminus"`` renders literal ``+`` / ``−`` characters. ``"dots"`` renders
         filled circles — black for ``"+"`` and ``greys[0]`` for ``"-"`` — with a
         horizontal line connecting the leftmost to rightmost ``"+"`` in each row.
         ``"text"`` renders the raw values from the ``groups`` dict as center-aligned
         text, suitable for arbitrary labels.
     label_align:
-        ``"right"`` (default) places row labels to the right of the grid with
-        left-aligned text. ``"left"`` places them to the left with right-aligned text.
+        ``"left"`` (default) places row labels to the left of the grid with
+        right-aligned text. ``"right"`` places them to the right with left-aligned text.
     label_padding:
         Gap in pixels between the plot boundary and the label text. Vega-Lite's
         default is 2. Negative values pull the labels into the plot area.
     dot_size:
-        Area (in square pixels) of each dot in ``"dot"`` style. Defaults to
+        Area (in square pixels) of each dot in ``"dots"`` style. Defaults to
         ``markSize * 4`` from ``theme.options()``.
+    palette:
+        List of colors used to fill annotation marks. ``palette[0]`` is applied to
+        ``"-"`` marks and ``palette[-1]`` to ``"+"`` marks. Overrides the darkmode
+        defaults when provided. Pass the result of ``theme.palette()`` directly.
     strokeWidth:
         Stroke width applied to dot marks and the connecting rule. Defaults
         to ``markStrokeWidth`` from ``theme.options()``.
@@ -769,12 +774,12 @@ def add_grid_labels_detached(
     Vega-Lite's vertical band placement drifts relative to other marks on some versions.
 
     **Darkmode dot colours** (``positive_color``, ``negative_fill``, ``negative_stroke``)
-    are resolved from ``alt.theme.options`` at call time. When using ``style="dot"``
+    are resolved from ``alt.theme.options`` at call time. When using ``style="dots"``
     with ``theme.save()``, pass a callable so the chart is rebuilt after each darkmode
     toggle::
 
         theme.save(
-            lambda: theme.add_grid_labels(chart, groups, style="dot", ...),
+            lambda: theme.add_grid_labels(chart, groups, style="dots", ...),
             "my_plot",
         )
 
@@ -798,7 +803,7 @@ def add_grid_labels_detached(
                 "ZFC3H1(Δ730–747)": ["-", "-", "-", "+"],
             },
             categories=CATEGORIES,
-            style="dot",
+            style="dots",
         )
         alt.vconcat(chart, ann).resolve_scale(x="shared")
     """
@@ -809,12 +814,13 @@ def add_grid_labels_detached(
     for label in row_order:
         if len(groups[label]) != len(categories):
             raise ValueError(
-                f"groups[{label!r}] has {len(groups[label])} values but "
-                f"len(categories) = {len(categories)}"
+                f"groups[{label!r}] has {len(groups[label])} values but categories has "
+                f"{len(categories)}. Each row must have one value per x-axis category, "
+                f"in the same left-to-right order as the main chart."
             )
 
-    if style not in ("plusminus", "text", "dot"):
-        raise ValueError(f"style must be 'plusminus', 'text', or 'dot', got {style!r}")
+    if style not in ("plusminus", "text", "dots"):
+        raise ValueError(f"style must be 'plusminus', 'text', or 'dots', got {style!r}")
     if label_align not in ("left", "right"):
         raise ValueError(f"label_align must be 'left' or 'right', got {label_align!r}")
 
@@ -890,6 +896,10 @@ def add_grid_labels_detached(
         positive_color = "black"
         negative_fill = colors["greys"][0]
         negative_stroke = alt.Undefined
+
+    if palette is not None:
+        negative_fill = palette[0]
+        positive_color = palette[-1]
 
     if dot_size is None:
         dot_size = alt.theme.options.get("markSize", 10) * 4
@@ -984,7 +994,7 @@ def add_grid_labels(
             chart,
             {"dTAG^V-1": ["-", "+", "+", "+"], "ZFC3H1 WT": ["-", "-", "+", "-"]},
             categories=CATEGORIES,
-            style="dot",
+            style="dots",
             label_align="right",
         )
         theme.save(composed, "my_plot")
@@ -1003,9 +1013,10 @@ def add_grid_labels(
                 if x is not alt.Undefined and isinstance(x, alt.X):
                     axis = x._kwds.get("axis", alt.Undefined)
                     if axis is alt.Undefined or axis is None:
-                        x._kwds["axis"] = alt.Axis(labels=False)
+                        x._kwds["axis"] = alt.Axis(labels=False, title=None)
                     elif isinstance(axis, alt.Axis):
                         axis._kwds["labels"] = False
+                        axis._kwds["title"] = None
         if isinstance(node, alt.LayerChart):
             for layer in node._kwds.get("layer", []):
                 _strip_x_labels(layer)
