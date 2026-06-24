@@ -1,6 +1,6 @@
 [project]
 name = "dysonsphere"
-version = "0.7.0"
+version = "0.8.0"
 description = "An Altair configuration wrapper with perceptually uniform palettes and chart utilities for publication-ready figures."
 readme = "README.md"
 license = "MIT"
