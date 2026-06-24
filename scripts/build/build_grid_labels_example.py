@@ -50,7 +50,7 @@ SCORES = {
 
 
 def build_grid_labels_example():
-    theme.options(chartFill="white")
+    theme.options(chartFill="white", palette="blues2")
 
     out_base = str(Path(__file__).parent.parent.parent / "docs" / "grid_labels_example")
 
