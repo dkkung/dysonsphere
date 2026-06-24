@@ -34,8 +34,8 @@ df = pl.DataFrame(
 )
 
 CONDITIONS = {
-    "Condition 1": [True,  False, True,  True],
-    "Condition 2": [False, False, True,  False],
+    "Condition 1": [True, False, True, True],
+    "Condition 2": [False, False, True, False],
     "Condition 3": [False, False, False, True],
 }
 

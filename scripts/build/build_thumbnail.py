@@ -184,8 +184,16 @@ def build_thumbnail():
 
     _rs = dict(color="independent", opacity="independent")
     grid = alt.concat(
-        _area(KEY), _stacked_bar_no_angle(KEY), _histogram(KEY), _seq_heatmap(KEY), _heatmap(KEY),
-        _boxplot_no_angle(KEY), _violin_no_legend(KEY), _volcano(KEY), _scatter(KEY), _line_no_legend(KEY),
+        _area(KEY),
+        _stacked_bar_no_angle(KEY),
+        _histogram(KEY),
+        _seq_heatmap(KEY),
+        _heatmap(KEY),
+        _boxplot_no_angle(KEY),
+        _violin_no_legend(KEY),
+        _volcano(KEY),
+        _scatter(KEY),
+        _line_no_legend(KEY),
         columns=5,
         spacing=6,
     ).resolve_scale(**_rs)
