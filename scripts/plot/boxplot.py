@@ -74,12 +74,12 @@ ann = theme.add_pvalue(
 chart = points + boxplot + ann
 
 test = {
-    "Control":     [False, False, False, False, False, False],
-    "Condition A": [True,  True,  False, False, True,  True],
-    "Condition B": [True,  True,  True,  True,  True,  True],
+    "Control": [False, False, False, False, False, False],
+    "Condition A": [True, True, False, False, True, True],
+    "Condition B": [True, True, True, True, True, True],
 }
 
-plot = theme.add_grid_labels(chart, test, categories=CATEGORIES, style="dots", palette=palette)
+plot = theme.add_grid_labels(chart, test, categories=CATEGORIES, style="symbol", palette=palette)
 
 theme.save(plot, "boxplot")
 print("saved boxplot")
