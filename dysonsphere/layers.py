@@ -305,14 +305,14 @@ def mark_strip(
     else:
         raise ValueError(f"errorbar_extent must be 'sem' or 'sd', got {errorbar_extent!r}")
 
-    summary = df.group_by(x_col).agg([pl.col(y_col).median().alias("__median"), error_expr])
+    summary = df.group_by(x_col).agg([pl.col(y_col).mean().alias("__mean"), error_expr])
 
     errorbar_layer = (
         alt.Chart(summary)
         .mark_errorbar()
         .encode(
             x=x,
-            y=alt.Y("__median:Q", title=y_col),
+            y=alt.Y("__mean:Q", title=y_col),
             yError=alt.YError("__error:Q"),
         )
     )
@@ -935,6 +935,8 @@ def add_multilabel_detached(
     plus_df = marks_df.filter(pl.col("__value") == "+")
     minus_df = marks_df.filter(pl.col("__value") == "-")
 
+    symbol_dy = -fontSize * 0.1
+
     positive = (
         alt.Chart(plus_df)
         .mark_point(
@@ -943,6 +945,7 @@ def add_multilabel_detached(
             color=positive_color,
             strokeWidth=strokeWidth,
             size=symbol_size,
+            dy=symbol_dy,
         )
         .encode(x=x_enc, y=y_enc)
     )
@@ -955,6 +958,7 @@ def add_multilabel_detached(
             stroke=negative_stroke,
             strokeWidth=strokeWidth,
             size=symbol_size,
+            dy=symbol_dy,
         )
         .encode(x=x_enc, y=y_enc)
     )
@@ -1037,7 +1041,7 @@ def add_multilabel(
             chart,
             {"dTAG^V-1": [False, True, True, True], "ZFC3H1 WT": [False, False, True, False]},
             categories=CATEGORIES,
-            style="dots",
+            style="symbol",
             label_align="right",
         )
         ds.save(composed, "my_plot")
