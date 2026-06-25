@@ -191,9 +191,11 @@ ds.save(chart, "plots/myplot")
 Produces light and dark PNG and SVG files from a single call. SVG output is post-processed to flatten Vega's redundant `<g>` wrappers, making it easier to navigate in Illustrator. A Vega-Lite JSON spec is also saved by default for full reproducibility.
 
 ```python
-ds.save(chart, "myplot", ppi=1200)               # default PPI; reduce for faster exports
-ds.save(chart, "myplot", save_vega_spec=False)    # skip the JSON spec
-ds.save(chart, "myplot", description="Figure 1")  # embed a description in the SVG
+ds.save(chart, "myplot", ppi=1200)                    # default PPI; reduce for faster exports
+ds.save(chart, "myplot", save_vega_spec=False)         # skip the JSON spec
+ds.save(chart, "myplot", description="Figure 1")       # embed a description in the SVG
+ds.save(chart, "myplot", background=["light"])         # light variant only
+ds.save(chart, "myplot", background=["dark"])          # dark variant only
 ```
 
 ---
@@ -290,12 +292,13 @@ ds.add_pvalue(..., pvalues=[0.002, 0.031])
 | `y_start` | auto | Y position of the lowest bracket |
 | `y_step` | `y_pad × 2` | Vertical distance between stacking levels |
 | `y_pad` | `5` | Padding above data max when y_start is auto-placed |
-| `style` | `"line"` | `"line"` (bar only) or `"bracket"` (bar + end ticks) |
-| `tick_height` | `0.5` | End tick height in data units (only for `style="bracket"`) |
+| `bracket_style` | `"line"` | `"line"` (bar only) or `"bracket"` (bar + end ticks) |
+| `label_style` | `"p"` | `"p"` renders `p = 0.012` / `p < 0.001`; `"stars"` renders `*` / `**` / `***` / `ns` |
+| `tick_height` | `0.5` | End tick height in data units (only for `bracket_style="bracket"`) |
 | `reverse` | `None` | List of `(group1, group2)` tuples identifying brackets to flip below the bar |
 | `categories` | inferred | Ordered list of all x-axis categories |
 | `chartWidth` | theme default | Chart width used to compute text x position |
-| `decimals` | `3` | Decimal places in the p-value label |
+| `decimals` | `3` | Decimal places in the p-value label (only for `label_style="p"`) |
 
 ---
 

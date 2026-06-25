@@ -326,6 +326,16 @@ def _format_pvalue(p: float, decimals: int = 3) -> str:
     return f"p = {p:.{decimals}f}"
 
 
+def _format_stars(p: float) -> str:
+    if p < 0.001:
+        return "***"
+    if p < 0.01:
+        return "**"
+    if p < 0.05:
+        return "*"
+    return "ns"
+
+
 def _pvalue_layer(
     df: pl.DataFrame | None = None,
     x_col: str | None = None,
@@ -340,7 +350,8 @@ def _pvalue_layer(
     y: float | None = None,
     y_pad: float = 5,
     tick_height: float = 0.5,
-    style: str = "line",
+    bracket_style: str = "line",
+    label_style: str = "p",
     categories: list | None = None,
     chartWidth: int | None = None,
     strokeWidth: float | None = None,
@@ -379,7 +390,11 @@ def _pvalue_layer(
     if correction == "bonferroni" and test != "tukey_hsd":
         pvalue = min(pvalue * n_comparisons, 1.0)
 
-    label = _format_pvalue(pvalue, decimals=decimals)
+    label = (
+        _format_stars(pvalue)
+        if label_style == "stars"
+        else _format_pvalue(pvalue, decimals=decimals)
+    )
 
     # --- y position ---
     if y is None:
@@ -431,7 +446,7 @@ def _pvalue_layer(
         )
     )
 
-    if style == "bracket":
+    if bracket_style == "bracket":
         left_tick = (
             alt.Chart(alt.Data(values=[{"x": group1, "y": y, "y2": tick_y2}]))
             .mark_rule(**_rule_kwargs)
@@ -471,7 +486,8 @@ def add_pvalue(
     y_pad: float = 5,
     categories: list | None = None,
     chartWidth: int | None = None,
-    style: str = "line",
+    bracket_style: str = "line",
+    label_style: str = "p",
     tick_height: float = 0.5,
     strokeWidth: float | None = None,
     fontSize: int | None = None,
@@ -531,11 +547,14 @@ def add_pvalue(
         alphabetically) when not provided.
     chartWidth:
         Width of the chart in pixels, used to compute text x positions.
-    style:
+    bracket_style:
         ``'line'`` (horizontal bar only) or ``'bracket'`` (bar + end ticks).
+    label_style:
+        ``'p'`` (default) renders ``p = 0.012`` / ``p < 0.001``. ``'stars'``
+        renders ``*`` / ``**`` / ``***`` / ``ns``.
     tick_height:
         Height of bracket end ticks in data units. Only used when
-        ``style='bracket'``.
+        ``bracket_style='bracket'``.
     strokeWidth:
         Stroke width of bracket lines. Inherits ``axisWidth`` from
         ``ds.theme()`` when not set.
@@ -546,7 +565,8 @@ def add_pvalue(
         List of ``(group1, group2)`` tuples identifying brackets to flip —
         text moves below the bar and ticks point upward.
     decimals:
-        Decimal places for p-value labels when ``p >= 0.001``.
+        Decimal places for p-value labels when ``label_style='p'`` and
+        ``p >= 0.001``.
 
     Examples
     --------
@@ -672,7 +692,8 @@ def add_pvalue(
                 pvalue=pval,
                 y=final_y[i],
                 tick_height=tick_height,
-                style=style,
+                bracket_style=bracket_style,
+                label_style=label_style,
                 categories=categories,
                 chartWidth=chartWidth,
                 strokeWidth=strokeWidth,
