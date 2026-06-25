@@ -293,7 +293,7 @@ ds.add_pvalue(..., pvalues=[0.002, 0.031])
 | `y_step` | `y_pad × 2` | Vertical distance between stacking levels |
 | `y_pad` | `5` | Padding above data max when y_start is auto-placed |
 | `bracket_style` | `"line"` | `"line"` (bar only) or `"bracket"` (bar + end ticks) |
-| `label_style` | `"p"` | `"p"` renders `p = 0.012` / `p < 0.001`; `"stars"` renders `*` / `**` / `***` / `ns` |
+| `label_style` | `"p"` | `"p"` renders `p = 0.012` / `p < 0.001`; `"asterisks"` renders `*` / `**` / `***` / `ns` |
 | `tick_height` | `0.5` | End tick height in data units (only for `bracket_style="bracket"`) |
 | `reverse` | `None` | List of `(group1, group2)` tuples identifying brackets to flip below the bar |
 | `categories` | inferred | Ordered list of all x-axis categories |

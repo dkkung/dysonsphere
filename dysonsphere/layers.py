@@ -326,7 +326,7 @@ def _format_pvalue(p: float, decimals: int = 3) -> str:
     return f"p = {p:.{decimals}f}"
 
 
-def _format_stars(p: float) -> str:
+def _format_asterisks(p: float) -> str:
     if p < 0.001:
         return "***"
     if p < 0.01:
@@ -391,8 +391,8 @@ def _pvalue_layer(
         pvalue = min(pvalue * n_comparisons, 1.0)
 
     label = (
-        _format_stars(pvalue)
-        if label_style == "stars"
+        _format_asterisks(pvalue)
+        if label_style == "asterisks"
         else _format_pvalue(pvalue, decimals=decimals)
     )
 
@@ -421,10 +421,10 @@ def _pvalue_layer(
 
     _rule_kwargs = {"strokeWidth": strokeWidth, "strokeDash": [0, 0]}
 
-    # Stars glyphs sit above the baseline with no descenders; p-value text has
-    # a 'p' descender that visually closes the gap. Reduce dy for stars so the
-    # whitespace above the bracket matches the p-value label appearance.
-    _dy_mag = 2 if label_style == "stars" else 6
+    # Asterisk glyphs sit above the baseline with no descenders; p-value text
+    # has a 'p' descender that visually closes the gap. Reduce dy for asterisks
+    # so the whitespace above the bracket matches the p-value label appearance.
+    _dy_mag = 2 if label_style == "asterisks" else 6
     text_dy = _dy_mag if reverse else -_dy_mag
     tick_y2 = y + tick_height if reverse else y - tick_height
 
@@ -561,7 +561,7 @@ def add_pvalue(
     bracket_style:
         ``'line'`` (horizontal bar only) or ``'bracket'`` (bar + end ticks).
     label_style:
-        ``'p'`` (default) renders ``p = 0.012`` / ``p < 0.001``. ``'stars'``
+        ``'p'`` (default) renders ``p = 0.012`` / ``p < 0.001``. ``'asterisks'``
         renders ``*`` / ``**`` / ``***`` / ``ns``.
     tick_height:
         Height of bracket end ticks in data units. Only used when
