@@ -58,6 +58,8 @@ recipe, not exact byte-for-byte output.
 
 import math
 
+from dysonsphere.palettes import colors as _pal
+
 # ── Build parameters ─────────────────────────────────────────────────────
 
 N_OUT_SEQ = 12  # stops per sequential palette
@@ -347,6 +349,7 @@ def build_diverging(
 
     def build_arm(arm_dark, other_dark):
         L_dark, a_d, b_d = hex_to(arm_dark)
+        achromatic = (a_d * a_d + b_d * b_d) < 1e-8
         h_arm = math.atan2(b_d, a_d)
         _, a_o, b_o = hex_to(other_dark)
         h_other = math.atan2(b_o, a_o)
@@ -355,7 +358,8 @@ def build_diverging(
             s = i / (N_DENSE - 1)
             L = L_dark + (L_center - L_dark) * s
             t = 1 - s  # 1 at dark end → 0 at centre
-            C = frac * min(max_c(L, h_arm), max_c(L, h_other)) * t
+            # Achromatic endpoints (pure greys) have undefined hue; force C=0.
+            C = 0.0 if achromatic else frac * min(max_c(L, h_arm), max_c(L, h_other)) * t
             Ld.append(L)
             ad.append(C * math.cos(h_arm))
             bd.append(C * math.sin(h_arm))
@@ -522,6 +526,62 @@ DIVERG_OKLAB = {
     "YlPu": ("#574E11", "#2D4D84"),
 }
 
+# Pairs of "2"-suffix sequential palettes for diverging construction.
+# Endpoints use index 7 of each arm palette — same rule as the regular pairs.
+DIVERG_SEQ2_PAIRS = [
+    ("reds2", "blues2"),
+    ("purples2", "greens2"),
+    ("lavenders2", "greens2"),
+    ("lavenders2", "blues2"),
+    ("purples2", "blues2"),
+    ("browns2", "blues2"),
+    ("pinks2", "blues2"),
+    ("greys2", "blues2"),
+    ("greys2", "reds2"),
+    ("greys2", "purples2"),
+    ("greys2", "lavenders2"),
+    ("greys2", "pinks2"),
+    ("greens2", "blues2"),
+    ("reds2", "greens2"),
+    ("reds2", "cyans2"),
+    ("reds2", "lavenders2"),
+    ("reds2", "violets2"),
+    ("reds2", "neongreens2"),
+    ("pinks2", "cyans2"),
+    ("pinks2", "greens2"),
+    ("pinks2", "neongreens2"),
+    ("oranges2", "blues2"),
+    ("oranges2", "cyans2"),
+    ("oranges2", "purples2"),
+    ("oranges2", "lavenders2"),
+    ("oranges2", "violets2"),
+    ("oranges2", "neongreens2"),
+    ("yellows2", "blues2"),
+    ("yellows2", "purples2"),
+    ("yellows2", "lavenders2"),
+    ("browns2", "greens2"),
+    ("browns2", "cyans2"),
+    ("browns2", "neongreens2"),
+    ("magentas2", "neongreens2"),
+    ("magentas2", "greens2"),
+    ("magentas2", "blues2"),
+    ("magentas2", "cyans2"),
+    ("violets2", "oranges2"),
+    ("violets2", "yellows2"),
+    ("cyans2", "purples2"),
+    ("cyans2", "lavenders2"),
+    ("cyans2", "violets2"),
+    ("purples2", "neongreens2"),
+    ("lavenders2", "neongreens2"),
+    ("greys2", "greens2"),
+    ("greys2", "yellows2"),
+    ("greys2", "oranges2"),
+    ("greys2", "cyans2"),
+    ("greys2", "magentas2"),
+    ("greys2", "violets2"),
+    ("greys2", "neongreens2"),
+]
+
 
 # ── Main: build everything and print ─────────────────────────────────────
 
@@ -549,6 +609,11 @@ def main():
     print("\n# ─── Diverging maximally saturated (Oklab, FRAC=1.0) ─────────────")
     for name, (arm2, arm1) in DIVERG_OKLAB.items():
         _print_palette(f"{name}_sat", build_diverging(arm2, arm1, frac=DIVERG_SAT_FRAC))
+
+    print("\n# ─── Diverging — '2'-suffix single-hue pairs ──────────────────────────────")
+    for arm1, arm2 in DIVERG_SEQ2_PAIRS:
+        name = arm1.removesuffix("2") + arm2  # e.g. "reds2","blues2" → "redsblues2"
+        _print_palette(name, build_diverging(_pal[arm1][7], _pal[arm2][7]))
 
     print("\n# ─── Desaturation ladder example (bluestgrotto → bluergrotto → bluegrotto)")
     base = build_multihue(SEQ_MULTI_OKLAB["bluestgrotto"])
