@@ -259,24 +259,21 @@ CATEGORIES = ["Control", "Group A", "Group B"]
 chart + ds.add_pvalue(
     df, "group", "value",
     pairs=[("Control", "Group A")],
-    categories=CATEGORIES, chartWidth=300,
+    categories=CATEGORIES,
 )
 
 # multiple comparisons — brackets stacked automatically
 chart + ds.add_pvalue(
     df, "group", "value",
     pairs=[("Control", "Group A"), ("Control", "Group B"), ("Group A", "Group B")],
-    categories=CATEGORIES, chartWidth=300,
+    categories=CATEGORIES,
 )
 ```
 
-From pre-computed p-values:
+From pre-computed p-values, with explicit bracket positions:
 
 ```python
-ds.add_pvalue(..., pvalues=[0.023], y_positions=[210])
-
-# batch
-ds.add_pvalue(..., pvalues=[0.002, 0.031])
+ds.add_pvalue(..., pvalues=[0.002, 0.031], y_positions=[4.5, 5.2])
 ```
 
 **Parameters**
@@ -299,8 +296,10 @@ ds.add_pvalue(..., pvalues=[0.002, 0.031])
 | `tick_height` | `0.5` | End tick height in data units (only for `bracket_style="bracket"`) |
 | `reverse` | `None` | List of `(group1, group2)` tuples identifying brackets to flip below the bar |
 | `categories` | inferred | Ordered list of all x-axis categories |
-| `chartWidth` | theme default | Chart width used to compute text x position |
+| `chartWidth` | `ds.theme()` default | Chart width for computing text x position; auto-read from the active theme, rarely needs to be set explicitly |
 | `decimals` | `3` | Decimal places in the p-value label (only for `label_style="p"`) |
+
+![p-value example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/pvalue_example_light.png)
 
 ---
 

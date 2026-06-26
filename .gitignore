@@ -56,3 +56,4 @@ pipenv
 *.json
 !docs/thumbnail_light.png
 !docs/grid_labels_example_light.png
+!docs/pvalue_example_light.png
