@@ -157,14 +157,15 @@ def _fix_tick_alignment(path: str, band_padding: float = 0.1, chart_width: float
 
         def apply_bar_fix(el: ET.Element) -> None:
             for child in el:
-                if child.get("class", "") == "mark-rule role-axis-tick":
+                cls = child.get("class", "")
+                if cls in ("mark-rule role-axis-tick", "mark-rule role-axis-grid"):
                     for line in child:
                         t = line.get("transform", "")
-                        m = re.match(r"translate\((\d+(?:\.\d+)?),0\)$", t)
+                        m = re.match(r"translate\((\d+(?:\.\d+)?),([-\d.]+)\)$", t)
                         if m:
                             c = nearest(float(m.group(1)))
                             if c is not None:
-                                line.set("transform", f"translate({c},0)")
+                                line.set("transform", f"translate({c},{m.group(2)})")
                 else:
                     apply_bar_fix(child)
 
@@ -196,25 +197,32 @@ def _fix_tick_alignment(path: str, band_padding: float = 0.1, chart_width: float
         # Keep unique positions; the center_map lookup handles all occurrences uniformly.
         tick_xs = list(set(tick_xs))
 
-        # Try two band-scale formulas in order:
-        #   1. paddingInner=0 (xOffset charts — Vega forces this when xOffset is used)
-        #      step = chart_width / (n + 2·paddingOuter)
-        #      band_center_i = step · (paddingOuter + i + 0.5)
-        #   2. paddingInner=band_padding (regular charts using theme bandPaddingInner default)
-        #      step = chart_width / (n·(1+paddingInner) + 2·paddingOuter - paddingInner)
-        #           = chart_width / (n + (n-1)·paddingInner + 2·paddingOuter)
-        #      band_center_i = step · (paddingOuter + i·(1+paddingInner) + 0.5)
-        # Validation ensures we only apply the fix to nominal band axes, not quantitative ones.
+        # Three scale formulas tried in order. Validation matches actual SVG integer positions
+        # to the expected floor/round of each formula — only the matching formula is applied,
+        # ensuring we don't touch quantitative or time axes.
+        #
+        #   0. Band, paddingInner=0 (xOffset charts), paddingOuter=band_padding
+        #      step = W / (n + 2·bp);  center_i = step·(bp + i + 0.5)
+        #      Vega uses Math.floor
+        #
+        #   pi. Band, paddingInner=paddingOuter=band_padding (bar/violin without xOffset)
+        #      step = W / (n + bp);  center_i = step·(i + 0.5 + bp/2)
+        #      Vega uses Math.floor
+        #
+        #   pt. Point scale, pointPadding=0.5 (Vega-Lite default for scatter/strip marks)
+        #      step = W / n;  position_i = step·(0.5 + i)
+        #      Vega uses Math.round
         n = len(tick_xs)
         sorted_ticks = sorted(tick_xs)
 
         step0 = chart_width / (n + 2 * band_padding)
         expected0 = [int(step0 * (band_padding + i + 0.5)) for i in range(n)]
 
-        step_pi = chart_width / (n + (n - 1) * band_padding + 2 * band_padding)
-        expected_pi = [
-            int(step_pi * (band_padding + i * (1 + band_padding) + 0.5)) for i in range(n)
-        ]
+        step_pi = chart_width / (n + band_padding)
+        expected_pi = [int(step_pi * (i + 0.5 + band_padding / 2)) for i in range(n)]
+
+        step_pt = chart_width / n
+        expected_pt = [round(step_pt * (0.5 + i)) for i in range(n)]
 
         actual_int = [int(t) for t in sorted_ticks]
         if actual_int == expected0:
@@ -223,22 +231,27 @@ def _fix_tick_alignment(path: str, band_padding: float = 0.1, chart_width: float
             }
         elif actual_int == expected_pi:
             center_map = {
-                t: round(step_pi * (band_padding + i * (1 + band_padding) + 0.5), 4)
+                t: round(step_pi * (i + 0.5 + band_padding / 2), 4)
                 for i, t in enumerate(sorted_ticks)
+            }
+        elif actual_int == expected_pt:
+            center_map = {
+                t: round(step_pt * (0.5 + i), 4) for i, t in enumerate(sorted_ticks)
             }
         else:
             return
 
         def apply_analytic_fix(el: ET.Element) -> None:
             for child in el:
-                if child.get("class", "") == "mark-rule role-axis-tick":
+                cls = child.get("class", "")
+                if cls in ("mark-rule role-axis-tick", "mark-rule role-axis-grid"):
                     for line in child:
                         t = line.get("transform", "")
-                        m = re.match(r"translate\((\d+(?:\.\d+)?),0\)$", t)
+                        m = re.match(r"translate\((\d+(?:\.\d+)?),([-\d.]+)\)$", t)
                         if m:
                             c = center_map.get(float(m.group(1)))
                             if c is not None:
-                                line.set("transform", f"translate({c},0)")
+                                line.set("transform", f"translate({c},{m.group(2)})")
                 else:
                     apply_analytic_fix(child)
 
