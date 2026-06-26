@@ -31,7 +31,7 @@ df = pl.DataFrame(
 
 ds.theme(angledX=True, markSize=3)
 
-df = ds.add_beeswarm(df, y_col="value", group_by=["group"])
+df = ds.add_beeswarm(df, yCol="value", groupBy=["group"])
 
 summary = df.group_by("group").agg(
     [

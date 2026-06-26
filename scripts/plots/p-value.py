@@ -40,7 +40,7 @@ ann = ds.add_pvalue(
     pairs=[("Control", "Drug A"), ("Control", "Drug B"), ("Drug A", "Drug B")],
     test="mannwhitneyu",
     categories=CATEGORIES,
-    y_positions=[21, 5, 24],
+    yPositions=[21, 5, 24],
     reverse=[("Control", "Drug B")],
 )
 

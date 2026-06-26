@@ -35,8 +35,8 @@ ds.theme()
 
 df = ds.add_beeswarm(
     df,
-    y_col="value",
-    group_by=["group"],
+    yCol="value",
+    groupBy=["group"],
 )
 
 # palette = ds.palette("greys", n=1, start=2)
@@ -68,8 +68,8 @@ ann = ds.add_pvalue(
     pairs=[("Control", "Drug A"), ("Control", "Drug B")],
     test="mannwhitneyu",
     categories=CATEGORIES,
-    y_positions=[21, 25],
-    label_style="stars",
+    yPositions=[21, 25],
+    labelStyle="asterisks",
 )
 
 chart = points + boxplot + ann
