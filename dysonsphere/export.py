@@ -105,6 +105,7 @@ def save(
                 band_padding=alt.theme.options.get("bandPadding", 0.1),
                 chart_width=alt.theme.options.get("chartWidth", 100),
             )
+            _layer_axes_to_front(svg_path)
             _simplify_svg(svg_path)
             with open(svg_path, encoding="utf-8") as f:
                 svg_content = f.read()
@@ -257,6 +258,58 @@ def _fix_tick_alignment(path: str, band_padding: float = 0.1, chart_width: float
 
         apply_analytic_fix(root)
 
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(ET.tostring(root, encoding="unicode"))
+
+
+def _layer_axes_to_front(path: str) -> None:
+    """Re-order SVG children so axis domain/tick elements and the view border render last.
+
+    Vega emits axis groups (domain lines, ticks, labels) before data marks, so marks
+    can visually overlap axis lines. It also emits the view border before all content,
+    so grid lines overlap the border edges when closed=True. This fix moves non-grid
+    axis groups and any stroked border path to render after data marks, ensuring axes
+    always visually bound the view on all sides regardless of closed.
+
+    Grid axis groups (identified by containing a mark-rule role-axis-grid descendant)
+    are left in place so data marks continue to render on top of grid lines.
+    """
+    import xml.etree.ElementTree as ET
+
+    NS = "http://www.w3.org/2000/svg"
+    ET.register_namespace("", NS)
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+
+    def _is_grid_axis(el: ET.Element) -> bool:
+        return any(
+            g.get("class", "") == "mark-rule role-axis-grid"
+            for g in el.iter(f"{{{NS}}}g")
+        )
+
+    tree = ET.parse(path)
+    root = tree.getroot()
+
+    def reorder(el: ET.Element) -> None:
+        axis_groups = []
+        border_paths = []
+        for child in list(el):
+            cls = child.get("class", "")
+            if cls == "mark-group role-axis" and not _is_grid_axis(child):
+                axis_groups.append(child)
+            elif (
+                child.tag == f"{{{NS}}}path"
+                and cls == "background"
+                and child.get("stroke") not in (None, "none")
+                and child.get("display") != "none"
+            ):
+                border_paths.append(child)
+        for item in axis_groups + border_paths:
+            el.remove(item)
+            el.append(item)
+        for child in el:
+            reorder(child)
+
+    reorder(root)
     with open(path, "w", encoding="utf-8") as f:
         f.write(ET.tostring(root, encoding="unicode"))
 
