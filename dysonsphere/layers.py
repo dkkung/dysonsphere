@@ -354,11 +354,16 @@ def add_shade(
     - *String tuples* — category names on a nominal axis. Requires
       ``categories`` for index lookup. Uses pixel coordinates via
       ``alt.value`` so it does not interfere with the main chart's scale.
-      Supports both ``axis='x'`` and ``axis='y'``.
+      Supports ``axis='x'``, ``'y'``, and ``'both'``.
     - *Numeric tuples* — data-space coordinates on a quantitative axis.
       Uses ``x:Q``/``x2:Q`` or ``y:Q``/``y2:Q`` encoding, which
       auto-shares the scale with the main chart's matching channel.
-      Supports both ``axis='x'`` and ``axis='y'``.
+      Supports ``axis='x'``, ``'y'``, and ``'both'``.
+
+    With ``axis='both'`` each position is a nested pair
+    ``((x_start, x_end), (y_start, y_end))``. The two halves are resolved
+    independently so mixed types work (e.g. a nominal x-range combined with
+    a quantitative y-range).
 
     In both modes, compose behind the main chart with ``+``::
 
@@ -377,21 +382,31 @@ def add_shade(
             positions=[(5.0, 10.0)], axis='y', palette=["#E8F4F8"]
         )
 
+        # positions mode — intersection rect, nominal x + quantitative y
+        shade = ds.add_shade(
+            positions=[(("Control", "Drug B"), (8.0, 12.0))],
+            axis='both',
+            categories=CATEGORIES,
+        )
+
     Parameters
     ----------
     categories:
         Ordered list of axis categories. Required for band mode. Also
-        required in positions mode when tuple values are strings.
+        required in positions mode when any tuple values are strings.
     xCol:
         Column name for the x-axis grouping variable (band mode only;
         not used internally).
     positions:
-        List of ``(start, end)`` tuples defining explicit shade regions.
-        Activates positions mode; ``categories`` / ``repeat`` / ``flush``
-        are used only when tuple values are strings.
+        List of ``(start, end)`` tuples (single-axis) or
+        ``((x_start, x_end), (y_start, y_end))`` tuples (``axis='both'``)
+        defining explicit shade regions. Activates positions mode;
+        ``repeat`` and ``flush`` are used only when tuple values are strings.
     axis:
-        ``'x'`` (default) or ``'y'``. Controls which axis the shading
-        runs along. Ignored in band mode (always ``'x'``).
+        ``'x'`` (default), ``'y'``, or ``'both'``. Controls which axis the
+        shading runs along. ``'both'`` draws intersection rects spanning an
+        explicit x-range and y-range simultaneously. Ignored in band mode
+        (always ``'x'``).
     palette:
         List of hex color strings to cycle through. Defaults to the first
         two stops of the ``"greys"`` palette.
@@ -427,7 +442,71 @@ def add_shade(
     if positions is not None:
         layers: list[alt.Chart] = []
 
-        if len(positions) > 0 and isinstance(positions[0][0], str):
+        if axis == 'both':
+            # Nested tuples: ((x_start, x_end), (y_start, y_end)).
+            # Each half is resolved independently — string → pixel value via
+            # band scale; numeric → Q field that shares the main chart's scale.
+            band_padding = alt.theme.options.get("bandPadding", 0.1)
+            chart_width = alt.theme.options.get("chartWidth", 100)
+            chart_height = alt.theme.options.get("chartHeight", 100)
+            n = len(categories) if categories else 0
+            cat_index = {cat: i for i, cat in enumerate(categories)} if categories else {}
+            x_step = chart_width / (n + 2 * band_padding) if n else None
+            y_step = chart_height / (n + 2 * band_padding) if n else None
+            if flush is None:
+                flush = alt.theme.options.get("closed", False)
+
+            for k, (x_range, y_range) in enumerate(positions):
+                x_start, x_end = x_range
+                y_start, y_end = y_range
+                color = palette[k % n_colors]
+                enc: dict = {}
+                data_fields: dict = {}
+
+                if isinstance(x_start, str):
+                    if categories is None:
+                        raise ValueError(
+                            "categories is required when positions contains string x-ranges."
+                        )
+                    si, ei = cat_index[x_start], cat_index[x_end]
+                    lo = 0 if (flush and si == 0) else x_step * (band_padding + si)
+                    hi = (
+                        chart_width if (flush and ei == n - 1)
+                        else x_step * (band_padding + ei + 1)
+                    )
+                    enc["x"] = alt.value(lo)
+                    enc["x2"] = alt.value(hi)
+                else:
+                    data_fields["__x_start"] = [float(x_start)]
+                    data_fields["__x_end"] = [float(x_end)]
+                    enc["x"] = alt.X("__x_start:Q")
+                    enc["x2"] = alt.X2("__x_end:Q")
+
+                if isinstance(y_start, str):
+                    if categories is None:
+                        raise ValueError(
+                            "categories is required when positions contains string y-ranges."
+                        )
+                    si, ei = cat_index[y_start], cat_index[y_end]
+                    lo = 0 if (flush and si == 0) else y_step * (band_padding + si)
+                    hi = (
+                        chart_height if (flush and ei == n - 1)
+                        else y_step * (band_padding + ei + 1)
+                    )
+                    enc["y"] = alt.value(lo)
+                    enc["y2"] = alt.value(hi)
+                else:
+                    data_fields["__y_start"] = [float(y_start)]
+                    data_fields["__y_end"] = [float(y_end)]
+                    enc["y"] = alt.Y("__y_start:Q")
+                    enc["y2"] = alt.Y2("__y_end:Q")
+
+                df = pl.DataFrame(data_fields) if data_fields else dummy_df
+                layers.append(
+                    alt.Chart(df).mark_rect(**mark_kwargs, color=color).encode(**enc)
+                )
+
+        elif len(positions) > 0 and isinstance(positions[0][0], str):
             # String tuples: category names on a nominal axis.
             # Convert to pixel coordinates using the band scale formula so the
             # shade layer does not participate in scale merging.
