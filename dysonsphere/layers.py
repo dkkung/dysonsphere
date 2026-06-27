@@ -325,78 +325,94 @@ def mark_strip(
 
 
 def add_shade(
-    categories: list[str],
-    xCol: str,
+    categories: list[str] | None = None,
+    xCol: str | None = None,
     *,
+    positions: list[tuple] | None = None,
+    axis: str = 'x',
     palette: list[str] | None = None,
-    repeat: int = 2,
+    repeat: int = 1,
     opacity: float = 1.0,
     strokeWidth: float = 0,
     flush: bool | None = None,
 ) -> alt.LayerChart:
     """
-    Build a background shading layer with one ``mark_rect`` band per x-tick.
+    Build a background shading layer as filled ``mark_rect`` bands.
 
-    Each rect spans the full chart height. Bands are flush with one another
-    (no inter-band gap). Colors cycle through ``palette``, using each color for
-    ``repeat`` consecutive ticks before advancing to the next.
+    Two modes, selected by which parameters are provided:
 
-    Consecutive categories that share the same color are merged into a single
-    wider rect. This eliminates sub-pixel antialiasing seams that would
-    otherwise appear between same-color adjacent rects in PNG output. Rect
-    positions are computed as literal pixel values (``alt.value``) so the
-    shade layer does not participate in x-scale merging with the main chart.
+    **Band mode** (``categories`` provided, ``positions`` omitted): shades every
+    band on the x-axis, cycling colors through ``palette`` with ``repeat``
+    consecutive ticks per color. Consecutive same-color categories are merged
+    into a single wider rect to eliminate sub-pixel antialiasing seams in PNG
+    output. Always operates on ``axis='x'``.
 
-    Compose this layer behind a main chart with ``+``::
+    **Positions mode** (``positions`` provided): shades explicit coordinate
+    ranges given as ``(start, end)`` tuples, one rect per tuple. Colors cycle
+    across positions (``palette[i % len(palette)]``).
 
-        shade = ds.add_shade(CATEGORIES, "group", palette=ds.palette("greys", n=2), repeat=2)
+    - *String tuples* — category names on a nominal axis. Requires
+      ``categories`` for index lookup. Uses pixel coordinates via
+      ``alt.value`` so it does not interfere with the main chart's scale.
+      Supports both ``axis='x'`` and ``axis='y'``.
+    - *Numeric tuples* — data-space coordinates on a quantitative axis.
+      Uses ``x:Q``/``x2:Q`` or ``y:Q``/``y2:Q`` encoding, which
+      auto-shares the scale with the main chart's matching channel.
+      Supports both ``axis='x'`` and ``axis='y'``.
+
+    In both modes, compose behind the main chart with ``+``::
+
+        # band mode
+        shade = ds.add_shade(CATEGORIES, "group")
         chart = shade + main_chart
+
+        # positions mode — shade two category spans on x
+        shade = ds.add_shade(
+            positions=[("Control", "Drug B"), ("Drug D", "Drug E")],
+            categories=CATEGORIES,
+        )
+
+        # positions mode — reference band on y (quantitative)
+        shade = ds.add_shade(
+            positions=[(5.0, 10.0)], axis='y', palette=["#E8F4F8"]
+        )
 
     Parameters
     ----------
     categories:
-        Ordered list of x-axis categories — the same list passed to
-        ``mark_strip`` or ``mark_violin``.
+        Ordered list of axis categories. Required for band mode. Also
+        required in positions mode when tuple values are strings.
     xCol:
-        Column name for the x-axis grouping variable, matching the field used
-        in the main chart's x encoding.
+        Column name for the x-axis grouping variable (band mode only;
+        not used internally).
+    positions:
+        List of ``(start, end)`` tuples defining explicit shade regions.
+        Activates positions mode; ``categories`` / ``repeat`` / ``flush``
+        are used only when tuple values are strings.
+    axis:
+        ``'x'`` (default) or ``'y'``. Controls which axis the shading
+        runs along. Ignored in band mode (always ``'x'``).
     palette:
         List of hex color strings to cycle through. Defaults to the first
         two stops of the ``"greys"`` palette.
     repeat:
-        Number of consecutive ticks that share the same palette color before
-        advancing to the next color. Defaults to ``2``.
+        Number of consecutive ticks sharing the same color before
+        advancing (band mode only). Defaults to ``1``.
     opacity:
         Fill opacity of the shade rects. Defaults to ``1.0``.
     strokeWidth:
         Width of the rect border in pixels. Defaults to ``0`` (no stroke).
-        When set, the stroke inherits the theme's ``markStroke`` color and
-        is rendered fully opaque.
+        When set, the stroke inherits the theme's ``markStroke`` color.
     flush:
-        When ``True``, the first rect extends to ``x=0`` and the last rect
-        extends to ``x=chartWidth``, making the shading flush with the axis
-        domain line. When ``None`` (default), inherits from the theme's
-        ``closed`` setting. When ``False``, the natural band outer-padding
-        gap is preserved on both sides.
+        Extend the outermost rects to the axis domain edge (band mode and
+        string positions only). ``None`` inherits from the theme's
+        ``closed`` setting.
     """
     if palette is None:
         from .palettes import colors as _colors
         palette = _colors["greys"][:2]
 
-    n = len(categories)
     n_colors = len(palette)
-    color_map = [palette[(i // repeat) % n_colors] for i in range(n)]
-
-    band_padding = alt.theme.options.get("bandPadding", 0.1)
-    chart_width = alt.theme.options.get("chartWidth", 100)
-    # Vega-Lite uses bandPadding as paddingOuter only for scale positioning;
-    # bandPaddingInner only affects bar mark widths, not band boundaries.
-    # step = range / (n + 2*bandPadding); band i spans [step*(bandPadding+i), step*(bandPadding+i+1)].
-    step = chart_width / (n + 2 * band_padding)
-
-    if flush is None:
-        flush = alt.theme.options.get("closed", False)
-
     mark_kwargs: dict = {
         "opacity": opacity,
         "strokeWidth": strokeWidth,
@@ -405,10 +421,90 @@ def add_shade(
     if strokeWidth > 0:
         mark_kwargs["stroke"] = alt.theme.options.get("markStroke", "black")
 
+    dummy_df = pl.DataFrame({"__dummy": [0]})
+
+    # ── positions mode ────────────────────────────────────────────────────────
+    if positions is not None:
+        layers: list[alt.Chart] = []
+
+        if len(positions) > 0 and isinstance(positions[0][0], str):
+            # String tuples: category names on a nominal axis.
+            # Convert to pixel coordinates using the band scale formula so the
+            # shade layer does not participate in scale merging.
+            if categories is None:
+                raise ValueError(
+                    "categories is required when positions contains string tuples."
+                )
+            band_padding = alt.theme.options.get("bandPadding", 0.1)
+            n = len(categories)
+            span = (
+                alt.theme.options.get("chartHeight", 100)
+                if axis == 'y'
+                else alt.theme.options.get("chartWidth", 100)
+            )
+            step = span / (n + 2 * band_padding)
+            cat_index = {cat: i for i, cat in enumerate(categories)}
+
+            if flush is None:
+                flush = alt.theme.options.get("closed", False)
+
+            for k, (start, end) in enumerate(positions):
+                si, ei = cat_index[start], cat_index[end]
+                lo = 0 if (flush and si == 0) else step * (band_padding + si)
+                hi = span if (flush and ei == n - 1) else step * (band_padding + ei + 1)
+                color = palette[k % n_colors]
+                enc = (
+                    {"y": alt.value(lo), "y2": alt.value(hi)}
+                    if axis == 'y'
+                    else {"x": alt.value(lo), "x2": alt.value(hi)}
+                )
+                layers.append(
+                    alt.Chart(dummy_df).mark_rect(**mark_kwargs, color=color).encode(**enc)
+                )
+
+        else:
+            # Numeric tuples: data-space coordinates on a quantitative axis.
+            # Encode as Q fields so the shade shares the main chart's scale.
+            for k, (start, end) in enumerate(positions):
+                color = palette[k % n_colors]
+                pos_df = pl.DataFrame({"__start": [float(start)], "__end": [float(end)]})
+                if axis == 'y':
+                    chart = (
+                        alt.Chart(pos_df)
+                        .mark_rect(**mark_kwargs, color=color)
+                        .encode(y=alt.Y("__start:Q"), y2=alt.Y2("__end:Q"))
+                    )
+                else:
+                    chart = (
+                        alt.Chart(pos_df)
+                        .mark_rect(**mark_kwargs, color=color)
+                        .encode(x=alt.X("__start:Q"), x2=alt.X2("__end:Q"))
+                    )
+                layers.append(chart)
+
+        return alt.layer(*layers)
+
+    # ── band mode ─────────────────────────────────────────────────────────────
+    if categories is None:
+        raise ValueError(
+            "categories is required for band mode. "
+            "Pass positions= to shade explicit coordinate ranges instead."
+        )
+
+    n = len(categories)
+    color_map = [palette[(i // repeat) % n_colors] for i in range(n)]
+
+    band_padding = alt.theme.options.get("bandPadding", 0.1)
+    chart_width = alt.theme.options.get("chartWidth", 100)
+    # step = range / (n + 2*bandPadding); band i spans [step*(bandPadding+i), step*(bandPadding+i+1)].
+    step = chart_width / (n + 2 * band_padding)
+
+    if flush is None:
+        flush = alt.theme.options.get("closed", False)
+
     # Merge consecutive same-color categories so there is no coincident edge
     # between two rects of the same fill — that edge would show as a faint seam
     # in rasterized PNG output regardless of opacity.
-    dummy_df = pl.DataFrame({"__dummy": [0]})
     run_layers: list[alt.Chart] = []
     i = 0
     while i < n:
