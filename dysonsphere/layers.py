@@ -384,11 +384,13 @@ def add_shade(
 
     band_padding = alt.theme.options.get("bandPadding", 0.1)
     chart_width = alt.theme.options.get("chartWidth", 100)
-    # step = range / (n + bandPadding) — Vega-Lite's band scale formula with
-    # paddingInner = paddingOuter = bandPadding.
-    step = chart_width / (n + band_padding)
-    # Pixel position of the first band's center.
-    band_center_0 = step * (0.5 + 0.5 * band_padding)
+    # Vega-Lite uses bandPadding as paddingOuter only for scale positioning;
+    # bandPaddingInner only affects bar mark widths, not band boundaries.
+    # step = range / (n + 2*bandPadding); band i spans [step*(bandPadding+i), step*(bandPadding+i+1)].
+    step = chart_width / (n + 2 * band_padding)
+
+    if flush is None:
+        flush = alt.theme.options.get("closed", False)
 
     mark_kwargs: dict = {
         "opacity": opacity,
@@ -401,9 +403,6 @@ def add_shade(
     # Merge consecutive same-color categories so there is no coincident edge
     # between two rects of the same fill — that edge would show as a faint seam
     # in rasterized PNG output regardless of opacity.
-    if flush is None:
-        flush = alt.theme.options.get("closed", False)
-
     dummy_df = pl.DataFrame({"__dummy": [0]})
     run_layers: list[alt.Chart] = []
     i = 0
@@ -411,8 +410,8 @@ def add_shade(
         j = i
         while j < n and color_map[j] == color_map[i]:
             j += 1
-        left = 0 if (flush and i == 0) else band_center_0 + i * step - step / 2
-        right = chart_width if (flush and j == n) else band_center_0 + (j - 1) * step + step / 2
+        left = 0 if (flush and i == 0) else step * (band_padding + i)
+        right = chart_width if (flush and j == n) else step * (band_padding + j)
         run_layers.append(
             alt.Chart(dummy_df)
             .mark_rect(**mark_kwargs, color=color_map[i])
