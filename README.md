@@ -77,6 +77,7 @@ ds.theme(   # custom configuration
 | `closed` | auto | Draw a border around the plot area. Auto-enabled when `viewFill` is set |
 | `darkmode` | `False` | Invert text and axis colors for dark backgrounds |
 | `dashedLine` | `False` | Render line marks dashed |
+| `dashedGrid` | `False` | Render axis grid lines dashed (uses `dashedWidth` pattern); off by default so grids are solid |
 | `dashedRule` | `True` | Render rule marks dashed |
 | `dashedWidth` | `[2, 2]` | Dash/gap pattern `[dash, gap]` in pixels |
 | `font` | `"HelveticaNeue"` | Font family for all labels and titles |
@@ -294,7 +295,7 @@ ds.add_pvalue(..., pvalues=[0.002, 0.031], yPositions=[4.5, 5.2])
 | `yStep` | `yPad * 2` | Vertical distance between stacking levels |
 | `yPad` | `5` | Padding above data max when yStart is auto-placed |
 | `bracketStyle` | `"line"` | `"line"` (bar only) or `"bracket"` (bar + end ticks) |
-| `labelStyle` | `"p"` | `"p"` renders `p = 0.012` / `p < 0.001`; `"asterisks"` renders `*` / `**` / `***` / `ns` |
+| `labelStyle` | `"p"` | `"p"` renders `P = 0.012` / `P < 0.001`; `"asterisks"` renders `*` / `**` / `***` / `ns` |
 | `tickHeight` | `yStep * 0.25` | End tick height in data units (only for `bracketStyle="bracket"`) |
 | `reverse` | `None` | List of `(group1, group2)` tuples identifying brackets to flip below the bar |
 | `categories` | inferred | Ordered list of all x-axis categories |
@@ -338,7 +339,7 @@ Three `style` options are available: `"plusminus"` renders `True` as `+` and `Fa
 | `groups` | required | `{row_label: [bool, ...]}` — one `True`/`False` per category; non-bool values force `style="text"` for that row |
 | `categories` | required | Ordered list of x-axis categories matching the main chart |
 | `style` | `"plusminus"` | Global default style: `"plusminus"`, `"symbol"`, or `"text"` (auto-set per row when values are non-bool) |
-| `rowStyles` | `None` | Per-row style overrides as `{row_label: style_string}`; accepts the same values as `style` |
+| `rowStyles` | `None` | Per-row style overrides as `{row_label: style_string}` or a list of style strings in `row_order`; accepts the same values as `style` |
 | `labelAlign` | `"left"` | `"left"` places row labels left of the multilabel grid; `"right"` places them right |
 | `labelPadding` | `0` | Gap in pixels between the plot boundary and the label text |
 | `order` | insertion order | Top-to-bottom row order |
