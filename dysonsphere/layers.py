@@ -332,6 +332,7 @@ def add_shade(
     repeat: int = 2,
     opacity: float = 0.5,
     strokeWidth: float = 0,
+    flush: bool | None = None,
 ) -> alt.LayerChart:
     """
     Build a background shading layer with one ``mark_rect`` band per x-tick.
@@ -370,6 +371,12 @@ def add_shade(
         Width of the rect border in pixels. Defaults to ``0`` (no stroke).
         When set, the stroke inherits the theme's ``markStroke`` color and
         is rendered fully opaque.
+    flush:
+        When ``True``, the first rect extends to ``x=0`` and the last rect
+        extends to ``x=chartWidth``, making the shading flush with the axis
+        domain line. When ``None`` (default), inherits from the theme's
+        ``closed`` setting. When ``False``, the natural band outer-padding
+        gap is preserved on both sides.
     """
     n = len(categories)
     n_colors = len(palette)
@@ -394,6 +401,9 @@ def add_shade(
     # Merge consecutive same-color categories so there is no coincident edge
     # between two rects of the same fill — that edge would show as a faint seam
     # in rasterized PNG output regardless of opacity.
+    if flush is None:
+        flush = alt.theme.options.get("closed", False)
+
     dummy_df = pl.DataFrame({"__dummy": [0]})
     run_layers: list[alt.Chart] = []
     i = 0
@@ -401,10 +411,8 @@ def add_shade(
         j = i
         while j < n and color_map[j] == color_map[i]:
             j += 1
-        # Clamp the first run to x=0 and the last run to x=chartWidth so the
-        # shading is flush with the axis domain line on both sides.
-        left = 0 if i == 0 else band_center_0 + i * step - step / 2
-        right = chart_width if j == n else band_center_0 + (j - 1) * step + step / 2
+        left = 0 if (flush and i == 0) else band_center_0 + i * step - step / 2
+        right = chart_width if (flush and j == n) else band_center_0 + (j - 1) * step + step / 2
         run_layers.append(
             alt.Chart(dummy_df)
             .mark_rect(**mark_kwargs, color=color_map[i])
