@@ -328,7 +328,7 @@ def add_shade(
     categories: list[str],
     xCol: str,
     *,
-    palette: list[str],
+    palette: list[str] | None = None,
     repeat: int = 2,
     opacity: float = 1.0,
     strokeWidth: float = 0,
@@ -361,7 +361,8 @@ def add_shade(
         Column name for the x-axis grouping variable, matching the field used
         in the main chart's x encoding.
     palette:
-        List of hex color strings to cycle through.
+        List of hex color strings to cycle through. Defaults to the first
+        two stops of the ``"greys"`` palette.
     repeat:
         Number of consecutive ticks that share the same palette color before
         advancing to the next color. Defaults to ``2``.
@@ -378,6 +379,10 @@ def add_shade(
         ``closed`` setting. When ``False``, the natural band outer-padding
         gap is preserved on both sides.
     """
+    if palette is None:
+        from .palettes import colors as _colors
+        palette = _colors["greys"][:2]
+
     n = len(categories)
     n_colors = len(palette)
     color_map = [palette[(i // repeat) % n_colors] for i in range(n)]
