@@ -285,6 +285,21 @@ From pre-computed p-values, with explicit bracket positions:
 ```python
 ds.add_pvalue(..., pvalues=[0.002, 0.031], yPositions=[4.5, 5.2])
 ```
+
+Brackets below the marks using `reverse` — requires negative `yStep` so levels stack downward, and an explicit `tickHeight` (positive) since auto-compute would produce a negative value:
+
+```python
+ds.add_pvalue(
+    df, "group", "value",
+    pairs=[("A", "B")],
+    categories=["A", "B"],
+    bracketStyle="bracket",
+    yStart=data_min - yPad,
+    yStep=-yStep,
+    tickHeight=0.15,
+    reverse=[("A", "B")],
+)
+```
 ![p-value example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/pvalue_example_light.png)
 
 | Parameter | Default | Description |
