@@ -236,9 +236,7 @@ def _fix_tick_alignment(path: str, band_padding: float = 0.1, chart_width: float
                 for i, t in enumerate(sorted_ticks)
             }
         elif actual_int == expected_pt:
-            center_map = {
-                t: round(step_pt * (0.5 + i), 4) for i, t in enumerate(sorted_ticks)
-            }
+            center_map = {t: round(step_pt * (0.5 + i), 4) for i, t in enumerate(sorted_ticks)}
         else:
             return
 
@@ -281,10 +279,7 @@ def _layer_axes_to_front(path: str) -> None:
     ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 
     def _is_grid_axis(el: ET.Element) -> bool:
-        return any(
-            g.get("class", "") == "mark-rule role-axis-grid"
-            for g in el.iter(f"{{{NS}}}g")
-        )
+        return any(g.get("class", "") == "mark-rule role-axis-grid" for g in el.iter(f"{{{NS}}}g"))
 
     tree = ET.parse(path)
     root = tree.getroot()
