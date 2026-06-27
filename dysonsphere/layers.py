@@ -330,7 +330,7 @@ def add_multilabel_detached(
     *,
     order: list[str] | None = None,
     style: str = "plusminus",
-    rowStyles: dict[str, str] | None = None,
+    rowStyles: dict[str, str] | list[str] | None = None,
     labelAlign: str = "left",
     labelPadding: int = 0,
     symbol: str = "circle",
@@ -378,10 +378,12 @@ def add_multilabel_detached(
         center-aligned strings and is forced automatically per row when any value in
         that row is non-bool. Override per row with ``rowStyles``.
     rowStyles:
-        Per-row style overrides as ``{row_label: style_string}``. Accepts the same
-        values as ``style``. Non-bool rows always render as ``"text"`` regardless of
-        this setting. Connecting rules only span between ``"symbol"`` rows; rows of
-        other styles between symbol rows are skipped in run detection.
+        Per-row style overrides. Accepts either a ``dict`` mapping row labels to
+        style strings (``{"Row A": "symbol", "Row B": "text"}``) or a ``list`` of
+        style strings in row-display order (``["symbol", "text"]``). Accepts the
+        same values as ``style``. Non-bool rows always render as ``"text"``
+        regardless of this setting. Connecting rules only span between ``"symbol"``
+        rows; rows of other styles between symbol rows are skipped in run detection.
     labelAlign:
         ``"left"`` (default) places row labels to the left of the grid with
         right-aligned text. ``"right"`` places them to the right with left-aligned text.
@@ -490,6 +492,14 @@ def add_multilabel_detached(
         raise ValueError(f"labelAlign must be 'left' or 'right', got {labelAlign!r}")
     if orientation not in ("vertical", "horizontal"):
         raise ValueError(f"orientation must be 'vertical' or 'horizontal', got {orientation!r}")
+
+    # Normalise rowStyles to a dict so the rest of the code has a single code path.
+    if isinstance(rowStyles, list):
+        if len(rowStyles) != len(row_order):
+            raise ValueError(
+                f"rowStyles list has {len(rowStyles)} entries but there are {len(row_order)} rows."
+            )
+        rowStyles = dict(zip(row_order, rowStyles))
 
     # Per-row style resolution: rowStyles overrides global style; non-bool values always
     # force "text" regardless. Check isinstance(v, bool) before isinstance(v, int) because
