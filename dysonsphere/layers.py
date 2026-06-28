@@ -848,11 +848,15 @@ def _multilabel_layer(
     if categoryLabel:
         if categoryLabelPosition not in ("top", "bottom"):
             raise ValueError(
-                f"categoryLabelPosition={categoryLabelPosition!r} is invalid. Use 'top' or 'bottom'."
+                f"categoryLabelPosition={categoryLabelPosition!r} is invalid."
+                " Use 'top' or 'bottom'."
             )
         max_len = max(len(cat) for cat in categories)
         angle_rad = abs(math.radians(categoryLabelAngle))
-        tight_height = fontSize * 0.6 * max_len * math.sin(angle_rad) + fontSize * math.cos(angle_rad)
+        tight_height = (
+            fontSize * 0.6 * max_len * math.sin(angle_rad)
+            + fontSize * math.cos(angle_rad)
+        )
         if categoryLabelHeight is None:
             categoryLabelHeight = math.ceil(tight_height)
         k = 0 if categoryLabelPosition == "top" else len(row_order)
@@ -1107,29 +1111,39 @@ def add_multilabel(
     """
     Compose a chart with a grid annotation table, replacing its x-axis labels.
 
-    Strips x-axis labels and ticks from ``chart``, builds a
-    :func:`_multilabel_layer` layer, and returns
+    Strips x-axis labels and ticks from ``chart``, builds a condition table via
+    :func:`_multilabel_layer`, and returns
     ``alt.vconcat(chart, annotation, spacing=spacing).resolve_scale(x="shared")``.
 
+    Both ``groups`` and ``categories`` are optional. Omit ``groups`` (or pass
+    ``{}``) when you only need sample sizes or category labels.
+
     All keyword arguments beyond the named parameters are forwarded to
-    :func:`_multilabel_layer`.
+    :func:`_multilabel_layer` — see its docstring for the full parameter list,
+    including ``style``, ``rowStyles``, ``categoryLabel``,
+    ``categoryLabelPosition``, ``categoryLabelAngle``, and ``categoryLabelHeight``.
 
     Parameters
     ----------
     chart:
         The main Altair chart (any type: ``Chart``, ``LayerChart``, etc.).
     groups:
-        Passed to :func:`_multilabel_layer`.
+        ``{row_label: [value, ...]}`` mapping, one value per category. Defaults
+        to ``{}`` — omit entirely when only ``showSampleSize`` or
+        ``categoryLabel`` is needed.
     categories:
-        Passed to :func:`_multilabel_layer`.
+        Ordered list of x-axis categories matching the main chart. Defaults to
+        ``None`` (empty list); must be provided when ``showSampleSize=True`` or
+        when ``categoryLabel=True``.
     spacing:
         Vertical gap in pixels between the chart and the annotation table.
-        Defaults to 0 so the annotation sits flush below the axis line.
+        Defaults to ``0`` so the annotation sits flush below the axis line.
     showSampleSize:
-        When ``True``, prepend or append a ``"n ="`` row showing per-category
-        sample counts computed from ``df``. Requires ``df`` and ``xCol``.
+        When ``True``, injects a per-category sample size row computed from
+        ``df``. Requires ``df`` and ``xCol``. The row always renders as
+        ``"text"`` regardless of the global ``style`` setting.
     df:
-        Source DataFrame (Polars or Pandas) used to count samples per category.
+        Source DataFrame (Polars or Pandas) for counting samples per category.
         Only used when ``showSampleSize=True``.
     xCol:
         Column name in ``df`` used for x-axis grouping.
@@ -1147,17 +1161,22 @@ def add_multilabel(
     ::
 
         chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+
+        # Full multilabel with sample sizes and category labels
         composed = ds.add_multilabel(
             chart,
-            {"Group A": [False, True, True, True], "Group B": [False, False, True, False]},
+            {"Condition A": [False, True, True, True]},
             categories=CATEGORIES,
             style="symbol",
-            labelAlign="right",
             showSampleSize=True,
             df=df,
             xCol="group",
+            categoryLabel=True,
         )
         ds.save(composed, "my_plot")
+
+        # Sample sizes only — no groups needed
+        ds.add_multilabel(chart, categories=CATEGORIES, showSampleSize=True, df=df, xCol="group")
     """
     import copy
 

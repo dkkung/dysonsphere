@@ -329,7 +329,7 @@ ds.add_pvalue(
 
 ## Multilabels
 
-`add_multilabel()` attaches a condition table directly below a chart, replacing its x-axis labels.
+`add_multilabel()` attaches a condition table directly below a chart, replacing its x-axis labels. Both `groups` and `categories` are optional — you can call it with only sample sizes or category labels if that's all you need.
 
 ```python
 CONDITIONS = {
@@ -347,7 +347,9 @@ Rows can mix styles: set a global `style` and override individual rows with `row
 
 Three `style` options are available: `"plusminus"` renders `True` as `+` and `False` as `−`, `"symbol"` renders `True` as a filled mark and `False` as an unfilled mark (shape set by the `symbol` parameter, default `"circle"`) with an optional connecting rule whose direction is controlled by `orientation`, and `"text"` renders raw values as strings centered under each category.
 
-Pass `showSampleSize=True` to automatically prepend (or insert at any position) a per-category sample size row. Requires `df` and `xCol`; counts are computed via `ds.count_n()`.
+### Sample sizes
+
+Pass `showSampleSize=True` to automatically inject a per-category sample size row. Requires `df` and `xCol`; counts are computed via `ds.count_n()`.
 
 ```python
 ds.add_multilabel(
@@ -365,14 +367,39 @@ ds.add_multilabel(
 
 The `n =` row always renders as `"text"` regardless of the global `style` setting. `sampleSizeIndex` follows `list.insert()` semantics: `0` = first, `len(groups)` = last, negative indices count from the end (note: `-1` is second-to-last, not last).
 
-`ds.count_n(df, xCol, categories)` is also available as a standalone helper that returns a `list[int]` of per-category row counts in `categories` order — useful for building custom annotation rows or reporting sample sizes elsewhere.
+`ds.count_n(df, xCol, categories)` is also available as a standalone helper returning a `list[int]` of per-category row counts — useful for building custom annotation rows or reporting sample sizes elsewhere.
+
+Since `groups` defaults to `{}`, you can show only sample sizes with no other rows:
+
+```python
+ds.add_multilabel(chart, categories=CATEGORIES, showSampleSize=True, df=df, xCol="group")
+```
+
+### Category labels
+
+Pass `categoryLabel=True` to render the x-axis category names as angled text in a dedicated row, replacing the stripped axis labels. This row lives outside the data band scale and is always placed at the top or bottom.
+
+```python
+ds.add_multilabel(
+    chart,
+    CONDITIONS,
+    categories=CATEGORIES,
+    style="symbol",
+    categoryLabel=True,
+    categoryLabelPosition="bottom",  # "top" or "bottom" (default "bottom")
+    categoryLabelAngle=-45,          # degrees; default -45
+    categoryLabelHeight=None,        # auto-computed when None
+)
+```
+
+`categoryLabelHeight` is auto-computed as `ceil(fontSize × 0.6 × max_len × |sin(angle)| + fontSize × |cos(angle)|)` — the rotated bounding box of the longest label. Pass an explicit value to adjust the space between the category label text and the adjacent data rows.
 
 ![Multilabel example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/multilabel_example_light.png)
 
 | Parameter | Default | Description |
 |---|---|---|
-| `groups` | required | `{row_label: [bool, ...]}` — one `True`/`False` per category; non-bool values force `style="text"` for that row |
-| `categories` | required | Ordered list of x-axis categories matching the main chart |
+| `groups` | `{}` | `{row_label: [bool, ...]}` — one `True`/`False` per category; non-bool values force `style="text"` for that row |
+| `categories` | `None` | Ordered list of x-axis categories matching the main chart |
 | `style` | `"plusminus"` | Global default style: `"plusminus"`, `"symbol"`, or `"text"` (auto-set per row when values are non-bool) |
 | `rowStyles` | `None` | Per-row style overrides as `{row_label: style_string}` or a list of style strings in `row_order`; accepts the same values as `style` |
 | `labelAlign` | `"left"` | `"left"` places row labels left of the multilabel grid; `"right"` places them right |
@@ -387,11 +414,15 @@ The `n =` row always renders as `"text"` regardless of the global `style` settin
 | `yPadding` | `0.1` | Inner padding between rows as a fraction of band step |
 | `chartWidth` | `theme(chartWidth)` | Width of the annotation chart in pixels |
 | `fontSize` | `theme(fontSize)` | Font size for symbols and row labels |
-| `showSampleSize` | `False` | Inject a per-category sample size row; requires `df` and `xCol` (`add_multilabel` only) |
-| `df` | `None` | Source DataFrame (Polars or Pandas) for counting samples (`add_multilabel` only) |
-| `xCol` | `None` | Grouping column in `df` (`add_multilabel` only) |
-| `sampleSizeIndex` | `0` | Insertion position of the n-row among `groups` rows, using `list.insert()` semantics (`add_multilabel` only) |
-| `sampleSizeLabel` | `"n ="` | Row label for the sample size row (`add_multilabel` only) |
+| `showSampleSize` | `False` | Inject a per-category sample size row; requires `df` and `xCol` |
+| `df` | `None` | Source DataFrame (Polars or Pandas) for counting samples; used with `showSampleSize=True` |
+| `xCol` | `None` | Grouping column in `df`; used with `showSampleSize=True` |
+| `sampleSizeIndex` | `0` | Insertion position of the n-row among `groups` rows, using `list.insert()` semantics |
+| `sampleSizeLabel` | `"n ="` | Row label for the sample size row |
+| `categoryLabel` | `False` | Render x-axis category names as angled text in a dedicated row |
+| `categoryLabelPosition` | `"bottom"` | `"bottom"` places the category label row below all data rows; `"top"` places it above |
+| `categoryLabelAngle` | `-45` | Rotation angle of the category name text in degrees |
+| `categoryLabelHeight` | auto | Height in pixels reserved for the category label row; auto-computed from font size, angle, and longest label when `None` |
 
  **Dark mode:** `"symbol"` style resolves fill colours from `ds.theme()` at construction time. Pass a callable to `ds.save()` so the chart rebuilds after each darkmode toggle:
 > ```python
