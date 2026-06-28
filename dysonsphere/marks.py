@@ -193,6 +193,7 @@ def mark_strip(
     legend: bool = False,
     errorbars: bool = True,
     errorbarExtent: str = "sem",
+    yTitle: str | None = _UNSET,
 ) -> alt.LayerChart:
     """
     Build an Altair layer combining jittered or beeswarm points with a median indicator.
@@ -229,6 +230,8 @@ def mark_strip(
     errorbarExtent:
         Statistic to use for error bars: ``'sem'`` (standard error of the
         mean, default) or ``'sd'`` (standard deviation).
+    yTitle:
+        Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
 
     Examples
     --------
@@ -242,6 +245,7 @@ def mark_strip(
         chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
     """
     df = ensure_polars(df)
+    _y_title = yCol if yTitle is _UNSET else yTitle
     if pointSize is None:
         pointSize = alt.theme.options.get("markSize", 10)
     if pointOpacity is None:
@@ -273,7 +277,7 @@ def mark_strip(
         .mark_circle(size=pointSize, opacity=pointOpacity)
         .encode(
             x=x,
-            y=alt.Y(f"{yCol}:Q", title=yCol),
+            y=alt.Y(f"{yCol}:Q", title=_y_title),
             xOffset=alt.XOffset(f"{offset_col}:Q", scale=offset_scale),
             color=alt.Color(
                 f"{xCol}:N",
@@ -295,7 +299,7 @@ def mark_strip(
         )
         .encode(
             x=x,
-            y=alt.Y(f"{yCol}:Q", title=yCol),
+            y=alt.Y(f"{yCol}:Q", title=_y_title),
         )
     )
 
@@ -316,7 +320,7 @@ def mark_strip(
         .mark_errorbar()
         .encode(
             x=x,
-            y=alt.Y("__mean:Q", title=yCol),
+            y=alt.Y("__mean:Q", title=_y_title),
             yError=alt.YError("__error:Q"),
         )
     )
