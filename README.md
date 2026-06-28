@@ -354,6 +354,26 @@ Rows can mix styles: set a global `style` and override individual rows with `row
 
 Three `style` options are available: `"plusminus"` renders `True` as `+` and `False` as `−`, `"symbol"` renders `True` as a filled mark and `False` as an unfilled mark (shape set by the `symbol` parameter, default `"circle"`) with an optional connecting rule whose direction is controlled by `orientation`, and `"text"` renders raw values as strings centered under each category.
 
+Pass `showSampleSize=True` to automatically prepend (or insert at any position) a per-category sample size row. Requires `df` and `xCol`; counts are computed via `ds.count_n()`.
+
+```python
+ds.add_multilabel(
+    chart,
+    CONDITIONS,
+    categories=CATEGORIES,
+    style="symbol",
+    showSampleSize=True,
+    df=df,
+    xCol="group",           # column used for x-axis grouping
+    sampleSizeIndex=0,      # insertion position among rows (default 0 = first)
+    sampleSizeLabel="n =",  # row label (default "n =")
+)
+```
+
+The `n =` row always renders as `"text"` regardless of the global `style` setting. `sampleSizeIndex` follows `list.insert()` semantics: `0` = first, `len(groups)` = last, negative indices count from the end (note: `-1` is second-to-last, not last).
+
+`ds.count_n(df, xCol, categories)` is also available as a standalone helper that returns a `list[int]` of per-category row counts in `categories` order — useful for building custom annotation rows or reporting sample sizes elsewhere.
+
 ![Multilabel example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/multilabel_example_light.png)
 
 | Parameter | Default | Description |
@@ -374,6 +394,11 @@ Three `style` options are available: `"plusminus"` renders `True` as `+` and `Fa
 | `yPadding` | `0.1` | Inner padding between rows as a fraction of band step |
 | `chartWidth` | `theme(chartWidth)` | Width of the annotation chart in pixels |
 | `fontSize` | `theme(fontSize)` | Font size for symbols and row labels |
+| `showSampleSize` | `False` | Inject a per-category sample size row; requires `df` and `xCol` (`add_multilabel` only) |
+| `df` | `None` | Source DataFrame (Polars or Pandas) for counting samples (`add_multilabel` only) |
+| `xCol` | `None` | Grouping column in `df` (`add_multilabel` only) |
+| `sampleSizeIndex` | `0` | Insertion position of the n-row among `groups` rows, using `list.insert()` semantics (`add_multilabel` only) |
+| `sampleSizeLabel` | `"n ="` | Row label for the sample size row (`add_multilabel` only) |
 
  **Dark mode:** `"symbol"` style resolves fill colours from `ds.theme()` at construction time. Pass a callable to `ds.save()` so the chart rebuilds after each darkmode toggle:
 > ```python
