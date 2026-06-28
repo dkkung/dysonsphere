@@ -329,7 +329,7 @@ ds.add_pvalue(
 
 ## Multilabels
 
-`add_multilabel()` attaches a condition table directly below a chart, replacing its x-axis labels. `add_multilabel_detached()` returns the table as a standalone layer for manual composition with `alt.vconcat`.
+`add_multilabel()` attaches a condition table directly below a chart, replacing its x-axis labels.
 
 ```python
 CONDITIONS = {
@@ -338,14 +338,7 @@ CONDITIONS = {
     "Condition 3": [False, False, False, True],
 }
 
-# attached — x-axis labels replaced by the table
 ds.add_multilabel(chart, CONDITIONS, categories=CATEGORIES, style="plusminus")
-
-# detached — compose manually
-alt.vconcat(
-    chart,
-    ds.add_multilabel_detached(CONDITIONS, categories=CATEGORIES, style="symbol"),
-).resolve_scale(x="shared")
 ```
 
 `groups` values should be booleans: `True` for a positive mark, `False` for a negative mark. If any value in a row is a non-bool (`str`, `int`, `float`), that row is automatically rendered as `"text"` regardless of `style` or `rowStyles`.

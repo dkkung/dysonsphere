@@ -622,7 +622,7 @@ def add_shade(
     return alt.layer(*run_layers)
 
 
-def add_multilabel_detached(
+def _multilabel_layer(
     groups: dict[str, list],
     categories: list[str],
     *,
@@ -651,7 +651,7 @@ def add_multilabel_detached(
 
     Each key in ``groups`` is a row label; its value is a list of booleans (or
     arbitrary strings/numbers), one per category. Combine with the main chart using
-    ``alt.vconcat(chart, add_multilabel_detached(...)).resolve_scale(x="shared")``.
+    ``alt.vconcat(chart, _multilabel_layer(...)).resolve_scale(x="shared")``.
 
     Parameters
     ----------
@@ -780,7 +780,7 @@ def add_multilabel_detached(
         CATEGORIES = ["Ctrl", "Drug A", "Drug B", "Drug C"]
         ds.theme(chartWidth=300)
         chart = ds.mark_strip(df, "group", "value", CATEGORIES)
-        ann = ds.add_multilabel_detached(
+        ann = ds._multilabel_layer(
             {
                 "Group A":         [False, True,  True,  True],
                 "Group B":        [False, False, True,  False],
@@ -1108,20 +1108,20 @@ def add_multilabel(
     Compose a chart with a grid annotation table, replacing its x-axis labels.
 
     Strips x-axis labels and ticks from ``chart``, builds a
-    :func:`add_multilabel_detached` layer, and returns
+    :func:`_multilabel_layer` layer, and returns
     ``alt.vconcat(chart, annotation, spacing=spacing).resolve_scale(x="shared")``.
 
     All keyword arguments beyond the named parameters are forwarded to
-    :func:`add_multilabel_detached`.
+    :func:`_multilabel_layer`.
 
     Parameters
     ----------
     chart:
         The main Altair chart (any type: ``Chart``, ``LayerChart``, etc.).
     groups:
-        Passed to :func:`add_multilabel_detached`.
+        Passed to :func:`_multilabel_layer`.
     categories:
-        Passed to :func:`add_multilabel_detached`.
+        Passed to :func:`_multilabel_layer`.
     spacing:
         Vertical gap in pixels between the chart and the annotation table.
         Defaults to 0 so the annotation sits flush below the axis line.
@@ -1213,5 +1213,5 @@ def add_multilabel(
                 _strip_x_labels(sub)
 
     _strip_x_labels(modified)
-    ann = add_multilabel_detached(groups, categories, **kwargs)
+    ann = _multilabel_layer(groups, categories, **kwargs)
     return alt.vconcat(modified, ann, spacing=spacing).resolve_scale(x="shared")
