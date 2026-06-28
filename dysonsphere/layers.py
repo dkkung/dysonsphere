@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 import altair as alt
@@ -640,6 +641,10 @@ def add_multilabel_detached(
     chartWidth: int | None = None,
     fontSize: int | None = None,
     rowHeight: int | float | None = None,
+    categoryLabel: bool = False,
+    categoryLabelPosition: str = "bottom",
+    categoryLabelAngle: int = -45,
+    categoryLabelHeight: int | None = None,
 ) -> alt.LayerChart:
     """
     Build a condition-table annotation chart to place below a strip/violin/boxplot.
@@ -721,6 +726,21 @@ def add_multilabel_detached(
         from ``ds.theme()`` when not set.
     rowHeight:
         Height in pixels per annotation row. Defaults to ``fontSize * 1.5``.
+    categoryLabel:
+        When ``True``, renders the x-axis category names as angled text in a
+        dedicated row, replacing the main chart's stripped axis labels within the
+        annotation. Defaults to ``False``.
+    categoryLabelPosition:
+        Where to place the category label row relative to the data rows.
+        ``"bottom"`` (default) places labels below all rows; ``"top"`` places
+        them above.
+    categoryLabelAngle:
+        Rotation angle of the category name text in degrees. Defaults to ``-45``.
+    categoryLabelHeight:
+        Height in pixels reserved for the x-label row. Auto-computed from
+        ``fontSize``, ``categoryLabelAngle``, and the longest category name when ``None``
+        (default): ``ceil(fontSize × 0.6 × max_len × |sin(angle)| + fontSize ×
+        |cos(angle)|)``.
 
     Notes
     -----
@@ -823,6 +843,33 @@ def add_multilabel_detached(
     if rowHeight is None:
         rowHeight = 10
 
+    band_range = None
+    label_y = 0.0
+    if categoryLabel:
+        if categoryLabelPosition not in ("top", "bottom"):
+            raise ValueError(
+                f"categoryLabelPosition={categoryLabelPosition!r} is invalid. Use 'top' or 'bottom'."
+            )
+        max_len = max(len(cat) for cat in categories)
+        angle_rad = abs(math.radians(categoryLabelAngle))
+        tight_height = fontSize * 0.6 * max_len * math.sin(angle_rad) + fontSize * math.cos(angle_rad)
+        if categoryLabelHeight is None:
+            categoryLabelHeight = math.ceil(tight_height)
+        k = 0 if categoryLabelPosition == "top" else len(row_order)
+        # Upward extent from anchor for align="right", baseline="middle":
+        # min y' = -H/2 * |cos(angle)|. Offset label_y down by this amount so
+        # the text stays within the label row and doesn't clip above y=0.
+        label_y_offset = fontSize / 2 * abs(math.cos(math.radians(categoryLabelAngle)))
+        # Extra space beyond the tight-fit height; for the bottom case this
+        # shifts the anchor into the label row so the gap is on the data side.
+        extra = max(0.0, categoryLabelHeight - tight_height)
+        if k == 0:
+            band_range = [categoryLabelHeight, len(row_order) * rowHeight + categoryLabelHeight]
+            label_y = label_y_offset
+        else:
+            band_range = [0, len(row_order) * rowHeight]
+            label_y = len(row_order) * rowHeight + label_y_offset + extra
+
     def _norm(v: object) -> str:
         if isinstance(v, bool):
             return "+" if v else "-"
@@ -835,7 +882,7 @@ def add_multilabel_detached(
     ]
     marks_df = pl.DataFrame(rows)
 
-    chart_h = len(row_order) * rowHeight
+    chart_h = len(row_order) * rowHeight + (categoryLabelHeight if categoryLabel else 0)
 
     x_enc = alt.X(
         "__category:N",
@@ -844,6 +891,7 @@ def add_multilabel_detached(
     )
     y_scale = alt.Scale(
         domain=row_order,
+        **({"range": band_range} if band_range is not None else {}),
         **({"paddingInner": yPadding} if yPadding is not None else {}),
     )
     # Axis suppressed; row labels are explicit mark_text in row_labels layer below.
@@ -1027,13 +1075,26 @@ def add_multilabel_detached(
         else:
             layers.extend([negative, positive])
 
+    if categoryLabel:
+        label_df = pl.DataFrame({"__category": categories})
+        layers.append(
+            alt.Chart(label_df)
+            .mark_text(
+                fontSize=fontSize,
+                angle=categoryLabelAngle % 360,
+                align="center" if categoryLabelAngle % 360 == 0 else "right",
+                baseline="middle",
+            )
+            .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__category:N"))
+        )
+
     return alt.layer(*layers).properties(width=chartWidth, height=chart_h)
 
 
 def add_multilabel(
     chart: alt.Chart,
-    groups: dict[str, list],
-    categories: list[str],
+    groups: dict[str, list] | None = None,
+    categories: list[str] | None = None,
     *,
     spacing: int = 0,
     showSampleSize: bool = False,
@@ -1099,6 +1160,11 @@ def add_multilabel(
         ds.save(composed, "my_plot")
     """
     import copy
+
+    if groups is None:
+        groups = {}
+    if categories is None:
+        categories = []
 
     if showSampleSize:
         if df is None or xCol is None:
