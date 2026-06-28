@@ -391,7 +391,10 @@ def _fix_log_minor_ticks(path: str) -> None:
                         y_groups.setdefault((cx, cy), []).append(
                             (child, float(my.group(1)), abs(x2_val))
                         )
-                elif mx and y2_str:
+                # Use 'if' not 'elif': a tick at translate(0,0) (leftmost x-axis
+                # tick) matches both patterns; the y-axis branch may enter and exit
+                # without adding anything, so the x-axis branch must run independently.
+                if mx and y2_str:
                     try:
                         y2_val = float(y2_str)
                     except ValueError:
