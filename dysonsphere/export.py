@@ -457,7 +457,14 @@ def _layer_axes_to_front(path: str) -> None:
 
     Grid axis groups (identified by containing a mark-rule role-axis-grid descendant)
     are left in place so data marks continue to render on top of grid lines.
+
+    viewFill + closed interaction: when the background path carries both a fill (viewFill)
+    and a stroke (closed border), only moving the whole element would place the fill on
+    top of marks. Instead, the original element is stripped to fill-only (stroke="none")
+    and a stroke-only clone is appended at the end, so the fill stays behind marks and
+    the border still renders in front.
     """
+    import copy
     import xml.etree.ElementTree as ET
 
     NS = "http://www.w3.org/2000/svg"
@@ -471,21 +478,33 @@ def _layer_axes_to_front(path: str) -> None:
     root = tree.getroot()
 
     def reorder(el: ET.Element) -> None:
-        axis_groups = []
-        border_paths = []
+        to_move = []   # existing children to remove and re-append at end
+        to_add = []    # stroke-only clones to append at end (originals stay in place)
         for child in list(el):
             cls = child.get("class", "")
             if cls == "mark-group role-axis" and not _is_grid_axis(child):
-                axis_groups.append(child)
+                to_move.append(child)
             elif (
                 child.tag == f"{{{NS}}}path"
                 and cls == "background"
                 and child.get("stroke") not in (None, "none")
                 and child.get("display") != "none"
             ):
-                border_paths.append(child)
-        for item in axis_groups + border_paths:
+                fill = child.get("fill")
+                has_fill = fill is not None and fill not in ("none", "")
+                if has_fill:
+                    # Background has both fill (viewFill) and stroke (closed border).
+                    # Keep fill-only original in place; move stroke-only clone to front.
+                    border_clone = copy.deepcopy(child)
+                    border_clone.set("fill", "none")
+                    child.set("stroke", "none")
+                    to_add.append(border_clone)
+                else:
+                    to_move.append(child)
+        for item in to_move:
             el.remove(item)
+            el.append(item)
+        for item in to_add:
             el.append(item)
         for child in el:
             reorder(child)
