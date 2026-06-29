@@ -291,15 +291,15 @@ def custom():
             },
             "errorbar": {
                 "opacity": 1,
-                "rule": {"strokeDash": [0, 0], "strokeWidth": opts["markStrokeWidth"]},
+                "rule": {"strokeDash": [0, 0], "strokeWidth": opts["markStrokeWidth"] * 2},
                 "ticks": {
                     "color": "white" if opts["darkmode"] else "black",
                     "cornerRadius": opts["markStrokeWidth"],
                     "opacity": 1,
                     "size": opts["markSize"] * 0.6,
-                    "thickness": opts["markStrokeWidth"],
+                    "thickness": opts["markStrokeWidth"] * 2,
                 },
-                "thickness": opts["markStrokeWidth"],
+                "thickness": opts["markStrokeWidth"] * 2,
             },
             "font": opts["font"],
             "geoshape": {
