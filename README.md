@@ -591,6 +591,45 @@ chart = base + ds.add_rule(10, axis="x", label="t₀", labelPosition="left")
 
 ---
 
+## Text annotations
+
+`add_text()` places one or more text annotations at arbitrary positions within a chart. Compose it with the main chart using `+`.
+
+```python
+# Annotation at a data coordinate (nominal x + quantitative y)
+chart = base + ds.add_text("n = 20", x="Control", y=1.0, align="center", baseline="bottom")
+
+# Named position preset — flush with the top-left axis domain edge
+chart = base + ds.add_text("ANOVA p < 0.001", position="topLeft")
+
+# Named position preset — bottom-right corner, nudged inward
+chart = base + ds.add_text("Threshold = 5.0", position="bottomRight", offsetX=-4)
+```
+
+The `x` and `y` parameters accept three forms: a `float`/`int` for quantitative data coordinates (shares the main chart's scale automatically), a `str` for nominal band centers, or `alt.value(n)` to pin to a fixed pixel position independent of the data. The `position` preset sets `x`, `y`, `align`, and `baseline` automatically from `chartWidth` / `chartHeight` in the active theme; explicit arguments override any preset value.
+
+![text annotation example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/text_example_light.png)
+
+| Parameter | Default | Description |
+|---|---|---|
+| `text` | required | Annotation string(s); pass a list with matching-length `x`/`y` lists for multiple annotations in one call |
+| `x` | `None` | Horizontal coordinate: `float`/`int` (quantitative), `str` (nominal band center), or `alt.value(n)` (fixed pixel); required if `position` not set |
+| `y` | `None` | Vertical coordinate; same three forms as `x`; required if `position` not set |
+| `position` | `None` | Named position preset on a 3×3 grid: `"topLeft"`, `"topCenter"`, `"topRight"`, `"middleLeft"`, `"middleCenter"`, `"middleRight"`, `"bottomLeft"`, `"bottomCenter"`, `"bottomRight"` |
+| `angle` | `0` | Rotation in degrees, clockwise; negative values wrapped automatically to [0, 360] |
+| `align` | `"left"` | Horizontal text anchor: `"left"`, `"center"`, or `"right"`; overrides `position` |
+| `baseline` | `"middle"` | Vertical text anchor: `"top"`, `"middle"`, `"bottom"`, or `"alphabetic"`; overrides `position` |
+| `offsetX` | `0` | Horizontal pixel nudge after positioning; positive = right |
+| `offsetY` | `0` | Vertical pixel nudge after positioning; positive = down |
+| `color` | `None` | Text color; `None` inherits from theme |
+| `fontSize` | `None` | Font size in points; `None` inherits from theme |
+| `fontWeight` | `None` | `"normal"`, `"bold"`, or numeric CSS weight (100–900); `None` inherits from theme |
+| `fontStyle` | `None` | `"normal"` or `"italic"`; `None` inherits from theme |
+| `font` | `None` | Font family name (e.g. `"sans-serif"`, `"Georgia"`); `None` inherits from theme |
+| `opacity` | `1.0` | Text opacity |
+
+---
+
 ## Non-linear axes
 
 `add_log_ticks()` and `add_pow_ticks()` add unlabeled minor ticks to log- and power-scaled axes respectively. Both wrap your chart in a layer with an invisible second axis — your chart's data, scale domain, and axis labels are unaffected. Both work with `alt.Chart`, `alt.LayerChart`, and any chart type composable with `alt.layer()`, including `hconcat` and `vconcat` layouts.

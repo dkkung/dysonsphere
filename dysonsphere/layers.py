@@ -219,6 +219,255 @@ def add_rule(
         return alt.layer(rule, text)
 
 
+_TEXT_PRESETS: dict[str, dict] = {
+    "topLeft": {"x_frac": 0, "y_frac": 0, "align": "left", "baseline": "top"},
+    "topCenter": {"x_frac": 0.5, "y_frac": 0, "align": "center", "baseline": "top"},
+    "topRight": {"x_frac": 1, "y_frac": 0, "align": "right", "baseline": "top"},
+    "middleLeft": {"x_frac": 0, "y_frac": 0.5, "align": "left", "baseline": "middle"},
+    "middleCenter": {"x_frac": 0.5, "y_frac": 0.5, "align": "center", "baseline": "middle"},
+    "middleRight": {"x_frac": 1, "y_frac": 0.5, "align": "right", "baseline": "middle"},
+    "bottomLeft": {"x_frac": 0, "y_frac": 1, "align": "left", "baseline": "alphabetic"},
+    "bottomCenter": {"x_frac": 0.5, "y_frac": 1, "align": "center", "baseline": "alphabetic"},
+    "bottomRight": {"x_frac": 1, "y_frac": 1, "align": "right", "baseline": "alphabetic"},
+}
+
+
+def _is_alt_value(v) -> bool:
+    return isinstance(v, dict) and "value" in v
+
+
+def add_text(
+    text: str | list[str],
+    x=None,
+    y=None,
+    *,
+    position: str | None = None,
+    angle: float = 0,
+    align: str | None = None,
+    baseline: str | None = None,
+    offsetX: int = 0,
+    offsetY: int = 0,
+    color: str | None = None,
+    fontSize: float | None = None,
+    fontWeight: str | None = None,
+    fontStyle: str | None = None,
+    font: str | None = None,
+    opacity: float = 1.0,
+) -> alt.Chart:
+    """
+    Add one or more text annotations to a chart.
+
+    Returns a layer that the caller composes with ``+``.
+
+    Parameters
+    ----------
+    text:
+        Annotation string(s). Pass a list to place multiple annotations in one
+        call — ``x`` and ``y`` must then also be lists of equal length.
+    x:
+        Horizontal coordinate(s). Three forms are accepted:
+
+        - ``float`` / ``int`` — data coordinate on a quantitative x axis.
+          Shares the main chart's x scale automatically.
+        - ``str`` — category name on a nominal x axis. Shares the main chart's
+          band scale, placing the text at the band center.
+        - ``alt.value(n)`` — fixed pixel position, ``n`` pixels from the left
+          edge of the plot area. Use this (or ``position``) for annotations that
+          should not move with the data.
+
+        Required when ``position`` is not set.
+    y:
+        Vertical coordinate(s). Same three forms as ``x``, measured from the
+        top of the plot area for ``alt.value()``.
+        Required when ``position`` is not set.
+    position:
+        Named position within the plot area, flush with the axis domain edges.
+        Sets ``x``, ``y``, ``align``, and ``baseline`` automatically using
+        ``alt.value()`` pixel coordinates derived from ``chartWidth`` /
+        ``chartHeight`` in the active theme. Explicit ``x``, ``y``, ``align``,
+        or ``baseline`` arguments override the position value for that parameter.
+
+        Valid positions (3 × 3 grid):
+
+        +------------------+--------------------+-------------------+
+        | ``"topLeft"``    | ``"topCenter"``    | ``"topRight"``    |
+        +------------------+--------------------+-------------------+
+        | ``"middleLeft"`` | ``"middleCenter"`` | ``"middleRight"`` |
+        +------------------+--------------------+-------------------+
+        | ``"bottomLeft"`` | ``"bottomCenter"`` | ``"bottomRight"`` |
+        +------------------+--------------------+-------------------+
+
+        When ``closed=True`` or ``axisOffset=0`` in the active theme, a fixed
+        1 px inset is applied automatically to edge positions so text clears
+        the border or flush axis line. ``offsetX`` / ``offsetY`` add on top of
+        this for further fine-tuning::
+
+            chart + ds.add_text("p = 0.003", position="topRight", offsetX=-4, offsetY=4)
+
+    angle:
+        Rotation in degrees, clockwise. Vega-Lite requires values in [0, 360];
+        negative values are wrapped automatically. Defaults to ``0``.
+    align:
+        Horizontal text anchor: ``"left"`` (default), ``"center"``, or
+        ``"right"``. Overrides the position value when both are set.
+    baseline:
+        Vertical text anchor: ``"top"``, ``"middle"`` (default), ``"bottom"``,
+        or ``"alphabetic"``. ``"middle"`` centers the text body on the y
+        coordinate — best for annotations near symbols or rules.
+        ``"alphabetic"`` sits the reading baseline on y — best when text sits
+        alongside other typeset text. Overrides the position value when both are
+        set.
+    offsetX:
+        Horizontal pixel nudge applied after positioning. Positive shifts right.
+        Useful for inset when using ``position``.
+    offsetY:
+        Vertical pixel nudge applied after positioning. Positive shifts down.
+        Useful for inset when using ``position``.
+    color:
+        Text color. ``None`` inherits from the active theme's ``mark_text``
+        config.
+    fontSize:
+        Font size in points. ``None`` inherits from the active theme.
+    fontWeight:
+        ``"normal"``, ``"bold"``, or a numeric CSS weight (``100``–``900``).
+        ``None`` inherits from the active theme.
+    fontStyle:
+        ``"normal"`` or ``"italic"``. ``None`` inherits from the active theme.
+    font:
+        Font family name (e.g. ``"sans-serif"``, ``"Georgia"``). ``None``
+        inherits from the active theme.
+    opacity:
+        Text opacity. Defaults to ``1.0``.
+
+    Examples
+    --------
+    ::
+
+        # Annotation at a data coordinate (quantitative x, quantitative y)
+        chart + ds.add_text("Peak", x=10.5, y=2.3)
+
+        # Annotation at a group center (nominal x, quantitative y)
+        chart + ds.add_text("n=20", x="Control", y=8.5, baseline="bottom")
+
+        # Multiple annotations at data coordinates
+        chart + ds.add_text(
+            ["Low", "High"], x=[1.0, 9.0], y=[0.5, 0.5], align="center"
+        )
+
+        # Corner position — top-right, inset 4 px from boundary
+        chart + ds.add_text("ANOVA p < 0.001", position="topRight", offsetX=-4, offsetY=4)
+
+        # Bottom-left with explicit font overrides
+        chart + ds.add_text(
+            "FDR < 0.05", position="bottomLeft", offsetX=4, offsetY=-4,
+            fontSize=6, fontStyle="italic", color="#888888",
+        )
+
+        # Fixed pixel position via alt.value() passthrough
+        chart + ds.add_text("†", x=alt.value(60), y=alt.value(10))
+    """
+    if position is not None and position not in _TEXT_PRESETS:
+        raise ValueError(f"position must be one of {sorted(_TEXT_PRESETS)}, got {position!r}")
+
+    # Resolve position — fills x/y/align/baseline only where not already provided
+    if position is not None:
+        p = _TEXT_PRESETS[position]
+        cw = alt.theme.options.get("chartWidth", 100)
+        ch = alt.theme.options.get("chartHeight", 100)
+        # Auto-inset when text would touch the border or flush axis line.
+        # Triggers when the plot has a closed box (closed=True) or the axis
+        # sits flush with the plot edge (axisOffset=0). Center positions
+        # (x_frac=0.5, y_frac=0.5) are unaffected.
+        _closed = alt.theme.options.get("closed", False)
+        _axis_offset = alt.theme.options.get("axisOffset", None)
+        _pad = 1 if (_closed or _axis_offset == 0) else 0
+        if x is None:
+            x_px = p["x_frac"] * cw
+            if p["x_frac"] == 0:
+                x_px += _pad
+            elif p["x_frac"] == 1:
+                x_px -= _pad
+            x = {"value": x_px}
+        if y is None:
+            y_px = p["y_frac"] * ch
+            if p["y_frac"] == 0:
+                y_px += _pad
+            elif p["y_frac"] == 1:
+                y_px -= _pad
+            y = {"value": y_px}
+        if align is None:
+            align = p["align"]
+        if baseline is None:
+            baseline = p["baseline"]
+
+    if x is None or y is None:
+        raise ValueError("x and y are required when position is not set.")
+
+    if align is None:
+        align = "left"
+    if baseline is None:
+        baseline = "middle"
+
+    # Normalise to lists
+    texts = [text] if isinstance(text, str) else list(text)
+    n = len(texts)
+    xs = x if isinstance(x, list) else [x] * n
+    ys = y if isinstance(y, list) else [y] * n
+
+    if len(xs) != n or len(ys) != n:
+        raise ValueError(
+            f"text, x, and y must have the same length; got text={n}, x={len(xs)}, y={len(ys)}."
+        )
+
+    x_pixel = _is_alt_value(xs[0])
+    y_pixel = _is_alt_value(ys[0])
+
+    data: dict = {"__text": texts}
+    if not x_pixel:
+        data["__x"] = [float(v) if isinstance(v, (int, float)) else str(v) for v in xs]
+    if not y_pixel:
+        data["__y"] = [float(v) if isinstance(v, (int, float)) else str(v) for v in ys]
+
+    df = pl.DataFrame(data)
+
+    mark_kwargs: dict = {
+        "align": align,
+        "baseline": baseline,
+        "angle": angle % 360,
+        "dx": offsetX,
+        "dy": offsetY,
+        "opacity": opacity,
+    }
+    if color is not None:
+        mark_kwargs["color"] = color
+    if fontSize is not None:
+        mark_kwargs["fontSize"] = fontSize
+    if fontWeight is not None:
+        mark_kwargs["fontWeight"] = fontWeight
+    if fontStyle is not None:
+        mark_kwargs["fontStyle"] = fontStyle
+    if font is not None:
+        mark_kwargs["font"] = font
+
+    enc: dict = {"text": alt.Text("__text:N")}
+
+    if x_pixel:
+        enc["x"] = alt.value(xs[0]["value"])
+    elif isinstance(xs[0], (int, float)):
+        enc["x"] = alt.X("__x:Q", title=None)
+    else:
+        enc["x"] = alt.X("__x:N", title=None)
+
+    if y_pixel:
+        enc["y"] = alt.value(ys[0]["value"])
+    elif isinstance(ys[0], (int, float)):
+        enc["y"] = alt.Y("__y:Q", title=None)
+    else:
+        enc["y"] = alt.Y("__y:N", title=None)
+
+    return alt.Chart(df).mark_text(**mark_kwargs).encode(**enc)
+
+
 # Background shading
 
 
