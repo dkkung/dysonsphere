@@ -180,9 +180,9 @@ class TestCreateConfig:
         create_config()
         assert (tmp_path / "dysonsphere.toml").exists()
 
-    def test_persistent_flag_writes_to_xdg(self, tmp_path, monkeypatch):
+    def test_persist_flag_writes_to_xdg(self, tmp_path, monkeypatch):
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-        create_config(persistent=True)
+        create_config(persist=True)
         assert (tmp_path / "dysonsphere" / "dysonsphere.toml").exists()
 
 

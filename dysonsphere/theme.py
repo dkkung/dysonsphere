@@ -556,11 +556,11 @@ def _toml_value(v: Any) -> str:
     return str(v)
 
 
-def create_config(directory: str | Path | None = None, *, persistent: bool = False) -> None:
+def create_config(directory: str | Path | None = None, *, persist: bool = False) -> None:
     """
     Write a dysonsphere.toml template to *directory* (default: current working directory).
 
-    Pass persistent=True to write to the platform user config directory instead
+    Pass persist=True to write to the platform user config directory instead
     (~/.config/dysonsphere/ on macOS/Linux, %APPDATA%/dysonsphere/ on Windows).
     This file applies across all your projects.
 
@@ -568,7 +568,7 @@ def create_config(directory: str | Path | None = None, *, persistent: bool = Fal
     section, rename [my_style] to your own style name, and load it with
     ds.theme(style="name").
     """
-    if persistent:
+    if persist:
         dest = _user_config_dir() / "dysonsphere.toml"
     else:
         dest = Path(directory) if directory is not None else Path.cwd()

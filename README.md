@@ -114,7 +114,7 @@ Persistent per-project or per-user overrides can be stored in a TOML config file
 ```python
 ds.create_config()                 # writes dysonsphere.toml in the current directory
 ds.create_config("/my/dir")        # writes to a specific directory
-ds.create_config(persistent=True)  # writes to ~/.config/dysonsphere/ or %APPDATA%\dysonsphere\
+ds.create_config(persist=True)     # writes to ~/.config/dysonsphere/ or %APPDATA%\dysonsphere\
 ```
 
 dysonsphere looks for config files in this order (later files take precedence):
