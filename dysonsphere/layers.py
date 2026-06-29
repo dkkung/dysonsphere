@@ -1051,7 +1051,7 @@ def _multilabel_layer(
     x_enc = alt.X(
         "__category:N",
         sort=categories,
-        axis=alt.Axis(labels=False, ticks=False, domain=False, title=None),
+        axis=alt.Axis(labels=False, ticks=False, domain=False, grid=False, title=None),
     )
     y_scale = alt.Scale(
         domain=row_order,
@@ -1065,7 +1065,7 @@ def _multilabel_layer(
         sort=row_order,
         bandPosition=0.5,
         scale=y_scale,
-        axis=alt.Axis(labels=False, ticks=False, domain=False, title=None),
+        axis=alt.Axis(labels=False, ticks=False, domain=False, grid=False, title=None),
     )
 
     if labelAlign == "right":
@@ -1258,7 +1258,9 @@ def _multilabel_layer(
             .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__category:N"))
         )
 
-    return alt.layer(*layers).properties(width=chartWidth, height=chart_h)
+    return alt.layer(*layers).properties(
+        width=chartWidth, height=chart_h, view={"fill": None, "stroke": None}
+    )
 
 
 def add_multilabel(
