@@ -70,7 +70,7 @@ class TestAddJitter:
     def test_spread_controls_width(self, group_df):
         tight = add_jitter(group_df, spread=0.5, seed=0)
         wide = add_jitter(group_df, spread=20.0, seed=0)
-        assert tight["jitter_x"].abs().max() < wide["jitter_x"].abs().max()
+        assert tight["jitter_x"].abs().max() < wide["jitter_x"].abs().max()  # ty: ignore[unsupported-operator]
 
 
 class TestAddBeeswarm:

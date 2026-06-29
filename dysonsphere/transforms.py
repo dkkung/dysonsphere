@@ -111,7 +111,7 @@ def beeswarm_offsets(
         # Pick the candidate closest to 0 that doesn't overlap any placed point.
         candidates.sort(key=abs)
         for cx in candidates:
-            dists_sq = (placed_y[:n_placed] - y) ** 2 + (placed_x[:n_placed] - cx) ** 2
+            dists_sq = (placed_y[:n_placed] - y) ** 2 + (placed_x[:n_placed] - cx) ** 2  # ty: ignore[unsupported-operator]
             if n_placed == 0 or np.all(dists_sq >= d**2 - 1e-9):
                 placed_y[n_placed] = y
                 placed_x[n_placed] = cx

@@ -1,4 +1,5 @@
 import math
+from typing import cast
 
 import altair as alt
 import polars as pl
@@ -164,7 +165,7 @@ def add_rule(
                 x=alt.value(x_anchor),
             )
         )
-        return alt.layer(rule, text)
+        return cast(alt.LayerChart, alt.layer(rule, text))
 
     else:  # axis == "x"
         # Vertical rule: value is an x-coordinate.
@@ -216,7 +217,7 @@ def add_rule(
                 y=alt.value(y_anchor),
             )
         )
-        return alt.layer(rule, text)
+        return cast(alt.LayerChart, alt.layer(rule, text))
 
 
 _TEXT_PRESETS: dict[str, dict] = {
@@ -739,7 +740,7 @@ def add_shade(
                     )
                 layers.append(chart)
 
-        return alt.layer(*layers)
+        return cast(alt.LayerChart, alt.layer(*layers))
 
     # ── band mode ─────────────────────────────────────────────────────────────
     if categories is None:
@@ -777,7 +778,7 @@ def add_shade(
         )
         i = j
 
-    return alt.layer(*run_layers)
+    return cast(alt.LayerChart, alt.layer(*run_layers))
 
 
 # Multilabel annotations
@@ -1046,7 +1047,7 @@ def _multilabel_layer(
     ]
     marks_df = pl.DataFrame(rows)
 
-    chart_h = len(row_order) * rowHeight + (categoryLabelHeight if categoryLabel else 0)
+    chart_h = len(row_order) * rowHeight + (categoryLabelHeight or 0 if categoryLabel else 0)
 
     x_enc = alt.X(
         "__category:N",
@@ -1258,9 +1259,9 @@ def _multilabel_layer(
             .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__category:N"))
         )
 
-    return alt.layer(*layers).properties(
+    return cast(alt.LayerChart, alt.layer(*layers).properties(
         width=chartWidth, height=chart_h, view={"fill": None, "stroke": None}
-    )
+    ))
 
 
 def add_multilabel(

@@ -16,11 +16,11 @@ class TestEnsurePolars:
 
     def test_invalid_type_raises(self):
         with pytest.raises(TypeError, match="Expected a polars.DataFrame or pandas.DataFrame"):
-            ensure_polars("not a dataframe")
+            ensure_polars("not a dataframe")  # ty: ignore[invalid-argument-type]
 
     def test_invalid_type_dict_raises(self):
         with pytest.raises(TypeError):
-            ensure_polars({"group": ["A", "B"]})
+            ensure_polars({"group": ["A", "B"]})  # ty: ignore[invalid-argument-type]
 
 
 class TestCountN:

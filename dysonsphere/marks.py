@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Final, cast
 
 import altair as alt
 import numpy as np
@@ -7,7 +7,11 @@ import polars as pl
 from .transforms import add_beeswarm, add_jitter
 from .utils import ensure_polars
 
-_UNSET = object()
+class _UnsetType:
+    pass
+
+
+_UNSET: Final[_UnsetType] = _UnsetType()
 
 
 def mark_violin(
@@ -25,7 +29,7 @@ def mark_violin(
     legend: bool = False,
     xLabelAngle: float | None = None,
     steps: int = 200,
-    yTitle: str | None = _UNSET,
+    yTitle: str | None | _UnsetType = _UNSET,
     xTitle: str | None = None,
 ) -> alt.LayerChart:
     """
@@ -129,6 +133,7 @@ def mark_violin(
             )
 
     violin_df = pl.DataFrame(violin_rows)
+    _y_title: str | None = yCol if isinstance(yTitle, _UnsetType) else yTitle
 
     if xLabelAngle is None:
         xLabelAngle = alt.theme.options.get("xLabelAngle", 0)
@@ -159,7 +164,7 @@ def mark_violin(
                     range=[band_center - mark_size * 0.75, band_center + mark_size * 0.75],
                 ),
             ),
-            y=alt.Y("__y:Q", title=yCol if yTitle is _UNSET else yTitle),
+            y=alt.Y("__y:Q", title=_y_title),
             order=alt.Order("__order:Q"),
             color=alt.Color(
                 "__group:N",
@@ -185,11 +190,11 @@ def mark_violin(
         )
         .encode(
             x=alt.X(f"{xCol}:N", sort=categories),
-            y=alt.Y(f"{yCol}:Q", title=yCol if yTitle is _UNSET else yTitle),
+            y=alt.Y(f"{yCol}:Q", title=_y_title),
         )
     )
 
-    return alt.layer(violin, boxplot)
+    return cast(alt.LayerChart, alt.layer(violin, boxplot))
 
 
 def mark_strip(
@@ -207,7 +212,7 @@ def mark_strip(
     xLabelAngle: float | None = None,
     errorbars: bool = True,
     errorbarExtent: str = "sem",
-    yTitle: str | None = _UNSET,
+    yTitle: str | None | _UnsetType = _UNSET,
     xTitle: str | None = None,
 ) -> alt.LayerChart:
     """
@@ -266,7 +271,7 @@ def mark_strip(
         chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
     """
     df = ensure_polars(df)
-    _y_title = yCol if yTitle is _UNSET else yTitle
+    _y_title: str | None = yCol if isinstance(yTitle, _UnsetType) else yTitle
     if pointSize is None:
         pointSize = alt.theme.options.get("markSize", 10)
     if pointOpacity is None:
@@ -285,7 +290,7 @@ def mark_strip(
     chart_width = alt.theme.options.get("chartWidth", 100)
     step = chart_width / (len(categories) + 2 * band_padding)
     band_center = step * (0.5 - band_padding)
-    max_offset = float(df[offset_col].abs().max())
+    max_offset = cast(float, df[offset_col].abs().cast(pl.Float64).max() or 0.0)
     offset_scale = alt.Scale(
         domain=[-max_offset, max_offset],
         range=[band_center - max_offset, band_center + max_offset],
@@ -333,7 +338,7 @@ def mark_strip(
     )
 
     if not errorbars:
-        return alt.layer(points, median)
+        return cast(alt.LayerChart, alt.layer(points, median))
 
     if errorbarExtent == "sem":
         error_expr = (pl.col(yCol).std() / pl.col(yCol).count().sqrt()).alias("__error")
@@ -354,4 +359,4 @@ def mark_strip(
         )
     )
 
-    return alt.layer(points, errorbar_layer, median)
+    return cast(alt.LayerChart, alt.layer(points, errorbar_layer, median))

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, cast
 
 import altair as alt
 
@@ -76,7 +76,10 @@ def save(
     # (e.g. add_multilabel dot colours) pick up the correct
     # darkmode value that was just toggled above.
     def _resolve() -> alt.Chart:
-        c = chart() if callable(chart) else chart
+        if isinstance(chart, alt.Chart):
+            c: alt.Chart = chart
+        else:
+            c = chart()
         return c.properties(description=description) if description is not None else c
 
     base = Path(filename)

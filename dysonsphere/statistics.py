@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import altair as alt
 import polars as pl
@@ -86,7 +86,7 @@ def _pvalue_layer(
     if y is None:
         if df is None or x_col is None or y_col is None:
             raise ValueError("y is required when df, x_col, and y_col are not provided.")
-        y = float(df.filter(pl.col(x_col).is_in([group1, group2]))[y_col].max()) + y_pad
+        y = cast(float, df.filter(pl.col(x_col).is_in([group1, group2]))[y_col].cast(pl.Float64).max() or 0.0) + y_pad
 
     # --- resolve theme-linked defaults ---
     if chartWidth is None:
@@ -162,9 +162,9 @@ def _pvalue_layer(
                 y2="y2:Q",
             )
         )
-        return alt.layer(bar, left_tick, right_tick, text)
+        return cast(alt.LayerChart, alt.layer(bar, left_tick, right_tick, text))
 
-    return alt.layer(bar, text)
+    return cast(alt.LayerChart, alt.layer(bar, text))
 
 
 def add_pvalue(
@@ -350,7 +350,7 @@ def add_pvalue(
     if yPad is None:
         annotated_groups_for_pad = list({g for pair in pairs for g in pair})
         y_vals = df.filter(pl.col(xCol).is_in(annotated_groups_for_pad))[yCol]
-        y_range = float(y_vals.max()) - float(y_vals.min())
+        y_range = cast(float, y_vals.cast(pl.Float64).max() or 0.0) - cast(float, y_vals.cast(pl.Float64).min() or 0.0)
         chart_height = alt.theme.options.get("chartHeight", 100)
         yPad = (10.0 if bracketStyle == "bracket" else 8.0) * y_range / chart_height
 
@@ -361,7 +361,7 @@ def add_pvalue(
     else:
         if yStart is None:
             annotated_groups = list({g for pair in pairs for g in pair})
-            yStart = float(df.filter(pl.col(xCol).is_in(annotated_groups))[yCol].max()) + yPad
+            yStart = cast(float, df.filter(pl.col(xCol).is_in(annotated_groups))[yCol].cast(pl.Float64).max() or 0.0) + yPad
 
         if yStep is None:
             yStep = yPad * 2
@@ -417,4 +417,4 @@ def add_pvalue(
             )
         )
 
-    return alt.layer(*layer_charts)
+    return cast(alt.LayerChart, alt.layer(*layer_charts))
