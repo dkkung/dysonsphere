@@ -200,7 +200,7 @@ ds.palette("blues", n=4, reverse=True)  # reversed
 | `step` | `1` | Step between indices (used when `n` is not set) |
 | `reverse` | `False` | Reverse the returned list |
 
-### Theme defaults
+### Default palettes
 
 When no explicit `scale=` is set on a color encoding, Vega-Lite falls back to the theme's range defaults:
 
@@ -244,6 +244,22 @@ See the [palette gallery](https://dkkung.github.io/dysonsphere/) for a visual ov
 
 **cmocean ported** (prefixed with `cmocean_`):
 `cmocean_algae`, `cmocean_amp`, `cmocean_balance`, `cmocean_curl`, `cmocean_deep`, `cmocean_delta`, `cmocean_dense`, `cmocean_diff`, `cmocean_gray`, `cmocean_haline`, `cmocean_ice`, `cmocean_matter`, `cmocean_oxy`, `cmocean_phase`, `cmocean_rain`, `cmocean_solar`, `cmocean_speed`, `cmocean_tarn`, `cmocean_tempo`, `cmocean_thermal`, `cmocean_topo`, `cmocean_turbid`
+
+### Exporting palettes as swatches for Adobe Illustrator
+
+Generate an Illustrator ExtendScript (.jsx) containing all dysonsphere palettes as named swatch groups:
+
+```python
+ds.export_swatches()           # writes to the current directory
+ds.export_swatches("/my/dir")  # writes to a specific directory
+```
+
+This writes `import_dysonsphere_palettes_to_illustrator.jsx`. To import into Illustrator:
+
+1. Open or create a document in Adobe Illustrator.
+2. Go to **File > Scripts > Other Script...**
+3. Select `import_dysonsphere_palettes_to_illustrator.jsx`.
+4. All palettes are added as named swatch groups in the Swatches panel.
 
 ---
 
@@ -893,21 +909,3 @@ This runs all scripts in `scripts/build/` in sorted order, rebuilding the galler
 uv run python scripts/build/build_gallery.py
 ```
 
-### Exporting swatches for Adobe Illustrator
-
-```sh
-# uv
-uv run scripts/build/build_swatches_for_illustrator.py
-
-# pip
-python3 scripts/build/build_swatches_for_illustrator.py
-```
-
-Generates `scripts/import_palettes_to_illustrator.jsx`. To import into Illustrator:
-
-1. Open or create a document in Adobe Illustrator.
-2. Go to **File > Scripts > Other Script...**
-3. Select `scripts/import_palettes_to_illustrator.jsx`.
-4. All palettes are added as named swatch groups in the Swatches panel.
-
-Re-run this script after adding or modifying palettes in `dysonsphere/palettes.py`.

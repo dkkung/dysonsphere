@@ -53,7 +53,7 @@ for (var paletteName in palettes) {{
 alert("Imported " + Object.keys(palettes).length + " palettes.");
 """
 
-    out = ROOT / "scripts" / "import_palettes_to_illustrator.jsx"
+    out = ROOT / "scripts" / "import_dysonsphere_palettes_to_illustrator.jsx"
     out.write_text(jsx)
     print(f"wrote {out}")
 

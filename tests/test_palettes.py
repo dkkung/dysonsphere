@@ -71,3 +71,23 @@ def test_palette_step():
 def test_palette_unknown_key_raises():
     with pytest.raises(KeyError):
         palette("nonexistent_palette_xyz")
+
+
+class TestExportSwatches:
+    def test_creates_jsx_file(self, tmp_path):
+        from dysonsphere.palettes import export_swatches
+        export_swatches(tmp_path)
+        assert (tmp_path / "import_dysonsphere_palettes_to_illustrator.jsx").exists()
+
+    def test_jsx_contains_palette_names(self, tmp_path):
+        from dysonsphere.palettes import export_swatches
+        export_swatches(tmp_path)
+        content = (tmp_path / "import_dysonsphere_palettes_to_illustrator.jsx").read_text()
+        assert '"blues"' in content
+        assert '"reds"' in content
+
+    def test_defaults_to_cwd(self, tmp_path, monkeypatch):
+        from dysonsphere.palettes import export_swatches
+        monkeypatch.chdir(tmp_path)
+        export_swatches()
+        assert (tmp_path / "import_dysonsphere_palettes_to_illustrator.jsx").exists()

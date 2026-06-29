@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 colors = {
     # --- custom palettes ---
     "adobe_greys": [
@@ -4742,3 +4745,55 @@ def palette(
 
     result = [palette[i] for i in indices]
     return result[::-1] if reverse else result
+
+
+def export_swatches(directory: str | Path | None = None) -> None:
+    """
+    Write an Adobe Illustrator ExtendScript (.jsx) to *directory* (default: current
+    working directory) that imports all dysonsphere palettes as named swatch groups.
+
+    To use: in Illustrator, go to File > Scripts > Other Script... and select the
+    generated .jsx file.
+    """
+    dest = (Path(directory) if directory is not None else Path.cwd()) / "import_dysonsphere_palettes_to_illustrator.jsx"
+
+    js_palettes = json.dumps(colors, indent=4)
+
+    jsx = f"""\
+// Adobe Illustrator script to import dysonsphere palettes as named swatch groups.
+// Run via File > Scripts > Other Script...
+var doc = app.documents.length > 0 ? app.activeDocument : app.documents.add();
+
+function hexToRGB(hex) {{
+    hex = hex.replace('#', '');
+    return [
+        parseInt(hex.substring(0, 2), 16),
+        parseInt(hex.substring(2, 4), 16),
+        parseInt(hex.substring(4, 6), 16),
+    ];
+}}
+
+var palettes = {js_palettes};
+
+for (var paletteName in palettes) {{
+    var hexColors = palettes[paletteName];
+    var colorGroup = doc.swatchGroups.add();
+    colorGroup.name = paletteName;
+    for (var i = 0; i < hexColors.length; i++) {{
+        var rgb = hexToRGB(hexColors[i]);
+        var color = new RGBColor();
+        color.red = rgb[0];
+        color.green = rgb[1];
+        color.blue = rgb[2];
+        var swatch = doc.swatches.add();
+        swatch.name = paletteName + " - " + i;
+        swatch.color = color;
+        colorGroup.addSwatch(swatch);
+    }}
+}}
+
+alert("Imported " + Object.keys(palettes).length + " palettes.");
+"""
+
+    dest.write_text(jsx, encoding="utf-8")
+    print(f"Created {dest}")
