@@ -285,6 +285,8 @@ ds.save(chart, "violin")
 | `legend` | `False` | Show a color legend |
 | `xLabelAngle` | `theme(xLabelAngle)` | X-axis label rotation in degrees |
 | `steps` | `200` | KDE grid resolution per group |
+| `yTitle` | `yCol` | Y-axis title; `None` suppresses it |
+| `xTitle` | `None` | X-axis title; `None` (default) suppresses it |
 
 ### dysonsphere.mark_strip()
 
@@ -300,9 +302,14 @@ chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
 | `scatter` | `"jitter"` | `"jitter"` (fast, random Gaussian) or `"beeswarm"` (collision-avoidance) |
 | `palette` | `None` | List of colors for points |
 | `pointSize` | `theme(markSize)` | Point size in sq px |
+| `pointOpacity` | `theme(markFillOpacity)` | Point opacity |
 | `spread` | `None` | Point spread in pixels. For jitter: std dev (defaults to `min(chartWidth, chartHeight) / 50`). For beeswarm: collision radius (defaults to `√(markSize/π)` from theme) |
+| `legend` | `False` | Show a color legend |
+| `xLabelAngle` | `theme(xLabelAngle)` | X-axis label rotation in degrees |
 | `errorbars` | `True` | Show mean ± error bars |
 | `errorbarExtent` | `"sem"` | `"sem"` or `"sd"` |
+| `yTitle` | `yCol` | Y-axis title; `None` suppresses it |
+| `xTitle` | `None` | X-axis title; `None` (default) suppresses it |
 
 ---
 

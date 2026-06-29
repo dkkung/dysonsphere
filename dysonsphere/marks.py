@@ -26,6 +26,7 @@ def mark_violin(
     xLabelAngle: float | None = None,
     steps: int = 200,
     yTitle: str | None = _UNSET,
+    xTitle: str | None = None,
 ) -> alt.LayerChart:
     """
     Build an Altair layer combining a violin plot behind a boxplot.
@@ -65,6 +66,10 @@ def mark_violin(
         sign. ``None`` inherits from ``theme(xLabelAngle)``.
     steps:
         Number of y grid points used for KDE estimation (per group).
+    yTitle:
+        Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
+    xTitle:
+        X-axis title. ``None`` (default) suppresses the title.
 
     Examples
     --------
@@ -146,7 +151,7 @@ def mark_violin(
         alt.Chart(violin_df)
         .mark_line(**mark_kwargs)
         .encode(
-            x=alt.X("__group:N", sort=categories, title=None, axis=x_axis),
+            x=alt.X("__group:N", sort=categories, title=xTitle, axis=x_axis),
             xOffset=alt.XOffset(
                 "__violin_px:Q",
                 scale=alt.Scale(
@@ -199,9 +204,11 @@ def mark_strip(
     pointOpacity: float | None = None,
     spread: float | None = None,
     legend: bool = False,
+    xLabelAngle: float | None = None,
     errorbars: bool = True,
     errorbarExtent: str = "sem",
     yTitle: str | None = _UNSET,
+    xTitle: str | None = None,
 ) -> alt.LayerChart:
     """
     Build an Altair layer combining jittered or beeswarm points with a median indicator.
@@ -231,6 +238,10 @@ def mark_strip(
         of the Gaussian offsets (~68% of points within ±spread). For
         ``'beeswarm'``: collision radius (points placed so no two centres are
         closer than 2·spread); total width grows with n.
+    xLabelAngle:
+        X-axis label rotation in degrees. Negative tilts left (e.g. ``-45``),
+        positive tilts right; ``labelAlign`` is derived automatically from the
+        sign. ``None`` inherits from ``theme(xLabelAngle)``.
     errorbars:
         Whether to show error bars around the group mean. When ``True``,
         the mean is shown as a tick with error bars. When ``False``, the
@@ -240,6 +251,8 @@ def mark_strip(
         mean, default) or ``'sd'`` (standard deviation).
     yTitle:
         Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
+    xTitle:
+        X-axis title. ``None`` (default) suppresses the title.
 
     Examples
     --------
@@ -278,7 +291,15 @@ def mark_strip(
         range=[band_center - max_offset, band_center + max_offset],
     )
 
-    x = alt.X(f"{xCol}:N", sort=categories, title=None)
+    if xLabelAngle is None:
+        xLabelAngle = alt.theme.options.get("xLabelAngle", 0)
+    if xLabelAngle != 0:
+        align = "right" if xLabelAngle < 0 else "left"
+        x_axis = alt.Axis(labelAngle=xLabelAngle % 360, labelAlign=align)
+    else:
+        x_axis = alt.Axis()
+
+    x = alt.X(f"{xCol}:N", sort=categories, title=xTitle, axis=x_axis)
 
     points = (
         alt.Chart(df)
