@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 def save(
-    chart: alt.Chart | Callable[[], alt.Chart],
+    chart: alt.Chart | alt.LayerChart | Callable[[], alt.Chart | alt.LayerChart],
     filename: str,
     ppi: int = 1200,
     description: str | None = None,
@@ -75,11 +75,9 @@ def save(
     # marks whose colours read from alt.theme.options at construction time
     # (e.g. add_multilabel dot colours) pick up the correct
     # darkmode value that was just toggled above.
-    def _resolve() -> alt.Chart:
-        if isinstance(chart, alt.Chart):
-            c: alt.Chart = chart
-        else:
-            c = chart()
+    def _resolve() -> alt.Chart | alt.LayerChart:
+        raw = chart() if callable(chart) else chart  # ty: ignore[call-top-callable]
+        c = cast(alt.Chart | alt.LayerChart, raw)
         return c.properties(description=description) if description is not None else c
 
     base = Path(filename)
