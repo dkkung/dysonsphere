@@ -23,7 +23,7 @@ def mark_violin(
     stroke: str | None = None,
     strokeWidth: float | None = None,
     legend: bool = False,
-    angledX: bool | None = None,
+    xLabelAngle: float | None = None,
     steps: int = 200,
     yTitle: str | None = _UNSET,
 ) -> alt.LayerChart:
@@ -59,6 +59,10 @@ def mark_violin(
     strokeWidth:
         Width of the violin outline. Inherits ``markStrokeWidth`` from theme
         when ``None``.
+    xLabelAngle:
+        X-axis label rotation in degrees. Negative tilts left (e.g. ``-45``),
+        positive tilts right; ``labelAlign`` is derived automatically from the
+        sign. ``None`` inherits from ``theme(xLabelAngle)``.
     steps:
         Number of y grid points used for KDE estimation (per group).
 
@@ -121,9 +125,13 @@ def mark_violin(
 
     violin_df = pl.DataFrame(violin_rows)
 
-    if angledX is None:
-        angledX = alt.theme.options.get("angledX", False)
-    x_axis = alt.Axis(labelAngle=315, labelAlign="right") if angledX else alt.Axis()
+    if xLabelAngle is None:
+        xLabelAngle = alt.theme.options.get("xLabelAngle", 0)
+    if xLabelAngle != 0:
+        align = "right" if xLabelAngle < 0 else "left"
+        x_axis = alt.Axis(labelAngle=xLabelAngle % 360, labelAlign=align)
+    else:
+        x_axis = alt.Axis()
 
     mark_kwargs = {
         "filled": True,

@@ -65,7 +65,7 @@ ds.theme(  # custom configuration
 
 | Parameter | Default | Description |
 |---|---|---|
-| `angledX` | `False` | Angle x-axis labels 45° |
+| `xLabelAngle` | `0` | X-axis label rotation in degrees (e.g. `-45`); negative = tilt left, positive = tilt right |
 | `axisOffset` | `tickSize` | Distance between axis line and data area |
 | `axisWidth` | `0.25` | Stroke width of axes, ticks, and rules |
 | `bandPadding` | `0.1` | Inner and outer padding for ordinal bands |
@@ -96,7 +96,7 @@ ds.theme(  # custom configuration
 | `ticks` | `True` | Show axis ticks |
 | `tickSize` | `3` | Tick length in pixels |
 | `transparentBackground` | `False` | Transparent chart background (overrides `chartFill`) |
-| `verticalY` | `False` | Rotate y-axis labels 90° |
+| `yLabelAngle` | `0` | Y-axis label rotation in degrees (e.g. `-90`); `labelAlign` is auto-derived from the angle |
 | `viewFill` | `None` | Fill color of the plot area only. Setting this auto-enables `closed` |
 | `xAxis` | `True` | Toggle for the x-axis — disabling hides the axis domain and axis ticks, but not axis labels |
 | `xDomain` | `True` | Show the x-axis domain line (overridden to `False` when `xAxis=False`) |
@@ -283,7 +283,7 @@ ds.save(chart, "violin")
 | `stroke` | `None` | Violin outline color (`None` = no outline) |
 | `strokeWidth` | `theme(markStrokeWidth)` | Violin outline width |
 | `legend` | `False` | Show a color legend |
-| `angledX` | `theme(angledX)` | Angle x-axis labels |
+| `xLabelAngle` | `theme(xLabelAngle)` | X-axis label rotation in degrees |
 | `steps` | `200` | KDE grid resolution per group |
 
 ### dysonsphere.mark_strip()

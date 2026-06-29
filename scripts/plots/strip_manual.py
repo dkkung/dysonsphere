@@ -28,7 +28,7 @@ df = pl.DataFrame(
     }
 )
 
-ds.theme(palette="blues2", angledX=True)
+ds.theme(palette="blues2", xLabelAngle=-45)
 
 # ── Jitter ────────────────────────────────────────────────────────────────────
 df = ds.add_jitter(df)  # adds "jitter_x" column

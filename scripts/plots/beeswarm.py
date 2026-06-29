@@ -29,7 +29,7 @@ df = pl.DataFrame(
     }
 )
 
-ds.theme(angledX=True, markSize=3)
+ds.theme(xLabelAngle=-45, markSize=3)
 
 df = ds.add_beeswarm(df, yCol="value", groupBy=["group"])
 

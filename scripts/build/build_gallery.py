@@ -518,7 +518,7 @@ def _violin(key):
     n = len(p)
     palette = [p[round(i * (n - 1) / (len(_VIOLIN_CATS) - 1))] for i in range(len(_VIOLIN_CATS))]
     return mark_violin(
-        _violin_df, "group", "value", _VIOLIN_CATS, palette=palette, legend=True, angledX=True
+        _violin_df, "group", "value", _VIOLIN_CATS, palette=palette, legend=True, xLabelAngle=-45
     )
 
 

@@ -123,7 +123,7 @@ def _violin_no_legend(key):
         _VIOLIN_CATS,
         palette=palette,
         legend=False,
-        angledX=False,
+        xLabelAngle=0,
         yTitle=None,
     )
 

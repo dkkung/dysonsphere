@@ -13,7 +13,6 @@ register.
 
 
 def theme(
-    angledX=False,
     axisOffset=None,  # defaults to tickSize if not set, or 0 if closed is True
     axisWidth=0.25,
     bandPadding=0.1,
@@ -48,15 +47,16 @@ def theme(
     ticks=True,
     tickSize=3,
     transparentBackground=False,
-    verticalY=False,
     viewFill=None,  # setting a color auto-enables closed
     xAxis=True,
     xDomain=True,
     xLabels=True,
+    xLabelAngle=0,
     xTicks=True,
     yAxis=True,
     yDomain=True,
     yLabels=True,
+    yLabelAngle=0,
     yTicks=True,
 ):
     """
@@ -74,7 +74,7 @@ def theme(
         chartFill = "white"
 
     alt.theme.options = {}  # must reset options to remove stale keys
-    alt.theme.options["angledX"] = angledX
+    alt.theme.options["xLabelAngle"] = xLabelAngle
     alt.theme.options["axisOffset"] = axisOffset
     alt.theme.options["axisWidth"] = axisWidth
     alt.theme.options["bandPadding"] = bandPadding
@@ -112,7 +112,7 @@ def theme(
     alt.theme.options["tickWidth"] = axisWidth
     alt.theme.options["closed"] = closed
     alt.theme.options["transparentBackground"] = transparentBackground
-    alt.theme.options["verticalY"] = verticalY
+    alt.theme.options["yLabelAngle"] = yLabelAngle
     alt.theme.options["viewFill"] = viewFill
     alt.theme.options["xAxis"] = xAxis
     alt.theme.options["xDomain"] = xDomain
@@ -130,7 +130,7 @@ def custom():
     return {
         "background": (
             None if opts["transparentBackground"] else opts["chartFill"]
-        ),  # background of the entire view
+        ),  # background of the entire chart
         "config": {
             "arc": {
                 "fill": opts["markFill"],
@@ -179,21 +179,45 @@ def custom():
             "axisX": {
                 "domain": opts["xAxis"] and opts["xDomain"],
                 "labelAlign": (
-                    "right" if opts["angledX"] else "center"
-                ),  # keep label alignment distinct between X & Y
-                "labelAngle": 315 if opts["angledX"] else 0,
+                    "right"
+                    if opts["xLabelAngle"] < 0
+                    else "left"
+                    if opts["xLabelAngle"] > 0
+                    else "center"
+                ),
+                "labelAngle": opts["xLabelAngle"] % 360,
                 "labels": opts["xLabels"],
                 "ticks": opts["xAxis"] and opts["xTicks"] and opts["ticks"],
                 "translate": 0,
             },
             "axisY": {
                 "domain": opts["yAxis"] and opts["yDomain"],
-                "labelAlign": (
-                    "center" if opts["verticalY"] else "right"
-                ),  # keep label alignment distinct between X & Y
-                "labelAngle": 270 if opts["verticalY"] else 0,
+                "labelAlign": "center" if opts["yLabelAngle"] != 0 else "right",
+                "labelAngle": opts["yLabelAngle"] % 360,
                 "labels": opts["yLabels"],
                 "ticks": opts["yAxis"] and opts["yTicks"] and opts["ticks"],
+                "translate": 0,
+            },
+            "axisRight": {
+                "domain": opts["yAxis"] and opts["yDomain"],
+                "labelAlign": "center" if opts["yLabelAngle"] != 0 else "left",
+                "labelAngle": (-opts["yLabelAngle"]) % 360,
+                "labels": opts["yLabels"],
+                "ticks": opts["yAxis"] and opts["yTicks"] and opts["ticks"],
+                "translate": 0,
+            },
+            "axisTop": {
+                "domain": opts["xAxis"] and opts["xDomain"],
+                "labelAlign": (
+                    "left"
+                    if opts["xLabelAngle"] < 0
+                    else "right"
+                    if opts["xLabelAngle"] > 0
+                    else "center"
+                ),
+                "labelAngle": (-opts["xLabelAngle"]) % 360,
+                "labels": opts["xLabels"],
+                "ticks": opts["xAxis"] and opts["xTicks"] and opts["ticks"],
                 "translate": 0,
             },
             "bar": {
@@ -424,7 +448,9 @@ def custom():
                 "continuousHeight": opts["chartHeight"],
                 "discreteWidth": opts["chartWidth"],
                 "discreteHeight": opts["chartHeight"],
-                "fill": None if opts["darkmode"] else opts["viewFill"],
+                "fill": None
+                if opts["darkmode"]
+                else opts["viewFill"],  # background of the plotted area
                 "stroke": ("white" if opts["darkmode"] else "black") if opts["closed"] else None,
                 "strokeWidth": opts["axisWidth"],
             },
