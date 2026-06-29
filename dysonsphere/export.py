@@ -478,8 +478,8 @@ def _layer_axes_to_front(path: str) -> None:
     root = tree.getroot()
 
     def reorder(el: ET.Element) -> None:
-        to_move = []   # existing children to remove and re-append at end
-        to_add = []    # stroke-only clones to append at end (originals stay in place)
+        to_move = []  # existing children to remove and re-append at end
+        to_add = []  # stroke-only clones to append at end (originals stay in place)
         for child in list(el):
             cls = child.get("class", "")
             if cls == "mark-group role-axis" and not _is_grid_axis(child):
