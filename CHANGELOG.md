@@ -1,5 +1,102 @@
 # Changelog
 
+## [v1.0.0] - 2026-06-30
+
+v1.0.0 marks the first stable release of dysonsphere.
+
+## Breaking changes
+
+- **All public API parameters renamed to camelCase** (`xCol`, `yCol`, `bracketStyle`, `labelStyle`, `yPad`, `yStep`, `markSize`, `markOpacity`, `xTitle`, `yTitle`, `xLabelAngle`, `yLabelAngle`, etc.) to align with Altair and Vega-Lite conventions. Any code using the old snake_case names will break.
+- `mark_strip()`: `pointSize` / `pointOpacity` → `markSize` / `markOpacity`
+- `theme()`: `angledX` / `verticalY` removed → replaced by `xLabelAngle` / `yLabelAngle` (accept any angle in degrees)
+- `add_multilabel_detached()` removed - now private as `_multilabel_layer()`
+- `adobe_greys` palette removed from `colors`
+
+---
+
+## New features
+
+### Chart utilities
+
+#### Multilabels
+- **`add_multilabel()` `spans=`** - group contiguous x-axis categories under a labeled or unlabeled bracket.
+- **`add_multilabel()` `showSampleSize=`** - injects a per-category count row; `sampleSizeIndex=` controls insertion position and `sampleSizeLabel=` sets the row label (default `"n ="`).
+- **`add_multilabel()` `categoryLabel=`** - renders x-axis category names as angled text in a dedicated row; `categoryLabelAngle=` (default `-45`), `categoryLabelPosition=` (`"top"` / `"bottom"`), `categoryLabelHeight=` (auto-computed from label length and angle).
+- **`add_multilabel()` empty `groups={}`** - `groups` and `categories` now default to empty/`None`, so `showSampleSize=True` or `categoryLabel=True` can be used without any condition rows.
+- **`add_multilabel()` `rowStyles=`** - accepts a list (ordinal) or dict (by label) to set style per row.
+- **`add_multilabel()` `orientation=`** - `"vertical"` (default) or `"horizontal"` connecting lines.
+
+#### Chart annotations
+- **`add_shade()`** - background rect shading with band mode (alternating per category), positions mode (quantitative/nominal ranges), `axis="both"` for x-y intersection rects, `flush`, `stroke`, `strokeDash`, `nShades`, `repeat`, `opacity`.
+- **`add_rule()`** - horizontal and vertical reference lines with optional labels; `axis="y"` / `"x"`, `labelAlign`, `labelPosition`, `labelOffsetX/Y`, `strokeDash`.
+- **`add_text()`** - text annotations at data coordinates (`:Q` or `:N`), pixel coordinates (`alt.value()`), or one of 9 named position presets (`"topLeft"`, `"bottomRight"`, etc.).
+
+#### Statistical annotations
+- **`add_pvalue()` `notation=`** - `"scientific"`, `"e"`, or `"power"` notation for p-value labels; `decimals=` controls precision.
+
+#### Custom marks
+- **`mark_strip()` / `mark_violin()`** - `xTitle=`, `yTitle=` for explicit axis titles; `xLabelAngle=` on `mark_strip()`.
+- **Pandas DataFrame support** - all public functions that accept a DataFrame now accept both `polars` and `pandas` via `ensure_polars()`.
+
+#### Non-linear axes
+- **`add_log_ticks()` / `add_pow_ticks()`** - minor ticks for log-scale and power-scale axes; `axis="both"` for dual-axis charts.
+- **`log_label_expr()`** - Vega `labelExpr` string for typeset axis labels in `"power"` (10⁴), `"scientific"` (1×10⁴), `"e"` (1e+4), or `"si"` (10k) notation.
+
+### Theming via `ds.theme()`
+- **`style=`** - load named preset styles (`"notebook"`, `"presentation"`) or user-defined styles from `dysonsphere.toml`.
+- **`create_config()`** - scaffold a `dysonsphere.toml` with all defaults; `persist=True` writes to the platform user config directory.
+- **`cornerRadius=`** - `False` (default), `True` (auto-scales to chart size), or explicit `float`. Applies rounded corners to rects and bars.
+- **`xLabelAngle=` / `yLabelAngle=`** - accept any float angle in degrees; `labelAlign` is auto-derived from the sign.
+- **`axisRight` / `axisTop`** - fully configured to mirror their primary-axis counterparts.
+- **Axis visibility toggles** - `xAxis`, `yAxis`, `xLabels`, `yLabels`, `xDomain`, `xTicks`, `yDomain`, `yTicks`.
+- **`dashedGrid=`** - toggle dashed grid lines independently of `dashedRule`.
+- Chart title now correctly centers to the full layout group (`anchor="middle"`, `frame="group"`).
+- **Arc mark donut default** - `mark_arc` now defaults to a donut (`innerRadius = min(chartWidth, chartHeight) / 4`, `padAngle = 0.03`). Override with `mark_arc(innerRadius=0, padAngle=0)` for a full pie.
+- **Errorbar defaults** - stem stroke width is now `markStrokeWidth × 2`; tick caps are rounded (`cornerRadius = markStrokeWidth`).
+- **Boxplot tick cap rounding** - whisker caps now use `cornerRadius = markStrokeWidth`.
+- **`mark_strip()` mark size** - default scatter point size increased from `markSize / 5` to `markSize / 4`.
+
+### Palettes
+- **14 pastel `*3` palettes** - `blues3`, `reds3`, `greens3`, etc. Low-chroma, light-end-only sweeps in Oklab for soft/muted use cases.
+- **102 new diverging palettes** - 51 paired from the `*2` saturated set (e.g. `redsblues2`, `greyspinks2`) and 51 from the new `*3` pastel set (e.g. `redsblues3`, `greyspinks3`).
+- **Custom palettes via config file** - define `[palettes]` in `dysonsphere.toml`; custom palettes are available via `ds.palette()` and `ds.theme(palette=)` like any built-in palette.
+
+### Adobe Illustrator swatch export
+- `ds.export_swatches()` writes both an **ExtendScript JSX** (loads palettes into the active document) and a **`dysonsphere.ase`** (Adobe Swatch Exchange) binary file.
+- The `.ase` file is automatically copied to the Illustrator User Defined Swatches folder if detected; after restarting Illustrator it appears under Open Swatch Library > User Defined > dysonsphere.
+
+### Save
+- **Generation metadata** - production info (script name, username, Python/Altair/dysonsphere versions, UTC timestamp) is embedded in SVG `<desc>`, Vega-Lite JSON `description`, and a PNG `iTXt Description` chunk. Controlled by `saveMetadata=True` (default) and `description=`.
+- **`background=`** - pass `["light"]` or `["dark"]` to render only one variant.
+- **Callable chart support** - pass a zero-argument callable instead of a chart object; it is re-invoked per variant so dark-mode-sensitive colors (e.g. `add_multilabel(style="symbol")`) render correctly.
+- Accepts all six Altair compound chart types: `Chart`, `LayerChart`, `FacetChart`, `VConcatChart`, `HConcatChart`, `ConcatChart`.
+
+---
+
+## Bug fixes
+
+- **`_fix_tick_alignment()`** - grid lines were skipped (regex only matched tick format); grid lines now also have their y-span extended by `axisOffset` to eliminate the gap at the top chart border; box mark centers used to resolve Case pi / Case 0 ambiguity in mixed strip+violin layouts.
+- **`_fix_log_minor_ticks()`** - per-panel grouping prevents cross-panel contamination in `hconcat`; dropped incorrect `hi + 1.0` interval tolerance that misplaced the 9× tick.
+- **`_fix_superscript_labels()`** - corrects misaligned Unicode superscript digits in scientific/power notation p-value labels by replacing them with `<tspan dy>` elements.
+- **`mark_violin()`** - x-centering now uses the correct boxplot band formula (Case pi), fixing visual misalignment in `hconcat`.
+- **`_layer_axes_to_front()`** - fixed `viewFill` rendering bleeding through the top layer.
+- **`_simplify_svg()`** - eliminated duplicate `<g>` wrapper groupings in exported SVGs.
+- **`add_shade()`** - fixed sub-pixel gray seam between adjacent same-color rects; fixed flush=False centering on outer bands.
+- **`add_multilabel()`** - fixed connecting-line ordering bug that could reorder rows; fixed `False` boolean values rendering with a hyphen in mixed-type rows.
+- **Minor tick sizes** - now default to `tickSize / 2` (was hardcoded to 1.5px).
+- **p-value `yPad`** - now auto-scales with `chartHeight` for consistent visual spacing.
+
+---
+
+## Infrastructure
+- Full test suite across all modules.
+- `ty` static type checking added to the dev toolchain and CI.
+- `build_all.py` rebuilds all docs assets in one command.
+- README substantially expanded with a table of contents and worked examples for all utilities.
+- CHANGELOG added to track changes, with pre-v1.0.0 history written from GitHub Releases.
+
+---
+
 ## [v0.9.0] - 2026-06-25
 
 ### New features
