@@ -52,20 +52,20 @@ ds.save(chart, "plots/myplot")
 
 ## Contents
 
-- [Installation](#installation)
-- [Quick start](#quick-start)
-- [dysonsphere.theme()](#dysonspheretheme)
+- **[Installation](#installation)**
+- **[Quick start](#quick-start)**
+- **[dysonsphere.theme()](#dysonspheretheme)**
   - [Config file](#config-file)
     - [`notebook` style](#notebook-style)
-- [Palettes](#palettes)
+- **[Palettes](#palettes)**
   - [Accessing palettes](#accessing-palettes)
   - [dysonsphere.palette()](#dysonspherepalette)
   - [Default palettes](#default-palettes)
   - [Available palettes](#available-palettes)
   - [Exporting palettes as swatches for Adobe Illustrator](#exporting-palettes-as-swatches-for-adobe-illustrator)
-- [Saving charts](#saving-charts)
+- **[Saving charts](#saving-charts)**
   - [Metadata](#metadata)
-- [Chart utilities](#chart-utilities)
+- **[Chart utilities](#chart-utilities)**
   - [Data transforms](#data-transforms)
     - [Beeswarm](#beeswarm)
     - [Jitter](#jitter)
@@ -85,7 +85,7 @@ ds.save(chart, "plots/myplot")
   - [Non-linear axes](#non-linear-axes)
     - [Axis label reformatting](#axis-label-reformatting)
     - [Minor ticks](#minor-ticks)
-- [Development](#development)
+- **[Development](#development)**
   - [Building palettes](#building-palettes)
   - [Building docs](#building-docs)
 
