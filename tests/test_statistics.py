@@ -213,3 +213,176 @@ class TestAddPvalue:
         spec = result.to_dict()
         label = spec["layer"][0]["layer"][-1]["data"]["values"][0]["label"]
         assert label == "P = 0.023"
+
+
+# ── Pure statistics module (dysonsphere.statistics) ─────────────────────────
+from dysonsphere import statistics as st  # noqa: E402
+
+MULTI = ["A", "B", "C"]
+_A = np.array([1.0, 2, 3, 4, 5])
+_B = np.array([3.0, 4, 5, 6, 7])
+_C = np.array([6.0, 7, 8, 9, 10])
+_GROUPS = [_A, _B, _C]
+
+
+class TestPostHocReference:
+    """Golden values validated against scikit-posthocs (Dunn, Nemenyi) and pingouin (Games-Howell)."""
+
+    def test_dunn(self):
+        assert float(st._dunn_matrix(_GROUPS)[0, 2]) == pytest.approx(0.002003, abs=1e-6)
+
+    def test_games_howell(self):
+        assert float(st._games_howell_matrix(_GROUPS)[0, 2]) == pytest.approx(0.002669, abs=1e-6)
+
+    def test_nemenyi(self):
+        assert float(st._nemenyi_matrix(_GROUPS)[0, 2]) == pytest.approx(0.004464, abs=1e-6)
+
+    @pytest.mark.parametrize("fn", [st._dunn_matrix, st._games_howell_matrix, st._nemenyi_matrix])
+    def test_matrix_invariants(self, fn):
+        m = fn(_GROUPS)
+        assert m.shape == (3, 3)
+        assert np.allclose(np.diag(m), 1.0)
+        assert np.allclose(m, m.T)  # symmetric
+        off = m[~np.eye(3, dtype=bool)]
+        assert np.all((off >= 0) & (off <= 1))
+
+    def test_nemenyi_requires_balanced(self):
+        with pytest.raises(ValueError, match="balanced"):
+            st._nemenyi_matrix([_A, _B, np.array([1.0, 2, 3])])
+
+
+class TestOmnibusRunners:
+    def test_anova(self):
+        r = st._run_omnibus("anova", _GROUPS, MULTI)
+        assert r.statSymbol == "F" and r.df == (2, 12)
+        assert r.stat == pytest.approx(12.666667, abs=1e-5)
+        assert r.pvalue == pytest.approx(0.001103, abs=1e-5)
+        assert r.effectName == "η²" and r.effectSize == pytest.approx(0.678571, abs=1e-5)
+
+    def test_kruskal(self):
+        r = st._run_omnibus("kruskal", _GROUPS, MULTI)
+        assert r.statSymbol == "H" and r.df == (2,)
+        assert r.effectName == "ε²" and r.effectSize == pytest.approx(0.688649, abs=1e-5)
+
+    def test_friedman(self):
+        r = st._run_omnibus("friedman", _GROUPS, MULTI)
+        assert r.statSymbol == "χ²" and r.effectName == "W"
+        assert 0 <= r.effectSize <= 1
+
+    def test_alexandergovern(self):
+        r = st._run_omnibus("alexandergovern", _GROUPS, MULTI)
+        assert r.statSymbol == "A" and r.effectName == "η²"
+
+    def test_unknown(self):
+        with pytest.raises(ValueError, match="Unknown omnibus"):
+            st._run_omnibus("nope", _GROUPS, MULTI)
+
+    def test_friedman_requires_balanced(self):
+        with pytest.raises(ValueError, match="balanced"):
+            st._run_omnibus("friedman", [_A, _B, np.array([1.0, 2, 3])], MULTI)
+
+
+class TestAdjust:
+    def test_none(self):
+        assert st._adjust([0.01, 0.02], None, 3) == [0.01, 0.02]
+
+    def test_bonferroni(self):
+        assert st._adjust([0.01, 0.5], "bonferroni", 3) == pytest.approx([0.03, 1.0])
+
+    def test_holm_monotone_and_capped(self):
+        out = st._adjust([0.01, 0.02, 0.03], "holm", 3)
+        assert out == sorted(out)  # non-decreasing in p order
+        assert all(p <= 1.0 for p in out)
+
+    def test_unknown(self):
+        with pytest.raises(ValueError, match="correction"):
+            st._adjust([0.1], "bogus", 1)
+
+
+class TestReportRegistry:
+    def test_describe(self):
+        d = st._describe("X", np.array([1.0, 2, 3, 4]))
+        assert d["n"] == 4 and d["mean"] == pytest.approx(2.5) and d["median"] == pytest.approx(2.5)
+
+    def test_drain_dedups_and_clears(self):
+        st._REPORTS.clear()
+        st._push_report("same")
+        st._push_report("same")
+        st._push_report("other")
+        assert st._drain_reports() == ["same", "other"]
+        assert st._drain_reports() == []
+
+    def test_build_report_contents(self):
+        r = st._run_omnibus("anova", _GROUPS, MULTI)
+        text = st._build_report(
+            title=r.name,
+            descriptives=st._describe_all(_GROUPS, MULTI),
+            omnibus=r,
+            comparisons=[{"g1": "A", "g2": "C", "pvalue": 0.001, "effectName": "d", "effect": -2.5}],
+            comparisonName="tukey_hsd",
+        )
+        assert "ANOVA" in text and "Group descriptives:" in text
+        assert "Post-hoc (tukey_hsd):" in text and "A vs C" in text
+
+
+# ── add_pvalue omnibus integration ──────────────────────────────────────────
+@pytest.fixture
+def multi_df():
+    rng = np.random.default_rng(3)
+    return pl.DataFrame(
+        {
+            "group": [c for c in MULTI for _ in range(20)],
+            "value": np.concatenate([rng.normal(m, 1, 20) for m in (1.0, 2.0, 3.5)]),
+        }
+    )
+
+
+class TestAddPvalueOmnibus:
+    def _texts(self, layer):
+        spec = layer.to_dict()
+        return [v for sub in spec.get("layer", []) for v in str(sub).split("'") if v]
+
+    def test_omnibus_corner_label_present(self, multi_df):
+        layer = add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI)
+        assert "ANOVA" in str(layer.to_dict())
+
+    def test_verbose_label(self, multi_df):
+        layer = add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI, omnibusVerbose=True)
+        s = str(layer.to_dict())
+        assert "F(2, 57)" in s and "η²" in s
+
+    def test_omnibus_position_none_no_label(self, multi_df):
+        layer = add_pvalue(multi_df, "group", "value", test="kruskal", categories=MULTI, omnibusPosition=None)
+        assert "Kruskal" not in str(layer.to_dict())
+
+    def test_omnibus_with_posthoc_brackets(self, multi_df):
+        layer = add_pvalue(multi_df, "group", "value", pairs=[("A", "C")], test="anova", categories=MULTI)
+        # corner label + one bracket layer
+        assert "ANOVA" in str(layer.to_dict())
+
+    def test_report_queued(self, multi_df):
+        st._REPORTS.clear()
+        add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI)
+        assert len(st._REPORTS) == 1 and "ANOVA" in st._REPORTS[0]
+
+    def test_report_prints(self, multi_df, capsys):
+        add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI, report=True)
+        assert "Group descriptives:" in capsys.readouterr().out
+
+    def test_save_writes_file(self, multi_df, tmp_path):
+        add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI, save=str(tmp_path))
+        files = list(tmp_path.glob("dysonsphere_report_*.txt"))
+        assert len(files) == 1 and "ANOVA" in files[0].read_text()
+
+    def test_pairwise_requires_pairs(self, multi_df):
+        with pytest.raises(ValueError, match="pairs is required"):
+            add_pvalue(multi_df, "group", "value", test="mannwhitneyu", categories=MULTI)
+
+    def test_empty_pairs_rejected(self, multi_df):
+        with pytest.raises(ValueError, match="must not be empty"):
+            add_pvalue(multi_df, "group", "value", pairs=[], test="anova", categories=MULTI)
+
+    def test_default_posthoc_per_omnibus(self, multi_df):
+        # kruskal default post-hoc is dunn; just ensure it runs and brackets build
+        layer = add_pvalue(multi_df, "group", "value", pairs=[("A", "C")], test="kruskal", categories=MULTI)
+        assert isinstance(layer, alt.LayerChart)

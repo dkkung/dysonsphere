@@ -501,7 +501,12 @@ ds.save(alt.hconcat(left, right), "comparison")
 
 #### Adding p-value annotations
 
-`add_pvalue()` annotates one or more group comparisons with p-value brackets, stacking them automatically so they don't overlap. Combine with any chart using `+`.
+`add_pvalue()` annotates group comparisons. It has two modes, selected by `test`:
+
+- **Pairwise** (`"mannwhitneyu"`, `"ttest_ind"`, `"ttest_rel"`, `"wilcoxon"`, `"tukey_hsd"`) — draws a bracket per pair in `pairs`, stacked automatically so they don't overlap.
+- **Omnibus** ("are *any* groups different?": `"anova"`, `"kruskal"`, `"friedman"`, `"alexandergovern"`) — places the omnibus result as a corner label (via `add_text`), and, if `pairs` is given, fills the brackets with a post-hoc test.
+
+Combine with any chart using `+`.
 
 ```python
 CATEGORIES = ["Group A", "Group B", "Group C"]
@@ -524,6 +529,26 @@ chart + ds.add_pvalue(
     categories=CATEGORIES,
 )
 ```
+
+Omnibus ANOVA in the corner + Tukey post-hoc brackets (`omnibusVerbose` adds the statistic, df, and effect size to the label):
+
+```python
+chart + ds.add_pvalue(
+    df,
+    "group",
+    "value",
+    pairs=[("Group A", "Group C"), ("Group B", "Group C")],
+    test="anova",                # corner: "ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18"
+    omnibusVerbose=True,
+    omnibusPosition="topLeft",
+    categories=CATEGORIES,        # post-hoc defaults to Tukey HSD
+)
+
+# omnibus-only (no brackets), print the full descriptive + effect-size report
+chart + ds.add_pvalue(df, "group", "value", test="kruskal", categories=CATEGORIES, report=True)
+```
+
+The supported post-hocs are Tukey HSD and Dunnett (via scipy) plus **Dunn, Nemenyi, and Games-Howell**, which dysonsphere computes in-house (validated against `scikit-posthocs` and `pingouin`) so no heavy extra dependency is needed. Every `add_pvalue()` call also generates a descriptive + effect-size report that is appended to the metadata of files written by `ds.save()` (see `report`/`save`).
 
 From pre-computed p-values, with explicit bracket positions:
 
@@ -553,10 +578,11 @@ ds.add_pvalue(
 |---|---|---|
 | `df` | required | Polars or pandas DataFrame |
 | `xCol`, `yCol` | required | Column names for groups and values |
-| `pairs` | required | List of `(group1, group2)` tuples to annotate |
-| `test` | `"mannwhitneyu"` | Statistical test: `"mannwhitneyu"`, `"ttest_ind"`, `"ttest_rel"`, `"wilcoxon"`, `"tukey_hsd"` |
+| `pairs` | `None` | List of `(group1, group2)` tuples to bracket. Required for pairwise tests; optional for omnibus (omit for a corner label only) |
+| `test` | `"mannwhitneyu"` | Pairwise: `"mannwhitneyu"`, `"ttest_ind"`, `"ttest_rel"`, `"wilcoxon"`, `"tukey_hsd"`. Omnibus: `"anova"`, `"kruskal"`, `"friedman"`, `"alexandergovern"` |
+| `postHoc` | auto | Post-hoc filling the brackets for omnibus tests. Default per test: `anova→"tukey_hsd"`, `alexandergovern→"games_howell"`, `kruskal→"dunn"`, `friedman→"nemenyi"`. Accepts any pairwise test too |
 | `pvalues` | `None` | Pre-computed p-values, one per pair (skips all tests) |
-| `correction` | `None` | `"bonferroni"` or `None`. Ignored for `tukey_hsd` |
+| `correction` | `None` | `"bonferroni"`, `"holm"`, or `None`. Ignored for `tukey_hsd`. For post-hoc matrices, adjusts over all unique pairs |
 | `nComparisons` | `len(pairs)` | Number of comparisons for Bonferroni correction |
 | `yPositions` | `None` | Explicit y positions per bracket (overrides auto-stacking) |
 | `yStart` | auto | Y position of the lowest bracket |
@@ -571,6 +597,12 @@ ds.add_pvalue(
 | `fontSize` | `6` | Font size of p-value labels |
 | `decimals` | `3` | Decimal places in the p-value label when `labelStyle="p"`. Also sets the display threshold: values below `10^(-decimals)` show as `P < 0.001`. For `notation="scientific"` or `"e"`, controls mantissa decimal places. Ignored for `notation="power"` |
 | `notation` | `None` | Number format for `labelStyle="p"`. `None` uses `P = 0.012` / `P < 0.001` style. `"scientific"` → `P = 1.23×10⁻⁵`. `"e"` → `P = 1.23e-05`. `"power"` → `P ≈ 10⁻⁵` (rounds to nearest power of 10 — values within the same order of magnitude get the same label, so best for widely spread p-values). `"si"` raises `ValueError` |
+| `omnibusPosition` | `"topLeft"` | Corner preset (an `add_text` position) for the omnibus label. `None` computes the result for the report but draws no label |
+| `omnibusLabel` | `None` | Override string for the omnibus corner label |
+| `omnibusVerbose` | `False` | `False` → `ANOVA P = 0.003`; `True` → `ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18` |
+| `omnibusOffsetX`, `omnibusOffsetY` | `0` | Pixel nudges for the omnibus label |
+| `report` | `False` | `True` prints the full descriptive + effect-size report to stdout. The report is queued for `ds.save()` metadata regardless |
+| `save` | `False` | `True` writes the report to `dysonsphere_report_<timestamp>.txt` in the cwd; a string writes to that directory |
 
 ### Multilabels
 

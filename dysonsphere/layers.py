@@ -961,13 +961,64 @@ def _pvalue_layer(
     return cast(alt.LayerChart, alt.layer(bar, text))
 
 
+_MATRIX_POSTHOCS = {"tukey_hsd", "dunn", "nemenyi", "games_howell"}
+
+
+def _omnibus_label(result, *, verbose: bool, labelStyle: str, notation: str | None, decimals: int) -> str:
+    """Build the terse or verbose corner-label string from an omnibus result."""
+    p_str = (
+        _format_asterisks(result.pvalue)
+        if labelStyle == "asterisks"
+        else _format_pvalue(result.pvalue, decimals=decimals, notation=notation)
+    )
+    if not verbose:
+        return f"{result.name} {p_str}"
+    df_str = ", ".join(str(d) for d in result.df)
+    stat = f"{result.statSymbol}({df_str}) = {result.stat:.2f}"
+    eff = f"{result.effectName} = {result.effectSize:.2f}"
+    return f"{result.name} {stat}, {p_str}, {eff}"
+
+
+def _bracket_pvalues(
+    method: str,
+    groups: list,
+    categories: list,
+    pairs: list[tuple[str, str]],
+    correction: str | None,
+    nComparisons: int | None,
+) -> list[float]:
+    """Resolve bracket p-values for ``pairs`` via a matrix post-hoc or a pairwise test."""
+    from scipy import stats as _stats
+
+    from .statistics import _PAIRWISE_TESTS, _adjust, _post_hoc_matrix
+
+    idx = {c: i for i, c in enumerate(categories)}
+    if method in _MATRIX_POSTHOCS:
+        mat = _post_hoc_matrix(method, groups, correction)
+        return [float(mat[idx[g1]][idx[g2]]) for g1, g2 in pairs]
+    if method in _PAIRWISE_TESTS:
+        funcs = {
+            "mannwhitneyu": lambda a, b: _stats.mannwhitneyu(a, b, alternative="two-sided").pvalue,
+            "ttest_ind": lambda a, b: _stats.ttest_ind(a, b).pvalue,
+            "ttest_rel": lambda a, b: _stats.ttest_rel(a, b).pvalue,
+            "wilcoxon": lambda a, b: _stats.wilcoxon(a, b).pvalue,
+        }
+        raw = [float(funcs[method](groups[idx[g1]], groups[idx[g2]])) for g1, g2 in pairs]
+        if correction in ("bonferroni", "holm"):
+            m = nComparisons if nComparisons is not None else len(pairs)
+            raw = _adjust(raw, correction, m)
+        return raw
+    raise ValueError(f"Unknown test/postHoc {method!r}. Choose from: {sorted(_MATRIX_POSTHOCS | _PAIRWISE_TESTS)}")
+
+
 def add_pvalue(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
-    pairs: list[tuple[str, str]],
+    pairs: list[tuple[str, str]] | None = None,
     *,
     test: str = "mannwhitneyu",
+    postHoc: str | None = None,
     pvalues: list[float] | None = None,
     correction: str | None = None,
     nComparisons: int | None = None,
@@ -985,13 +1036,31 @@ def add_pvalue(
     reverse: list[tuple[str, str]] | None = None,
     decimals: int = 3,
     notation: str | None = None,
+    omnibusPosition: str | None = "topLeft",
+    omnibusLabel: str | None = None,
+    omnibusVerbose: bool = False,
+    omnibusOffsetX: int = 0,
+    omnibusOffsetY: int = 0,
+    report: bool = False,
+    save: bool | str = False,
 ) -> alt.LayerChart:
     """
     Build p-value annotation layers for one or more group comparisons.
 
-    Brackets are stacked automatically so they don't overlap. Shorter-span
-    pairs are placed lower; pairs whose x-ranges overlap are bumped to the
-    next level.
+    Two modes, selected by ``test``:
+
+    - **Pairwise** (``'mannwhitneyu'``, ``'ttest_ind'``, ``'ttest_rel'``,
+      ``'wilcoxon'``, ``'tukey_hsd'``) — draws a bracket per pair in ``pairs``,
+      stacked automatically so they don't overlap (shorter-span pairs sit lower;
+      overlapping spans are bumped up a level).
+    - **Omnibus** (``'anova'``, ``'kruskal'``, ``'friedman'``,
+      ``'alexandergovern'``) — runs one "are *any* groups different?" test and
+      places its result as a corner label via ``add_text`` (see
+      ``omnibusPosition``). If ``pairs`` is also given, a post-hoc test (see
+      ``postHoc``) fills the brackets.
+
+    A descriptive + effect-size report is generated on every call and queued for
+    the export metadata written by ``ds.save()`` (see ``report``/``save``).
 
     Combine with your chart using ``+``:  ``chart + add_pvalue(...)``.
 
@@ -1006,19 +1075,31 @@ def add_pvalue(
         to auto-place the first bracket.
     pairs:
         List of ``(group1, group2)`` tuples identifying the comparisons to
-        annotate. Pass a single-element list for one comparison.
+        annotate with brackets. Required for pairwise ``test`` values. Optional
+        for omnibus tests — pass ``None`` for an omnibus-only corner label, or a
+        list to also draw post-hoc brackets.
     test:
-        Scipy test to run for each pair: ``'mannwhitneyu'``, ``'ttest_ind'``,
-        ``'ttest_rel'``, ``'wilcoxon'``, or ``'tukey_hsd'``. Ignored when
-        ``pvalues`` is provided. For ``tukey_hsd``, one omnibus test is run and
-        p-values for each pair are extracted from the result matrix.
+        Statistical test. **Pairwise:** ``'mannwhitneyu'`` (default),
+        ``'ttest_ind'``, ``'ttest_rel'``, ``'wilcoxon'`` (run per pair), or
+        ``'tukey_hsd'`` (one omnibus run, per-pair p-values from the matrix).
+        **Omnibus:** ``'anova'`` (``f_oneway``), ``'kruskal'``, ``'friedman'``,
+        ``'alexandergovern'``. Ignored when ``pvalues`` is provided.
+    postHoc:
+        Post-hoc test that fills the brackets when ``test`` is omnibus and
+        ``pairs`` is given. ``None`` (default) picks a sensible default per
+        omnibus test: ``anova → 'tukey_hsd'``, ``alexandergovern →
+        'games_howell'``, ``kruskal → 'dunn'``, ``friedman → 'nemenyi'``. May
+        also be set to any pairwise test name. Dunn, Nemenyi, and Games-Howell
+        are computed in-house (validated against scikit-posthocs / pingouin);
+        ``correction`` adjusts them over all unique pairs. Ignored for pairwise
+        ``test``.
     pvalues:
         Pre-computed p-values, one per pair in the same order. Skips all
-        statistical tests when provided.
+        statistical tests for the brackets when provided.
     correction:
-        Multiple comparison correction applied after testing: ``'bonferroni'``
-        or ``None``. Ignored for ``tukey_hsd`` (correction is built in).
-        Also ignored when ``pvalues`` is provided.
+        Multiple comparison correction: ``'bonferroni'``, ``'holm'``, or
+        ``None``. For pairwise/post-hoc bracket p-values; ignored for
+        ``tukey_hsd`` (correction is built in) and when ``pvalues`` is provided.
     nComparisons:
         Total number of comparisons for Bonferroni correction. Defaults to
         ``len(pairs)`` when ``correction='bonferroni'`` and not set explicitly.
@@ -1073,6 +1154,30 @@ def add_pvalue(
         rounds to the nearest power of 10 giving ``P ≈ 10⁻²`` — note that
         values within the same decade (e.g. 0.04 and 0.06) map to the same
         label; best for p-values spanning multiple orders of magnitude.
+    omnibusPosition:
+        Corner preset (an ``add_text`` position, e.g. ``'topLeft'``,
+        ``'bottomRight'``) for the omnibus label. Default ``'topLeft'``. Set to
+        ``None`` to compute the omnibus result for the report/metadata but draw
+        no label. Ignored for pairwise ``test``.
+    omnibusLabel:
+        Override string for the omnibus corner label. ``None`` (default) builds
+        it from the test result.
+    omnibusVerbose:
+        ``False`` (default) → terse label ``ANOVA P = 0.003``. ``True`` →
+        ``ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18`` (statistic, df, p, and
+        effect size, with the right symbols per test).
+    omnibusOffsetX, omnibusOffsetY:
+        Pixel nudges for the omnibus label, forwarded to ``add_text``.
+    report:
+        ``True`` prints the full descriptive + effect-size report (per-group
+        n/mean/sd/median/IQR/range, the omnibus result, and the per-pair
+        comparisons) to stdout. Default ``False``. The report is queued for the
+        export metadata regardless of this flag (when ``ds.save(...,
+        saveMetadata=True)``); it lands in the next ``ds.save()``.
+    save:
+        ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in
+        the current directory; a string writes it to that directory. Default
+        ``False``.
 
     Examples
     --------
@@ -1095,6 +1200,25 @@ def add_pvalue(
             categories=CATEGORIES,
         )
 
+    Omnibus ANOVA in the corner + Tukey post-hoc brackets::
+
+        chart + ds.add_pvalue(
+            df, "group", "value",
+            pairs=[("A", "B"), ("A", "C")],
+            test="anova",
+            omnibusVerbose=True,
+            categories=CATEGORIES,
+        )
+
+    Omnibus-only (no brackets), report printed::
+
+        chart + ds.add_pvalue(
+            df, "group", "value",
+            test="kruskal",
+            categories=CATEGORIES,
+            report=True,
+        )
+
     From pre-computed p-values::
 
         chart + ds.add_pvalue(
@@ -1104,125 +1228,187 @@ def add_pvalue(
             categories=CATEGORIES,
         )
     """
-    from scipy import stats as _stats
+    from datetime import datetime
+    from pathlib import Path
 
+    from .statistics import (
+        _OMNIBUS_TESTS,
+        _PARAMETRIC_POSTHOC,
+        _POSTHOC_DEFAULTS,
+        _build_report,
+        _describe_all,
+        _pair_effect,
+        _push_report,
+        _run_omnibus,
+    )
     from .utils import ensure_polars
 
     df = ensure_polars(df)
-    if not pairs:
-        raise ValueError("pairs must not be empty")
-
-    if yPositions is not None and len(yPositions) != len(pairs):
-        raise ValueError(f"yPositions length ({len(yPositions)}) does not match pairs length ({len(pairs)})")
 
     if categories is None:
         categories = sorted(df[xCol].unique().to_list())
 
-    # --- compute p-values ---
-    if pvalues is not None:
-        if len(pvalues) != len(pairs):
-            raise ValueError(f"pvalues length ({len(pvalues)}) does not match pairs length ({len(pairs)})")
-        computed_pvalues = list(pvalues)
-    elif test == "tukey_hsd":
-        all_groups = [df.filter(pl.col(xCol) == cat)[yCol].to_numpy() for cat in categories]
-        result = _stats.tukey_hsd(*all_groups)
-        computed_pvalues = [float(result.pvalue[categories.index(g1)][categories.index(g2)]) for g1, g2 in pairs]
-    else:
-        _tests = {
-            "mannwhitneyu": lambda a, b: _stats.mannwhitneyu(a, b, alternative="two-sided").pvalue,
-            "ttest_ind": lambda a, b: _stats.ttest_ind(a, b).pvalue,
-            "ttest_rel": lambda a, b: _stats.ttest_rel(a, b).pvalue,
-            "wilcoxon": lambda a, b: _stats.wilcoxon(a, b).pvalue,
-        }
-        if test not in _tests:
-            raise ValueError(f"Unknown test {test!r}. Choose from: {['tukey_hsd'] + list(_tests)}")
-        computed_pvalues = []
-        for g1, g2 in pairs:
-            a = df.filter(pl.col(xCol) == g1)[yCol].to_numpy()
-            b = df.filter(pl.col(xCol) == g2)[yCol].to_numpy()
-            computed_pvalues.append(float(_tests[test](a, b)))
+    is_omnibus = test in _OMNIBUS_TESTS
+    groups = [df.filter(pl.col(xCol) == cat)[yCol].to_numpy() for cat in categories]
 
-    # bonferroni correction (skip for tukey_hsd — built in; skip when pvalues provided)
-    if correction == "bonferroni" and test != "tukey_hsd" and pvalues is None:
-        n = nComparisons if nComparisons is not None else len(pairs)
-        computed_pvalues = [min(p * n, 1.0) for p in computed_pvalues]
+    if pairs is not None and len(pairs) == 0:
+        raise ValueError("pairs must not be empty when provided (pass pairs=None for an omnibus-only annotation).")
+    if not is_omnibus and not pairs:
+        raise ValueError("pairs is required for pairwise tests.")
+    if yPositions is not None and pairs is not None and len(yPositions) != len(pairs):
+        raise ValueError(f"yPositions length ({len(yPositions)}) does not match pairs length ({len(pairs)})")
 
-    # --- y positioning ---
-    if yPad is None:
-        annotated_groups_for_pad = list({g for pair in pairs for g in pair})
-        y_vals = df.filter(pl.col(xCol).is_in(annotated_groups_for_pad))[yCol]
-        y_range = cast(float, y_vals.cast(pl.Float64).max() or 0.0) - cast(float, y_vals.cast(pl.Float64).min() or 0.0)
-        chart_height = alt.theme.options.get("chartHeight", 100)
-        yPad = (10.0 if bracketStyle == "bracket" else 8.0) * y_range / chart_height
+    annotation_layers: list = []
+    omnibus_result = None
+    comparisons: list[dict] = []
+    comparison_name: str | None = None
+    comparison_label = "Post-hoc"
 
-    if yPositions is not None:
-        final_y = list(yPositions)
-        if tickHeight is None:
-            tickHeight = (yPad * 2) * 0.25
-    else:
-        if yStart is None:
-            annotated_groups = list({g for pair in pairs for g in pair})
-            yStart = (
-                cast(
-                    float,
-                    df.filter(pl.col(xCol).is_in(annotated_groups))[yCol].cast(pl.Float64).max() or 0.0,
+    # --- omnibus corner label ---
+    if is_omnibus:
+        omnibus_result = _run_omnibus(test, groups, categories)
+        if omnibusPosition is not None:
+            text = (
+                omnibusLabel
+                if omnibusLabel is not None
+                else _omnibus_label(
+                    omnibus_result,
+                    verbose=omnibusVerbose,
+                    labelStyle=labelStyle,
+                    notation=notation,
+                    decimals=decimals,
                 )
-                + yPad
+            )
+            annotation_layers.append(
+                add_text(
+                    text,
+                    position=omnibusPosition,
+                    offsetX=omnibusOffsetX,
+                    offsetY=omnibusOffsetY,
+                    fontSize=fontSize if fontSize is not None else 6,
+                )
             )
 
-        if yStep is None:
-            yStep = yPad * 2
+    # --- post-hoc / pairwise brackets ---
+    if pairs:
+        idx = {c: i for i, c in enumerate(categories)}
+        if pvalues is not None:
+            if len(pvalues) != len(pairs):
+                raise ValueError(f"pvalues length ({len(pvalues)}) does not match pairs length ({len(pairs)})")
+            computed_pvalues = list(pvalues)
+            method: str | None = None
+        else:
+            method = postHoc if postHoc is not None else (_POSTHOC_DEFAULTS[test] if is_omnibus else test)
+            computed_pvalues = _bracket_pvalues(method, groups, categories, pairs, correction, nComparisons)
 
-        if tickHeight is None:
-            tickHeight = yStep * 0.25
+        comparison_name = method
+        comparison_label = "Post-hoc" if is_omnibus else "Comparisons"
+        parametric = method in _PARAMETRIC_POSTHOC if method is not None else False
+        paired = method == "ttest_rel"
+        for (g1, g2), pval in zip(pairs, computed_pvalues):
+            entry: dict = {"g1": g1, "g2": g2, "pvalue": pval}
+            if method is not None:
+                en, ev = _pair_effect(groups[idx[g1]], groups[idx[g2]], parametric=parametric, paired=paired)
+                entry["effectName"], entry["effect"] = en, ev
+            comparisons.append(entry)
 
-        # Assign stacking levels via greedy interval scheduling.
-        # Shorter spans go to lower levels so narrow brackets sit closer to the data.
-        pair_indices = [(categories.index(g1), categories.index(g2)) for g1, g2 in pairs]
-        sort_order = sorted(
-            range(len(pairs)),
-            key=lambda i: abs(pair_indices[i][1] - pair_indices[i][0]),
-        )
-
-        levels: list[list[tuple[int, int]]] = []
-        pair_levels = [0] * len(pairs)
-
-        for i in sort_order:
-            lo, hi = min(pair_indices[i]), max(pair_indices[i])
-            placed = False
-            for level_idx, occupied in enumerate(levels):
-                overlaps = any(not (hi < occ_lo or lo > occ_hi) for occ_lo, occ_hi in occupied)
-                if not overlaps:
-                    occupied.append((lo, hi))
-                    pair_levels[i] = level_idx
-                    placed = True
-                    break
-            if not placed:
-                levels.append([(lo, hi)])
-                pair_levels[i] = len(levels) - 1
-
-        final_y = [yStart + pair_levels[i] * yStep for i in range(len(pairs))]
-
-    # --- build one layer per pair ---
-    layer_charts = []
-    for i, ((g1, g2), pval) in enumerate(zip(pairs, computed_pvalues)):
-        layer_charts.append(
-            _pvalue_layer(
-                group1=g1,
-                group2=g2,
-                pvalue=pval,
-                y=final_y[i],
-                tick_height=tickHeight,
-                bracket_style=bracketStyle,
-                label_style=labelStyle,
-                categories=categories,
-                chartWidth=chartWidth,
-                strokeWidth=strokeWidth,
-                fontSize=fontSize,
-                reverse=(g1, g2) in reverse if reverse is not None else False,
-                decimals=decimals,
-                notation=notation,
+        # --- y positioning ---
+        if yPad is None:
+            annotated_groups_for_pad = list({g for pair in pairs for g in pair})
+            y_vals = df.filter(pl.col(xCol).is_in(annotated_groups_for_pad))[yCol]
+            y_range = cast(float, y_vals.cast(pl.Float64).max() or 0.0) - cast(
+                float, y_vals.cast(pl.Float64).min() or 0.0
             )
-        )
+            chart_height = alt.theme.options.get("chartHeight", 100)
+            yPad = (10.0 if bracketStyle == "bracket" else 8.0) * y_range / chart_height
 
-    return cast(alt.LayerChart, alt.layer(*layer_charts))
+        if yPositions is not None:
+            final_y = list(yPositions)
+            if tickHeight is None:
+                tickHeight = (yPad * 2) * 0.25
+        else:
+            if yStart is None:
+                annotated_groups = list({g for pair in pairs for g in pair})
+                yStart = (
+                    cast(
+                        float,
+                        df.filter(pl.col(xCol).is_in(annotated_groups))[yCol].cast(pl.Float64).max() or 0.0,
+                    )
+                    + yPad
+                )
+
+            if yStep is None:
+                yStep = yPad * 2
+
+            if tickHeight is None:
+                tickHeight = yStep * 0.25
+
+            # Assign stacking levels via greedy interval scheduling.
+            # Shorter spans go to lower levels so narrow brackets sit closer to the data.
+            pair_indices = [(categories.index(g1), categories.index(g2)) for g1, g2 in pairs]
+            sort_order = sorted(
+                range(len(pairs)),
+                key=lambda i: abs(pair_indices[i][1] - pair_indices[i][0]),
+            )
+
+            levels: list[list[tuple[int, int]]] = []
+            pair_levels = [0] * len(pairs)
+
+            for i in sort_order:
+                lo, hi = min(pair_indices[i]), max(pair_indices[i])
+                placed = False
+                for level_idx, occupied in enumerate(levels):
+                    overlaps = any(not (hi < occ_lo or lo > occ_hi) for occ_lo, occ_hi in occupied)
+                    if not overlaps:
+                        occupied.append((lo, hi))
+                        pair_levels[i] = level_idx
+                        placed = True
+                        break
+                if not placed:
+                    levels.append([(lo, hi)])
+                    pair_levels[i] = len(levels) - 1
+
+            final_y = [yStart + pair_levels[i] * yStep for i in range(len(pairs))]
+
+        for i, ((g1, g2), pval) in enumerate(zip(pairs, computed_pvalues)):
+            annotation_layers.append(
+                _pvalue_layer(
+                    group1=g1,
+                    group2=g2,
+                    pvalue=pval,
+                    y=final_y[i],
+                    tick_height=tickHeight,
+                    bracket_style=bracketStyle,
+                    label_style=labelStyle,
+                    categories=categories,
+                    chartWidth=chartWidth,
+                    strokeWidth=strokeWidth,
+                    fontSize=fontSize,
+                    reverse=(g1, g2) in reverse if reverse is not None else False,
+                    decimals=decimals,
+                    notation=notation,
+                )
+            )
+
+    # --- report: always queued for export metadata; printed when report=True ---
+    report_text = _build_report(
+        title=omnibus_result.name if omnibus_result is not None else "Pairwise comparisons",
+        descriptives=_describe_all(groups, categories),
+        omnibus=omnibus_result,
+        comparisons=comparisons or None,
+        comparisonName=comparison_name,
+        comparisonLabel=comparison_label,
+    )
+    _push_report(report_text)
+    if report:
+        print(report_text)
+    if save:
+        directory = Path(save) if isinstance(save, str) else Path.cwd()
+        directory.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+
+    if not annotation_layers:
+        # omnibusPosition=None with no pairs → report-only; return an invisible layer.
+        annotation_layers.append(alt.Chart(alt.Data(values=[{}])).mark_point(opacity=0))
+    return cast(alt.LayerChart, alt.layer(*annotation_layers))

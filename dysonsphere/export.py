@@ -141,6 +141,16 @@ def save(
     else:
         _effective_desc = description
 
+    # Drain any statistical reports queued by add_pvalue() and append them to the
+    # metadata.  Always drain (so the queue does not leak into a later save), but
+    # only attach when saveMetadata is on.  See statistics._REPORTS.
+    from .statistics import _drain_reports
+
+    _reports = _drain_reports()
+    if saveMetadata and _reports:
+        _report_block = "\n\n".join(_reports)
+        _effective_desc = f"{_effective_desc}\n\n{_report_block}" if _effective_desc else _report_block
+
     # _resolve() is called once per variant (or once for the spec).
     # When chart is a callable it is re-invoked each time so that any
     # marks whose colours read from alt.theme.options at construction time
