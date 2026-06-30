@@ -21,8 +21,8 @@ df = pl.DataFrame(rows)
 
 import math
 
-y_min = float(df["value"].min())
-y_max = float(df["value"].max())
+y_min = float(df["value"].min())  # ty: ignore[invalid-argument-type]
+y_max = float(df["value"].max())  # ty: ignore[invalid-argument-type]
 exp_min = int(math.floor(math.log10(y_min)))
 exp_max = int(math.ceil(math.log10(y_max)))
 major_values = [10**e for e in range(exp_min, exp_max + 1)]

@@ -99,7 +99,7 @@ def make_de_overlay(key_sat2, key_oklab):
             rows.append({"series": label, "step": i, "dE": round(s, 5)})
     df = pl.DataFrame(rows)
     vals = [r["dE"] for r in rows]
-    lo, hi = min(vals) * 0.85, max(vals) * 1.15
+    lo, hi = min(vals) * 0.85, max(vals) * 1.15  # ty: ignore[unsupported-operator]
     return (
         alt.Chart(df, title="ΔE (Oklab)")
         .mark_line(point=True, strokeWidth=1)
