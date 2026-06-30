@@ -107,8 +107,8 @@ def save(
           readable fields (``script``, ``user``, ``timestamp`` (ISO-8601), ``python``,
           ``altair``, ``dysonsphere``).
         - ``usermeta.dysonsphere.statistics`` — the structured records queued by
-          ``add_pvalue`` (groups, omnibus result, comparisons with exact p-values and
-          effect sizes), so the stats can be read back without parsing the text report.
+          ``add_statistics`` (groups, omnibus result, comparisons with exact p-values
+          and effect sizes), so the stats can be read back without parsing the text report.
 
         Setting ``saveMetadata=False`` suppresses both the text and the ``usermeta``.
     background:
@@ -163,7 +163,7 @@ def save(
     else:
         _effective_desc = description
 
-    # Drain the structured statistical records queued by add_pvalue().  Always drain
+    # Drain the structured statistical records queued by add_statistics().  Always drain
     # (so the queue does not leak into a later save), but only embed when saveMetadata
     # is on: the rendered text is appended to the description (SVG/PNG/JSON), and the
     # raw records ride as JSON under usermeta.dysonsphere.statistics in the Vega-Lite

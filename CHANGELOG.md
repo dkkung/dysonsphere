@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Deprecated
+
+- **`add_pvalue()` renamed to `add_statistics()`** to reflect its expanded scope (omnibus tests, post-hoc tests, descriptive + effect-size reports, structured metadata). `add_pvalue()` still works as an alias but emits a `DeprecationWarning` and **will be removed in v2.0** — switch to `add_statistics()`.
+
 ## [v1.0.0] - 2026-06-30
 
 v1.0.0 marks the first stable release of dysonsphere.

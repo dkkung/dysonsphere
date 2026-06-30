@@ -1,5 +1,5 @@
 """
-Generates docs/pvalue_example_light.png — the README preview for add_pvalue.
+Generates docs/pvalue_example_light.png — the README preview for add_statistics.
 
 Shows labelStyle="p", notation="scientific", and labelStyle="asterisks" on the
 same three-group comparison, plus a reverse-bracket demo on the right.
@@ -87,13 +87,13 @@ pvalue_kwargs: dict[str, Any] = dict(
 title_params: dict[str, Any] = dict(orient="top", anchor="start", offset=4)
 fontSize = alt.theme.options.get("fontSize", 7)
 
-left = (left_base + ds.add_pvalue(**pvalue_kwargs, labelStyle="p")).properties(
+left = (left_base + ds.add_statistics(**pvalue_kwargs, labelStyle="p")).properties(
     title=alt.TitleParams(['labelStyle="p"', 'bracketStyle="line"'], fontSize=fontSize, **title_params)
 )
 scientific = (
-    scientific_base + ds.add_pvalue(**pvalue_kwargs, labelStyle="p", notation="scientific", decimals=2)
+    scientific_base + ds.add_statistics(**pvalue_kwargs, labelStyle="p", notation="scientific", decimals=2)
 ).properties(title=alt.TitleParams(['labelStyle="p"', 'notation="scientific"'], fontSize=fontSize, **title_params))
-right = (right_base + ds.add_pvalue(**pvalue_kwargs, labelStyle="asterisks", bracketStyle="bracket")).properties(
+right = (right_base + ds.add_statistics(**pvalue_kwargs, labelStyle="asterisks", bracketStyle="bracket")).properties(
     title=alt.TitleParams(
         ['labelStyle="asterisks"', 'bracketStyle="bracket"'],
         fontSize=fontSize,
@@ -109,7 +109,7 @@ third_base = (
 )
 third = (
     third_base
-    + ds.add_pvalue(
+    + ds.add_statistics(
         third_df,
         "group",
         "value",

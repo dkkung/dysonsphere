@@ -1011,7 +1011,7 @@ def _bracket_pvalues(
     raise ValueError(f"Unknown test/postHoc {method!r}. Choose from: {sorted(_MATRIX_POSTHOCS | _PAIRWISE_TESTS)}")
 
 
-def add_pvalue(
+def add_statistics(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -1062,7 +1062,7 @@ def add_pvalue(
     A descriptive + effect-size report is generated on every call and queued for
     the export metadata written by ``ds.save()`` (see ``report``/``save``).
 
-    Combine with your chart using ``+``:  ``chart + add_pvalue(...)``.
+    Combine with your chart using ``+``:  ``chart + add_statistics(...)``.
 
     Parameters
     ----------
@@ -1188,7 +1188,7 @@ def add_pvalue(
 
         CATEGORIES = ["A", "B", "C"]
         chart = ds.mark_strip(df, "group", "value", CATEGORIES)
-        chart + ds.add_pvalue(
+        chart + ds.add_statistics(
             df, "group", "value",
             pairs=[("A", "B")],
             categories=CATEGORIES,
@@ -1196,7 +1196,7 @@ def add_pvalue(
 
     Multiple comparisons — brackets stacked automatically::
 
-        chart + ds.add_pvalue(
+        chart + ds.add_statistics(
             df, "group", "value",
             pairs=[("A", "B"), ("A", "C"), ("B", "C")],
             test="mannwhitneyu",
@@ -1205,7 +1205,7 @@ def add_pvalue(
 
     Omnibus ANOVA in the corner + Tukey post-hoc brackets::
 
-        chart + ds.add_pvalue(
+        chart + ds.add_statistics(
             df, "group", "value",
             pairs=[("A", "B"), ("A", "C")],
             test="anova",
@@ -1215,7 +1215,7 @@ def add_pvalue(
 
     Omnibus-only (no brackets), report printed::
 
-        chart + ds.add_pvalue(
+        chart + ds.add_statistics(
             df, "group", "value",
             test="kruskal",
             categories=CATEGORIES,
@@ -1224,7 +1224,7 @@ def add_pvalue(
 
     From pre-computed p-values::
 
-        chart + ds.add_pvalue(
+        chart + ds.add_statistics(
             df, "group", "value",
             pairs=[("A", "B"), ("A", "C")],
             pvalues=[0.012, 0.341],
@@ -1439,3 +1439,16 @@ def add_pvalue(
         # omnibusPosition=None with no pairs → report-only; return an invisible layer.
         annotation_layers.append(alt.Chart(alt.Data(values=[{}])).mark_point(opacity=0))
     return cast(alt.LayerChart, alt.layer(*annotation_layers))
+
+
+# DEPRECATED(remove in v2.0): add_pvalue() was renamed to add_statistics() in v1.1.
+def add_pvalue(*args, **kwargs) -> alt.LayerChart:
+    """Deprecated alias for :func:`add_statistics`. Will be removed in dysonsphere 2.0."""
+    import warnings
+
+    warnings.warn(
+        "add_pvalue() is deprecated and will be removed in dysonsphere 2.0; use add_statistics() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return add_statistics(*args, **kwargs)

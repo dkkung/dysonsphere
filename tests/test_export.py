@@ -302,7 +302,7 @@ class TestSaveUsermeta:
         df = pl.DataFrame(
             {"g": [c for c in cats for _ in range(20)], "v": np.concatenate([rng.normal(m, 1, 20) for m in (1, 2, 3)])}
         )
-        return ds.mark_strip(df, "g", "v", cats) + ds.add_pvalue(df, "g", "v", test="anova", categories=cats)
+        return ds.mark_strip(df, "g", "v", cats) + ds.add_statistics(df, "g", "v", test="anova", categories=cats)
 
     def _usermeta(self, tmp_path, name="out"):
         import json
@@ -324,7 +324,7 @@ class TestSaveUsermeta:
         assert isinstance(rec["omnibus"]["pvalue"], float)  # real number, not text
         assert len(rec["comparisons"]["pairs"]) == 3
 
-    def test_no_statistics_key_without_add_pvalue(self, simple_chart, tmp_path):
+    def test_no_statistics_key_without_add_statistics(self, simple_chart, tmp_path):
         save(simple_chart, str(tmp_path / "out"), background=["light"])
         assert "statistics" not in self._usermeta(tmp_path)["dysonsphere"]
 

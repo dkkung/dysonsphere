@@ -3,7 +3,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dysonsphere.layers import _format_asterisks, _format_pvalue, add_pvalue
+from dysonsphere.layers import _format_asterisks, _format_pvalue, add_statistics
 from dysonsphere.theme import theme
 
 CATEGORIES = ["A", "B"]
@@ -121,13 +121,27 @@ class TestFormatAsterisks:
         assert _format_asterisks(1.0) == "ns"
 
 
-class TestAddPvalue:
+class TestDeprecatedAlias:
+    def test_add_pvalue_warns_and_works(self, group_df):
+        from dysonsphere.layers import add_pvalue
+
+        with pytest.warns(DeprecationWarning, match="add_statistics"):
+            result = add_pvalue(group_df, "group", "value", [("A", "B")], pvalues=[0.01])
+        assert isinstance(result, alt.LayerChart)
+
+    def test_add_pvalue_exposed_on_namespace(self):
+        import dysonsphere as ds
+
+        assert hasattr(ds, "add_pvalue") and hasattr(ds, "add_statistics")
+
+
+class TestAddStatistics:
     def test_returns_layer_chart_with_explicit_pvalue(self, group_df):
-        result = add_pvalue(group_df, "group", "value", [("A", "B")], pvalues=[0.01])
+        result = add_statistics(group_df, "group", "value", [("A", "B")], pvalues=[0.01])
         assert isinstance(result, alt.LayerChart)
 
     def test_returns_layer_chart_running_test(self, group_df):
-        result = add_pvalue(group_df, "group", "value", [("A", "B")])
+        result = add_statistics(group_df, "group", "value", [("A", "B")])
         assert isinstance(result, alt.LayerChart)
 
     def test_multiple_pairs(self, group_df):
@@ -137,7 +151,7 @@ class TestAddPvalue:
                 "value": np.random.default_rng(1).normal(0, 1, 30),
             }
         )
-        result = add_pvalue(
+        result = add_statistics(
             df,
             "group",
             "value",
@@ -147,7 +161,7 @@ class TestAddPvalue:
         assert isinstance(result, alt.LayerChart)
 
     def test_asterisk_label_style(self, group_df):
-        result = add_pvalue(
+        result = add_statistics(
             group_df,
             "group",
             "value",
@@ -159,10 +173,10 @@ class TestAddPvalue:
 
     def test_unknown_test_raises(self, group_df):
         with pytest.raises(ValueError, match="Unknown test"):
-            add_pvalue(group_df, "group", "value", [("A", "B")], test="bogus")
+            add_statistics(group_df, "group", "value", [("A", "B")], test="bogus")
 
     def test_notation_scientific(self, group_df):
-        result = add_pvalue(
+        result = add_statistics(
             group_df,
             "group",
             "value",
@@ -177,7 +191,7 @@ class TestAddPvalue:
         assert label == "P = 1.50×10⁻⁵"
 
     def test_notation_e(self, group_df):
-        result = add_pvalue(
+        result = add_statistics(
             group_df,
             "group",
             "value",
@@ -189,7 +203,7 @@ class TestAddPvalue:
         assert isinstance(result, alt.LayerChart)
 
     def test_notation_power(self, group_df):
-        result = add_pvalue(
+        result = add_statistics(
             group_df,
             "group",
             "value",
@@ -203,7 +217,7 @@ class TestAddPvalue:
         assert label == "P ≈ 10⁻⁵"
 
     def test_notation_default_unchanged(self, group_df):
-        result = add_pvalue(
+        result = add_statistics(
             group_df,
             "group",
             "value",
@@ -367,7 +381,7 @@ class TestReportRegistry:
         assert "Post-hoc (tukey_hsd):" in text and "A vs C" in text
 
 
-# ── add_pvalue omnibus integration ──────────────────────────────────────────
+# ── add_statistics omnibus integration ──────────────────────────────────────────
 @pytest.fixture
 def multi_df():
     rng = np.random.default_rng(3)
@@ -379,33 +393,33 @@ def multi_df():
     )
 
 
-class TestAddPvalueOmnibus:
+class TestAddStatisticsOmnibus:
     def _texts(self, layer):
         spec = layer.to_dict()
         return [v for sub in spec.get("layer", []) for v in str(sub).split("'") if v]
 
     def test_omnibus_corner_label_present(self, multi_df):
-        layer = add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI)
+        layer = add_statistics(multi_df, "group", "value", test="anova", categories=MULTI)
         assert "ANOVA" in str(layer.to_dict())
 
     def test_verbose_label(self, multi_df):
-        layer = add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI, omnibusVerbose=True)
+        layer = add_statistics(multi_df, "group", "value", test="anova", categories=MULTI, omnibusVerbose=True)
         s = str(layer.to_dict())
         assert "F(2, 57)" in s and "η²" in s
 
     def test_omnibus_position_none_no_label(self, multi_df):
-        layer = add_pvalue(multi_df, "group", "value", test="kruskal", categories=MULTI, omnibusPosition=None)
+        layer = add_statistics(multi_df, "group", "value", test="kruskal", categories=MULTI, omnibusPosition=None)
         assert "Kruskal" not in str(layer.to_dict())
 
     def test_omnibus_with_posthoc_brackets(self, multi_df):
-        layer = add_pvalue(multi_df, "group", "value", pairs=[("A", "C")], test="anova", categories=MULTI)
+        layer = add_statistics(multi_df, "group", "value", pairs=[("A", "C")], test="anova", categories=MULTI)
         # corner label + one bracket layer
         assert "ANOVA" in str(layer.to_dict())
 
     def test_report_includes_all_comparisons_not_just_bracketed(self, multi_df):
         # only A-C is bracketed, but the omnibus report should list all 3 pairs
         st._REPORTS.clear()
-        add_pvalue(multi_df, "group", "value", pairs=[("A", "C")], test="anova", categories=MULTI)
+        add_statistics(multi_df, "group", "value", pairs=[("A", "C")], test="anova", categories=MULTI)
         pairs = st._REPORTS[0]["comparisons"]["pairs"]
         listed = {(p["group1"], p["group2"]) for p in pairs}
         assert listed == {("A", "B"), ("A", "C"), ("B", "C")}
@@ -413,37 +427,37 @@ class TestAddPvalueOmnibus:
     def test_report_all_comparisons_omnibus_only(self, multi_df):
         # no brackets at all, but the report still lists every pairwise post-hoc
         st._REPORTS.clear()
-        add_pvalue(multi_df, "group", "value", test="kruskal", categories=MULTI)
+        add_statistics(multi_df, "group", "value", test="kruskal", categories=MULTI)
         rec = st._REPORTS[0]
         assert rec["comparisons"]["test"] == "dunn"
         assert len(rec["comparisons"]["pairs"]) == 3
 
     def test_report_queued_as_record(self, multi_df):
         st._REPORTS.clear()
-        add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI)
+        add_statistics(multi_df, "group", "value", test="anova", categories=MULTI)
         assert len(st._REPORTS) == 1
         rec = st._REPORTS[0]
         assert rec["kind"] == "omnibus" and rec["omnibus"]["name"] == "ANOVA"
         assert "ANOVA" in st._render_report(rec)
 
     def test_report_prints(self, multi_df, capsys):
-        add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI, report=True)
+        add_statistics(multi_df, "group", "value", test="anova", categories=MULTI, report=True)
         assert "Group descriptives:" in capsys.readouterr().out
 
     def test_save_writes_file(self, multi_df, tmp_path):
-        add_pvalue(multi_df, "group", "value", test="anova", categories=MULTI, save=str(tmp_path))
+        add_statistics(multi_df, "group", "value", test="anova", categories=MULTI, save=str(tmp_path))
         files = list(tmp_path.glob("dysonsphere_report_*.txt"))
         assert len(files) == 1 and "ANOVA" in files[0].read_text()
 
     def test_pairwise_requires_pairs(self, multi_df):
         with pytest.raises(ValueError, match="pairs is required"):
-            add_pvalue(multi_df, "group", "value", test="mannwhitneyu", categories=MULTI)
+            add_statistics(multi_df, "group", "value", test="mannwhitneyu", categories=MULTI)
 
     def test_empty_pairs_rejected(self, multi_df):
         with pytest.raises(ValueError, match="must not be empty"):
-            add_pvalue(multi_df, "group", "value", pairs=[], test="anova", categories=MULTI)
+            add_statistics(multi_df, "group", "value", pairs=[], test="anova", categories=MULTI)
 
     def test_default_posthoc_per_omnibus(self, multi_df):
         # kruskal default post-hoc is dunn; just ensure it runs and brackets build
-        layer = add_pvalue(multi_df, "group", "value", pairs=[("A", "C")], test="kruskal", categories=MULTI)
+        layer = add_statistics(multi_df, "group", "value", pairs=[("A", "C")], test="kruskal", categories=MULTI)
         assert isinstance(layer, alt.LayerChart)

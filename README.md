@@ -386,7 +386,7 @@ ds.save(chart, "myplot", description="Figure 1")
 **Structured metadata (`usermeta`).** In addition to the human-readable string above, `ds.save()` embeds machine-readable JSON in the Vega-Lite spec's top-level `usermeta` field (only in `myplot_vegalite.json` — not the SVG/PNG), namespaced under `dysonsphere` and merged into any `usermeta` you set yourself:
 
 - `usermeta.dysonsphere.generated` — the provenance facts as structured fields (`script`, `user`, `timestamp` (ISO-8601), `python`, `altair`, `dysonsphere`), so you don't have to parse the text string.
-- `usermeta.dysonsphere.statistics` — the structured records from any [`add_pvalue()`](#adding-p-value-annotations) calls (per-group descriptives, the omnibus result, and every comparison with exact p-values and effect sizes). Read it back with `json.load(open("myplot_vegalite.json"))["usermeta"]["dysonsphere"]["statistics"]` — no text parsing, and trivial to turn into CSV/TSV.
+- `usermeta.dysonsphere.statistics` — the structured records from any [`add_statistics()`](#adding-p-value-annotations) calls (per-group descriptives, the omnibus result, and every comparison with exact p-values and effect sizes). Read it back with `json.load(open("myplot_vegalite.json"))["usermeta"]["dysonsphere"]["statistics"]` — no text parsing, and trivial to turn into CSV/TSV.
 
 Pass `saveMetadata=False` to suppress both the text description and the `usermeta`.
 
@@ -504,10 +504,12 @@ ds.save(alt.hconcat(left, right), "comparison")
 
 ### Statistical annotations
 
-`add_pvalue()` annotates group comparisons. It has two modes, selected by `test`:
+`add_statistics()` annotates group comparisons. It has two modes, selected by `test`:
 
 - **Pairwise** (`"mannwhitneyu"`, `"ttest_ind"`, `"ttest_rel"`, `"wilcoxon"`, `"tukey_hsd"`) - draws a bracket per pair in `pairs`, stacked automatically so they don't overlap.
 - **Omnibus** (`"anova"`, `"kruskal"`, `"friedman"`, `"alexandergovern"`) - places the omnibus result as a corner label (via `add_text`), and, if `pairs` is given, fills the brackets with a post-hoc test.
+
+> **Renamed in v1.1:** this function was `add_pvalue()` in v1.0. `add_pvalue()` still works as a deprecated alias (it emits a `DeprecationWarning`) and will be removed in v2.0 - switch to `add_statistics()`.
 
 Combine with any chart using `+`.
 
@@ -517,7 +519,7 @@ Combine with any chart using `+`.
 CATEGORIES = ["Group A", "Group B", "Group C"]
 
 # single comparison
-chart + ds.add_pvalue(
+chart + ds.add_statistics(
     df,
     "group",
     "value",
@@ -526,7 +528,7 @@ chart + ds.add_pvalue(
 )
 
 # multiple comparisons — brackets stacked automatically
-chart + ds.add_pvalue(
+chart + ds.add_statistics(
     df,
     "group",
     "value",
@@ -538,13 +540,13 @@ chart + ds.add_pvalue(
 From pre-computed p-values, with explicit bracket positions:
 
 ```python
-ds.add_pvalue(..., pvalues=[0.002, 0.031], yPositions=[4.5, 5.2])
+ds.add_statistics(..., pvalues=[0.002, 0.031], yPositions=[4.5, 5.2])
 ```
 
 Brackets below the marks using `reverse` - requires negative `yStep` so levels stack downward, and an explicit `tickHeight` (positive) since auto-compute would produce a negative value:
 
 ```python
-ds.add_pvalue(
+ds.add_statistics(
     df,
     "group",
     "value",
@@ -564,7 +566,7 @@ ds.add_pvalue(
 Omnibus ANOVA in the corner + Tukey post-hoc brackets (`omnibusVerbose=True` adds the statistic, df, and effect size to the label):
 
 ```python
-chart + ds.add_pvalue(
+chart + ds.add_statistics(
     df,
     "group",
     "value",
@@ -576,10 +578,10 @@ chart + ds.add_pvalue(
 )
 
 # omnibus-only (no brackets), print the full descriptive + effect-size report
-chart + ds.add_pvalue(df, "group", "value", test="kruskal", categories=CATEGORIES, report=True)
+chart + ds.add_statistics(df, "group", "value", test="kruskal", categories=CATEGORIES, report=True)
 ```
 
-The supported post-hocs are Tukey HSD and Dunnett (via `scipy`) plus **Dunn, Nemenyi, and Games-Howell**, which `dysonsphere` computes *in-house* (validated against `scikit-posthocs` and `pingouin`). Every `add_pvalue()` call also generates a descriptive + effect-size report that is appended to the metadata of files written by `ds.save()` (see `report`/`saghtve`). For an omnibus test the report lists **all** pairwise post-hoc comparisons (the full table), not just the pairs you draw brackets for.
+The supported post-hocs are Tukey HSD and Dunnett (via `scipy`) plus **Dunn, Nemenyi, and Games-Howell**, which `dysonsphere` computes *in-house* (validated against `scikit-posthocs` and `pingouin`). Every `add_statistics()` call also generates a descriptive + effect-size report that is appended to the metadata of files written by `ds.save()` (see `report`/`save`). For an omnibus test the report lists **all** pairwise post-hoc comparisons (the full table), not just the pairs you draw brackets for.
 
 ![p-value omnibus example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/pvalue_omnibus_example_light.png)
 
