@@ -31,7 +31,7 @@ def mark_violin(
     xLabelAngle: float | None = None,
     steps: int = 200,
     yTitle: str | None | _UnsetType = _UNSET,
-    xTitle: str | None = None,
+    xTitle: str | None | _UnsetType = _UNSET,
 ) -> alt.LayerChart:
     """
     Build an Altair layer combining a violin plot behind a boxplot.
@@ -74,7 +74,7 @@ def mark_violin(
     yTitle:
         Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
     xTitle:
-        X-axis title. ``None`` (default) suppresses the title.
+        X-axis title. Defaults to ``xCol``. Pass ``None`` to suppress.
 
     The returned ``LayerChart`` is safe to place in ``alt.hconcat()`` alongside
     ``mark_strip()`` or any other chart — the violin uses absolute ``x:Q``
@@ -156,6 +156,7 @@ def mark_violin(
 
     violin_df = pl.DataFrame(violin_rows)
     _y_title: str | None = yCol if isinstance(yTitle, _UnsetType) else yTitle
+    _x_title: str | None = xCol if isinstance(xTitle, _UnsetType) else xTitle
 
     if xLabelAngle is None:
         xLabelAngle = alt.theme.options.get("xLabelAngle", 0)
@@ -204,7 +205,7 @@ def mark_violin(
             **({"size": boxplotSize} if boxplotSize is not None else {}),
         )
         .encode(
-            x=alt.X(f"{xCol}:N", sort=categories, title=xTitle, axis=x_axis),
+            x=alt.X(f"{xCol}:N", sort=categories, title=_x_title, axis=x_axis),
             y=alt.Y(f"{yCol}:Q", title=_y_title),
         )
     )
@@ -220,15 +221,15 @@ def mark_strip(
     *,
     scatter: str = "jitter",
     palette: list[str] | None = None,
-    pointSize: int | None = None,
-    pointOpacity: float | None = None,
+    markSize: int | None = None,
+    markOpacity: float | None = None,
     spread: float | None = None,
     legend: bool = False,
     xLabelAngle: float | None = None,
     errorbars: bool = True,
     errorbarExtent: str = "sem",
     yTitle: str | None | _UnsetType = _UNSET,
-    xTitle: str | None = None,
+    xTitle: str | None | _UnsetType = _UNSET,
 ) -> alt.LayerChart:
     """
     Build an Altair layer combining jittered or beeswarm points with a median indicator.
@@ -249,10 +250,10 @@ def mark_strip(
     scatter:
         Point distribution method: ``'jitter'`` (faster, random Gaussian offset)
         or ``'beeswarm'`` (collision-avoidance, better for smaller n).
-    pointSize:
+    markSize:
         Size of individual points. Inherits ``markSize`` from theme when ``None``.
-    pointOpacity:
-        Opacity of individual points.
+    markOpacity:
+        Opacity of individual points. Inherits ``markFillOpacity`` from theme when ``None``.
     spread:
         Controls point spread in pixels. For ``'jitter'``: standard deviation
         of the Gaussian offsets (~68% of points within ±spread). For
@@ -272,7 +273,7 @@ def mark_strip(
     yTitle:
         Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
     xTitle:
-        X-axis title. ``None`` (default) suppresses the title.
+        X-axis title. Defaults to ``xCol``. Pass ``None`` to suppress.
 
     Examples
     --------
@@ -287,10 +288,11 @@ def mark_strip(
     """
     df = ensure_polars(df)
     _y_title: str | None = yCol if isinstance(yTitle, _UnsetType) else yTitle
-    if pointSize is None:
-        pointSize = alt.theme.options.get("markSize", 10)
-    if pointOpacity is None:
-        pointOpacity = alt.theme.options.get("markFillOpacity", 1.0)
+    _x_title: str | None = xCol if isinstance(xTitle, _UnsetType) else xTitle
+    if markSize is None:
+        markSize = alt.theme.options.get("markSize", 10)
+    if markOpacity is None:
+        markOpacity = alt.theme.options.get("markFillOpacity", 1.0)
 
     if scatter == "jitter":
         df = add_jitter(df, spread=spread)
@@ -319,11 +321,11 @@ def mark_strip(
     else:
         x_axis = alt.Axis()
 
-    x = alt.X(f"{xCol}:N", sort=categories, title=xTitle, axis=x_axis)
+    x = alt.X(f"{xCol}:N", sort=categories, title=_x_title, axis=x_axis)
 
     points = (
         alt.Chart(df)
-        .mark_circle(size=pointSize, opacity=pointOpacity)
+        .mark_circle(size=markSize, opacity=markOpacity)
         .encode(
             x=x,
             y=alt.Y(f"{yCol}:Q", title=_y_title),

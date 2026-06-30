@@ -183,7 +183,7 @@ Only the keys present in a style section are applied — everything else uses th
 
 #### `notebook` style
 
-The `notebook` style is useful for plotting in interactive notebooks, and defaults to using `darkmode=True` plots with a transparent background (*white axes and text, larger `chart` areas, and larger font sizes*).
+The `notebook` style is useful for plotting in interactive notebooks, and defaults to using `darkmode=True` plots with a transparent background (*white axes and text, larger `Chart` areas, and larger font sizes*).
 
 ---
 
@@ -378,7 +378,7 @@ alt.Chart(df).mark_circle().encode(
 
 #### Strip plots (`mark_strip`)
 
-Create a `chart` with jittered or beeswarm points with a median tick and optional mean ± error bars using `mark_strip()`.
+Create a `Chart` with jittered or beeswarm points with a median tick and optional mean ± error bars using `mark_strip()`.
 
 ```python
 chart = ds.mark_strip(df, "group", "value", CATEGORIES)
@@ -389,15 +389,15 @@ chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
 |---|---|---|
 | `scatter` | `"jitter"` | `"jitter"` (fast, random Gaussian) or `"beeswarm"` (collision-avoidance) |
 | `palette` | `None` | List of colors for points |
-| `pointSize` | `theme(markSize)` | Point size in sq px |
-| `pointOpacity` | `theme(markFillOpacity)` | Point opacity |
+| `markSize` | `theme(markSize)` | Point size in sq px |
+| `markOpacity` | `theme(markFillOpacity)` | Point opacity |
 | `spread` | `None` | Point spread in pixels. For jitter: std dev (defaults to `min(chartWidth, chartHeight) / 50`). For beeswarm: collision radius (defaults to `√(markSize/π)` from theme) |
 | `legend` | `False` | Show a color legend |
 | `xLabelAngle` | `theme(xLabelAngle)` | X-axis label rotation in degrees |
 | `errorbars` | `True` | Show mean ± error bars |
 | `errorbarExtent` | `"sem"` | `"sem"` or `"sd"` |
 | `yTitle` | `yCol` | Y-axis title; `None` suppresses it |
-| `xTitle` | `None` | X-axis title; `None` (default) suppresses it |
+| `xTitle` | `xCol` | X-axis title; `None` suppresses it |
 
 #### Violin
 
@@ -432,7 +432,7 @@ ds.save(alt.hconcat(left, right), "comparison")
 | `xLabelAngle` | `theme(xLabelAngle)` | X-axis label rotation in degrees |
 | `steps` | `200` | KDE grid resolution per group |
 | `yTitle` | `yCol` | Y-axis title; `None` suppresses it |
-| `xTitle` | `None` | X-axis title; `None` (default) suppresses it |
+| `xTitle` | `xCol` | X-axis title; `None` suppresses it |
 
 ![marks example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/marks_example_light.png)
 
@@ -847,7 +847,7 @@ The `expMin` / `expMax` parameters are auto-derived from `df[field].min()` / `.m
 
 | Parameter | Default | Description |
 |---|---|---|
-| `chart` | required | Chart to add minor ticks to |
+| `Chart` | required | Chart to add minor ticks to |
 | `df` | required | Polars or pandas DataFrame |
 | `field` | `None` | Log-scaled column name. Required for single-axis mode; omit when `axis='both'` |
 | `axis` | `'y'` | `'x'`, `'y'`, or `'both'`. When `'both'`, provide `xField` and `yField` instead of `field` |
@@ -906,7 +906,7 @@ chart = ds.add_pow_ticks(
 
 | Parameter | Default | Description |
 |---|---|---|
-| `chart` | required | Chart to add minor ticks to |
+| `Chart` | required | Chart to add minor ticks to |
 | `df` | required | Polars or pandas DataFrame |
 | `field` | `None` | Power-scaled column name. Required for single-axis mode; omit when `axis='both'` |
 | `axis` | `'y'` | `'x'`, `'y'`, or `'both'`. When `'both'`, provide `xField`, `yField`, `xMajorValues`, and `yMajorValues` |
