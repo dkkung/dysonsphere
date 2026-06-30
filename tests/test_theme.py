@@ -99,41 +99,41 @@ class TestStyleLoading:
     def test_named_style_applied(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text(
-            "[nih]\nfontSize = 6\naxisWidth = 0.5\n", encoding="utf-8"
+            "[my_style]\nfontSize = 6\naxisWidth = 0.5\n", encoding="utf-8"
         )
-        overrides = _load_style_overrides("nih")
+        overrides = _load_style_overrides("my_style")
         assert overrides["fontSize"] == 6
         assert overrides["axisWidth"] == pytest.approx(0.5)
 
     def test_named_style_overrides_default(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text(
-            "[default]\nfontSize = 5\n[nih]\nfontSize = 6\n", encoding="utf-8"
+            "[default]\nfontSize = 5\n[my_style]\nfontSize = 6\n", encoding="utf-8"
         )
-        overrides = _load_style_overrides("nih")
+        overrides = _load_style_overrides("my_style")
         assert overrides["fontSize"] == 6
 
     def test_explicit_kwarg_overrides_style(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text(
-            "[nih]\nfontSize = 6\n", encoding="utf-8"
+            "[my_style]\nfontSize = 6\n", encoding="utf-8"
         )
-        theme(style="nih", fontSize=9)
+        theme(style="my_style", fontSize=9)
         assert alt.theme.options["fontSize"] == 9
 
     def test_missing_style_raises(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "dysonsphere.toml").write_text("[nih]\nfontSize = 6\n", encoding="utf-8")
+        (tmp_path / "dysonsphere.toml").write_text("[my_style]\nfontSize = 6\n", encoding="utf-8")
         with pytest.raises(ValueError, match="'missing'"):
             _load_style_overrides("missing")
 
     def test_unknown_toml_key_raises(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text(
-            "[nih]\nnotAParam = 99\n", encoding="utf-8"
+            "[my_style]\nnotAParam = 99\n", encoding="utf-8"
         )
         with pytest.raises(ValueError, match="Unknown theme parameter"):
-            _load_style_overrides("nih")
+            _load_style_overrides("my_style")
 
     def test_no_config_file_no_error(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -142,18 +142,18 @@ class TestStyleLoading:
 
     def test_builtin_style_no_config_file(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        overrides = _load_style_overrides("nih")
-        assert overrides["fontSize"] == 6
-        assert overrides["axisWidth"] == pytest.approx(0.5)
+        overrides = _load_style_overrides("notebook")
+        assert overrides["fontSize"] == 18
+        assert overrides["chartWidth"] == 900
 
     def test_config_overrides_builtin_style(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text(
-            "[nih]\nfontSize = 9\n", encoding="utf-8"
+            "[notebook]\nfontSize = 9\n", encoding="utf-8"
         )
-        overrides = _load_style_overrides("nih")
+        overrides = _load_style_overrides("notebook")
         assert overrides["fontSize"] == 9
-        assert overrides["axisWidth"] == pytest.approx(0.5)  # from built-in preset
+        assert overrides["chartWidth"] == 900  # from built-in preset
 
 
 class TestCreateConfig:
@@ -164,7 +164,7 @@ class TestCreateConfig:
     def test_contains_builtin_style_names(self, tmp_path):
         create_config(tmp_path)
         content = (tmp_path / "dysonsphere.toml").read_text()
-        assert "[nih]" in content
+        assert "[nih]" not in content
         assert "[notebook]" in content
         assert "[presentation]" in content
         assert "[my_style]" in content

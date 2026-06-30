@@ -13,11 +13,6 @@
 
 # Built-in styles - edit values or remove sections you don't need.
 
-[nih]
-axisWidth = 0.5
-fontSize = 6
-fontWeight = 400
-
 [notebook]
 chartWidth = 900
 chartHeight = 900

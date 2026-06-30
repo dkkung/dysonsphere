@@ -144,11 +144,6 @@ Each file contains named style sections. Load a style with `ds.theme(style="name
 
 # Built-in styles - edit values or remove sections you don't need.
 
-[nih]
-axisWidth = 0.5
-fontSize = 6
-fontWeight = 400
-
 [notebook]
 chartWidth = 900
 chartHeight = 900
@@ -174,8 +169,7 @@ transparentBackground = true
 ```
 
 ```python
-ds.theme(style="nih")                  # load NIH style
-ds.theme(style="notebook")             # switch to notebook style
+ds.theme(style="notebook")             # load notebook style
 ds.theme(style="notebook", grid=True)  # style + per-call override
 ds.theme()                             # back to dysonsphere built-in defaults
 ```

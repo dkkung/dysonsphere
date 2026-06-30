@@ -13,11 +13,6 @@ from .palettes import colors
 _ORIGINAL_COLORS: dict[str, list[str]] = dict(colors)
 
 _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
-    "nih": {
-        "axisWidth": 0.5,
-        "fontSize": 6,
-        "fontWeight": 400,
-    },
     "notebook": {
         "chartWidth": 900,
         "chartHeight": 900,
