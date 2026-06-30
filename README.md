@@ -50,6 +50,47 @@ ds.save(chart, "plots/myplot")
 
 ---
 
+## Contents
+
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [dysonsphere.theme()](#dysonspheretheme)
+  - [Config file](#config-file)
+    - [`notebook` style](#notebook-style)
+- [Palettes](#palettes)
+  - [Accessing palettes](#accessing-palettes)
+  - [dysonsphere.palette()](#dysonspherepalette)
+  - [Default palettes](#default-palettes)
+  - [Available palettes](#available-palettes)
+  - [Exporting palettes as swatches for Adobe Illustrator](#exporting-palettes-as-swatches-for-adobe-illustrator)
+- [Saving charts](#saving-charts)
+  - [Metadata](#metadata)
+- [Chart utilities](#chart-utilities)
+  - [Data transforms](#data-transforms)
+    - [Beeswarm](#beeswarm)
+    - [Jitter](#jitter)
+  - [Custom marks](#custom-marks)
+    - [Strip plots (`mark_strip`)](#strip-plots-mark_strip)
+    - [Violin](#violin)
+  - [Statistical annotations](#statistical-annotations)
+    - [Adding p-value annotations](#adding-p-value-annotations)
+  - [Multilabels](#multilabels)
+    - [Sample sizes](#sample-sizes)
+    - [Category labels](#category-labels)
+    - [Spans](#spans)
+  - [Chart annotations](#chart-annotations)
+    - [Background shading](#background-shading)
+    - [Reference lines](#reference-lines)
+    - [Text annotations](#text-annotations)
+  - [Non-linear axes](#non-linear-axes)
+    - [Axis label reformatting](#axis-label-reformatting)
+    - [Minor ticks](#minor-ticks)
+- [Development](#development)
+  - [Building palettes](#building-palettes)
+  - [Building docs](#building-docs)
+
+---
+
 ## dysonsphere.theme()
 
 **Call before building any Altair charts to configure global theme defaults.**
