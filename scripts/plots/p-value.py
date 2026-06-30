@@ -8,7 +8,7 @@ rng = np.random.default_rng(42)
 
 df = pl.DataFrame(
     {
-        "group": ["Control"] * 30 + ["Drug A"] * 30 + ["Drug B"] * 30,
+        "group": ["Control"] * 30 + ["Group A"] * 30 + ["Group B"] * 30,
         "value": np.concatenate(
             [
                 rng.normal(10, 2, 30),
@@ -19,7 +19,7 @@ df = pl.DataFrame(
     }
 )
 
-CATEGORIES = ["Control", "Drug A", "Drug B"]
+CATEGORIES = ["Control", "Group A", "Group B"]
 
 ds.theme(markSize=15)
 
@@ -37,11 +37,11 @@ ann = ds.add_pvalue(
     df,
     "group",
     "value",
-    pairs=[("Control", "Drug A"), ("Control", "Drug B"), ("Drug A", "Drug B")],
+    pairs=[("Control", "Group A"), ("Control", "Group B"), ("Group A", "Group B")],
     test="mannwhitneyu",
     categories=CATEGORIES,
     yPositions=[21, 5, 24],
-    reverse=[("Control", "Drug B")],
+    reverse=[("Control", "Group B")],
 )
 
 ds.save(chart + ann, "p-value")

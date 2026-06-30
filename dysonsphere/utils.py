@@ -24,7 +24,7 @@ def count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]:
     --------
     ::
 
-        counts = ds.count_n(df, "group", ["Control", "Drug A", "Drug B"])
+        counts = ds.count_n(df, "group", ["Control", "Group A", "Group B"])
         # [12, 15, 11]
     """
     df = ensure_polars(df)

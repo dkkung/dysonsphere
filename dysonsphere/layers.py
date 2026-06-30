@@ -530,7 +530,7 @@ def add_shade(
 
         # positions mode — shade two category spans on x
         shade = ds.add_shade(
-            positions=[("Control", "Drug B"), ("Drug D", "Drug E")],
+            positions=[("Control", "Group B"), ("Group D", "Group E")],
             categories=CATEGORIES,
         )
 
@@ -541,7 +541,7 @@ def add_shade(
 
         # positions mode — intersection rect, nominal x + quantitative y
         shade = ds.add_shade(
-            positions=[(("Control", "Drug B"), (8.0, 12.0))],
+            positions=[(("Control", "Group B"), (8.0, 12.0))],
             axis='both',
             categories=CATEGORIES,
         )

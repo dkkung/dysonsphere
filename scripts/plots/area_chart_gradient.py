@@ -7,7 +7,7 @@ import dysonsphere as ds
 rng = np.random.default_rng(42)
 
 TIMEPOINTS = np.linspace(0, 24, 200)
-GROUP = "Drug A"
+GROUP = "Group A"
 LINE_COLOR = "black"
 
 

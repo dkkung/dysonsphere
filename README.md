@@ -286,7 +286,8 @@ This writes `import_dysonsphere_palettes_to_illustrator.jsx`. To import into Ill
 1. Open or create a document in Adobe Illustrator.
 2. Go to **File > Scripts > Other Script...**
 3. Select `import_dysonsphere_palettes_to_illustrator.jsx`.
-4. All palettes are added as named swatch groups in the Swatches panel.
+4. All palettes are added to the Swatches panel as groups named `dysonsphere [palette]` (e.g. `dysonsphere blues`).
+5. A `dysonsphere.ai` swatch library is automatically saved to your Illustrator User Defined folder. After restarting Illustrator, it appears under **Open Swatch Library > User Defined > dysonsphere**.
 
 ---
 

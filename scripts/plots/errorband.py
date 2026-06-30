@@ -8,11 +8,11 @@ import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
-GROUPS = ["Control", "Drug A", "Drug B", "Drug C"]
+GROUPS = ["Control", "Group A", "Group B", "Group C"]
 TIMEPOINTS = np.linspace(0, 24, 13)
 N_REPS = 20
 
-slopes = {"Control": 0.0, "Drug A": 0.3, "Drug B": 0.18, "Drug C": -0.12}
+slopes = {"Control": 0.0, "Group A": 0.3, "Group B": 0.18, "Group C": -0.12}
 
 rows = []
 for group in GROUPS:

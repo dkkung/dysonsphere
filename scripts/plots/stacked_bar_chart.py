@@ -6,7 +6,7 @@ import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
-GROUPS = ["Control", "Drug A", "Drug B", "Drug C", "Drug D"]
+GROUPS = ["Control", "Group A", "Group B", "Group C", "Group D"]
 TYPES = ["Type 1", "Type 2"]
 
 df = pl.DataFrame(

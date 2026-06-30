@@ -6,8 +6,8 @@ import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
-GROUPS = ["Control", "Drug A", "Drug B"]
-params = {"Control": (10, 2), "Drug A": (13, 1.5), "Drug B": (7, 3)}
+GROUPS = ["Control", "Group A", "Group B"]
+params = {"Control": (10, 2), "Group A": (13, 1.5), "Group B": (7, 3)}
 N = 150
 
 rows = []

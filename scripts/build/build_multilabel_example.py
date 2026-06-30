@@ -8,27 +8,24 @@ Usage (from project root):
     uv run python scripts/build/build_multilabel_example.py
 """
 
-import tempfile
 from pathlib import Path
 from typing import Any
 
 import altair as alt
 import numpy as np
 import polars as pl
-import vl_convert as vlc
 
 import dysonsphere as ds
-from dysonsphere.export import _fix_tick_alignment
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-CATEGORIES = ["Control", "Drug A", "Drug B", "Drug C"]
+CATEGORIES = ["Control", "Group A", "Group B", "Group C"]
 
 rng = np.random.default_rng(42)
 df = pl.DataFrame(
     {
-        "group": (["Control"] * 38 + ["Drug A"] * 45 + ["Drug B"] * 52 + ["Drug C"] * 41),
+        "group": (["Control"] * 38 + ["Group A"] * 45 + ["Group B"] * 52 + ["Group C"] * 41),
         "value": np.concatenate(
             [
                 rng.normal(1.0, 0.1, 38),
@@ -81,17 +78,6 @@ txt = ds.add_multilabel(
 )
 combined = alt.hconcat(pm, dot, txt)
 
-out_png = ROOT / "docs" / "multilabel_example_light.png"
-with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
-    tmp_path = tmp.name
-combined.save(tmp_path)
-_fix_tick_alignment(
-    tmp_path,
-    band_padding=alt.theme.options.get("bandPadding", 0.1),
-    chart_width=alt.theme.options.get("chartWidth", 100),
-)
-with open(tmp_path, encoding="utf-8") as f:
-    svg_content = f.read()
-Path(tmp_path).unlink()
-out_png.write_bytes(vlc.svg_to_png(svg_content, ppi=1200))
-print(f"saved {out_png}")
+out = ROOT / "docs" / "multilabel_example"
+ds.save(combined, str(out), background=["light"], saveVegaSpec=False, saveMetadata=False)
+print(f"saved {out}_light.png")

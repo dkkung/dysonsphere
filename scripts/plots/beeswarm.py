@@ -6,11 +6,11 @@ import dysonsphere as ds
 
 rng = np.random.default_rng(42)
 
-CATEGORIES = ["Control", "Drug A", "Drug B", "Drug C", "Drug D"]
+CATEGORIES = ["Control", "Group A", "Group B", "Group C", "Group D"]
 
 df = pl.DataFrame(
     {
-        "group": (["Control"] * 100 + ["Drug A"] * 100 + ["Drug B"] * 100 + ["Drug C"] * 100 + ["Drug D"] * 100),
+        "group": (["Control"] * 100 + ["Group A"] * 100 + ["Group B"] * 100 + ["Group C"] * 100 + ["Group D"] * 100),
         "value": np.concatenate(
             [
                 rng.normal(10, 2, 100),

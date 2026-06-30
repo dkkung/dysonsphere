@@ -194,7 +194,7 @@ def _multilabel_layer(
     --------
     ::
 
-        CATEGORIES = ["Ctrl", "Drug A", "Drug B", "Drug C"]
+        CATEGORIES = ["Ctrl", "Group A", "Group B", "Group C"]
         ds.theme(chartWidth=300)
         chart = ds.mark_strip(df, "group", "value", CATEGORIES)
         ann = ds._multilabel_layer(
