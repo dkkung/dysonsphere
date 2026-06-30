@@ -499,14 +499,14 @@ ds.save(alt.hconcat(left, right), "comparison")
 
 ### Statistical annotations
 
-#### Adding p-value annotations
-
 `add_pvalue()` annotates group comparisons. It has two modes, selected by `test`:
 
-- **Pairwise** (`"mannwhitneyu"`, `"ttest_ind"`, `"ttest_rel"`, `"wilcoxon"`, `"tukey_hsd"`) — draws a bracket per pair in `pairs`, stacked automatically so they don't overlap.
-- **Omnibus** ("are *any* groups different?": `"anova"`, `"kruskal"`, `"friedman"`, `"alexandergovern"`) — places the omnibus result as a corner label (via `add_text`), and, if `pairs` is given, fills the brackets with a post-hoc test.
+- **Pairwise** (`"mannwhitneyu"`, `"ttest_ind"`, `"ttest_rel"`, `"wilcoxon"`, `"tukey_hsd"`) - draws a bracket per pair in `pairs`, stacked automatically so they don't overlap.
+- **Omnibus** (`"anova"`, `"kruskal"`, `"friedman"`, `"alexandergovern"`) - places the omnibus result as a corner label (via `add_text`), and, if `pairs` is given, fills the brackets with a post-hoc test.
 
 Combine with any chart using `+`.
+
+#### Pairwise tests
 
 ```python
 CATEGORIES = ["Group A", "Group B", "Group C"]
@@ -530,7 +530,33 @@ chart + ds.add_pvalue(
 )
 ```
 
-Omnibus ANOVA in the corner + Tukey post-hoc brackets (`omnibusVerbose` adds the statistic, df, and effect size to the label):
+From pre-computed p-values, with explicit bracket positions:
+
+```python
+ds.add_pvalue(..., pvalues=[0.002, 0.031], yPositions=[4.5, 5.2])
+```
+
+Brackets below the marks using `reverse` - requires negative `yStep` so levels stack downward, and an explicit `tickHeight` (positive) since auto-compute would produce a negative value:
+
+```python
+ds.add_pvalue(
+    df,
+    "group",
+    "value",
+    pairs=[("A", "B")],
+    categories=["A", "B"],
+    bracketStyle="bracket",
+    yStart=data_min - yPad,
+    yStep=-yStep,
+    tickHeight=0.15,
+    reverse=[("A", "B")],
+)
+```
+![p-value example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/pvalue_example_light.png)
+
+#### Omnibus tests
+
+Omnibus ANOVA in the corner + Tukey post-hoc brackets (`omnibusVerbose=True` adds the statistic, df, and effect size to the label):
 
 ```python
 chart + ds.add_pvalue(
@@ -548,33 +574,9 @@ chart + ds.add_pvalue(
 chart + ds.add_pvalue(df, "group", "value", test="kruskal", categories=CATEGORIES, report=True)
 ```
 
+The supported post-hocs are Tukey HSD and Dunnett (via `scipy`) plus **Dunn, Nemenyi, and Games-Howell**, which `dysonsphere` computes *in-house* (validated against `scikit-posthocs` and `pingouin`). Every `add_pvalue()` call also generates a descriptive + effect-size report that is appended to the metadata of files written by `ds.save()` (see `report`/`saghtve`). For an omnibus test the report lists **all** pairwise post-hoc comparisons (the full table), not just the pairs you draw brackets for.
+
 ![p-value omnibus example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/pvalue_omnibus_example_light.png)
-
-The supported post-hocs are Tukey HSD and Dunnett (via scipy) plus **Dunn, Nemenyi, and Games-Howell**, which dysonsphere computes in-house (validated against `scikit-posthocs` and `pingouin`) so no heavy extra dependency is needed. Every `add_pvalue()` call also generates a descriptive + effect-size report that is appended to the metadata of files written by `ds.save()` (see `report`/`save`). For an omnibus test the report lists **all** pairwise post-hoc comparisons (the full table), not just the pairs you draw brackets for.
-
-From pre-computed p-values, with explicit bracket positions:
-
-```python
-ds.add_pvalue(..., pvalues=[0.002, 0.031], yPositions=[4.5, 5.2])
-```
-
-Brackets below the marks using `reverse` — requires negative `yStep` so levels stack downward, and an explicit `tickHeight` (positive) since auto-compute would produce a negative value:
-
-```python
-ds.add_pvalue(
-    df,
-    "group",
-    "value",
-    pairs=[("A", "B")],
-    categories=["A", "B"],
-    bracketStyle="bracket",
-    yStart=data_min - yPad,
-    yStep=-yStep,
-    tickHeight=0.15,
-    reverse=[("A", "B")],
-)
-```
-![p-value example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/pvalue_example_light.png)
 
 | Parameter | Default | Description |
 |---|---|---|
