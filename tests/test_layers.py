@@ -1,7 +1,8 @@
 import altair as alt
 import pytest
 
-from dysonsphere.layers import _multilabel_layer, _rule_mark_kwargs, add_rule
+from dysonsphere.layers import _rule_mark_kwargs, add_rule
+from dysonsphere.multilabel import _multilabel_layer
 from dysonsphere.theme import theme
 
 
