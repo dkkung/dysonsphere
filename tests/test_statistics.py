@@ -44,6 +44,56 @@ class TestFormatPvalue:
     def test_p_zero(self):
         assert _format_pvalue(0.0) == "P < 0.001"
 
+    def test_decimals_affects_threshold(self):
+        # decimals=2 → threshold=0.01; p=0.005 is below it
+        assert _format_pvalue(0.005, decimals=2) == "P < 0.01"
+
+    def test_decimals_threshold_exact(self):
+        # p=0.01 is not below threshold=0.01
+        assert _format_pvalue(0.01, decimals=2) == "P = 0.01"
+
+
+class TestFormatPvalueNotation:
+    def test_scientific(self):
+        result = _format_pvalue(0.023, notation="scientific", decimals=2)
+        assert result == "P = 2.30×10⁻²"
+
+    def test_scientific_small(self):
+        result = _format_pvalue(1.5e-5, notation="scientific", decimals=2)
+        assert result == "P = 1.50×10⁻⁵"
+
+    def test_scientific_default_decimals(self):
+        # decimals=3 by default
+        result = _format_pvalue(0.023, notation="scientific")
+        assert result == "P = 2.300×10⁻²"
+
+    def test_e_notation(self):
+        result = _format_pvalue(0.023, notation="e", decimals=2)
+        assert result == "P = 2.30e-02"
+
+    def test_e_notation_small(self):
+        result = _format_pvalue(1.5e-5, notation="e", decimals=2)
+        assert result == "P = 1.50e-05"
+
+    def test_power_rounds_to_nearest(self):
+        # log10(0.04) ≈ -1.397 → rounds to -1 → 10⁻¹
+        assert _format_pvalue(0.04, notation="power") == "P ≈ 10⁻¹"
+
+    def test_power_exact(self):
+        assert _format_pvalue(1e-5, notation="power") == "P ≈ 10⁻⁵"
+
+    def test_power_rounding_far_from_threshold(self):
+        # log10(0.006) ≈ -2.22 → rounds to -2 → 10⁻²
+        assert _format_pvalue(0.006, notation="power") == "P ≈ 10⁻²"
+
+    def test_invalid_notation_si(self):
+        with pytest.raises(ValueError, match="notation must be"):
+            _format_pvalue(0.05, notation="si")
+
+    def test_invalid_notation_bogus(self):
+        with pytest.raises(ValueError, match="notation must be"):
+            _format_pvalue(0.05, notation="bogus")
+
 
 class TestFormatAsterisks:
     def test_three_stars(self):
@@ -110,3 +160,56 @@ class TestAddPvalue:
     def test_unknown_test_raises(self, group_df):
         with pytest.raises(ValueError, match="Unknown test"):
             add_pvalue(group_df, "group", "value", [("A", "B")], test="bogus")
+
+    def test_notation_scientific(self, group_df):
+        result = add_pvalue(
+            group_df,
+            "group",
+            "value",
+            [("A", "B")],
+            pvalues=[1.5e-5],
+            notation="scientific",
+            decimals=2,
+        )
+        assert isinstance(result, alt.LayerChart)
+        spec = result.to_dict()
+        label = spec["layer"][0]["layer"][-1]["data"]["values"][0]["label"]
+        assert label == "P = 1.50×10⁻⁵"
+
+    def test_notation_e(self, group_df):
+        result = add_pvalue(
+            group_df,
+            "group",
+            "value",
+            [("A", "B")],
+            pvalues=[1.5e-5],
+            notation="e",
+            decimals=2,
+        )
+        assert isinstance(result, alt.LayerChart)
+
+    def test_notation_power(self, group_df):
+        result = add_pvalue(
+            group_df,
+            "group",
+            "value",
+            [("A", "B")],
+            pvalues=[1e-5],
+            notation="power",
+        )
+        assert isinstance(result, alt.LayerChart)
+        spec = result.to_dict()
+        label = spec["layer"][0]["layer"][-1]["data"]["values"][0]["label"]
+        assert label == "P ≈ 10⁻⁵"
+
+    def test_notation_default_unchanged(self, group_df):
+        result = add_pvalue(
+            group_df,
+            "group",
+            "value",
+            [("A", "B")],
+            pvalues=[0.023],
+        )
+        spec = result.to_dict()
+        label = spec["layer"][0]["layer"][-1]["data"]["values"][0]["label"]
+        assert label == "P = 0.023"

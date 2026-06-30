@@ -1,8 +1,8 @@
 """
 Generates docs/pvalue_example_light.png — the README preview for add_pvalue.
 
-Shows labelStyle="p" on the left and labelStyle="asterisks" on the right,
-both annotating the same three-group comparison on a boxplot.
+Shows labelStyle="p", notation="scientific", and labelStyle="asterisks" on the
+same three-group comparison, plus a reverse-bracket demo on the right.
 
 Usage (from project root):
     uv run python scripts/build/build_pvalue_example.py
@@ -18,7 +18,7 @@ import polars as pl
 import vl_convert as vlc
 
 import dysonsphere as ds
-from dysonsphere.export import _fix_tick_alignment
+from dysonsphere.export import _fix_superscript_labels, _fix_tick_alignment
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -63,6 +63,11 @@ left_base = (
     .mark_boxplot(color=ds.palette("blues")[0])
     .encode(x=x, y=alt.Y("value:Q", title=None), color=alt.Color("group:N"))
 )
+scientific_base = (
+    alt.Chart(df)
+    .mark_boxplot(color=ds.palette("blues")[0])
+    .encode(x=x, y=alt.Y("value:Q", title=None), color=alt.Color("group:N"))
+)
 right_base = (
     alt.Chart(df)
     .mark_boxplot(color=ds.palette("blues")[0])
@@ -85,6 +90,14 @@ fontSize = alt.theme.options.get("fontSize", 7)
 left = (left_base + ds.add_pvalue(**pvalue_kwargs, labelStyle="p")).properties(
     title=alt.TitleParams(
         ['labelStyle="p"', 'bracketStyle="line"'], fontSize=fontSize, **title_params
+    )
+)
+scientific = (
+    scientific_base
+    + ds.add_pvalue(**pvalue_kwargs, labelStyle="p", notation="scientific", decimals=2)
+).properties(
+    title=alt.TitleParams(
+        ['labelStyle="p"', 'notation="scientific"'], fontSize=fontSize, **title_params
     )
 )
 right = (
@@ -126,7 +139,7 @@ third = (
     )
 )
 
-chart = alt.hconcat(left, right, third)
+chart = alt.hconcat(left, scientific, right, third)
 
 out_png = ROOT / "docs" / "pvalue_example_light.png"
 with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
@@ -137,6 +150,7 @@ _fix_tick_alignment(
     band_padding=alt.theme.options.get("bandPadding", 0.1),
     chart_width=alt.theme.options.get("chartWidth", 100),
 )
+_fix_superscript_labels(tmp_path)
 with open(tmp_path, encoding="utf-8") as f:
     svg_content = f.read()
 Path(tmp_path).unlink()

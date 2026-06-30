@@ -10,6 +10,7 @@ import pytest
 
 from dysonsphere.export import (
     _fix_log_minor_ticks,
+    _fix_superscript_labels,
     _fix_tick_alignment,
     _layer_axes_to_front,
     _simplify_svg,
@@ -602,3 +603,78 @@ class TestSimplifySvg:
         root = ET.parse(path).getroot()
         assert root.find(f"{{{NS}}}g") is None
         assert root.find(f"{{{NS}}}rect") is not None
+
+
+class TestFixSuperscriptLabels:
+    def _svg_with_text(self, content: str) -> str:
+        return textwrap.dedent(f"""\
+            <svg xmlns="{NS}">
+              <text>{content}</text>
+            </svg>
+        """)
+
+    def test_scientific_two_digit_exponent(self, tmp_path):
+        # ¹ (U+00B9, Latin-1) mixed with ⁴ (U+2074, Superscripts block) — the misalignment case
+        path = _write(tmp_path, "t.svg", self._svg_with_text("P = 1.94×10⁻¹⁴"))
+        _fix_superscript_labels(path)
+        root = ET.parse(path).getroot()
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        assert text_el.text == "P = 1.94×10"
+        tspan = text_el.find(f"{{{NS}}}tspan")
+        assert tspan is not None
+        assert tspan.get("dy") == "-2.5"
+        assert tspan.get("font-size") == "4"
+        assert tspan.text == "−14"
+
+    def test_power_notation_single_digit(self, tmp_path):
+        path = _write(tmp_path, "t.svg", self._svg_with_text("P ≈ 10⁻⁵"))
+        _fix_superscript_labels(path)
+        root = ET.parse(path).getroot()
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        tspan = text_el.find(f"{{{NS}}}tspan")
+        assert tspan is not None
+        assert tspan.text == "−5"
+
+    def test_no_match_leaves_svg_unchanged(self, tmp_path):
+        original = self._svg_with_text("P = 0.023")
+        path = _write(tmp_path, "t.svg", original)
+        mtime_before = (tmp_path / "t.svg").stat().st_mtime
+        _fix_superscript_labels(path)
+        # File not rewritten when there is nothing to fix
+        assert (tmp_path / "t.svg").stat().st_mtime == mtime_before
+
+    def test_aria_label_attribute_not_modified(self, tmp_path):
+        # Vega adds aria-label attributes with the same text — must not inject <tspan> there
+        svg = textwrap.dedent(f"""\
+            <svg xmlns="{NS}">
+              <text aria-label="P = 1.94×10⁻¹⁴">P = 1.94×10⁻¹⁴</text>
+            </svg>
+        """)
+        path = _write(tmp_path, "t.svg", svg)
+        _fix_superscript_labels(path)
+        root = ET.parse(path).getroot()
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        # aria-label attribute must remain a plain string (no injected markup)
+        assert text_el.get("aria-label") == "P = 1.94×10⁻¹⁴"
+        # But the text content should be fixed
+        assert text_el.find(f"{{{NS}}}tspan") is not None
+
+    def test_nested_tspan_fixed(self, tmp_path):
+        # Vega often wraps text content in a <tspan> inside <text>
+        svg = textwrap.dedent(f"""\
+            <svg xmlns="{NS}">
+              <text><tspan dy="0">P = 3.03×10⁻¹⁴</tspan></text>
+            </svg>
+        """)
+        path = _write(tmp_path, "t.svg", svg)
+        _fix_superscript_labels(path)
+        root = ET.parse(path).getroot()
+        outer_tspan = root.find(f".//{{{NS}}}tspan[@dy='0']")
+        assert outer_tspan is not None
+        assert outer_tspan.text == "P = 3.03×10"
+        inner_tspan = outer_tspan.find(f"{{{NS}}}tspan")
+        assert inner_tspan is not None
+        assert inner_tspan.text == "−14"

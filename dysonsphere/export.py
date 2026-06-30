@@ -161,6 +161,7 @@ def save(
             _fix_log_minor_ticks(svg_path)
             _layer_axes_to_front(svg_path)
             _simplify_svg(svg_path)
+            _fix_superscript_labels(svg_path)
             with open(svg_path, encoding="utf-8") as f:
                 svg_content = f.read()
             if _effective_desc is not None:
@@ -616,6 +617,65 @@ def _layer_axes_to_front(path: str) -> None:
     reorder(root)
     with open(path, "w", encoding="utf-8") as f:
         f.write(ET.tostring(root, encoding="unicode"))
+
+
+_SUPERSCRIPT_MAP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789−")
+_SUP_LABEL_PATTERN = re.compile(r"([×≈]\s*10)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)")
+
+
+def _fix_superscript_labels(path: str) -> None:
+    """Fix misaligned Unicode superscripts in scientific/power notation labels.
+
+    Unicode superscript digits 1-3 (U+00B9/B2/B3, Latin-1 Supplement) and 0/4-9
+    (U+2070, U+2074-U+2079, Superscripts block) live in different font metric tables and
+    render at inconsistent vertical positions in many fonts, causing visible misalignment
+    in multi-digit exponents like 10^-14. Finds the pattern in SVG text/.text nodes only
+    (not attribute values) and replaces the exponent portion with a <tspan dy="-2.5"
+    font-size="4"> element using plain ASCII digits for consistent font metrics.
+
+    Tuned for p-value label fontSize=6: exponent font-size=4 (~67%), dy=-2.5 (~42% shift).
+    """
+    import xml.etree.ElementTree as ET
+
+    NS = "http://www.w3.org/2000/svg"
+    ET.register_namespace("", NS)
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+
+    tree = ET.parse(path)
+    root = tree.getroot()
+    changed = False
+
+    # Collect matching text/tspan elements first to avoid modifying while iterating.
+    targets = [
+        el
+        for el in root.iter()
+        if el.tag in (f"{{{NS}}}text", f"{{{NS}}}tspan")
+        and el.text
+        and _SUP_LABEL_PATTERN.search(el.text)
+    ]
+
+    for el in targets:
+        text = el.text or ""
+        m = _SUP_LABEL_PATTERN.search(text)
+        if not m:
+            continue
+        prefix = text[: m.end(1)]
+        exp_ascii = m.group(2).translate(_SUPERSCRIPT_MAP)
+        suffix = text[m.end() :]
+
+        tspan = ET.Element(f"{{{NS}}}tspan")
+        tspan.set("dy", "-2.5")
+        tspan.set("font-size", "4")
+        tspan.text = exp_ascii
+        tspan.tail = suffix or None
+
+        el.text = prefix
+        el.insert(0, tspan)
+        changed = True
+
+    if changed:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(ET.tostring(root, encoding="unicode"))
 
 
 def _simplify_svg(path: str) -> None:

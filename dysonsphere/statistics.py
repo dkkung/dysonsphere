@@ -1,3 +1,4 @@
+import math
 from typing import Any, cast
 
 import altair as alt
@@ -5,11 +6,30 @@ import polars as pl
 
 from .utils import ensure_polars
 
+_SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹"
 
-def _format_pvalue(p: float, decimals: int = 3) -> str:
-    if p < 0.001:
-        return "P < 0.001"
-    return f"P = {p:.{decimals}f}"
+
+def _superscript(n: int) -> str:
+    sign = "⁻" if n < 0 else ""
+    return sign + "".join(_SUP[int(d)] for d in str(abs(n)))
+
+
+def _format_pvalue(p: float, decimals: int = 3, notation: str | None = None) -> str:
+    if notation is None:
+        threshold = 10 ** (-decimals)
+        if p < threshold:
+            return f"P < {threshold:.{decimals}f}"
+        return f"P = {p:.{decimals}f}"
+    if notation == "power":
+        exp = round(math.log10(p))
+        return f"P ≈ 10{_superscript(exp)}"
+    if notation == "scientific":
+        exp = math.floor(math.log10(p))
+        mantissa = p / 10**exp
+        return f"P = {mantissa:.{decimals}f}×10{_superscript(exp)}"
+    if notation == "e":
+        return f"P = {p:.{decimals}e}"
+    raise ValueError(f"notation must be 'power', 'scientific', or 'e', got {notation!r}")
 
 
 def _format_asterisks(p: float) -> str:
@@ -44,6 +64,7 @@ def _pvalue_layer(
     fontSize: int | None = None,
     reverse: bool = False,
     decimals: int = 3,
+    notation: str | None = None,
 ) -> alt.LayerChart:
     from scipy import stats as _stats
 
@@ -89,7 +110,7 @@ def _pvalue_layer(
     label = (
         _format_asterisks(pvalue)
         if label_style == "asterisks"
-        else _format_pvalue(pvalue, decimals=decimals)
+        else _format_pvalue(pvalue, decimals=decimals, notation=notation)
     )
 
     # --- y position ---
@@ -217,6 +238,7 @@ def add_pvalue(
     fontSize: int | None = None,
     reverse: list[tuple[str, str]] | None = None,
     decimals: int = 3,
+    notation: str | None = None,
 ) -> alt.LayerChart:
     """
     Build p-value annotation layers for one or more group comparisons.
@@ -293,8 +315,18 @@ def add_pvalue(
         List of ``(group1, group2)`` tuples identifying brackets to flip —
         text moves below the bar and ticks point upward.
     decimals:
-        Decimal places for p-value labels when ``labelStyle='p'`` and
-        ``p >= 0.001``.
+        Decimal places for p-value labels. When ``notation=None``, controls
+        the display precision of ``P = 0.xxx`` and sets the threshold below
+        which ``P < 0.001`` style is used (threshold = ``10^(-decimals)``).
+        When ``notation='scientific'`` or ``'e'``, controls decimal places in
+        the mantissa. Ignored for ``notation='power'`` (integer exponent only).
+    notation:
+        Format style for p-value labels when ``labelStyle='p'``. ``None``
+        (default) uses ``P = 0.012`` / ``P < 0.001`` style. ``'scientific'``
+        uses ``P = 1.23×10⁻²``. ``'e'`` uses ``P = 1.23e-02``. ``'power'``
+        rounds to the nearest power of 10 giving ``P ≈ 10⁻²`` — note that
+        values within the same decade (e.g. 0.04 and 0.06) map to the same
+        label; best for p-values spanning multiple orders of magnitude.
 
     Examples
     --------
@@ -463,6 +495,7 @@ def add_pvalue(
                 fontSize=fontSize,
                 reverse=(g1, g2) in reverse if reverse is not None else False,
                 decimals=decimals,
+                notation=notation,
             )
         )
 
