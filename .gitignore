@@ -54,12 +54,4 @@ pipenv
 *.png
 *.svg
 *.json
-!docs/thumbnail_light.png
-!docs/grid_labels_example_light.png
-!docs/pvalue_example_light.png
-!docs/shade_example_light.png
-!docs/nonlinear_example_light.png
-!docs/reference_line_example_light.png
-!docs/text_example_light.png
-!docs/transforms_example_light.png
-!docs/marks_example_light.png
+!docs/*.png
