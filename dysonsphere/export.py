@@ -4,7 +4,9 @@ import getpass
 import html
 import importlib.metadata
 import re
+import struct
 import sys
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Union, cast
@@ -19,6 +21,32 @@ _AltairChart = Union[
     alt.HConcatChart,
     alt.ConcatChart,
 ]
+
+
+def _inject_png_metadata(png_bytes: bytes, description: str) -> bytes:
+    """Insert an iTXt 'Description' chunk immediately after the IHDR chunk in PNG bytes.
+
+    iTXt supports UTF-8 text (unlike tEXt which is Latin-1 only).  The chunk is inserted
+    after IHDR so metadata-aware readers encounter it before any pixel data.  All existing
+    chunks and their CRCs are left unchanged; only the new chunk's CRC is computed here.
+    """
+    chunk_type = b"iTXt"
+    data = (
+        b"Description\x00"  # keyword + null terminator
+        b"\x00"  # compression flag: 0 (uncompressed)
+        b"\x00"  # compression method: 0
+        b"\x00"  # language tag: empty + null
+        b"\x00"  # translated keyword: empty + null
+        + description.encode("utf-8")
+    )
+    crc = zlib.crc32(chunk_type + data) & 0xFFFFFFFF
+    chunk = struct.pack(">I", len(data)) + chunk_type + data + struct.pack(">I", crc)
+
+    # Locate end of IHDR: signature(8) + length(4) + type(4) + data(ihdr_len) + crc(4)
+    ihdr_data_len = struct.unpack(">I", png_bytes[8:12])[0]
+    insert_at = 8 + 4 + 4 + ihdr_data_len + 4
+
+    return png_bytes[:insert_at] + chunk + png_bytes[insert_at:]
 
 
 def save(
@@ -58,8 +86,9 @@ def save(
     ppi:
         Pixel density for PNG output.
     description:
-        Optional description stored in the Vega-Lite JSON spec's ``description`` field
-        and injected as a ``<desc>`` element in SVG output.
+        Optional description stored in the Vega-Lite JSON spec's ``description`` field,
+        injected as a ``<desc>`` element in SVG output, and written as an ``iTXt``
+        ``Description`` chunk in PNG output.
     saveVegaSpec:
         If ``True``, also writes ``<filename>_vegalite.json`` containing the full Vega-Lite spec.
     saveMetadata:
@@ -68,8 +97,8 @@ def save(
         <script> by <user> using Python <ver> on <YYYYMMDD> at <HH:MM:SS> UTC using
         altair <ver> / dysonsphere <ver>."``. In Jupyter, ``<script>`` is
         ``"<jupyter-notebook>"``. Username falls back to ``"unknown_user"`` if the OS
-        does not expose one. Appears in both the SVG ``<desc>`` element and the
-        Vega-Lite JSON spec's ``description`` field.
+        does not expose one. Appears in the SVG ``<desc>`` element, the Vega-Lite JSON
+        spec's ``description`` field, and the PNG ``iTXt Description`` chunk.
     background:
         Which background variants to render. Defaults to ``["light", "dark"]``. Pass
         ``["light"]`` or ``["dark"]`` to render only one variant.
@@ -162,7 +191,10 @@ def save(
                 svg_content = re.sub(r"(<svg[^>]*>)", rf"\1<desc>{escaped}</desc>", svg_content, count=1)
                 Path(svg_path).write_text(svg_content, encoding="utf-8")
             png_path = str(base.parent / f"{base.name}{suffix}.png")
-            Path(png_path).write_bytes(vlc.svg_to_png(svg_content, ppi=ppi))
+            png_bytes = vlc.svg_to_png(svg_content, ppi=ppi)
+            if _effective_desc is not None:
+                png_bytes = _inject_png_metadata(png_bytes, _effective_desc)
+            Path(png_path).write_bytes(png_bytes)
     finally:
         alt.theme.options["darkmode"] = original_darkmode
         alt.theme.options["transparentBackground"] = original_transparent

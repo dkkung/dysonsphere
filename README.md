@@ -315,7 +315,7 @@ Calling `chart.save()` directly skips all of the above and will produce misalign
 ```python
 ds.save(chart, "myplot", ppi=1200)                 # default PPI; reduce for faster exports
 ds.save(chart, "myplot", saveVegaSpec=False)       # skip the JSON spec
-ds.save(chart, "myplot", description="Figure 1")   # embed a description in SVG <desc> and Vega-Lite spec
+ds.save(chart, "myplot", description="Figure 1")   # embed a description in SVG <desc>, PNG iTXt chunk, and Vega-Lite spec
 ds.save(chart, "myplot", saveMetadata=False)       # suppress generation metadata
 ds.save(chart, "myplot", background=["light"])     # light variant only
 ds.save(chart, "myplot", background=["dark"])      # dark variant only
@@ -323,13 +323,13 @@ ds.save(chart, "myplot", background=["dark"])      # dark variant only
 
 #### Metadata
 
-By default, `ds.save()` embeds a generation info string in the SVG `<desc>` element and the Vega-Lite JSON spec. This records exactly what generated the file — useful for tracking down which script produced a plot and under which environment.
+By default, `ds.save()` embeds a generation info string in the SVG `<desc>` element, the PNG `iTXt Description` chunk, and the Vega-Lite JSON spec. This records exactly what generated the file — useful for tracking down which script produced a plot and under which environment.
 
 ```
 Generated with analysis.py by username using Python vX.Y.Z on YYYYMMDD at HH:MM:SS UTC using altair vX.Y.Z / dysonsphere vX.Y.Z.
 ```
 
-When running in a Jupyter notebook the script name is replaced with `<jupyter-notebook>`. If the OS does not expose a username it falls back to `unknown_user`. The same string is written to both outputs — you can inspect it with any SVG editor or text editor, or by reading `myplot_vegalite.json`.
+When running in a Jupyter notebook the script name is replaced with `<jupyter-notebook>`. If the OS does not expose a username it falls back to `unknown_user`. The same string is written to all three outputs — you can inspect it with any SVG editor or text editor, by reading `myplot_vegalite.json`, or with a tool like `exiftool myplot_light.png`.
 
 Pass `description=` to prepend your own label; the metadata info follows on a new line:
 

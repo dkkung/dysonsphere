@@ -1,7 +1,9 @@
 import math
 import re
+import struct
 import textwrap
 import xml.etree.ElementTree as ET
+import zlib
 from pathlib import Path
 
 import altair as alt
@@ -12,6 +14,7 @@ from dysonsphere.export import (
     _fix_log_minor_ticks,
     _fix_superscript_labels,
     _fix_tick_alignment,
+    _inject_png_metadata,
     _layer_axes_to_front,
     _simplify_svg,
     save,
@@ -680,3 +683,91 @@ class TestFixSuperscriptLabels:
         inner_tspan = outer_tspan.find(f"{{{NS}}}tspan")
         assert inner_tspan is not None
         assert inner_tspan.text == "−14"
+
+
+# ── _inject_png_metadata() ───────────────────────────────────────────────────
+
+
+def _make_minimal_png() -> bytes:
+    """1×1 white RGB PNG for use in metadata tests."""
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        crc = zlib.crc32(tag + data) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc)
+
+    sig = b"\x89PNG\r\n\x1a\n"
+    ihdr = chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+    idat = chunk(b"IDAT", zlib.compress(b"\x00\xff\xff\xff"))
+    iend = chunk(b"IEND", b"")
+    return sig + ihdr + idat + iend
+
+
+def _read_png_chunks(png: bytes) -> list[tuple[bytes, bytes]]:
+    """Return (type, data) for every chunk in the PNG."""
+    chunks = []
+    pos = 8  # skip signature
+    while pos < len(png):
+        length = struct.unpack(">I", png[pos : pos + 4])[0]
+        tag = png[pos + 4 : pos + 8]
+        data = png[pos + 8 : pos + 8 + length]
+        chunks.append((tag, data))
+        pos += 4 + 4 + length + 4
+    return chunks
+
+
+class TestInjectPngMetadata:
+    def test_itxt_chunk_present(self):
+        png = _inject_png_metadata(_make_minimal_png(), "hello")
+        types = [t for t, _ in _read_png_chunks(png)]
+        assert b"iTXt" in types
+
+    def test_itxt_placed_after_ihdr(self):
+        png = _inject_png_metadata(_make_minimal_png(), "hello")
+        types = [t for t, _ in _read_png_chunks(png)]
+        assert types[0] == b"IHDR"
+        assert types[1] == b"iTXt"
+
+    def test_description_keyword_and_text(self):
+        desc = "Generated with test.py by user on 20260630."
+        png = _inject_png_metadata(_make_minimal_png(), desc)
+        for tag, data in _read_png_chunks(png):
+            if tag == b"iTXt":
+                null = data.index(b"\x00")
+                keyword = data[:null].decode("utf-8")
+                # skip keyword\0 + compression_flag + compression_method + lang\0 + translated\0
+                text = data[null + 5 :].decode("utf-8")
+                assert keyword == "Description"
+                assert text == desc
+                return
+        pytest.fail("no iTXt chunk found")
+
+    def test_unicode_description_roundtrips(self):
+        desc = "café — by dkung 2026"
+        png = _inject_png_metadata(_make_minimal_png(), desc)
+        for tag, data in _read_png_chunks(png):
+            if tag == b"iTXt":
+                null = data.index(b"\x00")
+                text = data[null + 5 :].decode("utf-8")
+                assert text == desc
+                return
+        pytest.fail("no iTXt chunk found")
+
+    def test_all_chunk_crcs_valid(self):
+        png = _inject_png_metadata(_make_minimal_png(), "crc check")
+        pos = 8
+        while pos < len(png):
+            length = struct.unpack(">I", png[pos : pos + 4])[0]
+            tag = png[pos + 4 : pos + 8]
+            data = png[pos + 8 : pos + 8 + length]
+            stored = struct.unpack(">I", png[pos + 8 + length : pos + 12 + length])[0]
+            assert (zlib.crc32(tag + data) & 0xFFFFFFFF) == stored, f"bad CRC in {tag}"
+            pos += 4 + 4 + length + 4
+
+    def test_existing_chunks_unchanged(self):
+        original = _make_minimal_png()
+        result = _inject_png_metadata(original, "test")
+        orig_chunks = _read_png_chunks(original)
+        result_chunks = _read_png_chunks(result)
+        # result has one extra chunk (iTXt); all original chunks must be present and unchanged
+        non_itxt = [(t, d) for t, d in result_chunks if t != b"iTXt"]
+        assert non_itxt == orig_chunks
