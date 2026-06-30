@@ -31,7 +31,7 @@ df = pl.DataFrame(
 
 CATEGORIES = ["Control", "Group A", "Group B", "Group C", "Group D", "Group E"]
 
-ds.theme()
+ds.theme(cornerRadius=True)
 
 df = ds.add_beeswarm(
     df,
