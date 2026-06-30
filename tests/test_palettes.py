@@ -109,6 +109,9 @@ class TestExportSwatches:
         content = (tmp_path / "import_dysonsphere_palettes_to_illustrator.jsx").read_text()
         assert '"blues"' in content
         assert '"reds"' in content
+        # group names must carry the "dysonsphere " prefix
+        assert 'colorGroup.name = "dysonsphere " + paletteName;' in content
+        assert 'swatch.name = "dysonsphere " + paletteName' in content
 
     def test_defaults_to_cwd(self, tmp_path, monkeypatch):
         from dysonsphere.palettes import export_swatches

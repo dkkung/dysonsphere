@@ -4752,8 +4752,12 @@ def export_swatches(directory: str | Path | None = None) -> None:
     Write an Adobe Illustrator ExtendScript (.jsx) to *directory* (default: current
     working directory) that imports all dysonsphere palettes as named swatch groups.
 
-    To use: in Illustrator, go to File > Scripts > Other Script... and select the
-    generated .jsx file.
+    When run in Illustrator (File > Scripts > Other Script...), the script:
+    - Adds all palettes to the active document's Swatches panel as groups named
+      "dysonsphere [palette]" (e.g. "dysonsphere blues").
+    - Saves a "dysonsphere.ai" swatch library to the Illustrator User Defined swatches
+      folder so it appears under Open Swatch Library > User Defined after restarting
+      Illustrator. Falls back to a manual-save prompt if the path cannot be detected.
     """
     dest = (Path(directory) if directory is not None else Path.cwd()) / "import_dysonsphere_palettes_to_illustrator.jsx"
 
@@ -4761,6 +4765,7 @@ def export_swatches(directory: str | Path | None = None) -> None:
 
     jsx = f"""\
 // Adobe Illustrator script to import dysonsphere palettes as named swatch groups.
+// Also saves a 'dysonsphere' swatch library to your Illustrator User Defined folder.
 // Run via File > Scripts > Other Script...
 var doc = app.documents.length > 0 ? app.activeDocument : app.documents.add();
 
@@ -4778,7 +4783,7 @@ var palettes = {js_palettes};
 for (var paletteName in palettes) {{
     var hexColors = palettes[paletteName];
     var colorGroup = doc.swatchGroups.add();
-    colorGroup.name = paletteName;
+    colorGroup.name = "dysonsphere " + paletteName;
     for (var i = 0; i < hexColors.length; i++) {{
         var rgb = hexToRGB(hexColors[i]);
         var color = new RGBColor();
@@ -4786,13 +4791,66 @@ for (var paletteName in palettes) {{
         color.green = rgb[1];
         color.blue = rgb[2];
         var swatch = doc.swatches.add();
-        swatch.name = paletteName + " - " + i;
+        swatch.name = "dysonsphere " + paletteName + " - " + i;
         swatch.color = color;
         colorGroup.addSwatch(swatch);
     }}
 }}
 
-alert("Imported " + Object.keys(palettes).length + " palettes.");
+var libSaved = false;
+try {{
+    var aiMajor = parseInt(app.version.split('.')[0]);
+    var candidates = [
+        new Folder(Folder.userData + "/Library/Application Support/Adobe/"
+            + "Adobe Illustrator " + aiMajor + "/en_US/Swatches/"),
+        new Folder(Folder.userData + "/Library/Application Support/Adobe/"
+            + "Adobe Illustrator " + aiMajor + ".0/en_US/Swatches/"),
+        new Folder(Folder.userData + "/Adobe/Adobe Illustrator " + aiMajor + " Settings/en_US/Swatches/"),
+        new Folder(Folder.userData + "/Adobe/Adobe Illustrator " + aiMajor + ".0 Settings/en_US/Swatches/"),
+    ];
+    var swatchFolder = null;
+    for (var k = 0; k < candidates.length; k++) {{
+        if (candidates[k].exists) {{
+            swatchFolder = candidates[k];
+            break;
+        }}
+    }}
+    if (swatchFolder !== null) {{
+        var libDoc = app.documents.add(DocumentColorSpace.RGB);
+        for (var pn in palettes) {{
+            var hc = palettes[pn];
+            var cg = libDoc.swatchGroups.add();
+            cg.name = pn;
+            for (var j = 0; j < hc.length; j++) {{
+                var rgb2 = hexToRGB(hc[j]);
+                var col = new RGBColor();
+                col.red = rgb2[0];
+                col.green = rgb2[1];
+                col.blue = rgb2[2];
+                var sw = libDoc.swatches.add();
+                sw.name = pn + " - " + j;
+                sw.color = col;
+                cg.addSwatch(sw);
+            }}
+        }}
+        var libFile = new File(swatchFolder.fsName + "/dysonsphere.ai");
+        var saveOpts = new IllustratorSaveOptions();
+        saveOpts.pdfCompatible = false;
+        libDoc.saveAs(libFile, saveOpts);
+        libDoc.close(SaveOptions.DONOTSAVECHANGES);
+        libSaved = true;
+    }}
+}} catch (e) {{}}
+
+if (libSaved) {{
+    alert("Imported " + Object.keys(palettes).length + " palettes.\\n"
+        + "Saved 'dysonsphere' to User Defined swatch libraries. "
+        + "Restart Illustrator to see it under Open Swatch Library > User Defined.");
+}} else {{
+    alert("Imported " + Object.keys(palettes).length + " palettes.\\n"
+        + "To save as a permanent library: Swatches panel menu"
+        + " > Save Swatch Library as AI > name it 'dysonsphere'.");
+}}
 """
 
     dest.write_text(jsx, encoding="utf-8")
