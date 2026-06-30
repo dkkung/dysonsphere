@@ -147,6 +147,9 @@ def save(
                 svg_path,
                 band_padding=alt.theme.options.get("bandPadding", 0.1),
                 chart_width=alt.theme.options.get("chartWidth", 100),
+                axis_offset=0
+                if alt.theme.options.get("closed")
+                else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3)),
             )
             _fix_log_minor_ticks(svg_path)
             _layer_axes_to_front(svg_path)
@@ -165,20 +168,28 @@ def save(
         alt.theme.options["transparentBackground"] = original_transparent
 
 
-def _fix_tick_alignment(path: str, band_padding: float = 0.1, chart_width: float = 100.0) -> None:
-    """Move x-axis tick lines from Vega's floor'd integer positions to exact mark centers.
+def _fix_tick_alignment(path: str, band_padding: float = 0.1, chart_width: float = 100.0, axis_offset: float = 0.0) -> None:
+    """Move x-axis tick and grid lines from Vega's floor'd integer positions to exact mark centers.
 
-    Vega snaps axis tick group transforms to integers for crisp screen rendering but
+    Vega snaps axis tick/grid group transforms to integers for crisp screen rendering but
     keeps mark coordinates as floats.  At high DPI (scale ≥ 4) this produces visible
     misalignment.
 
+    Handles both mark-rule role-axis-tick and mark-rule role-axis-grid groups.  Tick lines
+    use translate(x,0); grid lines use translate(x,-chartHeight) with y2=chartHeight.  Both
+    formats are matched by the collection regex; grid lines are distinguished by |ty| > 50.
+
     For bar charts: tick centers are read from the bar path data (aria-roledescription="bar").
     For all other charts (strip, violin, etc.): band centers are computed analytically
-    from the number of categories and theme scale parameters, then ticks are moved to
-    those float positions.  A validation step ensures the fix is only applied to nominal
-    band scales — quantitative and time axes are left untouched.  When two band-scale
+    from the number of categories and theme scale parameters, then ticks and grid lines are
+    moved to those float positions.  A validation step ensures the fix is only applied to
+    nominal band scales — quantitative and time axes are left untouched.  When two band-scale
     formulas (Case pi and Case 0) floor to the same integers, box mark x-centers
     (aria-roledescription="box") are used to resolve the ambiguity.
+
+    axis_offset: the theme's effective axis offset (tickSize when axisOffset is None, 0 when
+    closed=True).  Grid lines' y-span is extended by this amount so they reach the top chart
+    border despite the axis group being positioned axis_offset pixels below chartHeight.
     """
     import re
     import xml.etree.ElementTree as ET
@@ -225,101 +236,94 @@ def _fix_tick_alignment(path: str, band_padding: float = 0.1, chart_width: float
 
     else:
         # --- non-bar charts: compute band centers analytically ---
-        # Collect integer tick x positions from all x-axis tick groups.
-        tick_xs: list[float] = []
-
-        def collect_ticks(el: ET.Element) -> None:
-            for child in el:
-                if child.get("class", "") == "mark-rule role-axis-tick":
-                    for line in child:
-                        t = line.get("transform", "")
-                        m = re.match(r"translate\((\d+(?:\.\d+)?),0\)$", t)
-                        if m:
-                            v = float(m.group(1))
-                            if v > 0:
-                                tick_xs.append(v)
-                else:
-                    collect_ticks(child)
-
-        collect_ticks(root)
-        if not tick_xs:
-            return
-
-        # Deduplicate: hconcat panels repeat the same tick positions for each view.
-        # Keep unique positions; the center_map lookup handles all occurrences uniformly.
-        tick_xs = list(set(tick_xs))
-
-        # Three scale formulas. Validation matches actual SVG integer tick positions to
-        # the expected floor/round of each formula - only the matching formula is applied,
-        # ensuring we don't touch quantitative or time axes. When pi and 0 floor to the
-        # same integers (e.g. n=6, W=100, bp=0.1), box mark x-centers break the tie.
+        # Process each <g class="mark-rule role-axis-tick|grid"> independently.
+        # hconcat panels with different mark types (strip=Case 0, violin=Case pi)
+        # produce different integer tick positions; processing them as one set
+        # yields 2n unique positions that match no formula. Per-group processing
+        # lets each panel's axis be matched and corrected with its own formula.
         #
-        #   pi. Band, paddingInner=paddingOuter=band_padding (bar/violin without xOffset)
+        # Three scale formulas per group:
+        #   pi. Band, paddingInner=paddingOuter=band_padding (boxplot/violin)
         #      step = W / (n + bp);  center_i = step·(i + 0.5 + bp/2)
-        #      Vega uses Math.floor
-        #
-        #   0. Band, paddingInner=0 (xOffset charts), paddingOuter=band_padding
+        #   0.  Band, paddingInner=0 (xOffset/strip), paddingOuter=band_padding
         #      step = W / (n + 2·bp);  center_i = step·(bp + i + 0.5)
-        #      Vega uses Math.floor
-        #
-        #   pt. Point scale, pointPadding=0.5 (Vega-Lite default for scatter/strip marks)
+        #   pt. Point scale, pointPadding=0.5 (default for scatter/strip marks)
         #      step = W / n;  position_i = step·(0.5 + i)
-        #      Vega uses Math.round
-        n = len(tick_xs)
-        sorted_ticks = sorted(tick_xs)
+        # All use Vega's Math.floor (or Math.round for pt).
 
-        step0 = chart_width / (n + 2 * band_padding)
-        expected0 = [int(step0 * (band_padding + i + 0.5)) for i in range(n)]
+        # Global box mark centers for ambiguous-case disambiguation (pi and 0
+        # floor to the same integers, e.g. n=6, W=100, bp=0.1).
+        box_ctr: list[float] = []
+        for el in root.iter(f"{{{NS}}}path"):
+            if el.get("aria-roledescription") == "box":
+                mb = re.match(r"M([\d.]+),[-\d.e+]+L([\d.]+),", el.get("d", ""))
+                if mb:
+                    box_ctr.append((float(mb.group(1)) + float(mb.group(2))) / 2)
+        sorted_box = sorted(box_ctr)
 
-        step_pi = chart_width / (n + band_padding)
-        expected_pi = [int(step_pi * (i + 0.5 + band_padding / 2)) for i in range(n)]
+        _AXIS_CLS = {"mark-rule role-axis-tick", "mark-rule role-axis-grid"}
+        modified_any = False
+        for g in root.iter(f"{{{NS}}}g"):
+            if g.get("class") not in _AXIS_CLS:
+                continue
+            # Collect unique local x positions for this axis group.
+            xs: list[float] = []
+            for line in g:
+                m = re.match(r"translate\((\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)$", line.get("transform", ""))
+                if m:
+                    v = float(m.group(1))
+                    if v > 0:
+                        xs.append(v)
+            if not xs:
+                continue
+            xs = sorted(set(xs))
+            n = len(xs)
 
-        step_pt = chart_width / n
-        expected_pt = [round(step_pt * (0.5 + i)) for i in range(n)]
+            step0 = chart_width / (n + 2 * band_padding)
+            expected0 = [int(step0 * (band_padding + i + 0.5)) for i in range(n)]
 
-        actual_int = [int(t) for t in sorted_ticks]
-        if actual_int == expected_pi and actual_int == expected0:
-            # Ambiguous: both formulas floor to the same integer tick positions
-            # (e.g. n=6, W=100, bp=0.1). Use box mark x-centers to resolve.
-            box_ctr: list[float] = []
-            for el in root.iter(f"{{{NS}}}path"):
-                if el.get("aria-roledescription") == "box":
-                    mb = re.match(r"M([\d.]+),[-\d.e+]+L([\d.]+),", el.get("d", ""))
-                    if mb:
-                        box_ctr.append((float(mb.group(1)) + float(mb.group(2))) / 2)
-            if not box_ctr:
-                return
-            sorted_box = sorted(box_ctr)
-            pi_err = sum(abs(b - step_pi * (i + 0.5 + band_padding / 2)) for i, b in enumerate(sorted_box))
-            z0_err = sum(abs(b - step0 * (band_padding + i + 0.5)) for i, b in enumerate(sorted_box))
-            if pi_err < z0_err:
-                center_map = {t: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, t in enumerate(sorted_ticks)}
-            else:
-                center_map = {t: round(step0 * (band_padding + i + 0.5), 4) for i, t in enumerate(sorted_ticks)}
-        elif actual_int == expected_pi:
-            center_map = {t: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, t in enumerate(sorted_ticks)}
-        elif actual_int == expected0:
-            center_map = {t: round(step0 * (band_padding + i + 0.5), 4) for i, t in enumerate(sorted_ticks)}
-        elif actual_int == expected_pt:
-            center_map = {t: round(step_pt * (0.5 + i), 4) for i, t in enumerate(sorted_ticks)}
-        else:
-            return
+            step_pi = chart_width / (n + band_padding)
+            expected_pi = [int(step_pi * (i + 0.5 + band_padding / 2)) for i in range(n)]
 
-        def apply_analytic_fix(el: ET.Element) -> None:
-            for child in el:
-                cls = child.get("class", "")
-                if cls in ("mark-rule role-axis-tick", "mark-rule role-axis-grid"):
-                    for line in child:
-                        t = line.get("transform", "")
-                        m = re.match(r"translate\((\d+(?:\.\d+)?),([-\d.]+)\)$", t)
-                        if m:
-                            c = center_map.get(float(m.group(1)))
-                            if c is not None:
-                                line.set("transform", f"translate({c},{m.group(2)})")
+            step_pt = chart_width / n
+            expected_pt = [round(step_pt * (0.5 + i)) for i in range(n)]
+
+            actual_int = [int(v) for v in xs]
+            if actual_int == expected_pi and actual_int == expected0:
+                if not sorted_box:
+                    continue
+                pi_err = sum(abs(b - step_pi * (i + 0.5 + band_padding / 2)) for i, b in enumerate(sorted_box))
+                z0_err = sum(abs(b - step0 * (band_padding + i + 0.5)) for i, b in enumerate(sorted_box))
+                if pi_err < z0_err:
+                    center_map = {v: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, v in enumerate(xs)}
                 else:
-                    apply_analytic_fix(child)
+                    center_map = {v: round(step0 * (band_padding + i + 0.5), 4) for i, v in enumerate(xs)}
+            elif actual_int == expected_pi:
+                center_map = {v: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, v in enumerate(xs)}
+            elif actual_int == expected0:
+                center_map = {v: round(step0 * (band_padding + i + 0.5), 4) for i, v in enumerate(xs)}
+            elif actual_int == expected_pt:
+                center_map = {v: round(step_pt * (0.5 + i), 4) for i, v in enumerate(xs)}
+            else:
+                continue
 
-        apply_analytic_fix(root)
+            is_grid = g.get("class") == "mark-rule role-axis-grid"
+            for line in g:
+                m = re.match(r"translate\(([\d.]+),([-\d.]+)\)$", line.get("transform", ""))
+                if m:
+                    c = center_map.get(float(m.group(1)))
+                    if c is not None:
+                        ty = float(m.group(2))
+                        if is_grid and ty < -50 and axis_offset > 0:
+                            y2 = line.get("y2")
+                            if y2 is not None and float(y2) > 50:
+                                line.set("y2", str(float(y2) + axis_offset))
+                            ty -= axis_offset
+                        line.set("transform", f"translate({c},{ty})")
+                        modified_any = True
+
+        if not modified_any:
+            return
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(ET.tostring(root, encoding="unicode"))
