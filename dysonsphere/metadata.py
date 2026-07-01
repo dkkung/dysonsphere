@@ -219,7 +219,7 @@ def read(path: str, *, what: str = "report", save: bool | str = False) -> "str |
     Parameters
     ----------
     path:
-        A dysonsphere-exported ``.png``, ``.svg``, or ``_vegalite.json`` file.
+        A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` file.
     what:
         Which artifact to return:
 

@@ -67,6 +67,8 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "heatmapPalette": None,
     "ordinalPalette": None,
     "rampPalette": None,
+    "saveBackground": "light",
+    "saveFormat": ["svg", "json"],
     "strokeCap": "round",
     "ticks": True,
     "tickSize": 3,

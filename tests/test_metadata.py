@@ -14,7 +14,8 @@ from dysonsphere.theme import theme
 
 @pytest.fixture(autouse=True)
 def default_theme():
-    theme()
+    # metadata tests exercise all three formats, so make save() emit them by default
+    theme(saveFormat=["svg", "png", "json"])
 
 
 @pytest.fixture
@@ -38,14 +39,14 @@ class TestSaveUsermeta:
         return ds.mark_strip(df, "g", "v", cats) + ds.add_comparisons(df, "g", "v", test="anova", categories=cats)
 
     def _usermeta(self, tmp_path, name="out"):
-        return json.loads((tmp_path / f"{name}_vegalite.json").read_text())["usermeta"]
+        return json.loads((tmp_path / f"{name}.json").read_text())["usermeta"]
 
-    def _svg_metadata(self, tmp_path, name="out_light"):
+    def _svg_metadata(self, tmp_path, name="out"):
         svg = (tmp_path / f"{name}.svg").read_text(encoding="utf-8")
         m = re.search(r'<metadata id="dysonsphere"><!\[CDATA\[(.*?)\]\]></metadata>', svg, re.DOTALL)
         return json.loads(m.group(1)) if m else None
 
-    def _png_dysonsphere_chunk(self, tmp_path, name="out_light"):
+    def _png_dysonsphere_chunk(self, tmp_path, name="out"):
         data = (tmp_path / f"{name}.png").read_bytes()
         i = 8
         while i < len(data):
@@ -104,7 +105,7 @@ class TestSaveUsermeta:
 
     def test_no_usermeta_when_metadata_disabled(self, stats_chart, tmp_path):
         save(stats_chart, str(tmp_path / "out"), saveMetadata=False, background=["light"])
-        assert "usermeta" not in (tmp_path / "out_vegalite.json").read_text()
+        assert "usermeta" not in (tmp_path / "out.json").read_text()
 
     def test_svg_embeds_structured_metadata(self, stats_chart, tmp_path):
         save(stats_chart, str(tmp_path / "out"), background=["light"])
@@ -130,12 +131,12 @@ class TestSaveUsermeta:
         assert self._svg_metadata(tmp_path) is None
         assert self._png_dysonsphere_chunk(tmp_path) is None
 
-    def _svg_report(self, tmp_path, section="statistics", name="out_light"):
+    def _svg_report(self, tmp_path, section="statistics", name="out"):
         svg = (tmp_path / f"{name}.svg").read_text(encoding="utf-8")
         m = re.search(rf'<metadata id="dysonsphere-report-{section}">(.*?)</metadata>', svg, re.DOTALL)
         return m.group(1) if m else None
 
-    def _png_report_text(self, tmp_path, section="statistics", name="out_light"):
+    def _png_report_text(self, tmp_path, section="statistics", name="out"):
         data = (tmp_path / f"{name}.png").read_bytes()
         i = 8
         while i < len(data):
@@ -158,7 +159,7 @@ class TestSaveUsermeta:
 
     def test_report_not_in_description(self, stats_chart, tmp_path):
         save(stats_chart, str(tmp_path / "out"), description="my caption", background=["light"])
-        spec = json.loads((tmp_path / "out_vegalite.json").read_text())
+        spec = json.loads((tmp_path / "out.json").read_text())
         assert spec["description"] == "my caption"  # description is the user's text only
 
     def test_report_not_duplicated_in_structured_blob(self, stats_chart, tmp_path):
@@ -190,7 +191,7 @@ class TestReadLoad:
 
         import dysonsphere as ds
 
-        ds.theme(chartWidth=180, sigFigs=2)
+        ds.theme(chartWidth=180, sigFigs=2, saveFormat=["svg", "png", "json"])
         rng = np.random.default_rng(0)
         df = pl.DataFrame({"g": ["A"] * 30 + ["B"] * 30, "v": np.r_[rng.normal(0, 1, 30), rng.normal(2, 1, 30)]})
         chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.add_comparisons(
@@ -202,14 +203,14 @@ class TestReadLoad:
     def test_read_report_from_each_format(self, saved):
         import dysonsphere as ds
 
-        for name in ("t_vegalite.json", "t_light.svg", "t_light.png"):
+        for name in ("t.json", "t.svg", "t.png"):
             r = ds.read(str(saved / name))  # what="report" default
             assert isinstance(r, str) and r.startswith("Statistics")
 
     def test_read_statistics_exact_floats(self, saved):
         import dysonsphere as ds
 
-        stats = ds.read(str(saved / "t_light.png"), what="statistics")
+        stats = ds.read(str(saved / "t.png"), what="statistics")
         assert isinstance(stats, list)
         p = stats[0]["comparisons"]["pairs"][0]["pvalue"]
         assert isinstance(p, float) and 0 < p < 1e-6  # exact, not the floored display value
@@ -217,7 +218,7 @@ class TestReadLoad:
     def test_read_metadata_has_all_keys(self, saved):
         import dysonsphere as ds
 
-        m = ds.read(str(saved / "t_light.svg"), what="metadata")
+        m = ds.read(str(saved / "t.svg"), what="metadata")
         assert isinstance(m, dict)
         assert set(m) == {"provenance", "statistics", "theme", "report"}
         assert m["theme"]["chartWidth"] == 180
@@ -237,13 +238,13 @@ class TestReadLoad:
         )
         ds.save(chart, str(tmp_path / "u"), embedReport=False, background=["light"])
         # no embedded prose, but statistics are present → read re-renders the table
-        r = ds.read(str(tmp_path / "u_light.png"))
+        r = ds.read(str(tmp_path / "u.png"))
         assert isinstance(r, str) and r.startswith("Statistics")
 
     def test_report_provenance_sentence(self, saved):
         import dysonsphere as ds
 
-        m = ds.read(str(saved / "t_light.png"), what="metadata")
+        m = ds.read(str(saved / "t.png"), what="metadata")
         assert isinstance(m, dict)
         prov = m["report"]["provenance"]
         assert prov.startswith("Provenance\n") and "Generated by " in prov
@@ -254,17 +255,17 @@ class TestReadLoad:
 
         chart = alt.Chart(pl.DataFrame({"x": [1, 2, 3], "y": [1.0, 2.0, 3.0]})).mark_point().encode(x="x:Q", y="y:Q")
         ds.save(chart, str(tmp_path / "bare"), background=["light"])
-        m = ds.read(str(tmp_path / "bare_vegalite.json"), what="metadata")
+        m = ds.read(str(tmp_path / "bare.json"), what="metadata")
         assert isinstance(m, dict)
         assert list(m["report"]) == ["provenance"]  # no statistics section, but provenance is there
-        r = ds.read(str(tmp_path / "bare_light.svg"))  # what="report" — no longer blank
+        r = ds.read(str(tmp_path / "bare.svg"))  # what="report" — no longer blank
         assert isinstance(r, str) and r.startswith("Provenance")
 
     def test_read_invalid_what_raises(self, saved):
         import dysonsphere as ds
 
         with pytest.raises(ValueError, match="what must be"):
-            ds.read(str(saved / "t_vegalite.json"), what="bogus")
+            ds.read(str(saved / "t.json"), what="bogus")
 
     def test_read_unsupported_extension_raises(self, tmp_path):
         import dysonsphere as ds
@@ -276,7 +277,7 @@ class TestReadLoad:
     def test_load_returns_composable_object(self, saved):
         import dysonsphere as ds
 
-        obj = ds.load(str(saved / "t_vegalite.json"))
+        obj = ds.load(str(saved / "t.json"))
         assert isinstance(obj, alt.LayerChart)
         assert isinstance(obj + alt.Chart().mark_point(), alt.LayerChart)  # composes
 
@@ -284,21 +285,21 @@ class TestReadLoad:
         import dysonsphere as ds
 
         ds.theme(chartWidth=999)  # clobber
-        ds.load(str(saved / "t_vegalite.json"))  # applyTheme=True default
+        ds.load(str(saved / "t.json"))  # applyTheme=True default
         assert alt.theme.options["chartWidth"] == 180  # restored from the baked theme
 
     def test_load_apply_theme_false_leaves_theme(self, saved):
         import dysonsphere as ds
 
         ds.theme(chartWidth=999)
-        ds.load(str(saved / "t_vegalite.json"), applyTheme=False)
+        ds.load(str(saved / "t.json"), applyTheme=False)
         assert alt.theme.options["chartWidth"] == 999  # untouched
 
     def test_load_raw_returns_spec_dict(self, saved):
         import dysonsphere as ds
 
         ds.theme(chartWidth=999)
-        spec = ds.load(str(saved / "t_vegalite.json"), raw=True)
+        spec = ds.load(str(saved / "t.json"), raw=True)
         assert isinstance(spec, dict) and "config" in spec  # raw spec, theme config intact
         assert alt.theme.options["chartWidth"] == 999  # globals untouched
 
@@ -306,7 +307,7 @@ class TestReadLoad:
         import dysonsphere as ds
 
         with pytest.raises(ValueError, match="Vega-Lite JSON"):
-            ds.load(str(saved / "t_light.png"))
+            ds.load(str(saved / "t.png"))
 
     def test_read_no_metadata_raises(self, tmp_path):
         import dysonsphere as ds
@@ -314,13 +315,13 @@ class TestReadLoad:
         chart = alt.Chart(pl.DataFrame({"x": [1, 2], "y": [1.0, 2.0]})).mark_point().encode(x="x:Q", y="y:Q")
         ds.save(chart, str(tmp_path / "bare"), saveMetadata=False, background=["light"])
         with pytest.raises(ValueError, match="no dysonsphere metadata"):
-            ds.read(str(tmp_path / "bare_vegalite.json"))
+            ds.read(str(tmp_path / "bare.json"))
 
     def test_read_report_save_writes_txt(self, saved, tmp_path):
         import dysonsphere as ds
 
         outdir = tmp_path / "reports"
-        ds.read(str(saved / "t_light.png"), save=str(outdir))
+        ds.read(str(saved / "t.png"), save=str(outdir))
         txts = list(outdir.glob("dysonsphere_report_*.txt"))
         assert len(txts) == 1 and txts[0].read_text(encoding="utf-8").startswith("Statistics")
 

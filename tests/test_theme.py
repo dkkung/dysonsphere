@@ -95,6 +95,16 @@ class TestThemeDefaults:
         theme(sigFigs=2)
         assert alt.theme.options["sigFigs"] == 2
 
+    def test_save_defaults(self):
+        theme()
+        assert alt.theme.options["saveFormat"] == ["svg", "json"]
+        assert alt.theme.options["saveBackground"] == "light"
+
+    def test_save_defaults_override(self):
+        theme(saveFormat="png", saveBackground=["light", "dark"])
+        assert alt.theme.options["saveFormat"] == "png"  # stored as-is; save() normalizes
+        assert alt.theme.options["saveBackground"] == ["light", "dark"]
+
     def test_smallest_font_size_custom_int(self):
         theme(smallestFontSize=4)
         assert alt.theme.options["smallestFontSize"] == 4

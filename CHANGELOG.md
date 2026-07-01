@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **`save()` defaults and output control.** `save()` now writes **SVG + JSON, light background only** by default (previously light+dark PNG+SVG+JSON). A new `format` param (`"svg"`/`"png"`/`"json"`, string or list) controls which files are written, and `background` (`"light"`/`"dark"`, string or list) which variants; both default to the new theme options `saveFormat` (`["svg", "json"]`) / `saveBackground` (`"light"`), so the export defaults are configurable globally or in `dysonsphere.toml`. The `saveVegaSpec` parameter is **removed** (use `format` with/without `"json"`). Filenames now get a `_light`/`_dark` suffix **only when more than one background** is rendered — a single-background export writes clean names (`fig.svg`, `fig.json`), and the JSON dropped its `_vegalite` infix (now `fig.json`). Invalid or empty `format`/`background` raises `ValueError`.
+
 ### New features
 
 - **`read()` and `load()`** - read a dysonsphere-exported file back in. `ds.read(path, what="report"|"statistics"|"metadata")` pulls the embedded metadata from a PNG/SVG/JSON — the report table (printed; re-rendered from the records if it wasn't embedded), the structured records (exact floats), or the whole block. `ds.load(path)` rebuilds a composable Altair object from the Vega-Lite JSON and re-applies the figure's saved theme (`raw=True` returns the untouched spec dict; `applyTheme=False` leaves the active theme alone). `save()` now also bakes the resolved `ds.theme()` arguments into `usermeta.dysonsphere.theme`, so styling is recorded and reconstructable.

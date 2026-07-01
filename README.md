@@ -43,9 +43,7 @@ chart = (
 )
 
 ds.save(chart, "plots/myplot")
-# writes: plots/myplot_light.png, plots/myplot_light.svg
-#         plots/myplot_dark.png,  plots/myplot_dark.svg
-#         plots/myplot_vegalite.json
+# writes: plots/myplot.svg, plots/myplot.json   (SVG + JSON, light — the defaults)
 ```
 
 ---
@@ -364,9 +362,7 @@ All palettes are added to the Swatches panel as named groups (e.g. `blues`, `red
 
 ```python
 ds.save(chart, "plots/myplot")
-# writes: plots/myplot_light.png, plots/myplot_light.svg
-#         plots/myplot_dark.png,  plots/myplot_dark.svg
-#         plots/myplot_vegalite.json
+# writes: plots/myplot.svg, plots/myplot.json   (SVG + JSON, light — the defaults)
 ```
 
 **Always use `ds.save()` instead of `chart.save()`.** `ds.save()` is a wrapper around Altair's built-in save that runs several post-processing steps essential for correct rendering in dysonsphere-themed charts:
@@ -379,15 +375,17 @@ ds.save(chart, "plots/myplot")
 
 Calling `chart.save()` directly skips all of the above and will produce misaligned ticks and incorrect minor tick spacing in dysonsphere charts.
 
-`ds.save()` produces light and dark PNG and SVG files from a single call. A Vega-Lite JSON spec is also saved by default for full reproducibility. It accepts any Altair chart type — `Chart`, `LayerChart`, `FacetChart`, `HConcatChart`, `VConcatChart`, or `ConcatChart` — as well as a zero-argument callable that returns one.
+`ds.save()` writes a chart in one or more formats and background variants. **By default it writes SVG + the Vega-Lite JSON spec, light background only** — `myplot.svg` and `myplot.json`. The formats (`"svg"`/`"png"`/`"json"`) and backgrounds (`"light"`/`"dark"`) are set by `format` / `background` (a string or a list), each defaulting to the theme options `saveFormat` / `saveBackground` (so you can change the defaults globally or in `dysonsphere.toml`). A `_light`/`_dark` suffix is added **only when more than one background** is rendered. It accepts any Altair chart type — `Chart`, `LayerChart`, `FacetChart`, `HConcatChart`, `VConcatChart`, or `ConcatChart` — as well as a zero-argument callable that returns one.
 
 ```python
-ds.save(chart, "myplot", ppi=1200)                 # default PPI; reduce for faster exports
-ds.save(chart, "myplot", saveVegaSpec=False)       # skip the JSON spec
-ds.save(chart, "myplot", description="Figure 1")   # your own description, in SVG <desc>, PNG iTXt, and the JSON spec
-ds.save(chart, "myplot", saveMetadata=False)       # suppress the structured metadata block
-ds.save(chart, "myplot", background=["light"])     # light variant only
-ds.save(chart, "myplot", background=["dark"])      # dark variant only
+ds.save(chart, "myplot")                              # myplot.svg + myplot.json  (defaults)
+ds.save(chart, "myplot", format="png")                # myplot.png only
+ds.save(chart, "myplot", format=["svg", "png", "json"])
+ds.save(chart, "myplot", background=["light", "dark"])  # myplot_light.* + myplot_dark.*
+ds.save(chart, "myplot", ppi=600)                     # lower PPI for faster PNG exports
+ds.save(chart, "myplot", description="Figure 1")      # your own description, in SVG <desc>, PNG iTXt, and the JSON spec
+ds.save(chart, "myplot", saveMetadata=False)          # suppress the structured metadata block
+ds.theme(saveFormat=["svg", "png"], saveBackground="dark")  # change the save defaults globally
 ```
 
 #### Metadata
@@ -396,12 +394,12 @@ By default, `ds.save()` embeds a machine-readable JSON block — `{"provenance":
 
 - **Vega-Lite JSON** — under `usermeta.dysonsphere` (merged into any `usermeta` you set yourself).
 - **SVG** — in a `<metadata id="dysonsphere">` element (CDATA).
-- **PNG** — in an `iTXt dysonsphere` chunk (read with e.g. `exiftool myplot_light.png`).
+- **PNG** — in an `iTXt dysonsphere` chunk (read with e.g. `exiftool myplot.png`).
 
 The block has these keys:
 
 - `provenance` — the generation facts as structured fields: `user`, `script`, `timestamp` (ISO-8601), `python`, `altair`, `dysonsphere`. (In a Jupyter notebook `script` is `<jupyter-notebook>`; if the OS exposes no username, `user` is `unknown_user`.)
-- `statistics` — the structured records from any [`add_comparisons()`](#adding-p-value-annotations) / `add_correlation()` calls (per-group descriptives, the omnibus result, the comparison test + correction method, and every comparison with exact p-values and effect sizes). Read it back with `json.load(open("myplot_vegalite.json"))["usermeta"]["dysonsphere"]["statistics"]` — no text parsing, and trivial to turn into CSV/TSV.
+- `statistics` — the structured records from any [`add_comparisons()`](#adding-p-value-annotations) / `add_correlation()` calls (per-group descriptives, the omnibus result, the comparison test + correction method, and every comparison with exact p-values and effect sizes). Read it back with `json.load(open("myplot.json"))["usermeta"]["dysonsphere"]["statistics"]` — no text parsing, and trivial to turn into CSV/TSV.
 - `report` — a **container** of human-readable renderings, keyed by section: `report.provenance` (a "Generated by … using Python …, Altair …, dysonsphere …" sentence, always present) and `report.statistics` (the descriptive + effect-size text, present when the chart has any comparisons/correlations). So you can read the whole thing straight out of the file, and the nesting leaves room for future sections (`report.methods`, …) as non-breaking siblings. On by default (`embedReport=True`); set `embedReport=False` to keep just the structured block. In the SVG and PNG each section rides in its own readable channel (`<metadata id="dysonsphere-report-<section>">` / `iTXt dysonsphere-report-<section>`, real newlines) rather than escaped inside the JSON blob.
 - `theme` — the resolved `ds.theme()` arguments used for the figure (dysonsphere params, not Altair's), so the exact styling is recorded and reconstructable.
 
@@ -412,21 +410,21 @@ None of this touches `description` — that stays your `description=` text only.
 `ds.read()` pulls the metadata back out of any exported PNG / SVG / JSON:
 
 ```python
-ds.read("myplot_light.png")                       # prints the report table, returns the text
-ds.read("myplot_light.png", save="reports")       # + writes reports/dysonsphere_report_<ts>.txt
-ds.read("myplot_light.png", what="statistics")    # the structured records (exact floats)
-ds.read("myplot_vegalite.json", what="metadata")  # the whole {provenance, statistics, theme, report} dict
+ds.read("myplot.png")                       # prints the report table, returns the text
+ds.read("myplot.png", save="reports")       # + writes reports/dysonsphere_report_<ts>.txt
+ds.read("myplot.png", what="statistics")    # the structured records (exact floats)
+ds.read("myplot.json", what="metadata")  # the whole {provenance, statistics, theme, report} dict
 ```
 
 `what="report"` (default) even **re-renders the table from the records** if the prose wasn't embedded (`embedReport=False`), so it works on any dysonsphere-saved file.
 
-`ds.load()` rebuilds the chart from the **Vega-Lite JSON** (`_vegalite.json`):
+`ds.load()` rebuilds the chart from the **Vega-Lite JSON** (the `.json` spec):
 
 ```python
-chart = ds.load("myplot_vegalite.json")            # composable Altair object; re-applies the saved theme
+chart = ds.load("myplot.json")            # composable Altair object; re-applies the saved theme
 chart + ds.add_comparisons(df, "g", "v", pairs)    # extend it, then ds.save() again
-ds.load("myplot_vegalite.json", raw=True)          # the raw spec dict — re-renders pixel-identically
-ds.load("myplot_vegalite.json", applyTheme=False)  # don't touch the active theme
+ds.load("myplot.json", raw=True)          # the raw spec dict — re-renders pixel-identically
+ds.load("myplot.json", applyTheme=False)  # don't touch the active theme
 ```
 
 By default `load()` returns a real, composable Altair object with the file's theme re-applied (which, like any `ds.theme()` call, **replaces the active theme globally**). It strips the theme `config` (Altair's schema is stricter than Vega-Lite's), so the styling comes from the re-applied theme; use `raw=True` for the untouched spec dict if you want a faithful re-render without touching the global theme. JSON only — PNG/SVG carry the metadata but not the full spec.

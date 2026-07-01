@@ -18,27 +18,49 @@ _AltairChart = Union[
     alt.ConcatChart,
 ]
 
+_VALID_FORMATS = ("svg", "png", "json")
+_VALID_BACKGROUNDS = ("light", "dark")
+
+
+def _resolve_choice(value, default, valid: tuple[str, ...], name: str) -> list[str]:
+    """Normalize a str-or-list ``save()`` choice (falling back to the theme ``default``) to a
+    validated, non-empty list.  Raises ``ValueError`` on an empty list or unknown value.
+    """
+    raw = value if value is not None else default
+    items = [raw] if isinstance(raw, str) else list(raw)
+    if not items:
+        raise ValueError(f"{name} must be non-empty; got {raw!r}")
+    invalid = [x for x in items if x not in valid]
+    if invalid:
+        raise ValueError(f"{name} must be one of {valid}, got {invalid!r}")
+    return items
+
 
 def save(
     chart: _AltairChart | Callable[[], _AltairChart],
     filename: str,
     ppi: int = 1200,
     description: str | None = None,
-    saveVegaSpec: bool = True,
     saveMetadata: bool = True,
     embedReport: bool = True,
-    background: list[str] = ["light", "dark"],
+    format: str | list[str] | None = None,
+    background: str | list[str] | None = None,
 ) -> None:
     """
-    Save a chart as light and dark PNG and SVG files.
+    Save a chart in one or more formats and background variants.
 
-    Produces up to four files from a single call:
+    Which files are written is controlled by ``format`` (``"svg"``/``"png"``/``"json"``)
+    and ``background`` (``"light"``/``"dark"``), each defaulting to the theme options
+    ``saveFormat`` / ``saveBackground``. A background suffix (``_light`` / ``_dark``) is
+    added **only when more than one background** is rendered — a single-background export
+    keeps clean names::
 
-    - ``<filename>_light.png`` and ``<filename>_light.svg``
-    - ``<filename>_dark.png`` and ``<filename>_dark.svg``
+        ds.save(chart, "fig")                      # fig.svg + fig.json   (defaults)
+        ds.save(chart, "fig", format="png")        # fig.png
+        ds.save(chart, "fig", background=["light", "dark"])
+        #   → fig_light.svg / fig_dark.svg + fig_light.json / fig_dark.json
 
-    Dark and light versions are rendered by temporarily toggling
-    ``darkmode`` in the theme options, leaving all other options intact.
+    Each background toggles ``darkmode`` for its render, restoring the original after.
 
     Parameters
     ----------
@@ -47,9 +69,9 @@ def save(
         one. Accepts any Altair compound chart type: ``Chart``,
         ``LayerChart``, ``FacetChart``, ``VConcatChart``, ``HConcatChart``,
         or ``ConcatChart``. When a callable is provided it is called fresh
-        for each light/dark variant — after ``darkmode`` has been toggled —
-        so any marks whose colours depend on ``ds.theme()`` (e.g.
-        ``add_multilabel``) are rebuilt with the correct palette each time.
+        for each variant — after ``darkmode`` has been toggled — so any marks
+        whose colours depend on ``ds.theme()`` (e.g. ``add_multilabel``) are
+        rebuilt with the correct palette each time.
     filename:
         Extensionless path for the output files (e.g. ``"myplot"`` or
         ``"plots/myplot"``). A bare name saves to the current working
@@ -60,8 +82,14 @@ def save(
         Optional, purely your own text. Stored verbatim (nothing appended) in the
         Vega-Lite JSON spec's ``description`` field, the SVG ``<desc>`` element, and the
         PNG ``iTXt Description`` chunk. Independent of ``saveMetadata``.
-    saveVegaSpec:
-        If ``True``, also writes ``<filename>_vegalite.json`` containing the full Vega-Lite spec.
+    format:
+        Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw
+        Vega-Lite spec), as a single string or a list. ``None`` (default) uses the theme
+        option ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
+    background:
+        Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles
+        ``darkmode``), as a single string or a list. ``None`` (default) uses the theme
+        option ``saveBackground`` (``"light"``). An empty list or unknown value raises.
     saveMetadata:
         If ``True`` (default), embeds a **structured JSON** metadata block —
         ``{"provenance": {...}, "statistics": [...]}`` — in every output format so each
@@ -89,13 +117,10 @@ def save(
         (``<metadata id="dysonsphere-report">``) and **PNG** (``iTXt dysonsphere-report``).
         It never touches ``description`` (your text only). Set ``False`` to keep just the
         structured block. (Also available standalone via ``add_comparisons(report=True)``.)
-    background:
-        Which background variants to render. Defaults to ``["light", "dark"]``. Pass
-        ``["light"]`` or ``["dark"]`` to render only one variant.
 
     Examples
     --------
-    Static chart (existing behaviour)::
+    Static chart::
 
         ds.theme()
         chart = alt.Chart(df).mark_point().encode(...)
@@ -106,10 +131,19 @@ def save(
         ds.save(
             lambda: ds.add_multilabel(chart, CONDITIONS, style="symbol"),
             "plots/myplot",
+            background=["light", "dark"],
         )
     """
     if not alt.theme.options:
         raise RuntimeError("ds.theme() must be called before ds.save().")
+
+    # Resolve format/background (str or list) against the theme defaults, then validate up
+    # front — before draining — so an invalid request errors cleanly and leaves the queue
+    # for the next real save().
+    _formats = _resolve_choice(format, alt.theme.options.get("saveFormat", ["svg", "json"]), _VALID_FORMATS, "format")
+    _backgrounds = _resolve_choice(
+        background, alt.theme.options.get("saveBackground", ["light"]), _VALID_BACKGROUNDS, "background"
+    )
 
     # Drain the structured statistical records queued by add_comparisons().  Always drain
     # (so the queue does not leak into a later save); metadata._build_block() assembles the
@@ -118,84 +152,83 @@ def save(
     from .statistics import _drain_reports
 
     _records = _drain_reports()
-    _usermeta: dict | None = None
-    _usermeta_json: str | None = None
-    _report_sections: dict[str, str] | None = None
-    if saveMetadata:
-        _usermeta, _usermeta_json, _report_sections = metadata._build_block(_records, embed_report=embedReport)
 
-    # _resolve() is called once per variant (or once for the spec).
-    # When chart is a callable it is re-invoked each time so that any
-    # marks whose colours read from alt.theme.options at construction time
-    # (e.g. add_multilabel dot colours) pick up the correct
-    # darkmode value that was just toggled above.
-    #
-    # The chart's `description` property feeds the Vega-Lite JSON spec's description key;
-    # it holds only the user's `description=`.  (Vega-Lite's SVG renderer does not emit
-    # <desc> from this property; save() injects <desc>/<metadata> into the SVG below.)
-    def _resolve() -> _AltairChart:
+    # _resolve() re-invokes a callable chart each time so marks whose colours read from
+    # alt.theme.options at construction (e.g. add_multilabel dots) pick up the current
+    # darkmode.  The `description` property feeds the JSON spec's description key (user text
+    # only); save() also injects <desc>/<metadata> into the SVG and iTXt into the PNG below.
+    def _resolve(usermeta: dict | None) -> _AltairChart:
         c = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
         if description is not None:
             c = c.properties(description=description)
-        if _usermeta is not None:
+        if usermeta is not None:
             existing = getattr(c, "usermeta", alt.Undefined)
-            base = existing if isinstance(existing, dict) else {}
-            c = c.properties(usermeta={**base, **_usermeta})
+            merged = existing if isinstance(existing, dict) else {}
+            c = c.properties(usermeta={**merged, **usermeta})
         return c
 
-    base = Path(filename)
+    out = Path(filename)
+    multi = len(_backgrounds) > 1
+
+    def _path(bg: str, ext: str) -> str:
+        return str(out.parent / f"{out.name}{'_' + bg if multi else ''}.{ext}")
+
+    _want_render = "svg" in _formats or "png" in _formats
     original_darkmode = alt.theme.options.get("darkmode", False)
     original_transparent = alt.theme.options.get("transparentBackground", False)
-
-    if saveVegaSpec:
-        _resolve().save(str(base.parent / f"{base.name}_vegalite.json"))
-
     try:
-        import vl_convert as vlc
+        if _want_render:
+            import vl_convert as vlc
 
-        _background_map = {"light": (False, "_light"), "dark": (True, "_dark")}
-        invalid = [b for b in background if b not in _background_map]
-        if invalid:
-            raise ValueError(f"background must contain 'light' and/or 'dark', got {invalid!r}")
+        for bg in _backgrounds:
+            alt.theme.options["darkmode"] = bg == "dark"
+            # Metadata (incl. the baked theme's darkmode) is rebuilt per background at the
+            # chart's logical transparency, so each variant's block matches how it renders.
+            alt.theme.options["transparentBackground"] = original_transparent
+            _usermeta = _usermeta_json = _report_sections = None
+            if saveMetadata:
+                _usermeta, _usermeta_json, _report_sections = metadata._build_block(_records, embed_report=embedReport)
 
-        alt.theme.options["transparentBackground"] = True
-        for mode, suffix in [_background_map[b] for b in background]:
-            alt.theme.options["darkmode"] = mode
-            # _resolve() re-calls chart() here so darkmode-sensitive colours are baked correctly
-            svg_path = str(base.parent / f"{base.name}{suffix}.svg")
-            _resolve().save(svg_path)
-            _fix_tick_alignment(
-                svg_path,
-                band_padding=alt.theme.options.get("bandPadding", 0.1),
-                chart_width=alt.theme.options.get("chartWidth", 100),
-                axis_offset=0
-                if alt.theme.options.get("closed")
-                else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3)),
-            )
-            _fix_log_minor_ticks(svg_path)
-            _layer_axes_to_front(svg_path)
-            _simplify_svg(svg_path)
-            _fix_superscript_labels(svg_path)
-            with open(svg_path, encoding="utf-8") as f:
-                svg_content = f.read()
-            # Inject the metadata channels + user <desc> right after the opening <svg> tag.
-            # A lambda replacement is used so backslashes or braces inside the JSON are
-            # inserted literally (never treated as regex references).
-            _inserts = metadata._svg_inserts(_usermeta_json, _report_sections, description)
-            if _inserts:
-                svg_content = re.sub(r"(<svg[^>]*>)", lambda m: m.group(1) + _inserts, svg_content, count=1)
-                Path(svg_path).write_text(svg_content, encoding="utf-8")
-            png_path = str(base.parent / f"{base.name}{suffix}.png")
-            png_bytes = vlc.svg_to_png(svg_content, ppi=ppi)
-            png_bytes = metadata._inject_png_block(png_bytes, _usermeta_json, _report_sections, description)
-            Path(png_path).write_bytes(png_bytes)
+            if "json" in _formats:
+                _resolve(_usermeta).save(_path(bg, "json"))
+
+            if _want_render:
+                alt.theme.options["transparentBackground"] = True
+                svg_path = _path(bg, "svg")
+                _resolve(_usermeta).save(svg_path)
+                _fix_tick_alignment(
+                    svg_path,
+                    band_padding=alt.theme.options.get("bandPadding", 0.1),
+                    chart_width=alt.theme.options.get("chartWidth", 100),
+                    axis_offset=0
+                    if alt.theme.options.get("closed")
+                    else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3)),
+                )
+                _fix_log_minor_ticks(svg_path)
+                _layer_axes_to_front(svg_path)
+                _simplify_svg(svg_path)
+                _fix_superscript_labels(svg_path)
+                with open(svg_path, encoding="utf-8") as f:
+                    svg_content = f.read()
+                # Inject the metadata channels + user <desc> after the opening <svg> tag.  A
+                # lambda replacement keeps backslashes/braces in the JSON literal (not regex).
+                _inserts = metadata._svg_inserts(_usermeta_json, _report_sections, description)
+                if _inserts:
+                    svg_content = re.sub(r"(<svg[^>]*>)", lambda m: m.group(1) + _inserts, svg_content, count=1)
+                    Path(svg_path).write_text(svg_content, encoding="utf-8")
+                if "png" in _formats:
+                    png_bytes = vlc.svg_to_png(svg_content, ppi=ppi)
+                    png_bytes = metadata._inject_png_block(png_bytes, _usermeta_json, _report_sections, description)
+                    Path(_path(bg, "png")).write_bytes(png_bytes)
+                if "svg" not in _formats:
+                    Path(svg_path).unlink()  # transient — only rendered as the PNG source
     finally:
         alt.theme.options["darkmode"] = original_darkmode
         alt.theme.options["transparentBackground"] = original_transparent
 
 
 def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict":
-    """Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (``_vegalite.json``).
+    """Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).
 
     JSON only — the PNG/SVG carry the metadata block but not the full spec.
 
@@ -215,7 +248,7 @@ def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairCh
     """
     p = Path(path)
     if p.suffix.lower() != ".json":
-        raise ValueError(f"load() needs the Vega-Lite JSON (…_vegalite.json), got {p.suffix!r}")
+        raise ValueError(f"load() needs the Vega-Lite JSON (the .json spec), got {p.suffix!r}")
     spec = json.loads(p.read_text(encoding="utf-8"))
     if raw:
         return spec

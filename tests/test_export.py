@@ -107,33 +107,41 @@ def simple_chart():
 
 class TestSave:
     def test_light_files_created(self, simple_chart, tmp_path):
-        save(simple_chart, str(tmp_path / "out"), background=["light"])
-        assert (tmp_path / "out_light.png").exists()
-        assert (tmp_path / "out_light.svg").exists()
+        # single background → no suffix; request png explicitly (default is svg+json)
+        save(simple_chart, str(tmp_path / "out"), format=["svg", "png"], background=["light"])
+        assert (tmp_path / "out.png").exists()
+        assert (tmp_path / "out.svg").exists()
 
     def test_dark_files_created(self, simple_chart, tmp_path):
-        save(simple_chart, str(tmp_path / "out"), background=["dark"])
-        assert (tmp_path / "out_dark.png").exists()
-        assert (tmp_path / "out_dark.svg").exists()
+        save(simple_chart, str(tmp_path / "out"), format=["svg", "png"], background=["dark"])
+        assert (tmp_path / "out.png").exists()  # single dark background → no suffix
+        assert (tmp_path / "out.svg").exists()
 
-    def test_both_variants_by_default(self, simple_chart, tmp_path):
-        save(simple_chart, str(tmp_path / "out"))
+    def test_multi_background_suffixes(self, simple_chart, tmp_path):
+        # >1 background → _light/_dark suffixes on every format
+        save(simple_chart, str(tmp_path / "out"), format=["svg", "png", "json"], background=["light", "dark"])
         for suffix in ["_light", "_dark"]:
-            assert (tmp_path / f"out{suffix}.png").exists()
-            assert (tmp_path / f"out{suffix}.svg").exists()
+            for ext in ["png", "svg", "json"]:
+                assert (tmp_path / f"out{suffix}.{ext}").exists()
+
+    def test_default_format_is_svg_and_json(self, simple_chart, tmp_path):
+        save(simple_chart, str(tmp_path / "out"))
+        assert (tmp_path / "out.svg").exists() and (tmp_path / "out.json").exists()
+        assert not (tmp_path / "out.png").exists()  # png is opt-in now
 
     def test_vega_spec_saved(self, simple_chart, tmp_path):
         save(simple_chart, str(tmp_path / "out"), background=["light"])
-        assert (tmp_path / "out_vegalite.json").exists()
+        assert (tmp_path / "out.json").exists()
 
-    def test_vega_spec_skipped(self, simple_chart, tmp_path):
-        save(
-            simple_chart,
-            str(tmp_path / "out"),
-            saveVegaSpec=False,
-            background=["light"],
-        )
-        assert not (tmp_path / "out_vegalite.json").exists()
+    def test_format_without_json_skips_spec(self, simple_chart, tmp_path):
+        save(simple_chart, str(tmp_path / "out"), format="svg", background=["light"])
+        assert not (tmp_path / "out.json").exists()
+
+    def test_format_png_only_writes_no_svg(self, simple_chart, tmp_path):
+        # the SVG is a transient PNG source and must not be left behind
+        save(simple_chart, str(tmp_path / "out"), format="png", background=["light"])
+        assert (tmp_path / "out.png").exists()
+        assert not (tmp_path / "out.svg").exists()
 
     def test_layer_chart(self, tmp_path):
         from typing import cast
@@ -142,21 +150,21 @@ class TestSave:
         base = alt.Chart(df).mark_point().encode(x="x:N", y="y:Q")
         layer = cast(alt.LayerChart, alt.layer(base))
         save(layer, str(tmp_path / "out"), background=["light"])
-        assert (tmp_path / "out_light.png").exists()
+        assert (tmp_path / "out.svg").exists()
 
     def test_hconcat_chart(self, tmp_path):
         df = pl.DataFrame({"x": ["A", "B"], "y": [1.0, 2.0]})
         panel = alt.Chart(df).mark_point().encode(x="x:N", y="y:Q")
         hcat = alt.hconcat(panel, panel)
         save(hcat, str(tmp_path / "out"), background=["light"])
-        assert (tmp_path / "out_light.png").exists()
+        assert (tmp_path / "out.svg").exists()
 
     def test_vconcat_chart(self, tmp_path):
         df = pl.DataFrame({"x": ["A", "B"], "y": [1.0, 2.0]})
         panel = alt.Chart(df).mark_point().encode(x="x:N", y="y:Q")
         vcat = alt.vconcat(panel, panel)
         save(vcat, str(tmp_path / "out"), background=["light"])
-        assert (tmp_path / "out_light.png").exists()
+        assert (tmp_path / "out.svg").exists()
 
     def test_facet_chart(self, tmp_path):
         df = pl.DataFrame(
@@ -168,7 +176,7 @@ class TestSave:
         )
         facet = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q").facet("facet:N")
         save(facet, str(tmp_path / "out"), background=["light"])
-        assert (tmp_path / "out_light.png").exists()
+        assert (tmp_path / "out.svg").exists()
 
     def test_callable_chart(self, tmp_path):
         df = pl.DataFrame({"x": ["A", "B"], "y": [1.0, 2.0]})
@@ -177,7 +185,7 @@ class TestSave:
             str(tmp_path / "out"),
             background=["light"],
         )
-        assert (tmp_path / "out_light.png").exists()
+        assert (tmp_path / "out.svg").exists()
 
     def test_darkmode_restored_after_full_save(self, simple_chart, tmp_path):
         theme(darkmode=False)
@@ -202,8 +210,8 @@ class TestSave:
             theme()
 
     def test_png_nonempty(self, simple_chart, tmp_path):
-        save(simple_chart, str(tmp_path / "out"), background=["light"])
-        assert (tmp_path / "out_light.png").stat().st_size > 100
+        save(simple_chart, str(tmp_path / "out"), format="png", background=["light"])
+        assert (tmp_path / "out.png").stat().st_size > 100
 
     def test_description_in_spec(self, simple_chart, tmp_path):
         save(
@@ -212,7 +220,7 @@ class TestSave:
             description="my chart",
             background=["light"],
         )
-        assert "my chart" in (tmp_path / "out_vegalite.json").read_text()
+        assert "my chart" in (tmp_path / "out.json").read_text()
 
     def test_description_in_svg(self, simple_chart, tmp_path):
         save(
@@ -222,19 +230,19 @@ class TestSave:
             saveMetadata=False,
             background=["light"],
         )
-        assert "<desc>my chart</desc>" in (tmp_path / "out_light.svg").read_text()
+        assert "<desc>my chart</desc>" in (tmp_path / "out.svg").read_text()
 
     def test_save_metadata_on_by_default(self, simple_chart, tmp_path):
         # The structured dysonsphere block AND the human-readable report are embedded by default.
         save(simple_chart, str(tmp_path / "out"), background=["light"])
-        svg = (tmp_path / "out_light.svg").read_text()
+        svg = (tmp_path / "out.svg").read_text()
         assert 'metadata id="dysonsphere"' in svg  # structured block
         assert 'metadata id="dysonsphere-report-provenance"' in svg  # prose provenance report section
 
     def test_save_metadata_can_be_disabled(self, simple_chart, tmp_path):
         save(simple_chart, str(tmp_path / "out"), saveMetadata=False, background=["light"])
-        assert 'metadata id="dysonsphere"' not in (tmp_path / "out_light.svg").read_text()
-        assert "usermeta" not in (tmp_path / "out_vegalite.json").read_text()
+        assert 'metadata id="dysonsphere"' not in (tmp_path / "out.svg").read_text()
+        assert "usermeta" not in (tmp_path / "out.json").read_text()
 
     def test_save_metadata_versions_in_provenance(self, simple_chart, tmp_path):
         import importlib.metadata
@@ -242,27 +250,27 @@ class TestSave:
         import altair as alt
 
         save(simple_chart, str(tmp_path / "out"), saveMetadata=True, background=["light"])
-        prov = json.loads((tmp_path / "out_vegalite.json").read_text())["usermeta"]["dysonsphere"]["provenance"]
+        prov = json.loads((tmp_path / "out.json").read_text())["usermeta"]["dysonsphere"]["provenance"]
         assert prov["altair"] == alt.__version__
         assert prov["dysonsphere"] == importlib.metadata.version("dysonsphere")
 
     def test_no_desc_when_no_user_description(self, simple_chart, tmp_path):
         # Without an explicit description=, there is no prose <desc> at all — only structured.
         save(simple_chart, str(tmp_path / "out"), background=["light"])
-        assert "<desc>" not in (tmp_path / "out_light.svg").read_text()
+        assert "<desc>" not in (tmp_path / "out.svg").read_text()
 
     def test_json_description_is_raw_user_description_only(self, simple_chart, tmp_path):
         # The JSON description carries the user's text only — provenance and report text
         # are NOT duplicated there (they live structured under usermeta).
         save(simple_chart, str(tmp_path / "out"), description="Figure 1", background=["light"])
-        desc = json.loads((tmp_path / "out_vegalite.json").read_text())["description"]
+        desc = json.loads((tmp_path / "out.json").read_text())["description"]
         assert desc == "Figure 1"
         assert "Generated by" not in desc
 
     def test_svg_desc_is_raw_user_description_only(self, simple_chart, tmp_path):
         # The SVG <desc> holds exactly the user's description — nothing auto-appended.
         save(simple_chart, str(tmp_path / "out"), description="Figure 1", background=["light"])
-        svg = (tmp_path / "out_light.svg").read_text()
+        svg = (tmp_path / "out.svg").read_text()
         match = re.search(r"<desc>(.*?)</desc>", svg, re.DOTALL)
         assert match is not None
         desc = match.group(1)
