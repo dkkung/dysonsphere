@@ -59,6 +59,11 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "markStrokeOpacity": 1,
     "markStrokeWidth": None,
     "palette": None,
+    "categoryPalette": None,
+    "divergingPalette": None,
+    "heatmapPalette": None,
+    "ordinalPalette": None,
+    "rampPalette": None,
     "strokeCap": "round",
     "ticks": True,
     "tickSize": 3,
@@ -204,8 +209,12 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     if p["chartFill"] is None and not p["darkmode"]:
         p["chartFill"] = "white"
 
-    palette = p["palette"]
-    p["palette"] = colors[palette] if palette is not None and palette in colors else palette
+    # Resolve every palette-valued key: a name in `colors` (built-in or custom)
+    # becomes its hex list; anything else (a raw list, or a Vega scheme name) is
+    # passed through unchanged.
+    for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
+        val = p[key]
+        p[key] = colors[val] if isinstance(val, str) and val in colors else val
 
     alt.theme.options = {**p, "tickWidth": p["axisWidth"]}
 
@@ -213,6 +222,15 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
 @alt.theme.register("dysonsphere", enable=True)
 def _dysonsphere_theme() -> dict[str, Any]:
     opts = alt.theme.options
+
+    def _scheme(type_key: str, default: Any) -> Any:
+        # Precedence: global `palette` (master override) → per-type `<type>Palette` → default.
+        if opts.get("palette") is not None:
+            return opts["palette"]
+        if opts.get(type_key) is not None:
+            return opts[type_key]
+        return default
+
     return {
         "background": (None if opts["transparentBackground"] else opts["chartFill"]),  # background of the entire chart
         "config": {
@@ -444,11 +462,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "range": {
-                "category": {"scheme": opts["palette"] if opts.get("palette") is not None else colors["blues"][::2]},
-                "diverging": {"scheme": opts["palette"] if opts.get("palette") is not None else colors["redsblues"]},
-                "heatmap": {"scheme": opts["palette"] if opts.get("palette") is not None else colors["blues"]},
-                "ordinal": {"scheme": opts["palette"] if opts.get("palette") is not None else colors["blues"]},
-                "ramp": {"scheme": opts["palette"] if opts.get("palette") is not None else colors["blues"]},
+                "category": {"scheme": _scheme("categoryPalette", colors["blues"][::2])},
+                "diverging": {"scheme": _scheme("divergingPalette", colors["redsblues"])},
+                "heatmap": {"scheme": _scheme("heatmapPalette", colors["blues"])},
+                "ordinal": {"scheme": _scheme("ordinalPalette", colors["blues"])},
+                "ramp": {"scheme": _scheme("rampPalette", colors["blues"])},
             },
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",
@@ -569,6 +587,8 @@ def create_config(directory: str | Path | None = None, *, persist: bool = False)
         "# Custom styles - add your own style sections below",
         "",
         "[my_style]  # Rename to your desired style name",
+        '# palette = "blues2"          # master scheme for all scale types, or override per type:',
+        '# categoryPalette = "reds2"   # (also divergingPalette, heatmapPalette, ordinalPalette, rampPalette)',
         "",
         '# Custom palettes — lists of hex strings, available via ds.palette("name")',
         '# or ds.theme(palette="name"). dysonsphere palettes are typically 12 stops',

@@ -135,7 +135,12 @@ ds.theme(   # custom configuration
 | `markSize` | `min(chartWidth, chartHeight) * 0.1` | Mark size; for points, this is area in px<sup>2</sup> |
 | `markStroke` | `"black"` | Default stroke color for marks |
 | `markStrokeOpacity` | `1` | Default mark stroke opacity |
-| `palette` | `None` | Default color scheme applied to category, diverging, heatmap, and ramp scales. Accepts a key from `colors` or a raw list |
+| `palette` | `None` | **Master** color scheme applied to *all* scale types (category, diverging, heatmap, ordinal, ramp). Accepts a key from `colors`, a custom palette name, a raw hex list, or a Vega scheme name. When set, it overrides the per-type keys below |
+| `categoryPalette` | `None` | Override the scheme for **categorical** scales only. Same accepted values as `palette`. Ignored when `palette` is set |
+| `divergingPalette` | `None` | Override the scheme for **diverging** scales only |
+| `heatmapPalette` | `None` | Override the scheme for **heatmap** scales only |
+| `ordinalPalette` | `None` | Override the scheme for **ordinal** scales only |
+| `rampPalette` | `None` | Override the scheme for **ramp** (continuous) scales only |
 | `strokeCap` | `"round"` | Stroke end cap: `"butt"`, `"round"`, or `"square"` |
 | `ticks` | `True` | Show axis ticks |
 | `tickSize` | `3` | Tick length in pixels |
@@ -278,7 +283,24 @@ When no explicit `scale=` is set on a color encoding, Vega-Lite falls back to th
 | `heatmap` | `blues` | Rect/heatmap marks |
 | `diverging` | `redsblues` | Diverging scales |
 
-Setting `ds.theme(palette="mypalette")` overrides all five types simultaneously.
+Setting `ds.theme(palette="mypalette")` overrides all five types simultaneously. To override an individual type, use its `<type>Palette` key (`categoryPalette`, `divergingPalette`, `heatmapPalette`, `ordinalPalette`, `rampPalette`) — each accepts a palette name, a custom palette, a raw hex list, or a Vega scheme name:
+
+```python
+ds.theme(divergingPalette="redsblues2", heatmapPalette="greens")   # only those two types change
+```
+
+Or in `dysonsphere.toml`:
+
+```toml
+[default]
+divergingPalette = "redsblues2"
+
+[my_style]
+categoryPalette = "reds2"
+heatmapPalette  = ["#ffffff", "#000000"]
+```
+
+**Precedence:** `palette` is the master switch — when set (via `ds.theme()` or config) it overrides every per-type key. Otherwise each `<type>Palette` applies, falling back to the built-in default above. (For any single key, an explicit `ds.theme()` argument beats the config file, which beats the built-in default.)
 
 > **Note:** The gallery and examples in this README use `palette="blues2"` rather than the shipped default `blues`. `blues2` is a more saturated variant of `blues`.
 
