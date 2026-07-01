@@ -1035,7 +1035,7 @@ def add_comparisons(
     yPad: float | None = None,
     categories: list | None = None,
     chartWidth: int | None = None,
-    bracketStyle: str = "bracket",
+    bracketStyle: str | dict = "bracket",
     labelStyle: str = "p",
     tickHeight: float | None = None,
     strokeWidth: float | None = None,
@@ -1134,7 +1134,11 @@ def add_comparisons(
         Width of the chart in pixels, used to compute text x positions.
         Auto-detected from ``ds.theme()`` when not set.
     bracketStyle:
-        ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only).
+        ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only)
+        applied to every bracket. Or a ``dict`` mapping a pair to its style for
+        per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` —
+        keys match either pair order; pairs absent from the dict fall back to
+        ``'bracket'``.
     labelStyle:
         ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'``
         renders ``*`` / ``**`` / ``***`` / ``ns``.
@@ -1348,6 +1352,20 @@ def add_comparisons(
 
     # --- brackets ---
     if pairs:
+        # Per-pair bracket style: a string applies to all; a dict maps a pair (order-
+        # insensitive, matched by frozenset) to its style, with "bracket" as the fallback.
+        _valid_styles = {"line", "bracket"}
+        if isinstance(bracketStyle, dict):
+            bad = set(bracketStyle.values()) - _valid_styles
+            if bad:
+                raise ValueError(f"bracketStyle dict values must be 'line' or 'bracket', got {sorted(bad)}")
+            _style_map = {frozenset(k): v for k, v in bracketStyle.items()}
+            pair_styles = [_style_map.get(frozenset(p), "bracket") for p in pairs]
+        else:
+            if bracketStyle not in _valid_styles:
+                raise ValueError(f"bracketStyle must be 'line', 'bracket', or a dict, got {bracketStyle!r}")
+            pair_styles = [bracketStyle] * len(pairs)
+
         if pvalues is not None:
             if len(pvalues) != len(pairs):
                 raise ValueError(f"pvalues length ({len(pvalues)}) does not match pairs length ({len(pairs)})")
@@ -1362,7 +1380,8 @@ def add_comparisons(
         y_range = cast(float, y_vals.cast(pl.Float64).max() or 0.0) - cast(float, y_vals.cast(pl.Float64).min() or 0.0)
         chart_height = alt.theme.options.get("chartHeight", 100)
         if yPad is None:
-            yPad = (10.0 if bracketStyle == "bracket" else 8.0) * y_range / chart_height
+            # Use the larger (bracket) gap if any pair is a bracket, so ticks clear the data.
+            yPad = (10.0 if "bracket" in pair_styles else 8.0) * y_range / chart_height
         # Bracket end-tick height matches the theme's tickSize (px → data units). Always
         # positive, so it no longer flips sign with a negative yStep (reverse brackets).
         if tickHeight is None:
@@ -1418,7 +1437,7 @@ def add_comparisons(
                     pvalue=pval,
                     y=final_y[i],
                     tick_height=tickHeight,
-                    bracket_style=bracketStyle,
+                    bracket_style=pair_styles[i],
                     label_style=labelStyle,
                     categories=categories,
                     chartWidth=chartWidth,

@@ -355,6 +355,51 @@ class TestLabelBaseline:
         assert self._text_mark(layer)["baseline"] == "top"
 
 
+class TestBracketStyleDict:
+    @pytest.fixture
+    def tri_df(self):
+        rng = np.random.default_rng(0)
+        return pl.DataFrame({"g": ["A"] * 12 + ["B"] * 12 + ["C"] * 12, "v": rng.normal(0, 1, 36)})
+
+    def _rule_counts(self, layer):
+        """Map each bracket (bar x/x2) to its number of rule marks: 1 = line, 3 = bracket."""
+        counts = {}
+        for sub in layer.to_dict()["layer"]:
+            rules = [s for s in sub.get("layer", []) if isinstance(s.get("mark"), dict) and s["mark"]["type"] == "rule"]
+            if rules:
+                bar = rules[0]["data"]["values"][0]
+                counts[(bar["x"], bar["x2"])] = len(rules)
+        return counts
+
+    def _run(self, tri_df, style):
+        return add_comparisons(
+            tri_df, "g", "v", [("A", "B"), ("A", "C")], pvalues=[0.01, 0.02], categories=MULTI, bracketStyle=style
+        )
+
+    def test_uniform_line(self, tri_df):
+        assert set(self._rule_counts(self._run(tri_df, "line")).values()) == {1}
+
+    def test_uniform_bracket(self, tri_df):
+        assert set(self._rule_counts(self._run(tri_df, "bracket")).values()) == {3}
+
+    def test_dict_per_pair(self, tri_df):
+        counts = self._rule_counts(self._run(tri_df, {("A", "B"): "line", ("A", "C"): "bracket"}))
+        assert counts[("A", "B")] == 1 and counts[("A", "C")] == 3
+
+    def test_dict_order_insensitive_and_fallback(self, tri_df):
+        # reversed key still matches A-B; A-C is absent → falls back to "bracket"
+        counts = self._rule_counts(self._run(tri_df, {("B", "A"): "line"}))
+        assert counts[("A", "B")] == 1 and counts[("A", "C")] == 3
+
+    def test_dict_invalid_value_raises(self, tri_df):
+        with pytest.raises(ValueError, match="bracketStyle dict values"):
+            self._run(tri_df, {("A", "B"): "squiggle"})
+
+    def test_invalid_string_raises(self, tri_df):
+        with pytest.raises(ValueError, match="bracketStyle must be"):
+            self._run(tri_df, "squiggle")
+
+
 class TestCorrectionMetadata:
     @pytest.fixture
     def tri_df(self):

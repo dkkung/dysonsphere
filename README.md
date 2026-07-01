@@ -621,7 +621,7 @@ The supported post-hocs are Tukey HSD and Dunnett (via `scipy`) plus **Dunn, Nem
 | `yStart` | auto | Y position of the lowest bracket |
 | `yStep` | `yPad * 2` | Vertical distance between stacking levels |
 | `yPad` | auto | Padding above data max when `yStart` is auto-placed. Defaults to a fixed ~8 px visual gap (`bracketStyle="line"`) or ~10 px (`bracketStyle="bracket"`), scaled to data units via `chartHeight` |
-| `bracketStyle` | `"bracket"` | `"bracket"` (bar + end ticks) or `"line"` (bar only) |
+| `bracketStyle` | `"bracket"` | `"bracket"` (bar + end ticks) or `"line"` (bar only) for all brackets; or a `dict` mapping a pair to its style for per-pair control, e.g. `{("A","B"): "line", ("A","C"): "bracket"}` (keys match either order; unlisted pairs default to `"bracket"`) |
 | `labelStyle` | `"p"` | `"p"` renders `P = 0.012` / `P < 0.001`; `"asterisks"` renders `*` / `**` / `***` / `ns` (brackets only — the omnibus label always shows the p-value) |
 | `tickHeight` | `tickSize` | End tick height, defaulting to the theme's `tickSize` (px → data units) so bracket ticks match the axis ticks. Only for `bracketStyle="bracket"` |
 | `reverse` | `None` | List of `(group1, group2)` tuples identifying brackets to flip below the bar |
