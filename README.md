@@ -581,6 +581,19 @@ ds.add_comparisons(
     reverse=[("A", "B")],
 )
 ```
+
+Style or format brackets **per pair** by passing a `dict` (instead of a string) to `bracketStyle` or `notation` — keys match either pair order, and unlisted pairs fall back to the default:
+
+```python
+ds.add_comparisons(
+    df, "group", "value", pairs=[("A", "B"), ("A", "C")], categories=["A", "B", "C"],
+    bracketStyle={("A", "C"): "line"},      # A-C as a plain line, the rest as brackets
+    notation={("A", "C"): "scientific"},    # A-C in scientific, the rest plain
+)
+```
+
+For `notation`, a special `"test"` key sets the omnibus label's format (e.g. `notation={"test": "power"}`).
+
 ![p-value example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/pairwise_example_light.png)
 
 #### Omnibus tests
