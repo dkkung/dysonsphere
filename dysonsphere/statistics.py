@@ -481,8 +481,13 @@ def _make_record(
 
 
 # ── Text report (rendered from a record) ───────────────────────────────────
-def _fmt(x: float | None, decimals: int = 3) -> str:
-    return "n/a" if x is None else f"{x:.{decimals}f}"
+# The report/metadata uses a fixed 3 significant figures — independent of the on-plot
+# label's theme sigFigs, so a cosmetic on-plot choice never coarsens the record.
+_REPORT_SIGFIGS = 3
+
+
+def _fmt(x: float | None) -> str:
+    return "n/a" if x is None else f"{x:.{_REPORT_SIGFIGS}g}"
 
 
 def _fmt_p(p: float) -> str:
@@ -490,13 +495,13 @@ def _fmt_p(p: float) -> str:
 
     ``%g`` keeps ordinary p-values as readable decimals (``= 0.032``) and switches
     tiny ones to e-notation (``= 1.22e-11``) automatically.  This is the *record*
-    format and is independent of the on-plot label style (``notation``/``decimals``).
+    format and is independent of the on-plot label style (``notation``/``sigFigs``).
     The one clamp-value (see ``_clamp_p``) is rendered with ``<`` because the true
     value is genuinely below float precision.
     """
     if p == sys.float_info.min:
-        return f"< {sys.float_info.min:.3g}"
-    return f"= {p:.3g}"
+        return f"< {sys.float_info.min:.{_REPORT_SIGFIGS}g}"
+    return f"= {p:.{_REPORT_SIGFIGS}g}"
 
 
 def _render_correlation(record: dict) -> str:

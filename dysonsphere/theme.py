@@ -47,6 +47,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "smallestFontSize": 5,
     "fontStyle": "normal",
     "fontWeight": 400,
+    "sigFigs": 3,
     "grid": False,
     "gridColor": colors["greys"][0],
     "legend": True,

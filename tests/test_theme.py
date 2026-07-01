@@ -87,6 +87,14 @@ class TestThemeDefaults:
         theme()
         assert alt.theme.options["smallestFontSize"] == 5  # fixed floor, not derived
 
+    def test_sig_figs_default(self):
+        theme()
+        assert alt.theme.options["sigFigs"] == 3
+
+    def test_sig_figs_override(self):
+        theme(sigFigs=2)
+        assert alt.theme.options["sigFigs"] == 2
+
     def test_smallest_font_size_custom_int(self):
         theme(smallestFontSize=4)
         assert alt.theme.options["smallestFontSize"] == 4

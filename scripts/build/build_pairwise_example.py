@@ -48,7 +48,7 @@ third_df = pl.DataFrame(
         "value": np.concatenate(
             [
                 rng.normal(1.5, 0.4, 40),
-                rng.normal(2.5, 0.4, 40),
+                rng.normal(2.1, 0.4, 40),
             ]
         ),
     }
@@ -80,8 +80,6 @@ pvalue_kwargs: dict[str, Any] = dict(
     yCol="value",
     pairs=PAIRS,
     categories=CATEGORIES,
-    yPad=0.25,
-    yStep=0.6,
 )
 
 title_params: dict[str, Any] = dict(orient="top", anchor="start", offset=4)
@@ -90,9 +88,9 @@ fontSize = alt.theme.options.get("fontSize", 7)
 left = (left_base + ds.add_comparisons(**pvalue_kwargs, labelStyle="p", bracketStyle="line")).properties(
     title=alt.TitleParams(['labelStyle="p"', 'bracketStyle="line"'], fontSize=fontSize, **title_params)
 )
-scientific = (
-    scientific_base + ds.add_comparisons(**pvalue_kwargs, labelStyle="p", notation="scientific", decimals=2)
-).properties(title=alt.TitleParams(['labelStyle="p"', 'notation="scientific"'], fontSize=fontSize, **title_params))
+scientific = (scientific_base + ds.add_comparisons(**pvalue_kwargs, labelStyle="p", notation="scientific")).properties(
+    title=alt.TitleParams(['labelStyle="p"', 'notation="scientific"'], fontSize=fontSize, **title_params)
+)
 right = (right_base + ds.add_comparisons(**pvalue_kwargs, labelStyle="asterisks", bracketStyle="bracket")).properties(
     title=alt.TitleParams(
         ['labelStyle="asterisks"', 'bracketStyle="bracket"'],
@@ -117,7 +115,6 @@ third = (
         categories=THIRD_CATEGORIES,
         bracketStyle="bracket",
         yStart=float(third_df["value"].min()) - 0.25,  # ty: ignore[invalid-argument-type]
-        yStep=-0.5,
         reverse=[("A", "B")],
         testLabelPosition="topLeft",  # → "Mann-Whitney U" (the default pairwise test)
     )

@@ -779,21 +779,24 @@ def _superscript(n: int) -> str:
     return sign + "".join(_SUP[int(d)] for d in str(abs(n)))
 
 
-def _format_pvalue(p: float, decimals: int = 3, notation: str | None = None) -> str:
+def _format_pvalue(p: float, sigFigs: int = 3, notation: str | None = None) -> str:
+    # `sigFigs` sets the significant-figure precision; `%g` gives that and strips trailing
+    # zeros. Plain notation floors at a fixed 0.001 convention (`P < 0.001`); scientific/e/
+    # power never floor (they represent any magnitude at `sigFigs` figures).
     if notation is None:
-        threshold = 10 ** (-decimals)
-        if p < threshold:
-            return f"P < {threshold:.{decimals}f}"
-        return f"P = {p:.{decimals}f}"
+        if p < 0.001:
+            return "P < 0.001"
+        return f"P = {p:.{sigFigs}g}"
     if notation == "power":
         exp = round(math.log10(p))
         return f"P ≈ 10{_superscript(exp)}"
+    # scientific / e share the mantissa (at `sigFigs` sig figs) and exponent.
+    exp = math.floor(math.log10(p))
+    mantissa = f"{p / 10**exp:.{sigFigs}g}"
     if notation == "scientific":
-        exp = math.floor(math.log10(p))
-        mantissa = p / 10**exp
-        return f"P = {mantissa:.{decimals}f}×10{_superscript(exp)}"
+        return f"P = {mantissa}×10{_superscript(exp)}"
     if notation == "e":
-        return f"P = {p:.{decimals}e}"
+        return f"P = {mantissa}e{exp:+03d}"
     raise ValueError(f"notation must be 'power', 'scientific', or 'e', got {notation!r}")
 
 
@@ -828,7 +831,7 @@ def _pvalue_layer(
     strokeWidth: float | None = None,
     fontSize: int | None = None,
     reverse: bool = False,
-    decimals: int = 3,
+    sigFigs: int = 3,
     notation: str | None = None,
 ) -> alt.LayerChart:
     from scipy import stats as _stats
@@ -863,7 +866,7 @@ def _pvalue_layer(
     label = (
         _format_asterisks(pvalue)
         if label_style == "asterisks"
-        else _format_pvalue(pvalue, decimals=decimals, notation=notation)
+        else _format_pvalue(pvalue, sigFigs=sigFigs, notation=notation)
     )
 
     # --- y position ---
@@ -904,8 +907,12 @@ def _pvalue_layer(
 
     # dy offsets in SVG pixels. Asterisk glyphs sit close to the baseline so a small
     # offset seats them flush; alphanumeric labels (including "ns") need more clearance.
+    # reverse=False keeps the inherited default baseline (its spacing already looks right).
+    # reverse=True sets baseline="top" so the text hangs *below* the bar instead of
+    # overlapping it — the inherited baseline left the below-bar text cramped.
     _dy_mag = 2 if label_style == "asterisks" and label != "ns" else 4
     text_dy = _dy_mag if reverse else -_dy_mag
+    text_baseline = "top" if reverse else None
     tick_y2 = y + tick_height if reverse else y - tick_height
 
     bar = (
@@ -929,7 +936,9 @@ def _pvalue_layer(
     x_mid_px = step * (2 * band_padding + g1_idx + g2_idx + 1) / 2
     text = (
         alt.Chart(alt.Data(values=[{"y": y, "label": label}]))
-        .mark_text(align="center", fontSize=fontSize, dy=text_dy)
+        .mark_text(
+            align="center", fontSize=fontSize, dy=text_dy, **({"baseline": text_baseline} if text_baseline else {})
+        )
         .encode(
             x=alt.value(x_mid_px),
             y=alt.Y("y:Q"),
@@ -964,14 +973,14 @@ def _pvalue_layer(
 _MATRIX_POSTHOCS = {"tukey_hsd", "dunn", "nemenyi", "games_howell"}
 
 
-def _omnibus_label(result, *, verbose: bool, notation: str | None, decimals: int) -> str:
+def _omnibus_label(result, *, verbose: bool, notation: str | None, sigFigs: int) -> str:
     """Build the terse or verbose corner-label string from an omnibus result.
 
     Always uses the p-value format (never asterisks) — ``labelStyle="asterisks"``
     only applies to the pairwise brackets; an omnibus *result* readout like
     ``Kruskal-Wallis ***`` reads oddly.
     """
-    p_str = _format_pvalue(result.pvalue, decimals=decimals, notation=notation)
+    p_str = _format_pvalue(result.pvalue, sigFigs=sigFigs, notation=notation)
     if not verbose:
         return f"{result.name} {p_str}"
     df_str = ", ".join(str(d) for d in result.df)
@@ -1029,14 +1038,14 @@ def add_comparisons(
     yPad: float | None = None,
     categories: list | None = None,
     chartWidth: int | None = None,
-    bracketStyle: str = "bracket",
+    bracketStyle: str | dict = "bracket",
     labelStyle: str = "p",
     tickHeight: float | None = None,
     strokeWidth: float | None = None,
     fontSize: int | None = None,
     reverse: list[tuple[str, str]] | None = None,
-    decimals: int = 3,
-    notation: str | None = None,
+    sigFigs: int | None = None,
+    notation: str | dict | None = None,
     testLabelPosition: str | None = "auto",
     testLabel: str | None = None,
     omnibusVerbose: bool = False,
@@ -1128,7 +1137,11 @@ def add_comparisons(
         Width of the chart in pixels, used to compute text x positions.
         Auto-detected from ``ds.theme()`` when not set.
     bracketStyle:
-        ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only).
+        ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only)
+        applied to every bracket. Or a ``dict`` mapping a pair to its style for
+        per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` —
+        keys match either pair order; pairs absent from the dict fall back to
+        ``'bracket'``.
     labelStyle:
         ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'``
         renders ``*`` / ``**`` / ``***`` / ``ns``.
@@ -1146,12 +1159,12 @@ def add_comparisons(
     reverse:
         List of ``(group1, group2)`` tuples identifying brackets to flip —
         text moves below the bar and ticks point upward.
-    decimals:
-        Decimal places for p-value labels. When ``notation=None``, controls
-        the display precision of ``P = 0.xxx`` and sets the threshold below
-        which ``P < 0.001`` style is used (threshold = ``10^(-decimals)``).
-        When ``notation='scientific'`` or ``'e'``, controls decimal places in
-        the mantissa. Ignored for ``notation='power'`` (integer exponent only).
+    sigFigs:
+        Significant figures for p-value labels (and the correlation readout). Gives
+        consistent visual precision across magnitudes — e.g. ``sigFigs=2`` renders both
+        ``P = 4.3×10⁻¹⁴`` and ``P = 0.68`` at two figures. Trailing zeros are stripped.
+        ``None`` (default) reads the theme's ``sigFigs`` (default ``3``). Plain notation
+        floors at a fixed ``P < 0.001``; ``'power'`` is unaffected (integer exponent).
     notation:
         Format style for p-value labels when ``labelStyle='p'``. ``None``
         (default) uses ``P = 0.012`` / ``P < 0.001`` style. ``'scientific'``
@@ -1159,6 +1172,10 @@ def add_comparisons(
         rounds to the nearest power of 10 giving ``P ≈ 10⁻²`` — note that
         values within the same decade (e.g. 0.04 and 0.06) map to the same
         label; best for p-values spanning multiple orders of magnitude.
+        A single value applies to every label; or pass a ``dict`` for per-pair
+        notation, e.g. ``{("A", "B"): "scientific", "test": "power"}`` — tuple
+        keys are pairs (matched either order, unlisted → plain), and the special
+        ``"test"`` key sets the omnibus label's notation.
     testLabelPosition:
         Corner preset (an ``add_text`` position, e.g. ``'topLeft'``,
         ``'bottomRight'``) for the single test label. Its content adapts: the
@@ -1295,6 +1312,26 @@ def add_comparisons(
     comparison_name = method
     # tukey_hsd carries its own correction; explicit p-values aren't corrected by us.
     effective_correction = None if (method is None or method == "tukey_hsd") else correction
+    # sigFigs: per-call overrides the theme default (3); governs on-plot label precision.
+    effective_sigfigs = sigFigs if sigFigs is not None else alt.theme.options.get("sigFigs", 3)
+
+    # Resolve notation: a scalar applies everywhere; a dict is per-pair for the brackets
+    # (order-insensitive keys, unlisted → plain) plus an optional "test" string key for the
+    # test/omnibus label. Pair notations are read below in the bracket loop.
+    if isinstance(notation, dict):
+        _valid_notations = {None, "scientific", "e", "power"}
+        bad_vals = [v for v in notation.values() if v not in _valid_notations]
+        if bad_vals:
+            raise ValueError(f"notation dict values must be None/'scientific'/'e'/'power', got {bad_vals}")
+        bad_keys = [k for k in notation if isinstance(k, str) and k != "test"]
+        if bad_keys:
+            raise ValueError(f"notation dict string keys must be 'test', got {sorted(bad_keys)}")
+        _notation_map = {frozenset(k): v for k, v in notation.items() if not isinstance(k, str)}
+        test_notation = notation.get("test")
+        pair_notations = [_notation_map.get(frozenset(p)) for p in (pairs or [])]
+    else:
+        test_notation = notation
+        pair_notations = [notation] * len(pairs or [])
 
     # --- unified test label: the omnibus result, or the pairwise/post-hoc test name ---
     # Position "auto" (default) → shown for omnibus (topLeft), hidden for pairwise.
@@ -1303,7 +1340,9 @@ def add_comparisons(
         if testLabel is not None:
             label_text = testLabel
         elif is_omnibus:
-            label_text = _omnibus_label(omnibus_result, verbose=omnibusVerbose, notation=notation, decimals=decimals)
+            label_text = _omnibus_label(
+                omnibus_result, verbose=omnibusVerbose, notation=test_notation, sigFigs=effective_sigfigs
+            )
         else:
             label_text = _TEST_DISPLAY.get(test, test)
         annotation_layers.append(
@@ -1342,6 +1381,20 @@ def add_comparisons(
 
     # --- brackets ---
     if pairs:
+        # Per-pair bracket style: a string applies to all; a dict maps a pair (order-
+        # insensitive, matched by frozenset) to its style, with "bracket" as the fallback.
+        _valid_styles = {"line", "bracket"}
+        if isinstance(bracketStyle, dict):
+            bad = set(bracketStyle.values()) - _valid_styles
+            if bad:
+                raise ValueError(f"bracketStyle dict values must be 'line' or 'bracket', got {sorted(bad)}")
+            _style_map = {frozenset(k): v for k, v in bracketStyle.items()}
+            pair_styles = [_style_map.get(frozenset(p), "bracket") for p in pairs]
+        else:
+            if bracketStyle not in _valid_styles:
+                raise ValueError(f"bracketStyle must be 'line', 'bracket', or a dict, got {bracketStyle!r}")
+            pair_styles = [bracketStyle] * len(pairs)
+
         if pvalues is not None:
             if len(pvalues) != len(pairs):
                 raise ValueError(f"pvalues length ({len(pvalues)}) does not match pairs length ({len(pairs)})")
@@ -1356,7 +1409,8 @@ def add_comparisons(
         y_range = cast(float, y_vals.cast(pl.Float64).max() or 0.0) - cast(float, y_vals.cast(pl.Float64).min() or 0.0)
         chart_height = alt.theme.options.get("chartHeight", 100)
         if yPad is None:
-            yPad = (10.0 if bracketStyle == "bracket" else 8.0) * y_range / chart_height
+            # Use the larger (bracket) gap if any pair is a bracket, so ticks clear the data.
+            yPad = (10.0 if "bracket" in pair_styles else 8.0) * y_range / chart_height
         # Bracket end-tick height matches the theme's tickSize (px → data units). Always
         # positive, so it no longer flips sign with a negative yStep (reverse brackets).
         if tickHeight is None:
@@ -1375,7 +1429,7 @@ def add_comparisons(
                 )
 
             if yStep is None:
-                yStep = yPad * 2
+                yStep = yPad * 2.25
 
             # Assign stacking levels via greedy interval scheduling.
             # Shorter spans go to lower levels so narrow brackets sit closer to the data.
@@ -1412,15 +1466,15 @@ def add_comparisons(
                     pvalue=pval,
                     y=final_y[i],
                     tick_height=tickHeight,
-                    bracket_style=bracketStyle,
+                    bracket_style=pair_styles[i],
                     label_style=labelStyle,
                     categories=categories,
                     chartWidth=chartWidth,
                     strokeWidth=strokeWidth,
                     fontSize=fontSize,
                     reverse=(g1, g2) in reverse if reverse is not None else False,
-                    decimals=decimals,
-                    notation=notation,
+                    sigFigs=effective_sigfigs,
+                    notation=pair_notations[i],
                 )
             )
 
@@ -1470,24 +1524,25 @@ def add_pvalue(*args, **kwargs) -> alt.LayerChart:
 
 
 def _correlation_label(
-    result: dict, *, coefficient: str, includePvalue: bool, includeEquation: bool, decimals: int, notation: str | None
+    result: dict, *, coefficient: str, includePvalue: bool, includeEquation: bool, sigFigs: int, notation: str | None
 ) -> str:
     """Build the corner-readout string from a correlation result, one part at a time."""
+    g = f".{sigFigs}g"  # significant figures, no trailing zeros
     is_pearson = result["rSquared"] is not None  # only Pearson has r²/slope
     parts: list[str] = []
     if not is_pearson:
-        parts.append(f"{result['symbol']} = {result['coefficient']:.2f}")  # ρ/τ always
+        parts.append(f"{result['symbol']} = {result['coefficient']:{g}}")  # ρ/τ always
     else:
         if coefficient in ("r", "both"):
-            parts.append(f"r = {result['coefficient']:.2f}")
+            parts.append(f"r = {result['coefficient']:{g}}")
         if coefficient in ("r2", "both"):
-            parts.append(f"r² = {result['rSquared']:.2f}")
+            parts.append(f"r² = {result['rSquared']:{g}}")
     if includePvalue:
-        parts.append(_format_pvalue(result["pvalue"], decimals=decimals, notation=notation))
+        parts.append(_format_pvalue(result["pvalue"], sigFigs=sigFigs, notation=notation))
     label = ", ".join(parts)
     if includeEquation and result["slope"] is not None:
         sign = "+" if result["intercept"] >= 0 else "-"
-        label += f", y = {result['slope']:.2f}x {sign} {abs(result['intercept']):.2f}"
+        label += f", y = {result['slope']:{g}}x {sign} {abs(result['intercept']):{g}}"
     return label
 
 
@@ -1507,7 +1562,7 @@ def add_correlation(
     offsetX: int = 0,
     offsetY: int = 0,
     fontSize: int | None = None,
-    decimals: int = 3,
+    sigFigs: int | None = None,
     notation: str | None = None,
     color: str | None = None,
     strokeWidth: float | None = None,
@@ -1567,8 +1622,9 @@ def add_correlation(
     fontSize:
         Font size of the readout. Defaults to the theme's ``secondaryFontSize``
         (``fontSize - 1``, i.e. ``6`` at the default ``fontSize=7``).
-    decimals, notation:
-        Control the p-value format in the readout, as in ``add_comparisons``.
+    sigFigs, notation:
+        Significant figures / number format for the readout (coefficient, r², p-value,
+        and fit equation), as in ``add_comparisons``. ``sigFigs=None`` reads the theme.
     color, strokeWidth, strokeDash, opacity:
         Curated style overrides for the fit line (same four knobs as ``add_rule``). Each
         defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one
@@ -1652,7 +1708,7 @@ def add_correlation(
                 coefficient=coefficient,
                 includePvalue=includePvalue,
                 includeEquation=includeEquation,
-                decimals=decimals,
+                sigFigs=sigFigs if sigFigs is not None else alt.theme.options.get("sigFigs", 3),
                 notation=notation,
             )
         )

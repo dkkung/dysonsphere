@@ -39,47 +39,45 @@ class TestFormatPvalue:
         assert _format_pvalue(0.001) == "P = 0.001"
 
     def test_above_threshold(self):
-        assert _format_pvalue(0.0234) == "P = 0.023"
+        assert _format_pvalue(0.0234) == "P = 0.0234"  # 3 sig figs, not floored/rounded to decimals
 
-    def test_custom_decimals(self):
-        assert _format_pvalue(0.1, decimals=2) == "P = 0.10"
+    def test_custom_sigfigs(self):
+        assert _format_pvalue(0.4789, 2) == "P = 0.48"
 
-    def test_p_one(self):
-        assert _format_pvalue(1.0) == "P = 1.000"
+    def test_p_one_strips_trailing_zeros(self):
+        assert _format_pvalue(1.0) == "P = 1"
 
     def test_p_zero(self):
         assert _format_pvalue(0.0) == "P < 0.001"
 
-    def test_decimals_affects_threshold(self):
-        # decimals=2 → threshold=0.01; p=0.005 is below it
-        assert _format_pvalue(0.005, decimals=2) == "P < 0.01"
+    def test_no_trailing_zeros(self):
+        assert _format_pvalue(0.6) == "P = 0.6"
 
-    def test_decimals_threshold_exact(self):
-        # p=0.01 is not below threshold=0.01
-        assert _format_pvalue(0.01, decimals=2) == "P = 0.01"
+    def test_floor_is_fixed_at_0001(self):
+        # the floor is a fixed convention, independent of sigFigs
+        assert _format_pvalue(0.005) == "P = 0.005"  # above the floor → shown
+        assert _format_pvalue(0.0009) == "P < 0.001"  # below → floored
+        assert _format_pvalue(0.0009, 5) == "P < 0.001"  # sigFigs doesn't move the floor
 
 
 class TestFormatPvalueNotation:
     def test_scientific(self):
-        result = _format_pvalue(0.023, notation="scientific", decimals=2)
-        assert result == "P = 2.30×10⁻²"
+        assert _format_pvalue(0.023, 2, "scientific") == "P = 2.3×10⁻²"
 
     def test_scientific_small(self):
-        result = _format_pvalue(1.5e-5, notation="scientific", decimals=2)
-        assert result == "P = 1.50×10⁻⁵"
+        assert _format_pvalue(1.5e-5, 2, "scientific") == "P = 1.5×10⁻⁵"
 
-    def test_scientific_default_decimals(self):
-        # decimals=3 by default
-        result = _format_pvalue(0.023, notation="scientific")
-        assert result == "P = 2.300×10⁻²"
+    def test_scientific_default_sigfigs(self):
+        assert _format_pvalue(0.0234, notation="scientific") == "P = 2.34×10⁻²"  # sigFigs=3
 
     def test_e_notation(self):
-        result = _format_pvalue(0.023, notation="e", decimals=2)
-        assert result == "P = 2.30e-02"
+        assert _format_pvalue(0.023, 2, "e") == "P = 2.3e-02"
 
     def test_e_notation_small(self):
-        result = _format_pvalue(1.5e-5, notation="e", decimals=2)
-        assert result == "P = 1.50e-05"
+        assert _format_pvalue(1.5e-5, 2, "e") == "P = 1.5e-05"
+
+    def test_e_notation_strips_trailing_zeros(self):
+        assert _format_pvalue(4.0e-14, 3, "e") == "P = 4e-14"
 
     def test_power_rounds_to_nearest(self):
         # log10(0.04) ≈ -1.397 → rounds to -1 → 10⁻¹
@@ -189,12 +187,12 @@ class TestAddComparisons:
             [("A", "B")],
             pvalues=[1.5e-5],
             notation="scientific",
-            decimals=2,
+            sigFigs=2,
         )
         assert isinstance(result, alt.LayerChart)
         spec = result.to_dict()
         label = spec["layer"][0]["layer"][-1]["data"]["values"][0]["label"]
-        assert label == "P = 1.50×10⁻⁵"
+        assert label == "P = 1.5×10⁻⁵"
 
     def test_notation_e(self, group_df):
         result = add_comparisons(
@@ -204,7 +202,7 @@ class TestAddComparisons:
             [("A", "B")],
             pvalues=[1.5e-5],
             notation="e",
-            decimals=2,
+            sigFigs=2,
         )
         assert isinstance(result, alt.LayerChart)
 
@@ -320,6 +318,196 @@ class TestTickHeight:
             if "y" in v and "y2" in v
         ]
         assert any(abs(g - expected) < 1e-9 for g in gaps)
+
+
+class TestLabelBaseline:
+    @pytest.fixture
+    def two_df(self):
+        rng = np.random.default_rng(0)
+        return pl.DataFrame({"g": ["A"] * 12 + ["B"] * 12, "v": rng.normal(0, 1, 24)})
+
+    def _text_mark(self, layer):
+        def walk(node):
+            if isinstance(node, dict):
+                m = node.get("mark")
+                if isinstance(m, dict) and m.get("type") == "text":
+                    return m
+                for sub in node.get("layer", []):
+                    found = walk(sub)
+                    if found:
+                        return found
+            return None
+
+        m = walk(layer.to_dict())
+        assert m is not None, "no text mark found"
+        return m
+
+    def test_non_reverse_keeps_inherited_baseline(self, two_df):
+        m = self._text_mark(add_comparisons(two_df, "g", "v", [("A", "B")], pvalues=[0.01], categories=CATEGORIES))
+        assert "baseline" not in m  # reverse=False must not set an explicit baseline
+
+    def test_reverse_sets_top_baseline(self, two_df):
+        layer = add_comparisons(
+            two_df, "g", "v", [("A", "B")], pvalues=[0.01], categories=CATEGORIES, reverse=[("A", "B")]
+        )
+        assert self._text_mark(layer)["baseline"] == "top"
+
+
+class TestBracketStyleDict:
+    @pytest.fixture
+    def tri_df(self):
+        rng = np.random.default_rng(0)
+        return pl.DataFrame({"g": ["A"] * 12 + ["B"] * 12 + ["C"] * 12, "v": rng.normal(0, 1, 36)})
+
+    def _rule_counts(self, layer):
+        """Map each bracket (bar x/x2) to its number of rule marks: 1 = line, 3 = bracket."""
+        counts = {}
+        for sub in layer.to_dict()["layer"]:
+            rules = [s for s in sub.get("layer", []) if isinstance(s.get("mark"), dict) and s["mark"]["type"] == "rule"]
+            if rules:
+                bar = rules[0]["data"]["values"][0]
+                counts[(bar["x"], bar["x2"])] = len(rules)
+        return counts
+
+    def _run(self, tri_df, style):
+        return add_comparisons(
+            tri_df, "g", "v", [("A", "B"), ("A", "C")], pvalues=[0.01, 0.02], categories=MULTI, bracketStyle=style
+        )
+
+    def test_uniform_line(self, tri_df):
+        assert set(self._rule_counts(self._run(tri_df, "line")).values()) == {1}
+
+    def test_uniform_bracket(self, tri_df):
+        assert set(self._rule_counts(self._run(tri_df, "bracket")).values()) == {3}
+
+    def test_dict_per_pair(self, tri_df):
+        counts = self._rule_counts(self._run(tri_df, {("A", "B"): "line", ("A", "C"): "bracket"}))
+        assert counts[("A", "B")] == 1 and counts[("A", "C")] == 3
+
+    def test_dict_order_insensitive_and_fallback(self, tri_df):
+        # reversed key still matches A-B; A-C is absent → falls back to "bracket"
+        counts = self._rule_counts(self._run(tri_df, {("B", "A"): "line"}))
+        assert counts[("A", "B")] == 1 and counts[("A", "C")] == 3
+
+    def test_dict_invalid_value_raises(self, tri_df):
+        with pytest.raises(ValueError, match="bracketStyle dict values"):
+            self._run(tri_df, {("A", "B"): "squiggle"})
+
+    def test_invalid_string_raises(self, tri_df):
+        with pytest.raises(ValueError, match="bracketStyle must be"):
+            self._run(tri_df, "squiggle")
+
+
+class TestSigFigs:
+    @pytest.fixture
+    def group_df(self):
+        return pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10, "v": [float(i) for i in range(20)]})
+
+    def _label(self, layer):
+        return layer.to_dict()["layer"][0]["layer"][-1]["data"]["values"][0]["label"]
+
+    def test_theme_sigfigs_drives_label(self, group_df):
+        theme(chartWidth=200, chartHeight=200, sigFigs=2)
+        assert self._label(add_comparisons(group_df, "g", "v", [("A", "B")], pvalues=[0.4789])) == "P = 0.48"
+
+    def test_per_call_overrides_theme(self, group_df):
+        theme(chartWidth=200, chartHeight=200, sigFigs=2)
+        lbl = self._label(add_comparisons(group_df, "g", "v", [("A", "B")], pvalues=[0.4789], sigFigs=4))
+        assert lbl == "P = 0.4789"
+
+    def test_report_independent_of_theme_sigfigs(self):
+        # theme sigFigs=2, but the report stays at its fixed 3 sig figs
+        theme(chartWidth=200, chartHeight=200, sigFigs=2)
+        assert st._fmt_p(0.47891234) == "= 0.479"
+        assert st._fmt(0.47891234) == "0.479"
+
+
+class TestNotationDict:
+    @pytest.fixture
+    def tri_df(self):
+        rng = np.random.default_rng(0)
+        return pl.DataFrame({"g": ["A"] * 12 + ["B"] * 12 + ["C"] * 12, "v": rng.normal(0, 1, 36)})
+
+    def _bracket_labels(self, layer):
+        """Map bracket bar (x, x2) → its label text (inline-data brackets)."""
+        labels = {}
+        for sub in layer.to_dict()["layer"]:
+            bar_x = None
+            texts = []
+            for s in sub.get("layer", []):
+                for v in (s.get("data") or {}).get("values", []) if isinstance(s.get("data"), dict) else []:
+                    if "x2" in v:
+                        bar_x = (v["x"], v["x2"])
+                    if "label" in v:
+                        texts.append(v["label"])
+            if bar_x and texts:
+                labels[bar_x] = texts[0]
+        return labels
+
+    def _test_label(self, layer):
+        d = layer.to_dict().get("datasets", {})
+        vals = [v[0].get("__text") for v in d.values() if v and "__text" in v[0]]
+        return vals[0] if vals else None
+
+    def test_scalar_applies_to_all(self, tri_df):
+        labels = self._bracket_labels(
+            add_comparisons(
+                tri_df,
+                "g",
+                "v",
+                [("A", "B"), ("A", "C")],
+                pvalues=[1e-5, 1e-8],
+                categories=MULTI,
+                notation="scientific",
+            )
+        )
+        assert all("×10" in v for v in labels.values())
+
+    def test_dict_per_pair(self, tri_df):
+        labels = self._bracket_labels(
+            add_comparisons(
+                tri_df,
+                "g",
+                "v",
+                [("A", "B"), ("A", "C")],
+                pvalues=[1e-5, 1e-8],
+                categories=MULTI,
+                notation={("A", "B"): "scientific", ("A", "C"): "power"},
+            )
+        )
+        assert "×10" in labels[("A", "B")] and "≈ 10" in labels[("A", "C")]
+
+    def test_dict_unlisted_pair_is_plain(self, tri_df):
+        labels = self._bracket_labels(
+            add_comparisons(
+                tri_df,
+                "g",
+                "v",
+                [("A", "B"), ("A", "C")],
+                pvalues=[0.012, 1e-8],
+                categories=MULTI,
+                notation={("A", "C"): "scientific"},
+            )
+        )
+        assert labels[("A", "B")] == "P = 0.012" and "×10" in labels[("A", "C")]
+
+    def test_test_key_sets_omnibus_notation(self, tri_df):
+        layer = add_comparisons(tri_df, "g", "v", categories=MULTI, test="anova", notation={"test": "e"})
+        assert "e-" in self._test_label(layer) or "e+" in self._test_label(layer)
+
+    def test_dict_without_test_key_omnibus_plain(self, tri_df):
+        layer = add_comparisons(tri_df, "g", "v", categories=MULTI, test="anova", notation={("A", "B"): "scientific"})
+        assert self._test_label(layer).startswith("ANOVA P = 0.")
+
+    def test_invalid_value_raises(self, tri_df):
+        with pytest.raises(ValueError, match="notation dict values"):
+            add_comparisons(
+                tri_df, "g", "v", [("A", "B")], pvalues=[0.01], categories=MULTI, notation={("A", "B"): "si"}
+            )
+
+    def test_invalid_string_key_raises(self, tri_df):
+        with pytest.raises(ValueError, match="notation dict string keys must be 'test'"):
+            add_comparisons(tri_df, "g", "v", [("A", "B")], pvalues=[0.01], categories=MULTI, notation={"omnibus": "e"})
 
 
 class TestCorrectionMetadata:
@@ -695,10 +883,10 @@ class TestCorrelationLabel:
         kw.setdefault("coefficient", "r")
         kw.setdefault("includePvalue", False)
         kw.setdefault("includeEquation", False)
-        return _correlation_label(res, decimals=3, notation=None, **kw)
+        return _correlation_label(res, sigFigs=3, notation=None, **kw)
 
     def test_default_is_coefficient_only(self):
-        assert self._label(self._pearson()) == f"r = {self._pearson()['coefficient']:.2f}"
+        assert self._label(self._pearson()) == f"r = {self._pearson()['coefficient']:.3g}"
 
     def test_coefficient_r2_only(self):
         assert self._label(self._pearson(), coefficient="r2").startswith("r² = ")

@@ -377,6 +377,49 @@ class TestSaveUsermeta:
         assert self._svg_metadata(tmp_path) is None
         assert self._png_dysonsphere_chunk(tmp_path) is None
 
+    def _svg_report(self, tmp_path, name="out_light"):
+        svg = (tmp_path / f"{name}.svg").read_text(encoding="utf-8")
+        m = re.search(r'<metadata id="dysonsphere-report">(.*?)</metadata>', svg, re.DOTALL)
+        return m.group(1) if m else None
+
+    def _png_report_text(self, tmp_path, name="out_light"):
+        data = (tmp_path / f"{name}.png").read_bytes()
+        i = 8
+        while i < len(data):
+            length = struct.unpack(">I", data[i : i + 4])[0]
+            ctype = data[i + 4 : i + 8]
+            chunk = data[i + 8 : i + 8 + length]
+            if ctype == b"iTXt" and chunk.split(b"\x00", 1)[0] == b"dysonsphere-report":
+                return chunk.split(b"\x00", 1)[1].lstrip(b"\x00").decode("utf-8")
+            i += 12 + length
+            if ctype == b"IEND":
+                break
+        return None
+
+    def test_report_embedded_by_default(self, stats_chart, tmp_path):
+        save(stats_chart, str(tmp_path / "out"), background=["light"])
+        report = self._usermeta(tmp_path)["dysonsphere"]["report"]  # JSON member
+        assert report.startswith("Statistics")
+        assert "\n" in self._svg_report(tmp_path)  # SVG readable channel, real newlines
+        assert self._png_report_text(tmp_path).startswith("Statistics")  # PNG readable chunk
+
+    def test_report_not_in_description(self, stats_chart, tmp_path):
+        save(stats_chart, str(tmp_path / "out"), description="my caption", background=["light"])
+        spec = json.loads((tmp_path / "out_vegalite.json").read_text())
+        assert spec["description"] == "my caption"  # description is the user's text only
+
+    def test_report_not_duplicated_in_structured_blob(self, stats_chart, tmp_path):
+        # the report is its own JSON member / readable channel, not baked into the structured blob
+        save(stats_chart, str(tmp_path / "out"), background=["light"])
+        assert "report" not in self._svg_metadata(tmp_path)
+        assert "report" not in self._png_dysonsphere_chunk(tmp_path)
+
+    def test_embed_report_false_suppresses_it(self, stats_chart, tmp_path):
+        save(stats_chart, str(tmp_path / "out"), embedReport=False, background=["light"])
+        block = self._usermeta(tmp_path)["dysonsphere"]
+        assert "statistics" in block and "report" not in block  # structured kept, report dropped
+        assert self._svg_report(tmp_path) is None and self._png_report_text(tmp_path) is None
+
 
 # ── _fix_tick_alignment() ─────────────────────────────────────────────────────
 

@@ -60,6 +60,7 @@ def save(
     description: str | None = None,
     saveVegaSpec: bool = True,
     saveMetadata: bool = True,
+    embedReport: bool = True,
     background: list[str] = ["light", "dark"],
 ) -> None:
     """
@@ -111,11 +112,17 @@ def save(
         ``usermeta`` already on the chart), the **SVG** ``<metadata id="dysonsphere">``
         element (CDATA), and the **PNG** ``iTXt dysonsphere`` chunk.
 
-        The facts are *not* also rendered as prose — that would bloat the files and
-        duplicate the structured block. For a human-readable report use
-        ``add_comparisons(report=True)`` (stdout) or ``save=`` (writes a ``.txt``).
         ``saveMetadata=False`` suppresses the structured block entirely; your
         ``description`` (if any) is still written.
+    embedReport:
+        If ``True`` (default) and ``saveMetadata`` is on, also embeds the human-readable
+        **report table** (the descriptive + effect-size text from ``add_comparisons`` /
+        ``add_correlation``) so you can read it straight out of the file — as a ``report``
+        member of ``usermeta.dysonsphere`` in the **JSON**, and as a dedicated readable
+        channel (real newlines, not escaped JSON) in the **SVG**
+        (``<metadata id="dysonsphere-report">``) and **PNG** (``iTXt dysonsphere-report``).
+        It never touches ``description`` (your text only). Set ``False`` to keep just the
+        structured block. (Also available standalone via ``add_comparisons(report=True)``.)
     background:
         Which background variants to render. Defaults to ``["light", "dark"]``. Pass
         ``["light"]`` or ``["dark"]`` to render only one variant.
@@ -165,11 +172,12 @@ def save(
     # (so the queue does not leak into a later save), but only embed when saveMetadata is
     # on: the structured {provenance, statistics} block rides as JSON in the Vega-Lite
     # usermeta, the SVG <metadata> element, and the PNG dysonsphere iTXt chunk.
-    from .statistics import _drain_reports
+    from .statistics import _drain_reports, _render_report
 
     _records = _drain_reports()
     _usermeta: dict | None = None
     _usermeta_json: str | None = None
+    _report_text: str | None = None
     if saveMetadata:
         _ds_block: dict = {"provenance": _provenance}
         if _records:
@@ -178,6 +186,14 @@ def save(
         # Same structured block, serialized for the SVG <metadata> and PNG iTXt so those
         # formats are self-contained.  ensure_ascii=False keeps η²/─ literal (UTF-8).
         _usermeta_json = json.dumps(_ds_block, ensure_ascii=False)
+        # embedReport: the human-readable report table.  It's added to `_ds_block` *after*
+        # `_usermeta_json` is serialized, so it rides as a `report` member of the Vega-Lite
+        # `usermeta.dysonsphere` (machine-readable), while the SVG/PNG instead get a
+        # dedicated readable channel below (real newlines, not escaped JSON).  Kept out of
+        # `description`, which stays the user's text only.
+        if embedReport and _records:
+            _report_text = "\n\n".join(_render_report(r) for r in _records)
+            _ds_block["report"] = _report_text
 
     # _resolve() is called once per variant (or once for the spec).
     # When chart is a callable it is re-invoked each time so that any
@@ -239,6 +255,8 @@ def save(
             _inserts = ""
             if _usermeta_json is not None:
                 _inserts += f'<metadata id="dysonsphere"><![CDATA[{_usermeta_json}]]></metadata>'
+            if _report_text is not None:
+                _inserts += f'<metadata id="dysonsphere-report">{html.escape(_report_text)}</metadata>'
             if description is not None:
                 _inserts += f"<desc>{html.escape(description)}</desc>"
             if _inserts:
@@ -250,6 +268,8 @@ def save(
                 png_bytes = _inject_png_metadata(png_bytes, description)
             if _usermeta_json is not None:
                 png_bytes = _inject_png_metadata(png_bytes, _usermeta_json, keyword="dysonsphere")
+            if _report_text is not None:
+                png_bytes = _inject_png_metadata(png_bytes, _report_text, keyword="dysonsphere-report")
             Path(png_path).write_bytes(png_bytes)
     finally:
         alt.theme.options["darkmode"] = original_darkmode

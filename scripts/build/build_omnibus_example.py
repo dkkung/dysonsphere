@@ -3,7 +3,8 @@ Generates docs/omnibus_example_light.png — the README preview for the
 omnibus mode of add_comparisons.
 
 Two panels, each a boxplot with an omnibus test reported in the corner (via the
-add_text hook) plus post-hoc brackets on selected pairs:
+add_text hook) plus post-hoc brackets for all three comparisons against Control
+(auto-stacked at the default yStep):
   left  — test="anova" (verbose corner label) + Tukey HSD brackets
   right — test="kruskal" (terse asterisk label) + Dunn brackets
 
@@ -47,7 +48,7 @@ df = pl.DataFrame(
     }
 )
 
-PAIRS = [("Dose A", "Dose B"), ("Control", "Dose C")]
+PAIRS = [("Control", "Dose A"), ("Control", "Dose B"), ("Control", "Dose C")]
 
 ds.theme(chartFill="white", palette="blues2", chartWidth=150, chartHeight=120, markSize=13, legend=False)
 
@@ -66,7 +67,6 @@ common: dict[str, Any] = dict(
     pairs=PAIRS,
     categories=CATEGORIES,
     yStart=3.5,
-    yStep=0.6,
 )
 
 title_params: dict[str, Any] = dict(orient="top", anchor="start", offset=4)
