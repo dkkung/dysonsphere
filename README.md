@@ -640,9 +640,24 @@ The supported post-hocs are Tukey HSD and Dunnett (via `scipy`) plus **Dunn, Nem
 `add_correlation()` annotates a **scatter** (two continuous variables) with a correlation coefficient, and — for `kind="pearson"` only — draws the OLS regression line. Like `add_comparisons()`, it reports its result as a corner label and queues a structured record for `ds.save()` metadata. Compose it with `+`.
 
 ```python
+import altair as alt
+import numpy as np
+import polars as pl
+import dysonsphere as ds
+
+ds.theme()
+
+rng = np.random.default_rng(0)
+x = rng.uniform(0, 10, 100)
+df = pl.DataFrame({"height": x, "weight": 0.9 * x + rng.normal(0, 1, 100)})
+
 scatter = alt.Chart(df).mark_point().encode(x="height:Q", y="weight:Q")
 
-scatter + ds.add_correlation(df, "height", "weight")                    # r + r² + OLS line
+# Pearson: r + r² + P, with the OLS fit line
+chart = scatter + ds.add_correlation(df, "height", "weight")
+ds.save(chart, "plots/correlation")
+
+# other options
 scatter + ds.add_correlation(df, "height", "weight", kind="spearman")   # ρ only, no line
 scatter + ds.add_correlation(df, "height", "weight", verbose=True)      # adds the fit equation
 scatter + ds.add_correlation(
