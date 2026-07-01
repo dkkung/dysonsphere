@@ -48,7 +48,7 @@ third_df = pl.DataFrame(
         "value": np.concatenate(
             [
                 rng.normal(1.5, 0.4, 40),
-                rng.normal(2.5, 0.4, 40),
+                rng.normal(2.1, 0.4, 40),
             ]
         ),
     }

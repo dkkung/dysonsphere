@@ -904,8 +904,12 @@ def _pvalue_layer(
 
     # dy offsets in SVG pixels. Asterisk glyphs sit close to the baseline so a small
     # offset seats them flush; alphanumeric labels (including "ns") need more clearance.
+    # reverse=False keeps the inherited default baseline (its spacing already looks right).
+    # reverse=True sets baseline="top" so the text hangs *below* the bar instead of
+    # overlapping it — the inherited baseline left the below-bar text cramped.
     _dy_mag = 2 if label_style == "asterisks" and label != "ns" else 4
     text_dy = _dy_mag if reverse else -_dy_mag
+    text_baseline = "top" if reverse else None
     tick_y2 = y + tick_height if reverse else y - tick_height
 
     bar = (
@@ -929,7 +933,9 @@ def _pvalue_layer(
     x_mid_px = step * (2 * band_padding + g1_idx + g2_idx + 1) / 2
     text = (
         alt.Chart(alt.Data(values=[{"y": y, "label": label}]))
-        .mark_text(align="center", fontSize=fontSize, dy=text_dy)
+        .mark_text(
+            align="center", fontSize=fontSize, dy=text_dy, **({"baseline": text_baseline} if text_baseline else {})
+        )
         .encode(
             x=alt.value(x_mid_px),
             y=alt.Y("y:Q"),
@@ -1375,7 +1381,7 @@ def add_comparisons(
                 )
 
             if yStep is None:
-                yStep = yPad * 2
+                yStep = yPad * 1.5
 
             # Assign stacking levels via greedy interval scheduling.
             # Shorter spans go to lower levels so narrow brackets sit closer to the data.

@@ -322,6 +322,39 @@ class TestTickHeight:
         assert any(abs(g - expected) < 1e-9 for g in gaps)
 
 
+class TestLabelBaseline:
+    @pytest.fixture
+    def two_df(self):
+        rng = np.random.default_rng(0)
+        return pl.DataFrame({"g": ["A"] * 12 + ["B"] * 12, "v": rng.normal(0, 1, 24)})
+
+    def _text_mark(self, layer):
+        def walk(node):
+            if isinstance(node, dict):
+                m = node.get("mark")
+                if isinstance(m, dict) and m.get("type") == "text":
+                    return m
+                for sub in node.get("layer", []):
+                    found = walk(sub)
+                    if found:
+                        return found
+            return None
+
+        m = walk(layer.to_dict())
+        assert m is not None, "no text mark found"
+        return m
+
+    def test_non_reverse_keeps_inherited_baseline(self, two_df):
+        m = self._text_mark(add_comparisons(two_df, "g", "v", [("A", "B")], pvalues=[0.01], categories=CATEGORIES))
+        assert "baseline" not in m  # reverse=False must not set an explicit baseline
+
+    def test_reverse_sets_top_baseline(self, two_df):
+        layer = add_comparisons(
+            two_df, "g", "v", [("A", "B")], pvalues=[0.01], categories=CATEGORIES, reverse=[("A", "B")]
+        )
+        assert self._text_mark(layer)["baseline"] == "top"
+
+
 class TestCorrectionMetadata:
     @pytest.fixture
     def tri_df(self):
