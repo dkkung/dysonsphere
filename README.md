@@ -601,7 +601,7 @@ chart + ds.add_statistics(
 chart + ds.add_statistics(df, "group", "value", test="kruskal", categories=CATEGORIES, report=True)
 ```
 
-The supported post-hocs are Tukey HSD and Dunnett (via `scipy`) plus **Dunn, Nemenyi, and Games-Howell**, which `dysonsphere` computes *in-house* (validated against `scikit-posthocs` and `pingouin`). Every `add_statistics()` call also generates a descriptive + effect-size report that is appended to the metadata of files written by `ds.save()` (see `report`/`save`). For an omnibus test the report lists **all** pairwise post-hoc comparisons (the full table), not just the pairs you draw brackets for.
+The supported post-hocs are Tukey HSD and Dunnett (via `scipy`) plus **Dunn, Nemenyi, and Games-Howell**, which `dysonsphere` computes *in-house* (validated against `scikit-posthocs` and `pingouin`). Every `add_statistics()` call also generates a descriptive + effect-size report that is appended to the metadata of files written by `ds.save()` (see `report`/`save`). For an omnibus test the report lists **all** pairwise post-hoc comparisons (the full table), not just the pairs you draw brackets for. Report p-values carry the **real computed value at 3 significant figures** (e.g. `P = 1.22e-11`) — never the floored `P < 0.001` used for on-plot labels — so the metadata stays precise down to the float limit, independent of the label's `notation`/`decimals`.
 
 ![p-value omnibus example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/pvalue_omnibus_example_light.png)
 

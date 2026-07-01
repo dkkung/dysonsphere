@@ -14,6 +14,7 @@ implemented here from scipy primitives (``rankdata``, ``norm``,
 from __future__ import annotations
 
 import math
+import sys
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -341,6 +342,18 @@ def _pair_effect(a: np.ndarray, b: np.ndarray, *, parametric: bool, paired: bool
 
 
 # ── Report record (single source of truth) ─────────────────────────────────
+def _clamp_p(p: float) -> float:
+    """Clamp a p-value away from an impossible ``0.0``.
+
+    A p-value is strictly positive; scipy returns ``0.0`` only when the true value
+    underflows below the smallest representable float.  We store the smallest positive
+    float instead, so the record (and the JSON) never claim ``P = 0``.  The text report
+    renders this clamp value with ``<`` (see ``_fmt_p``) because the true value is
+    genuinely below float precision.
+    """
+    return sys.float_info.min if p == 0.0 else p
+
+
 def _make_record(
     *,
     test: str,
@@ -373,7 +386,7 @@ def _make_record(
         record["omnibus"] = {
             "name": omnibus.name,
             "statistic": {"symbol": omnibus.statSymbol, "value": omnibus.stat, "df": list(omnibus.df)},
-            "pvalue": omnibus.pvalue,
+            "pvalue": _clamp_p(omnibus.pvalue),
             "effect": _effect(omnibus.effectName, omnibus.effectSize),
         }
     record["comparisons"] = {
@@ -382,7 +395,7 @@ def _make_record(
             {
                 "group1": c["g1"],
                 "group2": c["g2"],
-                "pvalue": c["pvalue"],
+                "pvalue": _clamp_p(c["pvalue"]),
                 "effect": _effect(c.get("effectName"), c.get("effect")),
             }
             for c in comparisons
@@ -396,9 +409,18 @@ def _fmt(x: float | None, decimals: int = 3) -> str:
     return "n/a" if x is None else f"{x:.{decimals}f}"
 
 
-def _fmt_p(p: float, decimals: int = 3) -> str:
-    threshold = 10 ** (-decimals)
-    return f"< {_fmt(threshold, decimals)}" if p < threshold else f"= {_fmt(p, decimals)}"
+def _fmt_p(p: float) -> str:
+    """Format a report p-value at 3 significant figures — never floored.
+
+    ``%g`` keeps ordinary p-values as readable decimals (``= 0.032``) and switches
+    tiny ones to e-notation (``= 1.22e-11``) automatically.  This is the *record*
+    format and is independent of the on-plot label style (``notation``/``decimals``).
+    The one clamp-value (see ``_clamp_p``) is rendered with ``<`` because the true
+    value is genuinely below float precision.
+    """
+    if p == sys.float_info.min:
+        return f"< {sys.float_info.min:.3g}"
+    return f"= {p:.3g}"
 
 
 def _render_report(record: dict) -> str:

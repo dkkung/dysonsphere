@@ -381,6 +381,61 @@ class TestReportRegistry:
         assert "Post-hoc (tukey_hsd):" in text and "A vs C" in text
 
 
+class TestReportPValues:
+    def test_fmt_p_readable_decimal(self):
+        assert st._fmt_p(0.032) == "= 0.032"
+
+    def test_fmt_p_scientific_for_tiny(self):
+        assert st._fmt_p(1.2179613642216176e-11) == "= 1.22e-11"  # 3 sig figs, e-notation
+
+    def test_fmt_p_never_floors(self):
+        # a value that the old code would have shown as "< 0.001"
+        assert st._fmt_p(2.2e-16) == "= 2.2e-16"
+
+    def test_clamp_leaves_normal_untouched(self):
+        assert st._clamp_p(0.05) == 0.05
+
+    def test_clamp_zero_to_smallest_float(self):
+        import sys
+
+        assert st._clamp_p(0.0) == sys.float_info.min
+
+    def test_fmt_p_clamp_uses_less_than(self):
+        import sys
+
+        assert st._fmt_p(sys.float_info.min) == "< 2.23e-308"
+
+    def test_make_record_clamps_zero_pvalues(self):
+        import sys
+
+        rec = st._make_record(
+            test="mannwhitneyu",
+            is_omnibus=False,
+            omnibus=None,
+            descriptives=st._describe_all(_GROUPS, MULTI),
+            comparisons=[{"g1": "A", "g2": "B", "pvalue": 0.0, "effectName": "r", "effect": 0.5}],
+            comparison_test="mannwhitneyu",
+            pvalues_provided=False,
+        )
+        assert rec["comparisons"]["pairs"][0]["pvalue"] == sys.float_info.min  # never 0.0
+
+    def test_full_pipeline_zero_pvalue(self):
+        import sys
+
+        import polars as pl
+
+        from dysonsphere.layers import add_statistics
+        from dysonsphere.theme import theme
+
+        theme(chartWidth=200, chartHeight=200)
+        df = pl.DataFrame({"g": ["A"] * 5 + ["B"] * 5, "v": [float(i) for i in range(10)]})
+        st._REPORTS.clear()
+        add_statistics(df, "g", "v", [("A", "B")], categories=["A", "B"], pvalues=[0.0])
+        rec = st._REPORTS[0]
+        assert rec["comparisons"]["pairs"][0]["pvalue"] == sys.float_info.min
+        assert "< 2.23e-308" in st._render_report(rec)
+
+
 # ── add_statistics omnibus integration ──────────────────────────────────────────
 @pytest.fixture
 def multi_df():
