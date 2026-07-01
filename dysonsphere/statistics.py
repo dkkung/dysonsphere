@@ -13,6 +13,8 @@ implemented here from scipy primitives (``rankdata``, ``norm``,
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import sys
 from dataclasses import dataclass, field
@@ -64,13 +66,17 @@ _TEST_DISPLAY = {
 
 
 # ── Report registry ────────────────────────────────────────────────────────
-# add_comparisons() pushes a structured report *record* (a plain dict — the single
-# source of truth) here; export.save() drains it, renders the human-readable
-# text from each record for the metadata description, and embeds the raw records
-# as JSON under usermeta.dysonsphere.statistics in the Vega-Lite spec.  Module-
-# level state is the only channel available because Altair strips custom metadata
-# when layers are combined with ``+`` (see CLAUDE.md).
-_REPORTS: list[dict] = []
+# add_comparisons()/add_correlation() register a structured report *record* (a plain
+# dict — the single source of truth) here, keyed by a hash of its content, and get back
+# a unique marker name to tag their annotation layer with.  export.save() resolves the
+# chart, finds which markers are actually present, and embeds ONLY those records — so a
+# record from a chart that's built but never saved can't contaminate a later save().
+# Module-level state is the only channel available because Altair strips custom metadata
+# when layers are combined with ``+`` (see CLAUDE.md); the marker (a Vega-Lite view
+# ``name``, which DOES survive ``+``) is what ties a queued record back to its chart.
+_MARKER_PREFIX = "__dysonsphere_"
+_REPORTS: dict[str, dict] = {}  # content-hash -> record
+_marker_counter = 0
 
 # Machine-readable names for the effect-size symbols used in the text report.
 _EFFECT_NAMES = {
@@ -82,28 +88,48 @@ _EFFECT_NAMES = {
 }
 
 
-def _push_report(record: dict) -> None:
-    _REPORTS.append(record)
+def _record_hash(record: dict) -> str:
+    """Stable 16-hex content hash of a record (for keying + the marker)."""
+    return hashlib.sha256(json.dumps(record, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
-def _drain_reports() -> list[dict]:
-    """Return all queued report records (de-duplicated, order-preserving) and clear the queue.
-
-    De-duplication collapses the identical records produced when ``save()`` rebuilds
-    a callable chart once per light/dark variant.  Records are dicts, so they are
-    compared by their canonical JSON serialization.
+def _register_report(record: dict) -> str:
+    """Store ``record`` (keyed by content hash) and return a unique marker ``name`` for the
+    annotation layer.  The name is ``__dysonsphere_<hash>_<counter>``: the hash lets
+    ``save()`` look the record up, the counter keeps the name unique within a spec (two
+    identical annotations must not share a Vega-Lite view name).  Rebuilding the same chart
+    re-registers the same hash (idempotent), so callable charts don't duplicate records.
     """
-    import json
+    global _marker_counter
+    h = _record_hash(record)
+    _REPORTS[h] = record
+    _marker_counter += 1
+    return f"{_MARKER_PREFIX}{h}_{_marker_counter}"
 
-    seen: set[str] = set()
-    out: list[dict] = []
-    for r in _REPORTS:
-        key = json.dumps(r, sort_keys=True, default=str)
-        if key not in seen:
-            seen.add(key)
-            out.append(r)
+
+def _marker_hash(name: str) -> str | None:
+    """Extract the record hash from a marker ``name`` (or None if it isn't a marker)."""
+    if not isinstance(name, str) or not name.startswith(_MARKER_PREFIX):
+        return None
+    return name[len(_MARKER_PREFIX) :].rsplit("_", 1)[0]
+
+
+def _select_reports(hashes) -> list[dict]:
+    """Records for the given hashes, in registration order (naturally de-duped by hash)."""
+    want = set(hashes)
+    return [r for h, r in _REPORTS.items() if h in want]
+
+
+def clear_stats() -> None:
+    """Discard all pending statistical records queued by ``add_comparisons`` /
+    ``add_correlation``.
+
+    ``save()`` embeds only the records whose annotations appear in the chart being saved, so
+    stale records never contaminate a save.  But they do accumulate in memory across a long
+    session — e.g. a notebook where you build many stats charts and display them without
+    saving each.  Call this to drop the pending queue.
+    """
     _REPORTS.clear()
-    return out
 
 
 # ── Omnibus result ─────────────────────────────────────────────────────────

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Union, cast
 
@@ -145,26 +147,24 @@ def save(
         background, alt.theme.options.get("saveBackground", ["light"]), _VALID_BACKGROUNDS, "background"
     )
 
-    # Drain the structured statistical records queued by add_comparisons().  Always drain
-    # (so the queue does not leak into a later save); metadata._build_block() assembles the
-    # `dysonsphere` block from them (provenance + statistics + theme + report) when metadata
-    # is on.  The `description` field stays the user's `description=` only.
-    from .statistics import _drain_reports
+    # Records are NOT drained here.  Instead, each add_comparisons()/add_correlation() tagged
+    # its annotation layer with a marker name; below we resolve the chart, find which markers
+    # are actually present, and embed ONLY those records — so a record from a chart that was
+    # built but never saved can't contaminate this save.  `exportIdentifier` + `timestamp` are
+    # generated once (shared by every variant of this export); the checksum is per-variant.
+    from .statistics import _select_reports
 
-    _records = _drain_reports()
+    export_id = str(uuid.uuid4())
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # _resolve() re-invokes a callable chart each time so marks whose colours read from
-    # alt.theme.options at construction (e.g. add_multilabel dots) pick up the current
-    # darkmode.  The `description` property feeds the JSON spec's description key (user text
-    # only); save() also injects <desc>/<metadata> into the SVG and iTXt into the PNG below.
-    def _resolve(usermeta: dict | None) -> _AltairChart:
+    # Resolve the base chart (callable re-invoked each variant so darkmode-sensitive colours
+    # rebuild correctly).  The `description` property feeds the JSON spec's description key
+    # (user text only); the dysonsphere block is attached to the JSON dict / injected into the
+    # SVG+PNG below, never here.
+    def _resolve_base() -> _AltairChart:
         c = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
         if description is not None:
             c = c.properties(description=description)
-        if usermeta is not None:
-            existing = getattr(c, "usermeta", alt.Undefined)
-            merged = existing if isinstance(existing, dict) else {}
-            c = c.properties(usermeta={**merged, **usermeta})
         return c
 
     out = Path(filename)
@@ -182,20 +182,35 @@ def save(
 
         for bg in _backgrounds:
             alt.theme.options["darkmode"] = bg == "dark"
-            # Metadata (incl. the baked theme's darkmode) is rebuilt per background at the
-            # chart's logical transparency, so each variant's block matches how it renders.
+            # The spec is captured at the chart's logical transparency (for the JSON + the
+            # checksum); the SVG/PNG re-render below with transparentBackground on.
             alt.theme.options["transparentBackground"] = original_transparent
+            base_obj = _resolve_base()
+            spec = base_obj.to_dict()
+            _hashes = metadata._scan_marker_hashes(spec) if saveMetadata else set()
+            _records = _select_reports(_hashes)
+            metadata._strip_markers(spec)  # markers are internal — never in the written output
             _usermeta = _usermeta_json = _report_sections = None
             if saveMetadata:
-                _usermeta, _usermeta_json, _report_sections = metadata._build_block(_records, embed_report=embedReport)
+                _usermeta, _usermeta_json, _report_sections = metadata._build_block(
+                    _records,
+                    embed_report=embedReport,
+                    export_id=export_id,
+                    timestamp=timestamp,
+                    checksum=metadata._spec_checksum(spec),
+                )
 
             if "json" in _formats:
-                _resolve(_usermeta).save(_path(bg, "json"))
+                jspec = dict(spec)
+                if _usermeta is not None:
+                    base_um = jspec["usermeta"] if isinstance(jspec.get("usermeta"), dict) else {}
+                    jspec["usermeta"] = {**base_um, **_usermeta}
+                Path(_path(bg, "json")).write_text(json.dumps(jspec, ensure_ascii=False, indent=2), encoding="utf-8")
 
             if _want_render:
                 alt.theme.options["transparentBackground"] = True
                 svg_path = _path(bg, "svg")
-                _resolve(_usermeta).save(svg_path)
+                base_obj.save(svg_path)  # marker names are in the object but never render into SVG
                 _fix_tick_alignment(
                     svg_path,
                     band_padding=alt.theme.options.get("bandPadding", 0.1),

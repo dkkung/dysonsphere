@@ -11,6 +11,8 @@ from dysonsphere.export import save
 from dysonsphere.metadata import _inject_png_metadata
 from dysonsphere.theme import theme
 
+_PROV_ORDER = ["vegaliteChecksum", "exportIdentifier", "user", "script", "timestamp", "python", "altair", "dysonsphere"]
+
 
 @pytest.fixture(autouse=True)
 def default_theme():
@@ -65,7 +67,7 @@ class TestSaveUsermeta:
     def test_provenance_block_present(self, simple_chart, tmp_path):
         save(simple_chart, str(tmp_path / "out"), background=["light"])
         prov = self._usermeta(tmp_path)["dysonsphere"]["provenance"]
-        assert list(prov) == ["user", "script", "timestamp", "python", "altair", "dysonsphere"]  # order matches text
+        assert list(prov) == _PROV_ORDER  # order matches the prose
         assert prov["timestamp"].endswith("Z") and "T" in prov["timestamp"]  # ISO-8601
 
     def test_statistics_records_embedded(self, stats_chart, tmp_path):
@@ -111,7 +113,7 @@ class TestSaveUsermeta:
         save(stats_chart, str(tmp_path / "out"), background=["light"])
         block = self._svg_metadata(tmp_path)
         assert block is not None
-        assert list(block["provenance"]) == ["user", "script", "timestamp", "python", "altair", "dysonsphere"]
+        assert list(block["provenance"]) == _PROV_ORDER
         assert block["statistics"][0]["omnibus"]["name"] == "ANOVA"
 
     def test_svg_metadata_preserves_unicode(self, stats_chart, tmp_path):
@@ -412,3 +414,81 @@ class TestInjectPngMetadata:
         # result has one extra chunk (iTXt); all original chunks must be present and unchanged
         non_itxt = [(t, d) for t, d in result_chunks if t != b"iTXt"]
         assert non_itxt == orig_chunks
+
+
+class TestStatsQueueRobustness:
+    """The marker mechanism: save() embeds only the records whose annotations are in the
+    chart being saved, so stale records can't contaminate it; plus the provenance ids."""
+
+    def _stats_layer(self, seed=0):
+        import numpy as np
+
+        import dysonsphere as ds
+
+        rng = np.random.default_rng(seed)
+        df = pl.DataFrame({"g": ["A"] * 20 + ["B"] * 20, "v": np.r_[rng.normal(0, 1, 20), rng.normal(2, 1, 20)]})
+        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.add_comparisons(
+            df, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        return chart
+
+    def _um(self, tmp_path, name="out"):
+        return json.loads((tmp_path / f"{name}.json").read_text())["usermeta"]["dysonsphere"]
+
+    def test_unsaved_stats_do_not_contaminate(self, simple_chart, tmp_path):
+        import dysonsphere as ds
+
+        _ = self._stats_layer()  # build a stats chart but NEVER save it → record only queued
+        ds.save(simple_chart, str(tmp_path / "plain"), format="json", background=["light"])
+        assert "statistics" not in self._um(tmp_path, "plain")  # the stale record must not leak
+
+    def test_saved_chart_gets_its_own_stats(self, tmp_path):
+        import dysonsphere as ds
+
+        ds.save(self._stats_layer(), str(tmp_path / "s"), format="json", background=["light"])
+        assert "statistics" in self._um(tmp_path, "s")
+
+    def test_marker_stripped_from_output(self, tmp_path):
+        import dysonsphere as ds
+
+        ds.save(self._stats_layer(), str(tmp_path / "s"), format=["svg", "json"], background=["light"])
+        assert "__dysonsphere_" not in (tmp_path / "s.json").read_text()
+        assert "__dysonsphere_" not in (tmp_path / "s.svg").read_text()
+
+    def test_provenance_has_checksum_and_export(self, simple_chart, tmp_path):
+        import dysonsphere as ds
+
+        ds.save(simple_chart, str(tmp_path / "out"), format="json", background=["light"])
+        prov = self._um(tmp_path)["provenance"]
+        assert prov["vegaliteChecksum"].startswith("sha256:") and len(prov["vegaliteChecksum"]) == len("sha256:") + 64
+        assert prov["exportIdentifier"].count("-") == 4  # uuid4 shape
+
+    def test_shared_export_but_distinct_checksum(self, simple_chart, tmp_path):
+        import dysonsphere as ds
+
+        ds.save(simple_chart, str(tmp_path / "b"), format="json", background=["light", "dark"])
+        pl_ = self._um(tmp_path, "b_light")["provenance"]
+        pd_ = self._um(tmp_path, "b_dark")["provenance"]
+        assert pl_["exportIdentifier"] == pd_["exportIdentifier"]  # one export event
+        assert pl_["vegaliteChecksum"] != pd_["vegaliteChecksum"]  # different specs
+
+    def test_checksum_revalidates(self, simple_chart, tmp_path):
+        import hashlib
+
+        import dysonsphere as ds
+
+        ds.save(simple_chart, str(tmp_path / "out"), format="json", background=["light"])
+        spec = json.loads((tmp_path / "out.json").read_text())
+        stored = spec["usermeta"]["dysonsphere"]["provenance"]["vegaliteChecksum"]
+        clean = {k: v for k, v in spec.items() if k != "usermeta"}
+        canon = json.dumps(clean, sort_keys=True, separators=(",", ":"))
+        assert stored == "sha256:" + hashlib.sha256(canon.encode()).hexdigest()
+
+    def test_clear_stats_empties_queue(self):
+        import dysonsphere as ds
+        from dysonsphere.statistics import _REPORTS
+
+        self._stats_layer()
+        assert len(_REPORTS) >= 1
+        ds.clear_stats()
+        assert len(_REPORTS) == 0

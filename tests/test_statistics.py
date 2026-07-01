@@ -519,17 +519,17 @@ class TestCorrectionMetadata:
     def test_correction_recorded(self, tri_df):
         from dysonsphere import statistics as _st
 
-        _st._drain_reports()
+        _st._REPORTS.clear()
         add_comparisons(tri_df, "g", "v", [("A", "B"), ("A", "C")], categories=MULTI, correction="holm")
-        rec = _st._drain_reports()[0]
+        rec = next(iter(_st._REPORTS.values()))
         assert rec["comparisons"]["correction"] == "holm"
 
     def test_tukey_correction_stored_none(self, tri_df):
         from dysonsphere import statistics as _st
 
-        _st._drain_reports()
+        _st._REPORTS.clear()
         add_comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI, test="anova", correction="bonferroni")
-        rec = _st._drain_reports()[0]
+        rec = next(iter(_st._REPORTS.values()))
         assert rec["comparisons"]["correction"] is None  # tukey carries its own correction
 
 
@@ -622,15 +622,22 @@ class TestReportRegistry:
         d = st._describe("X", np.array([1.0, 2, 3, 4]))
         assert d["n"] == 4 and d["mean"] == pytest.approx(2.5) and d["median"] == pytest.approx(2.5)
 
-    def test_drain_dedups_and_clears(self):
+    def test_register_dedups_and_marks(self):
         st._REPORTS.clear()
         same = {"kind": "pairwise", "test": "x"}
         other = {"kind": "omnibus", "test": "y"}
-        st._push_report(dict(same))
-        st._push_report(dict(same))
-        st._push_report(dict(other))
-        assert st._drain_reports() == [same, other]
-        assert st._drain_reports() == []
+        m1 = st._register_report(dict(same))
+        m2 = st._register_report(dict(same))  # identical content
+        m3 = st._register_report(dict(other))
+        # identical content collapses to one entry (keyed by hash); distinct content is separate
+        assert len(st._REPORTS) == 2
+        # marker names are unique (nonce) even for identical content, so a spec never has dup names
+        assert m1 != m2
+        assert st._marker_hash(m1) == st._marker_hash(m2)  # same content → same hash
+        assert st._marker_hash(m1) != st._marker_hash(m3)
+        # select returns the records for the requested hashes, in registration order
+        got = st._select_reports([st._marker_hash(m1), st._marker_hash(m3)])
+        assert got == [same, other]
 
     def test_make_record_structure(self):
         r = st._run_omnibus("anova", _GROUPS, MULTI)
@@ -739,7 +746,7 @@ class TestReportPValues:
         df = pl.DataFrame({"g": ["A"] * 5 + ["B"] * 5, "v": [float(i) for i in range(10)]})
         st._REPORTS.clear()
         add_comparisons(df, "g", "v", [("A", "B")], categories=["A", "B"], pvalues=[0.0])
-        rec = st._REPORTS[0]
+        rec = next(iter(st._REPORTS.values()))
         assert rec["comparisons"]["pairs"][0]["pvalue"] == sys.float_info.min
         assert "< 2.23e-308" in st._render_report(rec)
 
@@ -783,7 +790,7 @@ class TestAddComparisonsOmnibus:
         # only A-C is bracketed, but the omnibus report should list all 3 pairs
         st._REPORTS.clear()
         add_comparisons(multi_df, "group", "value", pairs=[("A", "C")], test="anova", categories=MULTI)
-        pairs = st._REPORTS[0]["comparisons"]["pairs"]
+        pairs = next(iter(st._REPORTS.values()))["comparisons"]["pairs"]
         listed = {(p["group1"], p["group2"]) for p in pairs}
         assert listed == {("A", "B"), ("A", "C"), ("B", "C")}
 
@@ -791,7 +798,7 @@ class TestAddComparisonsOmnibus:
         # no brackets at all, but the report still lists every pairwise post-hoc
         st._REPORTS.clear()
         add_comparisons(multi_df, "group", "value", test="kruskal", categories=MULTI)
-        rec = st._REPORTS[0]
+        rec = next(iter(st._REPORTS.values()))
         assert rec["comparisons"]["test"] == "dunn"
         assert len(rec["comparisons"]["pairs"]) == 3
 
@@ -799,7 +806,7 @@ class TestAddComparisonsOmnibus:
         st._REPORTS.clear()
         add_comparisons(multi_df, "group", "value", test="anova", categories=MULTI)
         assert len(st._REPORTS) == 1
-        rec = st._REPORTS[0]
+        rec = next(iter(st._REPORTS.values()))
         assert rec["kind"] == "omnibus" and rec["omnibus"]["name"] == "ANOVA"
         assert "ANOVA" in st._render_report(rec)
 
@@ -956,7 +963,7 @@ class TestAddCorrelation:
     def test_record_queued(self, scatter_df):
         st._REPORTS.clear()
         add_correlation(scatter_df, "x", "y")
-        assert len(st._REPORTS) == 1 and st._REPORTS[0]["kind"] == "correlation"
+        assert len(st._REPORTS) == 1 and next(iter(st._REPORTS.values()))["kind"] == "correlation"
 
     def test_report_prints(self, scatter_df, capsys):
         add_correlation(scatter_df, "x", "y", report=True)

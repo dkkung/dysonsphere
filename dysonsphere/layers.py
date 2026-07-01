@@ -1271,7 +1271,7 @@ def add_comparisons(
         _describe_all,
         _make_record,
         _pair_effect,
-        _push_report,
+        _register_report,
         _render_report,
         _run_omnibus,
     )
@@ -1490,7 +1490,7 @@ def add_comparisons(
         correction=effective_correction,
         pvalues_provided=pvalues is not None,
     )
-    _push_report(record)
+    marker = _register_report(record)
     if report or save:
         report_text = _render_report(record)
         if report:
@@ -1504,7 +1504,9 @@ def add_comparisons(
     if not annotation_layers:
         # no label and no brackets → report-only; return an invisible layer.
         annotation_layers.append(alt.Chart(alt.Data(values=[{}])).mark_point(opacity=0))
-    return cast(alt.LayerChart, alt.layer(*annotation_layers))
+    # Tag the layer with the record's marker name so save() can match this record back to
+    # the chart it annotates (the name survives ``+``; it's stripped from the written JSON).
+    return cast(alt.LayerChart, alt.layer(*annotation_layers).properties(name=marker))
 
 
 # DEPRECATED(remove in v2.0): add_pvalue() was renamed to add_comparisons() in v1.1.
@@ -1655,7 +1657,7 @@ def add_correlation(
     from datetime import datetime
     from pathlib import Path
 
-    from .statistics import _make_correlation_record, _push_report, _render_report, _run_correlation
+    from .statistics import _make_correlation_record, _register_report, _render_report, _run_correlation
     from .utils import ensure_polars
 
     if verbose:  # shortcut for the fullest readout; overrides the individual toggles
@@ -1724,7 +1726,7 @@ def add_correlation(
 
     # Structured record → export metadata; printed/written on request.
     record = _make_correlation_record(result, xCol, yCol)
-    _push_report(record)
+    marker = _register_report(record)
     if report or save:
         report_text = _render_report(record)
         if report:
@@ -1737,4 +1739,5 @@ def add_correlation(
 
     if not layers:
         layers.append(alt.Chart(alt.Data(values=[{}])).mark_point(opacity=0))
-    return cast(alt.LayerChart, alt.layer(*layers))
+    # Tag with the marker name so save() matches this record to its chart (stripped on write).
+    return cast(alt.LayerChart, alt.layer(*layers).properties(name=marker))
