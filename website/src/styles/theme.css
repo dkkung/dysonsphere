@@ -23,6 +23,7 @@
 :root {
   --ds-chart-zoom: 3;
 }
-.vega-embed {
+/* Zoom only the chart SVG (a direct child), not vega-embed's export menu (a sibling <details>). */
+.vega-embed > svg {
   zoom: var(--ds-chart-zoom);
 }
