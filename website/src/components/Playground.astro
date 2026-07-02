@@ -67,9 +67,14 @@ chart = (
 
 		// CodeMirror editor with Python highlighting; theme follows the site's light/dark toggle.
 		const themeCompartment = new Compartment();
+		// Inherit the panel/page background rather than oneDark's own dark color.
+		const inheritBg = EditorView.theme({
+			'&': { backgroundColor: 'transparent' },
+			'.cm-gutters': { backgroundColor: 'transparent', border: 'none' },
+		});
 		const editor = new EditorView({
 			doc: DEFAULT_CODE,
-			extensions: [basicSetup, python(), themeCompartment.of(isDark() ? oneDark : [])],
+			extensions: [basicSetup, python(), themeCompartment.of(isDark() ? oneDark : []), inheritBg],
 			parent: editorParent,
 		});
 		new MutationObserver(() => {
