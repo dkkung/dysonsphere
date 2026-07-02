@@ -1,0 +1,27 @@
+---
+title: Nonlinear axes
+description: Correctly spaced minor ticks for log and power axes.
+---
+
+import Chart from '../../../components/Chart.astro';
+
+`add_log_ticks()` adds correctly spaced minor ticks to a log-scale axis; `add_pow_ticks()` does the
+same for power and square-root axes. Both wrap your chart and share its scale.
+
+```python
+import altair as alt
+import dysonsphere as ds
+from vega_datasets import data
+
+ds.theme()
+
+stocks = data.stocks()
+line = alt.Chart(stocks).mark_line().encode(
+    x=alt.X("date:T", title=None),
+    y=alt.Y("price:Q", scale=alt.Scale(type="log"), title="Price (USD)"),
+    color=alt.Color("symbol:N", title="Symbol"),
+)
+chart = ds.add_log_ticks(line, stocks, "price", axis="y")
+```
+
+<Chart name="log" alt="Log-scale line chart of stock prices over time with minor ticks" />

@@ -1,0 +1,45 @@
+---
+title: Statistical annotations
+description: Significance brackets and correlation readouts, with reports baked into exports.
+---
+
+import Chart from '../../../components/Chart.astro';
+
+## Group comparisons
+
+`add_comparisons()` runs an omnibus or pairwise test and draws significance brackets. It also
+computes a full descriptive + effect-size report that `save()` embeds in the export metadata (read
+it back with `ds.read()`).
+
+```python
+import dysonsphere as ds
+from vega_datasets import data
+
+ds.theme()
+
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
+origins = ["USA", "Europe", "Japan"]
+
+chart = ds.mark_strip(cars, "Origin", "Miles_per_Gallon", origins, yTitle="Miles per gallon") + ds.add_comparisons(
+    cars, "Origin", "Miles_per_Gallon", [("USA", "Europe"), ("USA", "Japan")], test="anova", categories=origins
+)
+```
+
+<Chart name="comparisons" alt="Fuel economy by origin with ANOVA and pairwise brackets" />
+
+## Correlation
+
+`add_correlation()` adds a coefficient, p-value, and (for Pearson) an OLS fit line to a scatter.
+`verbose=True` shows the full readout.
+
+```python
+import altair as alt
+
+cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
+scatter = alt.Chart(cars).mark_point().encode(
+    x="Horsepower:Q", y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon")
+)
+chart = scatter + ds.add_correlation(cars, "Horsepower", "Miles_per_Gallon", verbose=True)
+```
+
+<Chart name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />

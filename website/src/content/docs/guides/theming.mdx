@@ -1,0 +1,42 @@
+---
+title: Theming
+description: Register the dysonsphere theme, switch palettes, and support dark mode.
+---
+
+import Chart from '../../../components/Chart.astro';
+
+`ds.theme()` registers a global Altair theme, so every chart you build afterwards inherits
+perceptually uniform palettes and publication-ready styling. Call it once; override per chart with
+ordinary Altair encodings.
+
+## Palettes
+
+Pass `palette=` to set the categorical color scheme - any palette name from `ds.colors`:
+
+```python
+import altair as alt
+import dysonsphere as ds
+from vega_datasets import data
+
+ds.theme(palette="blues")
+
+barley = data.barley()
+chart = (
+    alt.Chart(barley)
+    .mark_bar()
+    .encode(
+        x=alt.X("variety:N", sort="-y", title="Variety"),
+        y=alt.Y("mean(yield):Q", title="Mean yield (bu/acre)"),
+        color=alt.Color("variety:N", legend=None),
+    )
+)
+```
+
+<Chart name="bar" alt="Bar chart of mean barley yield by variety, blues palette" />
+
+## Dark mode
+
+dysonsphere draws on a transparent background and adapts to dark backgrounds with
+`ds.theme(darkmode=True)`, which inverts the axis and text ink to white while leaving palette
+colors intact. The charts on this page switch automatically when you toggle the site's light/dark
+theme - that is the same `darkmode` flag at work.

@@ -16,7 +16,13 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: 'Guides',
-					items: [{ label: 'Getting started', slug: 'guides/getting-started' }],
+					items: [
+						{ label: 'Getting started', slug: 'guides/getting-started' },
+						{ label: 'Theming', slug: 'guides/theming' },
+						{ label: 'Marks', slug: 'guides/marks' },
+						{ label: 'Statistical annotations', slug: 'guides/statistics' },
+						{ label: 'Nonlinear axes', slug: 'guides/nonlinear' },
+					],
 				},
 				{ label: 'Gallery', slug: 'gallery' },
 				{ label: 'Playground', slug: 'playground' },

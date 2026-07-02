@@ -85,9 +85,11 @@ def examples() -> dict:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     builders = examples()
+    # Per-example theme overrides so a guide's shown snippet matches its rendered chart.
+    theme_overrides = {"bar": {"palette": "blues"}}
     for mode, dark in (("light", False), ("dark", True)):
-        ds.theme(transparentBackground=True, darkmode=dark)
         for name, builder in builders.items():
+            ds.theme(transparentBackground=True, darkmode=dark, **theme_overrides.get(name, {}))
             (OUT / f"{name}-{mode}.json").write_text(json.dumps(builder().to_dict()), encoding="utf-8")
             print(f"wrote {name}-{mode}.json")
         ds.clear_stats()

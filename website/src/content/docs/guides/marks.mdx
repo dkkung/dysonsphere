@@ -1,0 +1,40 @@
+---
+title: Marks
+description: Composite marks - strip and violin plots.
+---
+
+import Chart from '../../../components/Chart.astro';
+
+dysonsphere's composite marks return native Altair layers, so you compose them with `+` and keep
+Altair's full API.
+
+## Strip plot
+
+`mark_strip()` draws jittered points with a median tick (and optional mean error bars).
+
+```python
+import dysonsphere as ds
+from vega_datasets import data
+
+ds.theme()
+
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
+chart = ds.mark_strip(
+    cars, "Origin", "Miles_per_Gallon", ["USA", "Europe", "Japan"], yTitle="Miles per gallon"
+)
+```
+
+<Chart name="strip" alt="Strip plot of miles per gallon by car origin" />
+
+## Violin plot
+
+`mark_violin()` pairs a kernel-density silhouette with an embedded boxplot.
+
+```python
+cars = data.cars().dropna(subset=["Horsepower"])
+chart = ds.mark_violin(
+    cars, "Origin", "Horsepower", ["USA", "Europe", "Japan"], yTitle="Horsepower"
+)
+```
+
+<Chart name="violin" alt="Violin plot of horsepower by car origin" />
