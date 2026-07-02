@@ -1,3 +1,5 @@
+import hashlib
+import json
 from typing import Any
 
 import polars as pl
@@ -65,6 +67,36 @@ def ensure_polars(df: pl.DataFrame) -> pl.DataFrame:
     if type(df).__module__.startswith("pandas"):
         return pl.from_pandas(df)
     raise TypeError(f"Expected a polars.DataFrame or pandas.DataFrame, got {type(df).__name__}.")
+
+
+def _hash_rows(rows: list[dict]) -> str:
+    """Order-independent ``sha256:<hex>`` of a list of record dicts.
+
+    Hashes the *multiset* of per-row canonical-JSON digests (sort the digests, then hash), so a
+    reordered-but-identical set yields the same value; duplicate rows are preserved.  The single
+    implementation shared by the provenance ``dataChecksum`` (over a spec's inlined datasets) and
+    ``frame_checksum`` (over a raw dataframe), so both compute identical values for identical rows.
+    ``default=str`` keeps it total for non-JSON-native cell types (dates, Decimals); JSON-native
+    values are unaffected, so the provenance path is byte-identical to before.
+    """
+    digests = sorted(
+        hashlib.sha256(
+            json.dumps(r, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str).encode()
+        ).hexdigest()
+        for r in rows
+    )
+    return "sha256:" + hashlib.sha256(json.dumps(digests, separators=(",", ":")).encode()).hexdigest()
+
+
+def frame_checksum(df: "pl.DataFrame | Any") -> str:
+    """Order-independent ``sha256:<hex>`` fingerprint of a dataframe's rows.
+
+    Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so identical
+    content in any row order yields the same value.  Used to tag a statistics record with the
+    identity of the dataframe it was computed from, so records from distinct dataframes are
+    distinguishable (and identical-content frames match regardless of ordering).
+    """
+    return _hash_rows(ensure_polars(df).to_dicts())
 
 
 # ── Internal-data sentinel ───────────────────────────────────────────────────

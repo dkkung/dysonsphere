@@ -203,16 +203,9 @@ def _data_checksum(spec) -> list[str]:
     of how the data is drawn — two charts built from the same data match even across different
     marks/encodings/themes.  The list is sorted so multi-frame charts are order-independent too.
     """
-    out = []
-    for rows in _user_datasets(spec).values():
-        digests = sorted(
-            hashlib.sha256(
-                json.dumps(r, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
-            ).hexdigest()
-            for r in rows
-        )
-        canon = json.dumps(digests, separators=(",", ":"))
-        out.append("sha256:" + hashlib.sha256(canon.encode()).hexdigest())
+    from .utils import _hash_rows
+
+    out = [_hash_rows(rows) for rows in _user_datasets(spec).values()]
     return sorted(out)
 
 

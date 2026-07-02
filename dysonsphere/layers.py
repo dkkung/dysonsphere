@@ -1277,7 +1277,7 @@ def add_comparisons(
         _render_report,
         _run_omnibus,
     )
-    from .utils import ensure_polars
+    from .utils import ensure_polars, frame_checksum
 
     df = ensure_polars(df)
 
@@ -1491,6 +1491,7 @@ def add_comparisons(
         comparison_test=comparison_name,
         correction=effective_correction,
         pvalues_provided=pvalues is not None,
+        data_checksum=frame_checksum(df),
     )
     marker = _register_report(record)
     if report or save:
@@ -1647,7 +1648,7 @@ def add_correlation(
     from pathlib import Path
 
     from .statistics import _make_correlation_record, _register_report, _render_report, _run_correlation
-    from .utils import ensure_polars
+    from .utils import ensure_polars, frame_checksum
 
     if verbose:  # shortcut for the fullest readout; overrides the individual toggles
         coefficient, includePvalue, includeEquation = "both", True, True
@@ -1716,7 +1717,7 @@ def add_correlation(
         )
 
     # Structured record → export metadata; printed/written on request.
-    record = _make_correlation_record(result, xCol, yCol)
+    record = _make_correlation_record(result, xCol, yCol, data_checksum=frame_checksum(df))
     marker = _register_report(record)
     if report or save:
         report_text = _render_report(record)
