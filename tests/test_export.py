@@ -277,8 +277,8 @@ class TestSave:
 
         save(simple_chart, str(tmp_path / "out"), saveMetadata=True, background=["light"])
         prov = json.loads((tmp_path / "out.json").read_text())["usermeta"]["dysonsphere"]["provenance"]
-        assert prov["altair"] == alt.__version__
-        assert prov["dysonsphere"] == importlib.metadata.version("dysonsphere")
+        assert prov["environment"]["altair"] == alt.__version__
+        assert prov["environment"]["dysonsphere"] == importlib.metadata.version("dysonsphere")
 
     def test_no_desc_when_no_user_description(self, simple_chart, tmp_path):
         # Without an explicit description=, there is no prose <desc> at all — only structured.
