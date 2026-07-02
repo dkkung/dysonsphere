@@ -55,3 +55,7 @@ pipenv
 *.svg
 *.json
 !docs/*.png
+
+# Astro docs site (website/): keep its source JSON (package.json, tsconfig, etc.)
+# despite the repo-wide *.json ignore above. node_modules/dist stay ignored via website/.gitignore.
+!website/**/*.json

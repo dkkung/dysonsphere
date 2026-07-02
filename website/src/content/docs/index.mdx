@@ -1,0 +1,43 @@
+---
+title: dysonsphere
+description: An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.
+template: splash
+hero:
+  tagline: Perceptually uniform palettes and publication-ready chart defaults for Altair.
+  actions:
+    - text: Get started
+      link: /guides/getting-started/
+      icon: right-arrow
+    - text: Try the playground
+      link: /playground.html
+      icon: rocket
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/dkkung/dysonsphere
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+```sh
+pip install dysonsphere
+```
+
+<CardGrid>
+	<Card title="Themed defaults" icon="setting">
+		One `ds.theme()` call gives every Altair chart perceptually uniform palettes and
+		publication-ready styling.
+	</Card>
+	<Card title="Composable marks" icon="add-document">
+		`mark_strip`, `mark_violin`, statistical annotations, reference lines, and more, all
+		returning native Altair objects you compose with `+`.
+	</Card>
+	<Card title="Round-trippable exports" icon="download">
+		`save()` bakes statistics, provenance, and the data into the file; `read()` and `load()`
+		pull them (or the whole chart) back out.
+	</Card>
+	<Card title="Runs in your browser" icon="rocket">
+		The [live playground](/playground.html) runs dysonsphere via WebAssembly, no install.
+	</Card>
+</CardGrid>

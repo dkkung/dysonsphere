@@ -1,0 +1,17 @@
+/* dysonsphere site accent, generated from dysonsphere.colors["blues2"] (light -> dark blues).
+   To reskin the whole site, swap these hex values for another dysonsphere palette; every
+   accent (links, active nav, buttons, focus rings) is driven from the three vars per theme. */
+
+/* Dark theme (Starlight's default): lighter blues2 stops so the accent pops on a dark background. */
+:root {
+  --sl-color-accent-low: #231e5b; /* blues2[10] */
+  --sl-color-accent: #4579c1; /* blues2[5]  */
+  --sl-color-accent-high: #9dd2eb; /* blues2[1]  */
+}
+
+/* Light theme: darker blues2 stops for contrast on white. */
+:root[data-theme='light'] {
+  --sl-color-accent-low: #bfe6f3; /* blues2[0]  */
+  --sl-color-accent: #3562b9; /* blues2[6]  */
+  --sl-color-accent-high: #231e5b; /* blues2[10] */
+}

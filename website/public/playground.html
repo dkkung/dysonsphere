@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>dysonsphere playground (POC)</title>
+
+<!-- Pyodide 314.x is the version whose distribution ships polars/pyarrow/scipy/altair-6 (verified). -->
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.2/full/pyodide.js"></script>
+<!-- altair 6 emits Vega-Lite v6 specs, so load matching vega-lite@6 + vega + vega-embed. -->
+<script src="https://cdn.jsdelivr.net/npm/vega@6"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-lite@6"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-embed@7"></script>
+
+<style>
+  :root {
+    /* Placeholder accent from the blues2 family; the real site will generate these from
+       dysonsphere.colors["blues2"]. Swapping the palette later is a one-file change. */
+    --accent: #2f6da3;
+    --accent-dark: #1c4568;
+    --bg: #fbfcfd;
+    --panel: #ffffff;
+    --border: #dfe6ee;
+    --text: #1b2733;
+    --muted: #5b6b7b;
+    --err: #b23b3b;
+    --ok: #2f7d4f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+  }
+  header {
+    padding: 18px 24px;
+    background: linear-gradient(90deg, var(--accent-dark), var(--accent));
+    color: #fff;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0.2px; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: 0.85; }
+  main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 16px 24px;
+    align-items: start;
+  }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .panel > .label {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  textarea {
+    width: 100%;
+    min-height: 340px;
+    border: 0;
+    padding: 12px;
+    font: 13px/1.55 "SF Mono", Menlo, Consolas, monospace;
+    resize: vertical;
+    color: var(--text);
+    outline: none;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+  }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: 0;
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { background: #9db6cc; cursor: default; }
+  #status { font-size: 13px; color: var(--muted); }
+  #status.ok { color: var(--ok); }
+  #status.err { color: var(--err); }
+  #chart { padding: 16px; min-height: 340px; }
+  .hint { font-size: 12px; color: var(--muted); padding: 0 12px 10px; }
+  code { background: #eef3f8; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>dysonsphere playground <span style="opacity:.7;font-weight:400">/ proof of concept</span></h1>
+  <p>Runs dysonsphere in your browser via Pyodide (WebAssembly). No server, no install.</p>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="label">Python</div>
+    <textarea id="code" spellcheck="false"></textarea>
+    <div class="toolbar">
+      <button id="run" disabled>Run</button>
+      <span id="status">Loading Python runtime...</span>
+    </div>
+    <div class="hint">Assign your chart to a variable named <code>chart</code>. It renders live (interactive Vega-Lite); use the &#8942; menu on the chart to export SVG/PNG/JSON.</div>
+  </div>
+
+  <div class="panel">
+    <div class="label">Chart</div>
+    <div id="chart"></div>
+  </div>
+</main>
+
+<script type="module">
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $("status"), runBtn = $("run"), codeEl = $("code"), chartEl = $("chart");
+
+  const DEFAULT_CODE = `import polars as pl
+import altair as alt
+import dysonsphere as ds
+
+ds.theme(palette="blues")
+
+df = pl.DataFrame({
+    "group": ["A", "B", "C", "D"],
+    "value": [3.0, 5.0, 2.0, 6.0],
+})
+
+chart = (
+    alt.Chart(df)
+    .mark_bar()
+    .encode(
+        x=alt.X("group:N"),
+        y=alt.Y("value:Q"),
+        color=alt.Color("group:N", legend=None),
+    )
+)
+`;
+  codeEl.value = DEFAULT_CODE;
+
+  const setStatus = (msg, kind = "") => { statusEl.textContent = msg; statusEl.className = kind; };
+
+  let runFn = null;
+
+  async function boot() {
+    setStatus("Loading Pyodide (WebAssembly runtime)...");
+    const pyodide = await loadPyodide();
+
+    setStatus("Installing dysonsphere + polars + scipy (first load, tens of MB)...");
+    await pyodide.loadPackage("micropip");
+    const micropip = pyodide.pyimport("micropip");
+    await micropip.install("dysonsphere");
+
+    // A small runner: exec the user's code, then serialize the `chart` variable's Vega-Lite spec.
+    await pyodide.runPythonAsync(`
+import json
+def _run(code):
+    ns = {}
+    exec(code, ns)
+    ch = ns.get("chart")
+    if ch is None:
+        raise RuntimeError("Define a variable named 'chart' (a dysonsphere/Altair chart).")
+    return json.dumps(ch.to_dict())
+`);
+    runFn = pyodide.globals.get("_run");
+
+    setStatus("Ready.", "ok");
+    runBtn.disabled = false;
+    await run(); // render the default example immediately
+  }
+
+  async function run() {
+    if (!runFn) return;
+    setStatus("Running...");
+    runBtn.disabled = true;
+    try {
+      const specJson = runFn(codeEl.value);
+      const spec = JSON.parse(specJson);
+      await vegaEmbed(chartEl, spec, { actions: true, renderer: "svg" });
+      setStatus("Rendered.", "ok");
+    } catch (e) {
+      setStatus("Error - see console.", "err");
+      console.error(e);
+    } finally {
+      runBtn.disabled = false;
+    }
+  }
+
+  runBtn.addEventListener("click", run);
+  boot().catch((e) => { setStatus("Boot failed - see console.", "err"); console.error(e); });
+</script>
+</body>
+</html>
