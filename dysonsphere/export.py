@@ -215,6 +215,7 @@ def save(
                     export_id=export_id,
                     timestamp=timestamp,
                     checksum=metadata._spec_checksum(spec),
+                    data_checksum=metadata._data_checksum(spec),
                 )
 
             if "json" in _formats:
