@@ -29,6 +29,96 @@ def _rule_mark_kwargs(
     return kwargs
 
 
+def _rule_label_geometry(
+    axis: str,
+    labelAlign: str | None,
+    labelPosition: str | None,
+    labelOffsetX: int,
+    labelOffsetY: int,
+    fontSize: float,
+    color: str | None,
+) -> tuple[str, float, dict]:
+    """Resolve a reference-line label's placement to ``(perp_channel, perp_anchor, text_kwargs)``.
+
+    ``perp_channel`` is the pixel-anchored channel perpendicular to the line (``"x"`` for a
+    horizontal ``axis="y"`` rule, ``"y"`` for a vertical ``axis="x"`` rule); ``perp_anchor`` is
+    its ``alt.value`` position; ``text_kwargs`` are the ``mark_text`` properties.  Shared by the
+    data-backed and datum (facet-safe) paths so their label placement can't drift apart.
+    """
+    if axis == "y":
+        la = labelAlign if labelAlign is not None else "left"
+        lp = labelPosition if labelPosition is not None else "top"
+        if la not in ("left", "center", "right"):
+            raise ValueError(f"labelAlign must be 'left', 'center', or 'right' for axis='y', got {la!r}")
+        if lp not in ("top", "bottom"):
+            raise ValueError(f"labelPosition must be 'top' or 'bottom' for axis='y', got {lp!r}")
+        chart_width = alt.theme.options.get("chartWidth", 100)
+        perp_ch, perp_val = "x", {"left": 0, "center": chart_width / 2, "right": chart_width}[la]
+        align, dx = la, labelOffsetX
+        dy = (-3 if lp == "top" else 3) + labelOffsetY
+        baseline = "bottom" if lp == "top" else "top"
+    else:
+        la = labelAlign if labelAlign is not None else "top"
+        lp = labelPosition if labelPosition is not None else "right"
+        if la not in ("top", "center", "bottom"):
+            raise ValueError(f"labelAlign must be 'top', 'center', or 'bottom' for axis='x', got {la!r}")
+        if lp not in ("left", "right"):
+            raise ValueError(f"labelPosition must be 'left' or 'right' for axis='x', got {lp!r}")
+        chart_height = alt.theme.options.get("chartHeight", 100)
+        perp_val, baseline = {
+            "top": (0, "top"),
+            "center": (chart_height / 2, "middle"),
+            "bottom": (chart_height, "bottom"),
+        }[la]
+        perp_ch = "y"
+        align = "left" if lp == "right" else "right"
+        dx = (3 if lp == "right" else -3) + labelOffsetX
+        dy = labelOffsetY
+    text_kwargs: dict = {"align": align, "dx": dx, "dy": dy, "baseline": baseline, "fontSize": fontSize}
+    if color is not None:
+        text_kwargs["color"] = color
+    return perp_ch, perp_val, text_kwargs
+
+
+_DATUM_AGG = "__dsagg"
+
+
+def _datum_ref_layers(
+    src: Any,
+    pos_ch: str,
+    vals: list[float],
+    mark_kwargs: dict,
+    *,
+    labels: list[str] | None = None,
+    text_kwargs: dict | None = None,
+    perp_ch: str | None = None,
+    perp_val: float | None = None,
+) -> list[alt.Chart]:
+    """Facet-safe datum layers for ``add_rule(data=...)``.
+
+    Each mark shares ``src`` (so a faceted chart partitions correctly — Altair requires every
+    layer of a facet to share one data variable) but is collapsed to a single row via a dummy
+    aggregate and positioned by a constant ``alt.datum`` on ``pos_ch``, never by a data field —
+    so no sidecar dataset is created and the reference repeats identically in every panel.
+    Returns one rule layer per value, plus (when ``labels`` given) one text layer per value.
+    """
+
+    def _one() -> alt.Chart:
+        # Altair's transform_aggregate **kwds form isn't stubbed, hence the ty ignore.
+        return alt.Chart(src).transform_aggregate(**{_DATUM_AGG: "count()"})  # ty: ignore[invalid-argument-type]
+
+    layers = [_one().mark_rule(**mark_kwargs).encode(**{pos_ch: alt.datum(v)}) for v in vals]
+    if labels is not None:
+        assert text_kwargs is not None and perp_ch is not None
+        layers += [
+            _one()
+            .mark_text(**text_kwargs)
+            .encode(**{pos_ch: alt.datum(v), perp_ch: alt.value(perp_val), "text": alt.value(lbl)})
+            for v, lbl in zip(vals, labels)
+        ]
+    return layers
+
+
 def add_rule(
     value: float | list[float],
     *,
@@ -43,6 +133,7 @@ def add_rule(
     strokeDash: bool | list[int] | None = None,
     opacity: float = 1.0,
     fontSize: float | None = None,
+    data: "pl.DataFrame | Any | None" = None,
 ) -> alt.Chart | alt.LayerChart:
     """
     Add one or more horizontal or vertical reference lines to a chart.
@@ -85,6 +176,13 @@ def add_rule(
         Line opacity. Defaults to ``1.0``.
     fontSize:
         Label font size. ``None`` inherits from the active theme.
+    data:
+        Facet-safe (datum) mode. ``None`` (default) builds the rule from its own small internal
+        dataset — the normal behavior, but **incompatible with faceting** (Altair requires every
+        layer of a faceted chart to share one data variable). Pass the **same DataFrame you gave
+        the base chart** to switch to datum mode: the rule then shares that data and is positioned
+        by a constant ``alt.datum`` instead of a sidecar dataset, so ``(base + add_rule(..., data=df))``
+        can be faceted and the line repeats in every panel. Accepts a polars or pandas DataFrame.
 
     Examples
     --------
@@ -92,6 +190,10 @@ def add_rule(
 
         # Horizontal line at y=0
         chart = base + ds.add_rule(0)
+
+        # Facet-safe: pass the same df as the base, then facet
+        df_chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        faceted = (df_chart + ds.add_rule(5.0, label="Threshold", data=df)).facet("group:N")
 
         # Labeled horizontal line, label above-left by default
         chart = base + ds.add_rule(5.0, label="Threshold", color="#c0392b")
@@ -115,105 +217,56 @@ def add_rule(
     if axis not in ("x", "y"):
         raise ValueError(f"axis must be 'x' or 'y', got {axis!r}")
 
-    vals = value if isinstance(value, list) else [value]
+    vals = [float(v) for v in (value if isinstance(value, list) else [value])]
     mark_kwargs = _rule_mark_kwargs(color, strokeWidth, strokeDash, opacity)
     fs = fontSize if fontSize is not None else alt.theme.options.get("fontSize", 7)
 
-    if axis == "y":
-        # Horizontal rule: value is a y-coordinate.
-        # labelAlign: where along the line (x-axis): "left", "center", "right".
-        # labelPosition: which side of the line (y-axis): "top", "bottom".
-        df = pl.DataFrame({"__v": [float(v) for v in vals]})
-        rule = alt.Chart(_internal_data(df)).mark_rule(**mark_kwargs).encode(y=alt.Y("__v:Q", title=None))
-        if label is None:
-            return rule
-
+    labels: list[str] | None = None
+    if label is not None:
         labels = [label] if isinstance(label, str) else list(label)
         if len(labels) != len(vals):
             raise ValueError(f"label has {len(labels)} items but value has {len(vals)}")
+    # Label geometry is resolved once and shared by both paths (axis="y": horizontal rule,
+    # labelAlign along x / labelPosition top|bottom; axis="x": vertical rule, labelAlign along y /
+    # labelPosition right|left).
+    geom = (
+        _rule_label_geometry(axis, labelAlign, labelPosition, labelOffsetX, labelOffsetY, fs, color)
+        if labels is not None
+        else None
+    )
 
-        la = labelAlign if labelAlign is not None else "left"
-        lp = labelPosition if labelPosition is not None else "top"
-        if la not in ("left", "center", "right"):
-            raise ValueError(f"labelAlign must be 'left', 'center', or 'right' for axis='y', got {la!r}")
-        if lp not in ("top", "bottom"):
-            raise ValueError(f"labelPosition must be 'top' or 'bottom' for axis='y', got {lp!r}")
+    # Datum (facet-safe) mode: every layer shares `data` and is positioned by a constant datum, so
+    # `(base + add_rule(..., data=df))` can be faceted (a faceted chart needs all its layers to
+    # share one data variable) and the line repeats identically in each panel.
+    if data is not None:
+        from .utils import ensure_polars
 
-        chart_width = alt.theme.options.get("chartWidth", 100)
-        x_anchor = {"left": 0, "center": chart_width / 2, "right": chart_width}[la]
-        base_dy = -3 if lp == "top" else 3
-        vl_baseline = "bottom" if lp == "top" else "top"
-
-        ldf = pl.DataFrame({"__v": [float(v) for v in vals], "__label": labels})
-        text_kwargs: dict = {
-            "align": la,
-            "dx": labelOffsetX,
-            "dy": base_dy + labelOffsetY,
-            "baseline": vl_baseline,
-            "fontSize": fs,
-        }
-        if color is not None:
-            text_kwargs["color"] = color
-        text = (
-            alt.Chart(_internal_data(ldf))
-            .mark_text(**text_kwargs)
-            .encode(
-                y=alt.Y("__v:Q", title=None),
-                text=alt.Text("__label:N"),
-                x=alt.value(x_anchor),
+        src = ensure_polars(data)
+        if geom is None:
+            layers = _datum_ref_layers(src, axis, vals, mark_kwargs)
+        else:
+            perp_ch, perp_val, text_kwargs = geom
+            layers = _datum_ref_layers(
+                src, axis, vals, mark_kwargs, labels=labels, text_kwargs=text_kwargs, perp_ch=perp_ch, perp_val=perp_val
             )
-        )
-        return cast(alt.LayerChart, alt.layer(rule, text))
+        return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
-    else:  # axis == "x"
-        # Vertical rule: value is an x-coordinate.
-        # labelAlign: where along the line (y-axis): "top", "center", "bottom".
-        # labelPosition: which side of the line (x-axis): "right", "left".
-        df = pl.DataFrame({"__v": [float(v) for v in vals]})
-        rule = alt.Chart(_internal_data(df)).mark_rule(**mark_kwargs).encode(x=alt.X("__v:Q", title=None))
-        if label is None:
-            return rule
-
-        labels = [label] if isinstance(label, str) else list(label)
-        if len(labels) != len(vals):
-            raise ValueError(f"label has {len(labels)} items but value has {len(vals)}")
-
-        la = labelAlign if labelAlign is not None else "top"
-        lp = labelPosition if labelPosition is not None else "right"
-        if la not in ("top", "center", "bottom"):
-            raise ValueError(f"labelAlign must be 'top', 'center', or 'bottom' for axis='x', got {la!r}")
-        if lp not in ("left", "right"):
-            raise ValueError(f"labelPosition must be 'left' or 'right' for axis='x', got {lp!r}")
-
-        chart_height = alt.theme.options.get("chartHeight", 100)
-        y_anchor, vl_baseline = {
-            "top": (0, "top"),
-            "center": (chart_height / 2, "middle"),
-            "bottom": (chart_height, "bottom"),
-        }[la]
-        base_dx = 3 if lp == "right" else -3
-        vl_align = "left" if lp == "right" else "right"
-
-        ldf = pl.DataFrame({"__v": [float(v) for v in vals], "__label": labels})
-        text_kwargs = {
-            "align": vl_align,
-            "dx": base_dx + labelOffsetX,
-            "dy": labelOffsetY,
-            "baseline": vl_baseline,
-            "fontSize": fs,
-        }
-        if color is not None:
-            text_kwargs["color"] = color
-        text = (
-            alt.Chart(_internal_data(ldf))
-            .mark_text(**text_kwargs)
-            .encode(
-                x=alt.X("__v:Q", title=None),
-                text=alt.Text("__label:N"),
-                y=alt.value(y_anchor),
-            )
-        )
-        return cast(alt.LayerChart, alt.layer(rule, text))
+    # Data-backed mode (default): one sidecar layer carries the value(s) as a `__v` field.
+    _Pos = alt.Y if axis == "y" else alt.X
+    rule = (
+        alt.Chart(_internal_data(pl.DataFrame({"__v": vals})))
+        .mark_rule(**mark_kwargs)
+        .encode(**{axis: _Pos("__v:Q", title=None)})
+    )
+    if geom is None:
+        return rule
+    perp_ch, perp_val, text_kwargs = geom
+    text = (
+        alt.Chart(_internal_data(pl.DataFrame({"__v": vals, "__label": labels})))
+        .mark_text(**text_kwargs)
+        .encode(**{axis: _Pos("__v:Q", title=None)}, text=alt.Text("__label:N"), **{perp_ch: alt.value(perp_val)})
+    )
+    return cast(alt.LayerChart, alt.layer(rule, text))
 
 
 _TEXT_PRESETS: dict[str, dict] = {
