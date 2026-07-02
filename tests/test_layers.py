@@ -1,4 +1,5 @@
 import altair as alt
+import polars as pl
 import pytest
 
 from dysonsphere.layers import _rule_mark_kwargs, add_rule
@@ -72,3 +73,43 @@ class TestAddRule:
     def test_invalid_axis_raises(self):
         with pytest.raises(ValueError, match="axis"):
             add_rule(0.5, axis="z")
+
+
+class TestAddRuleDatum:
+    """Facet-safe datum mode: add_rule(data=df) shares the base's frame and positions by datum."""
+
+    @pytest.fixture
+    def df(self):
+        return pl.DataFrame({"g": ["A", "A", "B", "B"], "x": [1.0, 2, 3, 4], "value": [1.0, 2, 3, 4]})
+
+    def test_datum_single_returns_chart(self, df):
+        assert isinstance(add_rule(2.0, data=df), alt.Chart)
+
+    def test_datum_multi_returns_layer(self, df):
+        assert isinstance(add_rule([1.0, 3.0], data=df), alt.LayerChart)
+
+    def test_datum_with_label_returns_layer(self, df):
+        assert isinstance(add_rule(2.0, label="thr", data=df), alt.LayerChart)
+
+    def test_datum_uses_datum_not_sidecar(self, df):
+        import json
+
+        spec = json.dumps(add_rule(2.0, data=df).to_dict())
+        assert "__v" not in spec  # no field-based sidecar
+        assert "__dysonsphere__" not in spec  # no internal sentinel dataset (shares the user's df)
+        assert '"datum"' in spec  # positioned by a constant datum
+
+    def test_datum_pandas_accepted(self, df):
+        add_rule(2.0, data=df.to_pandas()).to_dict()  # ensure_polars handles pandas
+
+    def test_datum_faceting_succeeds(self, df):
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
+        faceted = (base + add_rule(2.5, label="thr", data=df)).facet(column="g:N")
+        assert isinstance(faceted, alt.FacetChart)
+        faceted.to_dict()  # compiles without the shared-data facet error
+
+    def test_default_mode_not_facetable(self, df):
+        # Contrast: the data-backed default cannot be faceted — the limitation datum mode fixes.
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
+        with pytest.raises(ValueError, match="Facet charts require data"):
+            (base + add_rule(2.5)).facet(column="g:N")

@@ -992,6 +992,14 @@ chart = base + ds.add_rule(10, axis="x", label="t₀", labelPosition="left")
 | `strokeDash` | `None` | `None` = theme `dashedRule`; `False` = solid; `True` = `dashedWidth`; list = explicit pattern |
 | `opacity` | `1.0` | Line opacity |
 | `fontSize` | `None` | Label font size; `None` inherits from theme |
+| `data` | `None` | Facet-safe (datum) mode. `None` builds the rule from its own internal dataset (the normal behavior, but **not facetable**). Pass the **same DataFrame as the base chart** to share its data and position by `alt.datum`, so `(base + add_rule(..., data=df))` can be faceted and the line repeats in every panel. Accepts polars or pandas |
+
+**Faceting note.** By default a reference line carries its own small dataset, and Altair won't facet a layered chart whose layers don't share one data variable — so `(base + add_rule(5)).facet(...)` raises. Pass `data=` (the same frame as the base) to switch to datum mode, which faceting handles correctly:
+
+```python
+base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
+faceted = (base + ds.add_rule(5.0, label="Threshold", data=df)).facet("group:N")
+```
 
 #### Text annotations
 
