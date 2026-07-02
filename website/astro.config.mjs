@@ -18,6 +18,7 @@ export default defineConfig({
 					label: 'Guides',
 					items: [{ label: 'Getting started', slug: 'guides/getting-started' }],
 				},
+				{ label: 'Gallery', slug: 'gallery' },
 				{
 					label: 'Reference',
 					items: [{ autogenerate: { directory: 'reference' } }],

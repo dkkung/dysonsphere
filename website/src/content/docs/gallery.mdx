@@ -1,0 +1,51 @@
+---
+title: Gallery
+description: Live, interactive charts built with dysonsphere on the standard vega-datasets.
+---
+
+import Chart from '../../components/Chart.astro';
+
+Every chart below is **live and interactive** - hover for tooltips, and use the actions menu
+(top-right of each chart) to export SVG, PNG, or the Vega-Lite JSON. All are built with
+dysonsphere on the standard [vega-datasets](https://github.com/vega/vega-datasets), not synthetic
+data.
+
+## Strip plot
+
+Fuel economy by region of origin - `mark_strip()` on the `cars` dataset (jittered points with a
+median tick and mean error bars).
+
+<Chart name="strip" alt="Strip plot of miles per gallon by car origin" />
+
+## Violin plot
+
+Engine power by region - `mark_violin()` pairs a kernel-density silhouette with an embedded boxplot.
+
+<Chart name="violin" alt="Violin plot of horsepower by car origin" />
+
+## Statistical comparisons
+
+`add_comparisons()` runs an ANOVA and draws pairwise significance brackets, with the full
+descriptive + effect-size report baked into the export metadata.
+
+<Chart name="comparisons" alt="Fuel economy by origin with ANOVA and pairwise comparison brackets" />
+
+## Correlation
+
+`add_correlation()` adds a Pearson coefficient, p-value, and OLS fit line - here, the classic
+negative relationship between horsepower and fuel economy.
+
+<Chart name="correlation" alt="Scatter of horsepower versus miles per gallon with an OLS fit line" />
+
+## Categorical palette
+
+A bar chart of mean barley yield by variety, colored with dysonsphere's perceptually uniform
+category palette.
+
+<Chart name="bar" alt="Bar chart of mean barley yield by variety" />
+
+## Nonlinear axes
+
+`add_log_ticks()` adds correctly spaced minor ticks to a log-scale axis - stock prices over time.
+
+<Chart name="log" alt="Log-scale line chart of stock prices over time" />
