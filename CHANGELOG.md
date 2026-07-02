@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### New features
+
+- **`save()` provenance `dataChecksum`.** The embedded provenance block gains a third identity field: `dataChecksum`, a `sha256:` fingerprint of the chart's input data. Unlike `vegaliteChecksum` (which changes with row order, since the inlined data is part of the spec it hashes), `dataChecksum` identifies the *data* independent of how it was drawn - two charts with different Vega-Lite specs (marks, encodings, themes) but the same data share it. It is order-independent (re-sorted rows still match) and excludes dysonsphere's own internal sidecar datasets, so adding an annotation layer never changes it. Multi-frame charts (e.g. `hconcat`) get a sorted list, one entry per input dataframe. The identity fields now lead in the order `dataChecksum`, `vegaliteChecksum`, `exportIdentifier`.
+
 ## [2.0.0] - 2026-07-01
 
 ### Breaking changes

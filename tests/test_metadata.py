@@ -11,7 +11,17 @@ from dysonsphere.export import save
 from dysonsphere.metadata import _inject_png_metadata
 from dysonsphere.theme import theme
 
-_PROV_ORDER = ["vegaliteChecksum", "exportIdentifier", "user", "script", "timestamp", "python", "altair", "dysonsphere"]
+_PROV_ORDER = [
+    "dataChecksum",
+    "vegaliteChecksum",
+    "exportIdentifier",
+    "user",
+    "script",
+    "timestamp",
+    "python",
+    "altair",
+    "dysonsphere",
+]
 
 
 @pytest.fixture(autouse=True)
@@ -611,6 +621,100 @@ class TestStatsQueueRobustness:
         clean = {k: v for k, v in spec.items() if k != "usermeta"}
         canon = json.dumps(clean, sort_keys=True, separators=(",", ":"))
         assert stored == "sha256:" + hashlib.sha256(canon.encode()).hexdigest()
+
+    def test_provenance_has_data_checksum(self, simple_chart, tmp_path):
+        import dysonsphere as ds
+
+        ds.save(simple_chart, str(tmp_path / "out"), format="json", background=["light"])
+        sums = self._um(tmp_path)["provenance"]["dataChecksum"]
+        assert isinstance(sums, list) and sums  # non-empty list
+        assert all(s.startswith("sha256:") and len(s) == len("sha256:") + 64 for s in sums)
+
+    def test_data_checksum_matches_across_specs(self, tmp_path):
+        # The core value prop: same data, DIFFERENT specs → identical dataChecksum.
+        import dysonsphere as ds
+
+        df = pl.DataFrame({"x": ["A", "B", "C"], "y": [1.0, 2.0, 3.0]})
+        points = alt.Chart(df).mark_point().encode(x="x:N", y="y:Q")
+        bars = alt.Chart(df).mark_bar().encode(x="y:Q", y="x:N")  # different mark AND encoding
+        ds.save(points, str(tmp_path / "p"), format="json", background=["light"])
+        ds.save(bars, str(tmp_path / "b"), format="json", background=["light"])
+        assert (
+            self._um(tmp_path, "p")["provenance"]["vegaliteChecksum"]
+            != (self._um(tmp_path, "b")["provenance"]["vegaliteChecksum"])
+        )  # specs differ
+        assert (
+            self._um(tmp_path, "p")["provenance"]["dataChecksum"]
+            == self._um(tmp_path, "b")["provenance"]["dataChecksum"]
+        )  # data is identical
+
+    def test_data_checksum_differs_for_different_data(self, tmp_path):
+        import dysonsphere as ds
+
+        a = alt.Chart(pl.DataFrame({"x": ["A", "B"], "y": [1.0, 2.0]})).mark_point().encode(x="x:N", y="y:Q")
+        b = alt.Chart(pl.DataFrame({"x": ["A", "B"], "y": [1.0, 9.0]})).mark_point().encode(x="x:N", y="y:Q")
+        ds.save(a, str(tmp_path / "a"), format="json", background=["light"])
+        ds.save(b, str(tmp_path / "b"), format="json", background=["light"])
+        assert (
+            self._um(tmp_path, "a")["provenance"]["dataChecksum"]
+            != self._um(tmp_path, "b")["provenance"]["dataChecksum"]
+        )
+
+    def test_data_checksum_order_independent(self, tmp_path):
+        import dysonsphere as ds
+
+        rows = [{"x": "A", "y": 1.0}, {"x": "B", "y": 2.0}, {"x": "C", "y": 3.0}]
+        a = alt.Chart(pl.DataFrame(rows)).mark_point().encode(x="x:N", y="y:Q")
+        b = alt.Chart(pl.DataFrame(rows[::-1])).mark_point().encode(x="x:N", y="y:Q")  # rows shuffled
+        ds.save(a, str(tmp_path / "a"), format="json", background=["light"])
+        ds.save(b, str(tmp_path / "b"), format="json", background=["light"])
+        assert (
+            self._um(tmp_path, "a")["provenance"]["dataChecksum"]
+            == self._um(tmp_path, "b")["provenance"]["dataChecksum"]
+        )
+
+    def test_data_checksum_shared_across_variants(self, simple_chart, tmp_path):
+        # Data is identical regardless of darkmode, so dataChecksum matches (unlike vegaliteChecksum).
+        import dysonsphere as ds
+
+        ds.save(simple_chart, str(tmp_path / "b"), format="json", background=["light", "dark"])
+        pl_ = self._um(tmp_path, "b_light")["provenance"]
+        pd_ = self._um(tmp_path, "b_dark")["provenance"]
+        assert pl_["vegaliteChecksum"] != pd_["vegaliteChecksum"]  # specs differ by theme
+        assert pl_["dataChecksum"] == pd_["dataChecksum"]  # data is the same
+
+    def test_data_checksum_excludes_internal_sidecars(self, tmp_path):
+        # Adding a dysonsphere annotation layer (which embeds internal sidecar data) must NOT
+        # change the dataChecksum — only the user's frame is hashed.
+        import dysonsphere as ds
+
+        df = pl.DataFrame({"g": ["A", "A", "B", "B"], "v": [1.0, 1.5, 3.0, 3.5]})
+        plain = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q")
+        annotated = plain + ds.add_comparisons(df, "g", "v", [("A", "B")], categories=["A", "B"])
+        ds.save(plain, str(tmp_path / "plain"), format="json", background=["light"])
+        ds.save(annotated, str(tmp_path / "ann"), format="json", background=["light"])
+        assert (
+            self._um(tmp_path, "plain")["provenance"]["dataChecksum"]
+            == self._um(tmp_path, "ann")["provenance"]["dataChecksum"]
+        )
+
+    def test_data_checksum_multiframe(self, tmp_path):
+        import dysonsphere as ds
+
+        left = alt.Chart(pl.DataFrame({"x": ["A", "B"], "y": [1.0, 2.0]})).mark_point().encode(x="x:N", y="y:Q")
+        right = alt.Chart(pl.DataFrame({"x": ["C", "D"], "y": [3.0, 4.0]})).mark_bar().encode(x="x:N", y="y:Q")
+        ds.save(left | right, str(tmp_path / "h"), format="json", background=["light"])
+        sums = self._um(tmp_path, "h")["provenance"]["dataChecksum"]
+        assert len(sums) == 2 and sums == sorted(sums)  # one per frame, sorted
+
+    def test_data_checksum_revalidates(self, simple_chart, tmp_path):
+        import dysonsphere as ds
+        from dysonsphere.metadata import _data_checksum
+
+        ds.save(simple_chart, str(tmp_path / "out"), format="json", background=["light"])
+        spec = json.loads((tmp_path / "out.json").read_text())
+        stored = spec["usermeta"]["dysonsphere"]["provenance"]["dataChecksum"]
+        assert stored == _data_checksum(spec)  # re-derive from the written spec
 
     def test_clear_stats_empties_queue(self):
         import dysonsphere as ds
