@@ -70,6 +70,40 @@ Validate functional correctness by running `uv run pytest tests/`. Validate visu
 - Use `-` instead of em dashes (`—`) in comments, config files, and generated text.
 - Maximum line length is 120 characters (`[tool.ruff] line-length = 120`). E501 is enforced across all Python files including tests and scripts. The formatter handles code automatically; comments and strings must be wrapped manually when over the limit.
 
+## Development workflow
+
+The loop for feature work and non-trivial changes (adapted from the process used across the v1.x cycle):
+
+**1. Discuss before building.** For any non-trivial feature or design decision, discuss the approach first - lay out the options, their tradeoffs, and a recommendation, and get agreement before writing code. When a choice is genuinely the user's to make, ask, but recommend a default rather than only enumerating. **Make no breaking changes without consulting the user first.**
+
+**2. Build within scope.** Implement the agreed design and keep changes within the target function/module; do not edit unrelated files without asking. Verify behavior empirically as you go (a quick script or REPL check), and trace every failure mode rather than stopping at the first plausible fix. Where correctness is subtle (something that could silently regress), add a safety-net test that would catch a future mistake. Iterate (build, run, fix) until it is right.
+
+**3. Checkpoint - when the code for a coherent unit of work is done:**
+
+First, **finish the Python side** - everything the checks will cover (docstrings included, since `ruff` lints their line length):
+1. Update the docstrings in the files you changed.
+2. Update existing tests that touch the changed code.
+3. Add new tests as needed (every new public function gets tests).
+
+Then **verify**, iterating (fix, rerun) until green:
+- `uv run ruff check dysonsphere/ tests/ scripts/`
+- `uv run ruff format dysonsphere/ tests/ scripts/`
+- `uv run ty check dysonsphere/ tests/ scripts/`
+- `uv run pytest tests/` - all pass, zero skips/failures.
+
+Then **document** (prose the checks do not touch):
+4. Update `README.md` if the change is user-facing.
+5. Update `CLAUDE.md` if architecture, conventions, or design points changed.
+6. Update memories if there is non-obvious context worth persisting.
+
+Finally, **commit**.
+
+**4. Commit conventions.** One-line messages with a header prefix - `add:`, `change:`, `fix:`, `remove:`, `refactor:`. No co-author / "Generated with" trailer. Commit to the working branch, never directly to `main`; branch first if needed.
+
+**5. Pull request.** When a coherent block (a feature or working set) is done, open a PR into `main`: a crisp, outcome-focused title (no `vX.Y` prefix) and a real description (a short summary plus grouped bullets of what changed; omit a "tests and docs" section, those are implicit). No tag, no em dashes. Show the user the draft before creating it.
+
+See `## Style conventions` for the `-`-not-em-dashes rule, the 120-character limit, and camelCase public params; see `### Release` for the release steps (including the step-0 deprecation sweep on major bumps).
+
 ## Architecture
 
 `dysonsphere` is an [Altair](https://altair-viz.github.io/) theme and chart utility library. It wraps Vega-Lite's theme system to provide perceptually uniform palettes and publication-ready chart defaults.
