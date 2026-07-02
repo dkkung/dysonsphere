@@ -23,10 +23,8 @@
 :root {
   --ds-chart-zoom: 3;
 }
-.vega-embed {
+/* vega-embed renders the chart SVG into a `.chart-wrapper` div, with its export menu as a
+   sibling. Zoom only the wrapper so the chart scales but the menu stays normal size. */
+.vega-embed .chart-wrapper {
   zoom: var(--ds-chart-zoom);
-}
-/* The zoom above also scales vega-embed's export menu; counter-scale it back to normal size. */
-.vega-embed .vega-actions {
-  zoom: calc(1 / var(--ds-chart-zoom));
 }
