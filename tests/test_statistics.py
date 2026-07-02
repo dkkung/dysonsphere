@@ -125,20 +125,6 @@ class TestFormatAsterisks:
         assert _format_asterisks(1.0) == "ns"
 
 
-class TestDeprecatedAlias:
-    def test_add_pvalue_warns_and_works(self, group_df):
-        from dysonsphere.layers import add_pvalue
-
-        with pytest.warns(DeprecationWarning, match="add_comparisons"):
-            result = add_pvalue(group_df, "group", "value", [("A", "B")], pvalues=[0.01])
-        assert isinstance(result, alt.LayerChart)
-
-    def test_add_pvalue_exposed_on_namespace(self):
-        import dysonsphere as ds
-
-        assert hasattr(ds, "add_pvalue") and hasattr(ds, "add_comparisons")
-
-
 class TestAddComparisons:
     def test_returns_layer_chart_with_explicit_pvalue(self, group_df):
         result = add_comparisons(group_df, "group", "value", [("A", "B")], pvalues=[0.01])

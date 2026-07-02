@@ -1,9 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [2.0.0] - 2026-07-01
 
 ### Breaking changes
 
+- **`add_pvalue()` removed.** It was renamed to `add_comparisons()` in v1.1 and kept as a `DeprecationWarning`-emitting alias; that alias is now gone. Use `add_comparisons()`.
+- **`decimals` removed** (replaced by `sigFigs`, significant figures) on `theme()` / `add_comparisons()` / `add_correlation()` - see the `sigFigs` entry below.
 - **`save()` defaults and output control.** `save()` now writes **SVG + JSON, light background only** by default (previously light+dark PNG+SVG+JSON). A new `format` param (`"svg"`/`"png"`/`"json"`, string or list) controls which files are written, and `background` (`"light"`/`"dark"`, string or list) which variants; both default to the new theme options `saveFormat` (`["svg", "json"]`) / `saveBackground` (`"light"`), so the export defaults are configurable globally or in `dysonsphere.toml`. The `saveVegaSpec` parameter is **removed** (use `format` with/without `"json"`). Filenames now get a `_light`/`_dark` suffix **only when more than one background** is rendered — a single-background export writes clean names (`fig.svg`, `fig.json`), and the JSON dropped its `_vegalite` infix (now `fig.json`). Invalid or empty `format`/`background` raises `ValueError`.
 
 ### New features
@@ -21,11 +23,7 @@
 - **`add_comparisons()` defaults** - `bracketStyle` now defaults to `"bracket"` (bar + end ticks, the common significance-annotation style) instead of `"line"`; bracket end-tick height defaults to the theme's `tickSize` (so ticks match the axis ticks and reverse brackets no longer need an explicit `tickHeight`); and the omnibus/test label always shows the p-value (`labelStyle="asterisks"` now applies only to the pairwise brackets). Statistics labels default to the theme's primary `fontSize`, and `reverse=True` labels are no longer cramped against the bar.
 - **`add_correlation()`** - annotate a scatter with a correlation coefficient. `method="pearson"` (default; matches pandas' `DataFrame.corr`) draws the OLS fit line; `"spearman"` / `"kendall"` report the rank coefficient with no line. The corner readout is composed from independent parts — `coefficient` (`"r"` / `"r2"` / `"both"`), `includePvalue`, `includeEquation`, with `verbose=True` as a "show everything" shortcut — and defaults to just the coefficient. The fit line inherits the theme's `mark_line` config, with curated overrides (`color`/`strokeWidth`/`strokeDash`/`opacity`), a raw `lineStyle` dict passthrough, and `line=False` to suppress. Feeds the same structured metadata as `add_comparisons()`.
 
-### Deprecated
-
-- **`add_pvalue()` renamed to `add_comparisons()`** to reflect its expanded scope (omnibus tests, post-hoc tests, descriptive + effect-size reports, structured metadata). `add_pvalue()` still works as an alias but emits a `DeprecationWarning` and **will be removed in v2.0** — switch to `add_comparisons()`.
-
-## [v1.0.0] - 2026-06-30
+## [1.0.0] - 2026-06-30
 
 v1.0.0 marks the first stable release of dysonsphere.
 
@@ -122,7 +120,7 @@ v1.0.0 marks the first stable release of dysonsphere.
 
 ---
 
-## [v0.9.0] - 2026-06-25
+## [0.9.0] - 2026-06-25
 
 ### New features
 
@@ -144,7 +142,7 @@ v1.0.0 marks the first stable release of dysonsphere.
 
 ---
 
-## [v0.8.0] - 2026-06-24
+## [0.8.0] - 2026-06-24
 
 ### Breaking changes
 
@@ -154,7 +152,7 @@ v1.0.0 marks the first stable release of dysonsphere.
 
 ---
 
-## [v0.7.0] - 2026-06-24
+## [0.7.0] - 2026-06-24
 
 ### New features
 
@@ -179,7 +177,7 @@ v1.0.0 marks the first stable release of dysonsphere.
 
 ---
 
-## [v0.6.0] - 2026-06-22
+## [0.6.0] - 2026-06-22
 
 ### New features
 
@@ -205,7 +203,7 @@ The SVG tick alignment pass previously misidentified quantitative x-axis ticks (
 
 ---
 
-## [v0.5.0] - 2026-06-22
+## [0.5.0] - 2026-06-22
 
 ### New features
 
@@ -223,13 +221,13 @@ A secondary bug was also fixed: the y-axis tick at the maximum data value render
 
 ---
 
-## [v0.4.0] - 2026-06-21
+## [0.4.0] - 2026-06-21
 
 Renamed package from petaurus to dysonsphere. Rebuilt green palettes and all paired diverging palettes using a new multi-hue greens base.
 
 ---
 
-## [v0.3.1] - 2026-06-20
+## [0.3.1] - 2026-06-20
 
 Initial beta release of **petaurus** — now available on PyPI.
 

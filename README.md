@@ -567,7 +567,7 @@ ds.save(alt.hconcat(left, right), "comparison")
 - **Pairwise** (`"mannwhitneyu"`, `"ttest_ind"`, `"ttest_rel"`, `"wilcoxon"`, `"tukey_hsd"`) - draws a bracket per pair in `pairs`, stacked automatically so they don't overlap.
 - **Omnibus** (`"anova"`, `"kruskal"`, `"friedman"`, `"alexandergovern"`) - places the omnibus result as a corner label (via `add_text`), and, if `pairs` is given, fills the brackets with a post-hoc test.
 
-> **Renamed in v1.1:** this function was `add_pvalue()` in v1.0. `add_pvalue()` still works as a deprecated alias (it emits a `DeprecationWarning`) and will be removed in v2.0 - switch to `add_comparisons()`.
+> **Renamed:** this function was `add_pvalue()` in v1.0 and renamed to `add_comparisons()` in v1.1. The deprecated `add_pvalue()` alias was removed in v2.0.
 
 Combine with any chart using `+`.
 

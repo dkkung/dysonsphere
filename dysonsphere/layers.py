@@ -1511,19 +1511,6 @@ def add_comparisons(
     return cast(alt.LayerChart, alt.layer(*annotation_layers).properties(name=marker))
 
 
-# DEPRECATED(remove in v2.0): add_pvalue() was renamed to add_comparisons() in v1.1.
-def add_pvalue(*args, **kwargs) -> alt.LayerChart:
-    """Deprecated alias for :func:`add_comparisons`. Will be removed in dysonsphere 2.0."""
-    import warnings
-
-    warnings.warn(
-        "add_pvalue() is deprecated and will be removed in dysonsphere 2.0; use add_comparisons() instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return add_comparisons(*args, **kwargs)
-
-
 # Correlation
 
 
