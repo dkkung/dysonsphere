@@ -77,6 +77,7 @@ chart = (
 		});
 		new MutationObserver(() => {
 			editor.dispatch({ effects: themeCompartment.reconfigure(cmTheme()) });
+			if (runFn) run(); // re-render the chart in the new theme's ink
 		}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
 		const setStatus = (msg: string, kind = '') => {
@@ -91,8 +92,8 @@ chart = (
 			setStatus('Running…');
 			runBtn.disabled = true;
 			try {
-				const spec = JSON.parse(runFn(editor.state.doc.toString()));
-				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg' });
+				const spec = JSON.parse(runFn(editor.state.doc.toString(), isDark()));
+				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
 				setStatus('Rendered.', 'ok');
 			} catch (e) {
 				setStatus('Error - see console.', 'err');
@@ -114,12 +115,17 @@ chart = (
 
 			await pyodide.runPythonAsync(`
 import json
-def _run(code):
+import altair as alt
+def _run(code, dark):
     ns = {}
     exec(code, ns)
     ch = ns.get("chart")
     if ch is None:
         raise RuntimeError("Define a variable named 'chart' (a dysonsphere/Altair chart).")
+    # Match the site theme: invert ink for dark and draw transparent so the page provides
+    # contrast. Kept out of the user's snippet - applied just before serializing.
+    alt.theme.options["darkmode"] = dark
+    alt.theme.options["transparentBackground"] = True
     return json.dumps(ch.to_dict())
 `);
 			runFn = pyodide.globals.get('_run');
