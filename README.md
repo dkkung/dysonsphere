@@ -947,6 +947,9 @@ shade = ds.add_shade(
 | `strokeWidth` | `None` | Explicit border width in pixels. Overrides `axisWidth` when `stroke=True` |
 | `strokeDash` | `None` | `None` → solid; `True` → inherit `dashedWidth` from theme; list (e.g. `[4, 2]`) → explicit pattern |
 | `flush` | `None` | Extend outermost rects to the axis domain edge. `None` inherits from `theme(closed=...)` |
+| `data` | `None` | Facet-safe (datum) mode, **positions mode only**. Pass the same DataFrame as the base chart to share its data and position numeric ranges by `alt.datum`, so `(base + add_shade(positions=..., data=df))` can be faceted. Band mode does not support it (raises) |
+
+**Faceting note.** As with `add_rule`, a shade layer carries its own data by default and can't be faceted. In **positions mode**, pass `data=` (the same frame as the base) to switch to datum mode so `(base + add_shade(positions=..., data=df)).facet(...)` works and the shading repeats in every panel.
 
 #### Reference lines
 
@@ -1037,6 +1040,9 @@ The `x` and `y` parameters accept three forms: a `float`/`int` for quantitative 
 | `fontStyle` | `None` | `"normal"` or `"italic"`; `None` inherits from theme |
 | `font` | `None` | Font family name (e.g. `"sans-serif"`, `"Georgia"`); `None` inherits from theme |
 | `opacity` | `1.0` | Text opacity |
+| `data` | `None` | Facet-safe (datum) mode. Pass the same DataFrame as the base chart to share its data and position the text by `alt.datum` / `alt.value`, so `(base + add_text(..., data=df))` can be faceted and the text repeats in every panel |
+
+**Faceting note.** Like `add_rule` / `add_shade`, a text annotation carries its own data by default and can't be faceted. Pass `data=` (the same frame as the base) to switch to datum mode so `(base + add_text(..., data=df)).facet(...)` works.
 
 ### Non-linear axes
 

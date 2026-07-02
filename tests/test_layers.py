@@ -2,7 +2,7 @@ import altair as alt
 import polars as pl
 import pytest
 
-from dysonsphere.layers import _rule_mark_kwargs, add_rule
+from dysonsphere.layers import _rule_mark_kwargs, add_rule, add_shade, add_text
 from dysonsphere.theme import theme
 
 
@@ -113,3 +113,69 @@ class TestAddRuleDatum:
         base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
         with pytest.raises(ValueError, match="Facet charts require data"):
             (base + add_rule(2.5)).facet(column="g:N")
+
+
+class TestAddTextDatum:
+    """Facet-safe datum mode for add_text(data=df)."""
+
+    @pytest.fixture
+    def df(self):
+        return pl.DataFrame({"g": ["A", "A", "B", "B"], "cat": ["X", "Y", "X", "Y"], "value": [1.0, 2, 3, 4]})
+
+    def test_datum_single_returns_chart(self, df):
+        assert isinstance(add_text("hi", x=1.0, y=2.0, data=df), alt.Chart)
+
+    def test_datum_multi_returns_layer(self, df):
+        assert isinstance(add_text(["a", "b"], x=["X", "Y"], y=[1.0, 2.0], data=df), alt.LayerChart)
+
+    def test_datum_uses_datum_not_sidecar(self, df):
+        import json
+
+        spec = json.dumps(add_text("hi", x="X", y=2.0, data=df).to_dict())
+        assert "__text" not in spec and "__dysonsphere__" not in spec  # no sidecar
+        assert '"datum"' in spec and '"value": "hi"' in spec  # datum position + value text
+
+    def test_datum_faceting_succeeds(self, df):
+        base = alt.Chart(df).mark_point().encode(x="cat:N", y="value:Q")
+        faceted = (base + add_text("★", x="X", y=3.0, data=df)).facet(column="g:N")
+        assert isinstance(faceted, alt.FacetChart)
+        faceted.to_dict()
+
+    def test_datum_pixel_preset(self, df):
+        base = alt.Chart(df).mark_point().encode(x="cat:N", y="value:Q")
+        (base + add_text("n", position="topRight", data=df)).facet(column="g:N").to_dict()
+
+    def test_default_not_facetable(self, df):
+        base = alt.Chart(df).mark_point().encode(x="cat:N", y="value:Q")
+        with pytest.raises(ValueError, match="Facet charts require data"):
+            (base + add_text("hi", x="X", y=2.0)).facet(column="g:N")
+
+
+class TestAddShadeDatum:
+    """Facet-safe datum mode for add_shade(positions=..., data=df); band mode is unsupported."""
+
+    @pytest.fixture
+    def df(self):
+        return pl.DataFrame({"g": ["A", "A", "B", "B"], "x": [1.0, 2, 3, 4], "value": [1.0, 2, 3, 4]})
+
+    def test_datum_numeric_faceting_succeeds(self, df):
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
+        faceted = (base + add_shade(positions=[(1.5, 2.5)], axis="x", data=df)).facet(column="g:N")
+        assert isinstance(faceted, alt.FacetChart)
+        faceted.to_dict()
+
+    def test_datum_uses_datum_not_sidecar(self, df):
+        import json
+
+        spec = json.dumps(add_shade(positions=[(1.5, 2.5)], axis="x", data=df).to_dict())
+        assert "__xs" not in spec and "__dysonsphere__" not in spec  # no sidecar fields
+        assert '"datum"' in spec
+
+    def test_band_mode_with_data_raises(self, df):
+        with pytest.raises(ValueError, match="positions mode only"):
+            add_shade(["A", "B"], "g", data=df)
+
+    def test_default_not_facetable(self, df):
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
+        with pytest.raises(ValueError, match="Facet charts require data"):
+            (base + add_shade(positions=[(1.5, 2.5)], axis="x")).facet(column="g:N")
