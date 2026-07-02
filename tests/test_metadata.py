@@ -743,6 +743,41 @@ class TestStatsQueueRobustness:
         stored = spec["usermeta"]["dysonsphere"]["provenance"]["dataChecksum"]
         assert stored == _data_checksum(spec)  # re-derive from the written spec
 
+    def test_record_data_checksum_distinguishes_sources(self, tmp_path):
+        # Two correlations from DIFFERENT dataframes → two records with distinct dataChecksums,
+        # and the one built on the inlined base frame matches provenance.dataChecksum.
+        import numpy as np
+
+        import dysonsphere as ds
+
+        rng = np.random.default_rng(0)
+        x = rng.uniform(0, 10, 30)
+        dfA = pl.DataFrame({"x": x, "y": 0.9 * x + rng.normal(0, 1, 30)})
+        dfB = pl.DataFrame({"x": x, "y": -0.5 * x + rng.normal(0, 1, 30)})
+        ds.clear_stats()
+        chart = (
+            alt.Chart(dfA).mark_point().encode(x="x:Q", y="y:Q")
+            + ds.add_correlation(dfA, "x", "y")
+            + ds.add_correlation(dfB, "x", "y")
+        )
+        ds.save(chart, str(tmp_path / "c"), format="json", background=["light"])
+        block = self._um(tmp_path, "c")
+        sums = [r["dataChecksum"] for r in block["statistics"]]
+        assert len(sums) == 2 and sums[0] != sums[1]  # distinct sources, both kept
+        assert block["provenance"]["dataChecksum"][0] in sums  # base frame record == provenance
+
+    def test_comparisons_record_carries_data_checksum(self, tmp_path):
+        import dysonsphere as ds
+
+        df = pl.DataFrame({"g": ["A", "A", "B", "B"], "v": [1.0, 1.5, 3.0, 3.5]})
+        ds.clear_stats()
+        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.add_comparisons(
+            df, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "s"), format="json", background=["light"])
+        rec = self._um(tmp_path, "s")["statistics"][0]
+        assert rec["dataChecksum"] and rec["dataChecksum"].startswith("sha256:")
+
     def test_clear_stats_empties_queue(self):
         import dysonsphere as ds
         from dysonsphere.statistics import _REPORTS

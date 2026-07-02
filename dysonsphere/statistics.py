@@ -269,10 +269,17 @@ def _run_correlation(method: str, x: np.ndarray, y: np.ndarray) -> dict:
     }
 
 
-def _make_correlation_record(result: dict, xCol: str, yCol: str) -> dict:
-    """Structured record for a correlation (the single source of truth, → usermeta)."""
+def _make_correlation_record(result: dict, xCol: str, yCol: str, data_checksum: str | None = None) -> dict:
+    """Structured record for a correlation (the single source of truth, → usermeta).
+
+    ``data_checksum`` is the order-independent fingerprint of the source dataframe
+    (``utils.frame_checksum``), so records from distinct dataframes are distinguishable; it also
+    feeds the record's content hash (the marker), so two correlations on different data never
+    collapse.  ``None`` when built without a frame (e.g. a direct unit-test call).
+    """
     return {
         "kind": "correlation",
+        "dataChecksum": data_checksum,
         "method": result["method"],
         "x": xCol,
         "y": yCol,
@@ -464,6 +471,7 @@ def _make_record(
     comparison_test: str | None,
     correction: str | None,
     pvalues_provided: bool,
+    data_checksum: str | None = None,
 ) -> dict:
     """Build the structured report record.
 
@@ -471,6 +479,11 @@ def _make_record(
     plain-text report, and ``export.save`` embeds it verbatim under
     ``usermeta.dysonsphere.statistics``.  ``comparisons`` is the internal list of
     dicts with keys ``g1``/``g2``/``pvalue`` and optionally ``effectName``/``effect``.
+
+    ``data_checksum`` is the order-independent fingerprint of the source dataframe
+    (``utils.frame_checksum``), so records from distinct dataframes are distinguishable; it also
+    feeds the record's content hash (the marker).  ``None`` when built without a frame (e.g. a
+    direct unit-test call).
     """
 
     def _effect(symbol: str | None, value) -> dict | None:
@@ -480,6 +493,7 @@ def _make_record(
 
     record: dict = {
         "kind": "omnibus" if is_omnibus else "pairwise",
+        "dataChecksum": data_checksum,
         "test": None if pvalues_provided else test,
         "groups": descriptives,
     }

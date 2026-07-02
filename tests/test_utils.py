@@ -1,7 +1,7 @@
 import polars as pl
 import pytest
 
-from dysonsphere.utils import count_n, ensure_polars
+from dysonsphere.utils import count_n, ensure_polars, frame_checksum
 
 
 @pytest.fixture
@@ -35,3 +35,20 @@ class TestCountN:
 
     def test_empty_categories(self, simple_df):
         assert count_n(simple_df, "group", []) == []
+
+
+class TestFrameChecksum:
+    def test_shape_and_prefix(self, simple_df):
+        s = frame_checksum(simple_df)
+        assert s.startswith("sha256:") and len(s) == len("sha256:") + 64
+
+    def test_order_independent(self, simple_df):
+        shuffled = simple_df.sample(fraction=1.0, shuffle=True, seed=3)
+        assert frame_checksum(simple_df) == frame_checksum(shuffled)  # same content, any order
+
+    def test_different_content_differs(self, simple_df):
+        other = simple_df.with_columns(pl.col("value") * 2)
+        assert frame_checksum(simple_df) != frame_checksum(other)
+
+    def test_pandas_matches_polars(self, simple_df):
+        assert frame_checksum(simple_df.to_pandas()) == frame_checksum(simple_df)  # ensure_polars first
