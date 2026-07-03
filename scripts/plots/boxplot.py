@@ -31,7 +31,7 @@ df = pl.DataFrame(
 
 CATEGORIES = ["Control", "Group A", "Group B", "Group C", "Group D", "Group E"]
 
-ds.theme(cornerRadius=True)
+ds.theme(boxplotOutliers=True)
 
 df = ds.add_beeswarm(
     df,
@@ -39,16 +39,14 @@ df = ds.add_beeswarm(
     groupBy=["group"],
 )
 
-palette = ds.palette("greys", n=6, start=0)
+palette = ds.palette("greys", start=0, step=1)
 
 base = alt.Chart(df).encode(
     x=alt.X("group:N", sort=CATEGORIES),
     y=alt.Y("value:Q", title="Response (AU)"),
 )
 
-boxplot = base.mark_boxplot().encode(
-    color=alt.Color("group:N", sort=CATEGORIES, scale=alt.Scale(range=palette), legend=None),
-)
+boxplot = base.mark_boxplot().encode()
 
 points = base.mark_circle().encode(
     xOffset=alt.XOffset("beeswarm_x:Q"),
@@ -69,9 +67,8 @@ shade = ds.add_shade(
     "group",
 )
 
-# chart = shade + points + boxplot # with p-value
-# chart = shade + points + boxplot  # with shading
-chart = points + boxplot
+# chart = points + boxplot
+chart = boxplot
 
 # groups = {
 #     "Condition A": [False, False, False, False, False, True],
@@ -95,5 +92,5 @@ plot = ds.add_multilabel(
     # categoryLabel=True,
 )
 
-ds.save(plot, "boxplot")
+ds.save(plot, "boxplot", format=["png"])
 print("saved boxplot")

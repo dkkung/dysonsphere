@@ -31,6 +31,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisOffset": None,
     "axisWidth": 0.25,
     "bandPadding": 0.1,
+    "boxplotOutliers": False,
     "chartFill": None,
     "chartHeight": 100,
     "chartWidth": 100,
@@ -53,9 +54,9 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "legend": True,
     "legendOffset": None,
     "legendStroke": False,
-    "markFill": "black",
+    "markFill": colors["greys"][1],
     "markFillOpacity": 1.0,
-    "markMedianFill": "white",
+    "markMedianFill": "black",
     "markMedianStroke": "black",
     "markSize": None,
     "markStroke": "black",
@@ -211,6 +212,8 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
         p["markStrokeWidth"] = p["axisWidth"]
     if p["cornerRadius"] is True:
         p["cornerRadius"] = min(p["chartWidth"], p["chartHeight"]) / 100
+    if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
+        p["boxplotOutliers"] = p["markSize"] / 10
     if p["chartFill"] is None and not p["darkmode"]:
         p["chartFill"] = "white"
     # smallestFontSize is a fixed floor (5) and a minimize switch: True drops the whole
@@ -339,11 +342,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 **({"cornerRadiusEnd": opts["cornerRadius"]} if opts["cornerRadius"] else {}),
             },
             "boxplot": {
-                "size": opts["markSize"] * 0.8,
+                "size": opts["markSize"] * 0.9,
                 "ticks": {
                     "cornerRadius": opts["markStrokeWidth"],
                     "fill": "white" if opts["darkmode"] else "black",
-                    "size": opts["markSize"] * 0.6,
+                    "size": opts["markSize"] * 0.45,  # half the box width (markSize * 0.9)
                     "thickness": opts["markStrokeWidth"],
                 },
                 "box": {
@@ -356,10 +359,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "median": {
                     "fill": opts["markMedianFill"],
                     "fillOpacity": opts["markFillOpacity"],
-                    "size": opts["markSize"] * 0.8,
-                    "stroke": opts["markMedianStroke"],
-                    "strokeOpacity": opts["markStrokeOpacity"],
-                    "strokeWidth": opts["markStrokeWidth"],
+                    "size": opts["markSize"] * 0.9,  # spans the box
+                    # a single stroke of markStrokeWidth thickness (no competing outline stroke)
+                    "thickness": opts["markStrokeWidth"],
                 },
                 "rule": {
                     "fill": "white" if opts["darkmode"] else "black",
@@ -374,7 +376,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                     "color": "white" if opts["darkmode"] else "black",
                     "fill": "white" if opts["darkmode"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
-                    "size": 0,
+                    "size": opts["boxplotOutliers"] or 0,  # False → 0 (hidden); a number → that size
                     "stroke": opts["markStroke"],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
