@@ -436,6 +436,69 @@ class TestFixTickAlignment:
         assert all(t == pytest.approx(-103.0, abs=0.001) for t in ty_vals)
         assert all(y == pytest.approx(103.0, abs=0.001) for y in y2_vals)
 
+    def test_rect_heatmap_x_snaps_to_bin_edges(self, tmp_path):
+        # Binned/linear (heatmap) x-axis: ticks sit on rect bin edges, not band
+        # centers. 9 bins over W=100 give non-integral edges (100/9); Vega rounds the
+        # tick transforms to ints, so the fix must pull them back onto the rect edges.
+        W = 100.0
+        nb = 9
+        edges = [round(i * W / nb, 6) for i in range(nb + 1)]
+        rects = "".join(
+            f'<path aria-roledescription="rect mark" '
+            f'd="M{edges[i]},0h{edges[i + 1] - edges[i]}v10h-{edges[i + 1] - edges[i]}Z"/>'
+            for i in range(nb)
+        )
+        tick_lines = "".join(f'<line transform="translate({round(e)},0)" x1="0" y1="0" x2="0" y2="3"/>' for e in edges)
+        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{tick_lines}</g>{rects}</svg>'
+        path = _write(tmp_path, "t.svg", svg)
+        _fix_tick_alignment(path, band_padding=0.1, chart_width=W)
+        assert sorted(_tick_xs(path)) == pytest.approx(edges, abs=0.001)
+
+    def test_rect_heatmap_y_snaps_to_bin_edges(self, tmp_path):
+        # Binned/linear (heatmap) y-axis: same fix, on the vertical ticks (translate(0,y)).
+        H = 100.0
+        nb = 9
+        edges = [round(i * H / nb, 6) for i in range(nb + 1)]
+        rects = "".join(
+            f'<path aria-roledescription="rect mark" d="M0,{edges[i]}h10v{edges[i + 1] - edges[i]}h-10Z"/>'
+            for i in range(nb)
+        )
+        tick_lines = "".join(f'<line transform="translate(0,{round(e)})" x1="0" y1="0" x2="-3" y2="0"/>' for e in edges)
+        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{tick_lines}</g>{rects}</svg>'
+        path = _write(tmp_path, "t.svg", svg)
+        _fix_tick_alignment(path, band_padding=0.1, chart_width=H)
+        root = ET.parse(path).getroot()
+        ys = sorted(
+            float(m.group(2))
+            for line in root.iter(f"{{{NS}}}line")
+            if (m := re.match(r"translate\(([-\d.]+),([-\d.]+)\)", line.get("transform", "")))
+            and line.get("x2") == "-3"
+        )
+        assert ys == pytest.approx(edges, abs=0.001)
+
+    def test_rect_present_but_band_ticks_use_band_fix(self, tmp_path):
+        # Gate: a nominal band chart carrying rect marks (e.g. an add_shade layer over
+        # a boxplot) has ticks at band centers, > 1px from any rect edge, so the rect
+        # branch must NOT hijack it — the Case pi band fix applies as usual.
+        bp = 0.1
+        W = 200.0
+        n = 3
+        step_pi = W / (n + bp)
+        # Shade rects tiling band boundaries (far from the band centers).
+        redges = [round(i * step_pi, 4) for i in range(n + 1)]
+        rects = "".join(
+            f'<path aria-roledescription="rect mark" '
+            f'd="M{redges[i]},0h{redges[i + 1] - redges[i]}v10h-{redges[i + 1] - redges[i]}Z"/>'
+            for i in range(n)
+        )
+        ints = [int(step_pi * (i + 0.5 + bp / 2)) for i in range(n)]
+        tick_lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="-3"/>' for x in ints)
+        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{tick_lines}</g>{rects}</svg>'
+        path = _write(tmp_path, "t.svg", svg)
+        _fix_tick_alignment(path, band_padding=bp, chart_width=W)
+        expected = [round(step_pi * (i + 0.5 + bp / 2), 4) for i in range(n)]
+        assert sorted(_tick_xs(path)) == pytest.approx(expected, abs=0.001)
+
 
 # ── _fix_log_minor_ticks() ───────────────────────────────────────────────────
 

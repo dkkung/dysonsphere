@@ -319,11 +319,16 @@ def _fix_tick_alignment(
     formats are matched by the collection regex; grid lines are distinguished by |ty| > 50.
 
     For bar charts: tick centers are read from the bar path data (aria-roledescription="bar").
-    For all other charts (strip, violin, etc.): band centers are computed analytically
-    from the number of categories and theme scale parameters, then ticks and grid lines are
-    moved to those float positions.  A validation step ensures the fix is only applied to
-    nominal band scales — quantitative and time axes are left untouched.  When two band-scale
-    formulas (Case pi and Case 0) floor to the same integers, box mark x-centers
+    For heatmaps (binned/linear axes): ticks sit on rect bin edges, not band centers, so each
+    axis group whose ticks all lie within 1px of a rect-mark edge (aria-roledescription="rect
+    mark") is snapped to those edges — on both x and y (Vega rounds, rather than floors, linear
+    tick transforms).  The 1px gate keeps a nominal band chart that merely carries rect marks
+    (e.g. an add_shade layer, whose ticks sit at band centers ~half a step from any shade edge)
+    on the band path below.  For all other charts (strip, violin, etc.): band centers are
+    computed analytically from the number of categories and theme scale parameters, then ticks
+    and grid lines are moved to those float positions.  A validation step ensures the fix is
+    only applied to nominal band scales — quantitative and time axes are left untouched.  When
+    two band-scale formulas (Case pi and Case 0) floor to the same integers, box mark x-centers
     (aria-roledescription="box") are used to resolve the ambiguity.
 
     axis_offset: the theme's effective axis offset (tickSize when axisOffset is None, 0 when
@@ -400,10 +405,85 @@ def _fix_tick_alignment(
                     box_ctr.append((float(mb.group(1)) + float(mb.group(2))) / 2)
         sorted_box = sorted(box_ctr)
 
+        # Rect-mark bin edges for binned/linear (heatmap) axes.  A rect mark path is
+        # "M x0,y0 h w v h2 h -w Z", so its x-edges are {x0, x0+w} and its y-edges are
+        # {y0, y0+h2}.  On a binned quantitative axis the ticks sit on these bin
+        # boundaries, but Vega rounds tick transforms to integers; when the bin
+        # pixel-width is non-integral the ticks visibly drift off the rect edges.
+        rect_x_edges: list[float] = []
+        rect_y_edges: list[float] = []
+        for el in root.iter(f"{{{NS}}}path"):
+            if el.get("aria-roledescription") == "rect mark":
+                mr = re.match(r"M([\d.]+),([-\d.eE+]+)h([-\d.eE+]+)v([-\d.eE+]+)", el.get("d", ""))
+                if mr:
+                    x0, y0, w, h = (float(mr.group(i)) for i in range(1, 5))
+                    rect_x_edges += [x0, x0 + w]
+                    rect_y_edges += [y0, y0 + h]
+        sorted_rect_x = sorted({round(v, 4) for v in rect_x_edges})
+        sorted_rect_y = sorted({round(v, 4) for v in rect_y_edges})
+
+        def _snap_axis_to_rect_edges(g: ET.Element) -> bool:
+            """Snap one axis group's tick/grid lines to rect-mark bin edges.
+
+            Returns True if the group is a binned/linear axis (every tick lies within
+            1px of a bin edge) and its lines were snapped; False otherwise, so the
+            caller falls through to the nominal band-scale logic.  This gate keeps
+            band charts that merely carry rect marks (e.g. an add_shade layer over a
+            strip plot, whose ticks sit at band centers, ~half a step from any shade
+            edge) on the band path.
+            """
+            parsed: list[tuple[ET.Element, float, float]] = []
+            for line in g:
+                m = re.match(r"translate\(([-\d.]+),([-\d.]+)\)$", line.get("transform", ""))
+                if m:
+                    parsed.append((line, float(m.group(1)), float(m.group(2))))
+            if not parsed:
+                return False
+            txs = {round(p[1], 4) for p in parsed}
+            tys = {round(p[2], 4) for p in parsed}
+            # x-axis ticks vary in tx at constant ty; y-axis ticks vary in ty at constant tx.
+            if len(txs) > 1 and len(tys) == 1:
+                positions, edges, is_x = txs, sorted_rect_x, True
+            elif len(tys) > 1 and len(txs) == 1:
+                positions, edges, is_x = tys, sorted_rect_y, False
+            else:
+                return False
+            if not edges:
+                return False
+
+            def nearest(v: float) -> float | None:
+                c = min(edges, key=lambda e: abs(e - v))
+                return c if abs(c - v) <= 1.0 else None
+
+            if any(nearest(p) is None for p in positions):
+                return False
+            is_grid = g.get("class") == "mark-rule role-axis-grid"
+            for line, tx, ty in parsed:
+                if is_x:
+                    c = nearest(round(tx, 4))
+                    if c is None:
+                        continue
+                    if is_grid and ty < -50 and axis_offset > 0:
+                        y2 = line.get("y2")
+                        if y2 is not None and float(y2) > 50:
+                            line.set("y2", str(float(y2) + axis_offset))
+                        ty -= axis_offset
+                    line.set("transform", f"translate({c},{ty})")
+                else:
+                    c = nearest(round(ty, 4))
+                    if c is None:
+                        continue
+                    line.set("transform", f"translate({tx},{c})")
+            return True
+
         _AXIS_CLS = {"mark-rule role-axis-tick", "mark-rule role-axis-grid"}
         modified_any = False
         for g in root.iter(f"{{{NS}}}g"):
             if g.get("class") not in _AXIS_CLS:
+                continue
+            # Binned/linear (heatmap) axis: snap ticks to bin-boundary rect edges.
+            if _snap_axis_to_rect_edges(g):
+                modified_any = True
                 continue
             # Collect unique local x positions for this axis group.
             xs: list[float] = []
