@@ -1135,13 +1135,15 @@ chart = ds.add_log_ticks(chart, df, "fc", axis="x", base=2, nMinor=3)
 chart = ds.add_log_ticks(chart, df, axis="both", xField="fc", yField="pvalue")
 ```
 
+For single-axis mode you can omit `field` entirely — it is inferred from the chart's matching encoding, so `ds.add_log_ticks(chart, df, axis="x")` picks up the `x` field automatically. Pass `field` explicitly for a `LayerChart` (no top-level encoding) or an aggregate encoding.
+
 The `expMin` / `expMax` parameters are auto-derived from `df[field].min()` / `.max()` when omitted. When specifying an explicit `domain=` on the main chart's scale, pass matching `expMin` / `expMax` to `add_log_ticks()` so the minor tick layer's internal domain aligns correctly.
 
 | Parameter | Default | Description |
 |---|---|---|
 | `Chart` | required | Chart to add minor ticks to |
 | `df` | required | Polars or pandas DataFrame |
-| `field` | `None` | Log-scaled column name. Required for single-axis mode; omit when `axis='both'` |
+| `field` | `None` | Log-scaled column name. Inferred from the chart's `x`/`y` encoding when omitted (single-axis mode); pass explicitly for a `LayerChart` or an aggregate encoding, where inference isn't possible. Omit when `axis='both'` |
 | `axis` | `'y'` | `'x'`, `'y'`, or `'both'`. When `'both'`, provide `xField` and `yField` instead of `field` |
 | `base` | `10` | Logarithm base matching the axis scale (`10` or `2` are the common choices) |
 | `nMinor` | `1` | Minor ticks per interval for non-base-10 axes. Ignored when `base=10` |
