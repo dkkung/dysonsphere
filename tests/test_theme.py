@@ -412,3 +412,18 @@ class TestTitleConfig:
         theme()
         spec = _dysonsphere_theme()
         assert spec["config"]["title"]["frame"] == "group"
+
+
+class TestBoxplotOutliers:
+    def test_false_default_hides_outliers(self):
+        theme()
+        assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == 0
+
+    def test_true_resolves_to_mark_size_over_10(self):
+        theme(markSize=12, boxplotOutliers=True)
+        assert alt.theme.options["boxplotOutliers"] == pytest.approx(1.2)
+        assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == pytest.approx(1.2)
+
+    def test_explicit_size_used_as_is(self):
+        theme(boxplotOutliers=5)
+        assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == 5
