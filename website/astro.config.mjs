@@ -9,6 +9,8 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'dysonsphere',
+			logo: { src: './src/assets/dysonsphere_logo.svg', replacesTitle: false },
+			components: { SiteTitle: './src/components/SiteTitle.astro' },
 			description:
 				'An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/dkkung/dysonsphere' }],

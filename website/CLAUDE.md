@@ -7,10 +7,12 @@ in `website/`; developed on the `website` branch, in a git worktree (see Working
 
 - `src/content/docs/` - pages: `index.mdx` (home), `guides/*` (getting-started + feature guides),
   `gallery.mdx`, `playground.mdx`, `reference/*` (generated API).
-- `src/components/` - `Chart.astro` (live vega-embed chart, light/dark reactive) and
-  `Playground.astro` (Pyodide runtime + CodeMirror editor).
+- `src/components/` - `Chart.astro` (live vega-embed chart, light/dark reactive),
+  `Playground.astro` (Pyodide runtime + CodeMirror editor), and `SiteTitle.astro` (Starlight
+  override that two-tones the header wordmark to match the logo).
 - `src/styles/theme.css` - blues2 accent (from `ds.colors`), chart zoom, hover-only export menu.
 - `scripts/` - `gen_api.py`, `gen_examples.py`.
+- `logo/` - the logo family + its generator (see the Logo section).
 - `public/charts/` - generated Vega-Lite specs (`<name>-light.json` / `<name>-dark.json`).
 - `astro.config.mjs` - Starlight config + sidebar.
 
@@ -49,6 +51,35 @@ in `website/`; developed on the `website` branch, in a git worktree (see Working
 - vega-embed is bundled (npm); Pyodide loads from the CDN (v314.x). The CodeMirror editor uses the
   GitHub theme to match Starlight's Expressive Code docs code blocks.
 
+## Logo
+
+`logo/gen_dysonsphere_logo.py` generates the whole logo family (run:
+`uv run --no-project --with fonttools python website/logo/gen_dysonsphere_logo.py`). The panel count,
+tilt, palette range, colors, and font are parameters at the top of the generator.
+
+- `logo/dysonsphere_logo.svg` - the **mark** (no text): a sphere of flat panels shaded across the
+  MID of blues2. A single dual-mode logo - the mid range skips near-white (vanishes on light) and
+  near-black (vanishes on dark), so one transparent SVG works on both backgrounds (no light/dark
+  variants). This is the file the site uses.
+- `logo/dysonsphere_logo_portrait_with_text.svg` - mark + wordmark as live `<text>` (Graphik Light,
+  two-tone: dyson = blues2[6], sphere = blues2[2]). For editing / where Graphik is installed.
+- `logo/dysonsphere_logo_portrait_with_text_outlined.svg` - the same lockup with the wordmark
+  **outlined to `<path>`** (glyphs baked via fonttools; Graphik = face 6 in the system `Graphik.ttc`),
+  so it's font-independent. Use this wherever a self-contained lockup is needed.
+- `logo/double-dysonsphere/` - the user's archive of the superseded hand-drawn logo (gitignored).
+
+The wordmark is one continuous `<text>` (two colors via an inline `<tspan>`), centered on the panel
+group's exact horizontal extent (`x=100.0000`, computed from the panel vertices, not assumed).
+
+**Site wiring:** header and homepage hero both use the **mark**; the wordmark on the site is real
+page text - the header title (via the `SiteTitle` override, two-toned to match) and the homepage
+`<h1>`. So there is no Graphik dependency on the live site. `logo: { replacesTitle: false }` so the
+mark shows alongside the title.
+
+**Verifying a logo SVG:** rasterize with `qlmanage -t -s 460 -o <outdir> <file>.svg` (macOS Quick
+Look = the same engine as Preview) and view the PNG; the SVGs are transparent, so inject a `<rect>`
+background to check them on light/dark. Do this in `/tmp` and delete the scratch when done.
+
 ## Working notes (living - update as we go)
 
 - Verify with `npm run build` (fastest correctness gate) plus a running `npm run dev` for eyeballing.
@@ -64,8 +95,9 @@ in `website/`; developed on the `website` branch, in a git worktree (see Working
 
 Done: scaffold + blues2 theming + dark mode; griffe API reference; live gallery (vega-datasets);
 playground island (Pyodide + CodeMirror/GitHub editor); dark-reactive transparent charts; feature
-guides (theming, marks, statistics, nonlinear); chart display polish (zoom + hover menu).
+guides (theming, marks, statistics, nonlinear); chart display polish (zoom + hover menu); the logo
+(see the Logo section), wired into the header + homepage.
 
-TODO: logo; finer theming; more guides (saving/reading, palettes, condition tables, transforms);
-deploy (`site`/`base` + a GitHub Actions workflow running both generators, and switching Pages off
-the old `docs/` gallery).
+TODO: finer theming; more guides (saving/reading, palettes, condition tables, transforms); deploy
+(`site`/`base` + a GitHub Actions workflow running the generators, and switching Pages off the old
+`docs/` gallery).

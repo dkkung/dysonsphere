@@ -40,3 +40,10 @@
 .vega-embed details[open] summary {
   opacity: 1 !important;
 }
+
+/* Header logo. Starlight scales the logo down to the nav height by default, which is tiny for our
+   compact lockup - enlarge it (and let the header grow to fit). Tune the one height value. */
+a.site-title img {
+  height: 3rem;
+  width: auto;
+}
