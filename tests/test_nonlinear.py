@@ -3,6 +3,7 @@ import pytest
 
 from dysonsphere.nonlinear import (
     _derive_exp,
+    _infer_field,
     add_log_ticks,
     add_pow_ticks,
     log_label_expr,
@@ -109,9 +110,41 @@ class TestAddLogTicks:
         with pytest.raises(ValueError, match="axis"):
             add_log_ticks(base_chart, log_df, "v", axis="z")
 
-    def test_missing_field_raises(self, base_chart, log_df):
-        with pytest.raises(ValueError, match="field"):
-            add_log_ticks(base_chart, log_df)
+    def test_infers_field_from_y_encoding(self, base_chart, log_df):
+        # base_chart encodes y="v:Q"; with no field= the y field is inferred.
+        import altair as alt
+
+        result = add_log_ticks(base_chart, log_df, axis="y")
+        assert isinstance(result, alt.LayerChart)
+        assert _infer_field(base_chart, "y") == "v"
+
+    def test_infers_field_from_x_encoding(self, log_df):
+        import altair as alt
+
+        chart = alt.Chart(log_df).mark_point().encode(x="v:Q")
+        result = add_log_ticks(chart, log_df, axis="x")
+        assert isinstance(result, alt.LayerChart)
+        assert _infer_field(chart, "x") == "v"
+
+    def test_layerchart_requires_explicit_field(self, base_chart, log_df):
+        # A LayerChart has no top-level encoding, so inference fails → explicit field required.
+        from typing import cast
+
+        import altair as alt
+
+        layered = cast(alt.LayerChart, alt.layer(base_chart))
+        assert _infer_field(layered, "y") is None
+        with pytest.raises(ValueError, match="field is required"):
+            add_log_ticks(layered, log_df, axis="y")
+
+    def test_aggregate_encoding_requires_field(self, log_df):
+        # An aggregate shorthand (e.g. count()) is not a plain column → not inferable.
+        import altair as alt
+
+        chart = alt.Chart(log_df).mark_bar().encode(x=alt.X("count():Q"), y="v:N")
+        assert _infer_field(chart, "x") is None
+        with pytest.raises(ValueError, match="field is required"):
+            add_log_ticks(chart, log_df, axis="x")
 
     def test_both_axis_missing_fields_raises(self, base_chart, log_df):
         with pytest.raises(ValueError, match="xField"):
