@@ -383,9 +383,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 },
             },
             "circle": {
-                "fill": "white",
+                "fill": "white" if opts["darkmode"] else "black",
                 "fillOpacity": opts["markFillOpacity"],
-                "size": opts["markSize"] / 4,
+                # Small default: mark_circle is primarily used to layer raw points over
+                # boxplots/violins/strips, where small dots read best.
+                "size": opts["markSize"] / 20,
                 "stroke": "black" if opts["darkmode"] else opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
