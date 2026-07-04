@@ -568,6 +568,25 @@ class TestFixTickAlignment:
         for t in ticks:
             assert min(abs(b - t) for b in boxes) < 0.1, f"tick {t} not on any box centre"
 
+    def test_box_anchor_reads_rounded_l_format(self, tmp_path):
+        # Rounded boxes (cornerRadius) render as "M x1,y L x2,y a…", not "M x,y h w". The reader
+        # must handle both formats, else ticks fall to the fallback — and at the ambiguous n=6
+        # case (Case 0 and Case pi floor to the same ints) the fallback bails, leaving the tick
+        # at Vega's floored integer while the box sits at a fractional position.
+        bp, W, n = 0.1, 100, 6
+        step_pi = W / (n + bp)
+        centers = [step_pi * (i + 0.5 + bp / 2) for i in range(n)]
+        ints = [int(c) for c in centers]
+        lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="-3"/>' for x in ints)
+        # L-format (rounded) box: top edge is "M(centre-3),y L(centre+3),y" then a corner arc.
+        boxes = "".join(
+            f'<path aria-roledescription="box" d="M{c - 3},10L{c + 3},10a1,1 0 0 1 1,1Z"/>' for c in centers
+        )
+        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{lines}</g>{boxes}</svg>'
+        path = _write(tmp_path, "t.svg", svg)
+        _fix_tick_alignment(path, band_padding=bp, chart_width=W)
+        assert sorted(_tick_xs(path)) == pytest.approx([round(c, 4) for c in centers], abs=0.001)
+
 
 # ── _fix_log_minor_ticks() ───────────────────────────────────────────────────
 

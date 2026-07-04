@@ -324,10 +324,12 @@ def _fix_tick_alignment(
     group and snaps every line to the nearest anchor within ``_TOL`` px: x-ticks use bar/box
     centres and rect x-edges, y-ticks use rect y-edges.
 
-    Anchors handled (all read from path ``d``): ``bar`` and ``box`` (``M x,y h w`` -> centre
-    ``x + w/2``; ``box`` covers the median indicator embedded in ``mark_strip`` / ``mark_violin``,
-    so those need no formula) and ``rect mark`` (``M x,y h w v h2`` -> x-edges ``{x, x+w}``,
-    y-edges ``{y, y+h2}``).
+    Anchors handled (all read from path ``d``): ``bar`` and ``box`` -- square corners are
+    ``M x,y h w`` -> centre ``x + w/2``; rounded corners (``cornerRadius``) are
+    ``M x1,y L x2,y a...`` -> centre ``(x1 + x2)/2`` (the top edge runs between the two
+    symmetric corner insets); ``box`` covers the median indicator embedded in ``mark_strip`` /
+    ``mark_violin``, so those need no formula.  And ``rect mark`` (``M x,y h w v h2`` -> x-edges
+    ``{x, x+w}``, y-edges ``{y, y+h2}``).
 
     Fallback: a group whose ticks match no anchor (a plain point-scale scatter, or a
     ``mark_line`` / ``mark_tick`` categorical axis with no positional mark) is snapped by the
@@ -373,10 +375,16 @@ def _fix_tick_alignment(
                 ccy += float(mt.group(2))
             role = ch.get("aria-roledescription")
             if role in ("bar", "box"):
-                # "M x,y h w ..." -> centre x + w/2 (a box is a bar mark; both are rect paths)
-                m = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", ch.get("d", ""))
-                if m:
-                    x_anchors.append(round(ccx + float(m.group(1)) + float(m.group(2)) / 2, 4))
+                # A box/bar is a rect path.  Square corners: "M x,y h w ..." -> centre x + w/2.
+                # Rounded corners (cornerRadius): "M x1,y L x2,y a..." (the top edge is a line
+                # between the two rounded corners, inset symmetrically) -> centre (x1 + x2)/2.
+                d = ch.get("d", "")
+                mh = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", d)
+                ml = re.match(r"M([-\d.]+),[-\d.eE+]+L([-\d.]+),", d)
+                if mh:
+                    x_anchors.append(round(ccx + float(mh.group(1)) + float(mh.group(2)) / 2, 4))
+                elif ml:
+                    x_anchors.append(round(ccx + (float(ml.group(1)) + float(ml.group(2))) / 2, 4))
             elif role == "rect mark":
                 # "M x,y h w v h2 ..." -> x-edges {x, x+w}, y-edges {y, y+h2}
                 m = re.match(r"M([-\d.]+),([-\d.eE+]+)h([-\d.eE+]+)v([-\d.eE+]+)", ch.get("d", ""))
