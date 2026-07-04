@@ -216,6 +216,14 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
         p["boxplotOutliers"] = p["markSize"] / 10
     if p["chartFill"] is None and not p["darkmode"]:
         p["chartFill"] = "white"
+    # Offset the axis line and legend from the plot by 1.5x the tick length — enough separation
+    # to read as an intentional (Prism-style) detached axis, not a rendering gap. Resolved once
+    # here (not inline at each use) so the axis config, legend config, and save()'s grid-span fix
+    # all read one consistent value from alt.theme.options.
+    if p["axisOffset"] is None:
+        p["axisOffset"] = p["tickSize"] * 1.5
+    if p["legendOffset"] is None:
+        p["legendOffset"] = p["tickSize"] * 1.5
     # smallestFontSize is a fixed floor (5) and a minimize switch: True drops the whole
     # plot's base font to it; False / an int just leaves it retrievable.
     if p["smallestFontSize"] is True:
@@ -287,9 +295,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
-                "offset": 0
-                if opts["closed"]
-                else (opts["axisOffset"] if opts["axisOffset"] is not None else opts["tickSize"]),
+                "offset": 0 if opts["closed"] else opts["axisOffset"],
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
                 "tickColor": "white" if opts["darkmode"] else "black",
@@ -443,7 +449,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
             },
             "legend": {
                 "disable": not opts["legend"],
-                "offset": opts["legendOffset"] if opts["legendOffset"] is not None else opts["tickSize"],
+                "offset": opts["legendOffset"],
                 "gradientLength": opts["markSize"] * 5,
                 "gradientThickness": opts["markSize"] * 0.5,
                 "gradientOpacity": opts["markFillOpacity"],
