@@ -259,6 +259,13 @@ def _dysonsphere_theme() -> dict[str, Any]:
             return opts[type_key]
         return default
 
+    # config.range.category must be a BARE array so a nominal scale maps positionally
+    # (category i -> color i), which the tier-major `categorical` palette relies on. The
+    # {"scheme": [...]} form is invalid for nominal and silently drops the range. A Vega
+    # scheme *name* (a str, e.g. "tableau10") still needs the {"scheme": ...} wrapper.
+    _cat = _scheme("categoryPalette", colors["categorical"])
+    category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
+
     return {
         "background": (None if opts["transparentBackground"] else opts["chartFill"]),  # background of the entire chart
         "config": {
@@ -489,10 +496,10 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "range": {
-                "category": {"scheme": _scheme("categoryPalette", colors["blues"][::2])},
-                "diverging": {"scheme": _scheme("divergingPalette", colors["redsblues"])},
+                "category": category_range,
+                "diverging": {"scheme": _scheme("divergingPalette", colors["pinksblues"])},
                 "heatmap": {"scheme": _scheme("heatmapPalette", colors["blues"])},
-                "ordinal": {"scheme": _scheme("ordinalPalette", colors["blues"])},
+                "ordinal": {"scheme": _scheme("ordinalPalette", colors["greys"])},
                 "ramp": {"scheme": _scheme("rampPalette", colors["blues"])},
             },
             "rule": {

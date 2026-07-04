@@ -4666,6 +4666,65 @@ colors = {
 }
 
 
+# Four base hues for the qualitative palette, in cycle order (blue, pink, yellow, green).
+# Chosen for distinguishability + colorblind robustness (deuteranopia-clean); green and
+# yellow are kept non-adjacent in categorical() so they never touch.
+_CATEGORICAL_HUES = ("blues", "pinks", "yellows", "greens")
+
+
+def categorical(members: int = 1) -> list[str]:
+    """
+    Qualitative color palette built from four base hues (blue, pink, yellow, green).
+
+    Every color is drawn from the existing ``blues``/``pinks``/``yellows``/``greens``
+    palettes at fixed stops - nothing is generated de novo, so retuning a base hue
+    regenerates this palette automatically.
+
+    Parameters
+    ----------
+    members:
+        Colors per associated group, ``1``-``4``.
+
+        - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major**
+          (cycle the four hues at the light tier, then mid, then dark) so adjacent
+          categories differ in hue. Returns 12 colors. This is the palette wired to
+          ``config.range.category``.
+        - ``2``/``3``/``4``: a **grouped** palette for paired data (``A1``/``A2`` …),
+          ordered **hue-major** - each consecutive block of ``members`` categories is one
+          hue climbing through ``members`` lightness levels. Returns ``4 * members`` colors.
+          Sort your categories so a group's members are adjacent, then pass this as the
+          color scale range.
+
+    Raises
+    ------
+    ValueError
+        If ``members`` is not in ``1``-``4`` (a 5th level would exceed the 12-stop palettes).
+
+    Examples
+    --------
+    Flat categorical (the default; also automatic via ``config.range.category``)::
+
+        alt.Color("g:N")                                       # picks it up automatically
+        alt.Color("g:N", scale=alt.Scale(range=categorical()))  # explicit
+
+    Paired data, members adjacent within each group::
+
+        groups = ["A1", "A2", "B1", "B2"]
+        alt.Color("g:N", sort=groups, scale=alt.Scale(range=categorical(2)))
+        # -> A1=blue-light, A2=blue-dark, B1=pink-light, B2=pink-dark, ...
+    """
+    if not 1 <= members <= 4:
+        raise ValueError(f"members must be between 1 and 4, got {members}")
+    if members == 1:
+        return [colors[h][s] for s in (1, 4, 7) for h in _CATEGORICAL_HUES]  # tier-major
+    stops = (1, 4, 7, 10)[:members]
+    return [colors[h][s] for h in _CATEGORICAL_HUES for s in stops]  # hue-major
+
+
+# Named entry so config.range.category can reference it and it appears in swatch exports.
+colors["categorical"] = categorical(1)
+
+
 def palette(
     name: str,
     n: int | None = None,
