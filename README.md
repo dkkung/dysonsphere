@@ -108,7 +108,7 @@ ds.theme(   # custom configuration
 
 | Parameter | Default | Description |
 |---|---|---|
-| `axisOffset` | `tickSize` | Distance between axis line and data area |
+| `axisOffset` | `tickSize × 1.5` | Distance between axis line and data area |
 | `axisWidth` | `0.25` | Stroke width of axes, ticks, and rules |
 | `bandPadding` | `0.1` | Inner and outer padding for ordinal bands |
 | `chartFill` | `"white"` | Background fill of the entire chart |
@@ -131,7 +131,7 @@ ds.theme(   # custom configuration
 | `grid` | `False` | Show axis grid lines |
 | `gridColor` | `colors["greys"][0]` | Grid line color |
 | `legend` | `True` | Show legends |
-| `legendOffset` | `tickSize` | Distance between legend and chart edge |
+| `legendOffset` | `tickSize × 1.5` | Distance between legend and chart edge |
 | `legendStroke` | `False` | Draw a border around the legend box |
 | `markFill` | `colors["greys"][1]` (`#DBDBDB`) | Default fill color for filled marks (used when there's no `color=` encoding) |
 | `markFillOpacity` | `1.0` | Default mark fill opacity |
