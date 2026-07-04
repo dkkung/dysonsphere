@@ -54,4 +54,6 @@ pipenv
 *.png
 *.svg
 *.json
+*.html
 !docs/*.png
+!docs/*.html
