@@ -139,22 +139,32 @@ class TestThemeDefaults:
 
 
 class TestRangePalettes:
-    def _scheme(self, kind):
-        return _dysonsphere_theme()["config"]["range"][kind]["scheme"]
+    def _range(self, kind):
+        # Raw range value: a bare array for `category` (positional), {"scheme": ...} otherwise.
+        return _dysonsphere_theme()["config"]["range"][kind]
 
-    def test_defaults_unchanged(self):
-        from dysonsphere.palettes import colors
+    def _scheme(self, kind):
+        return self._range(kind)["scheme"]
+
+    def test_defaults(self):
+        from dysonsphere.palettes import categorical, colors
 
         theme()
-        assert self._scheme("category") == colors["blues"][::2]
-        assert self._scheme("diverging") == colors["redsblues"]
+        assert self._range("category") == categorical(1)  # bare array, positional
+        assert self._scheme("ordinal") == colors["greys"]
+        assert self._scheme("diverging") == colors["pinksblues"]
+
+    def test_category_is_bare_array(self):
+        # nominal scales map positionally, so category must NOT be {"scheme": ...}
+        theme()
+        assert isinstance(self._range("category"), list)
 
     def test_per_type_override_by_name(self):
         from dysonsphere.palettes import colors
 
         theme(categoryPalette="reds")
-        assert self._scheme("category") == colors["reds"]
-        assert self._scheme("diverging") == colors["redsblues"]  # others untouched
+        assert self._range("category") == colors["reds"]
+        assert self._scheme("diverging") == colors["pinksblues"]  # others untouched
 
     def test_per_type_override_raw_list(self):
         theme(rampPalette=["#ffffff", "#000000"])
@@ -164,28 +174,34 @@ class TestRangePalettes:
         theme(heatmapPalette="viridis")
         assert self._scheme("heatmap") == "viridis"
 
+    def test_category_vega_scheme_passthrough(self):
+        # a Vega scheme *name* for category still needs the {"scheme": ...} wrapper
+        theme(categoryPalette="tableau10")
+        assert self._range("category") == {"scheme": "tableau10"}
+
     def test_global_palette_wins_over_per_type(self):
         from dysonsphere.palettes import colors
 
         theme(palette="greens", categoryPalette="reds")
-        assert self._scheme("category") == colors["greens"]
+        assert self._range("category") == colors["greens"]
 
     def test_global_palette_still_fills_all(self):
         from dysonsphere.palettes import colors
 
         theme(palette="greens")
-        for kind in ("category", "diverging", "heatmap", "ordinal", "ramp"):
+        assert self._range("category") == colors["greens"]  # bare
+        for kind in ("diverging", "heatmap", "ordinal", "ramp"):
             assert self._scheme(kind) == colors["greens"]
 
     def test_per_type_from_custom_palette(self, tmp_path, monkeypatch):
-        from dysonsphere.palettes import colors
+        from dysonsphere.palettes import categorical
 
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text('[palettes]\nmine = ["#111111", "#222222"]\n', encoding="utf-8")
         theme(categoryPalette="mine")
-        assert self._scheme("category") == ["#111111", "#222222"]
+        assert self._range("category") == ["#111111", "#222222"]
         theme()  # reset custom palette state
-        assert self._scheme("category") == colors["blues"][::2]
+        assert self._range("category") == categorical(1)
 
     def test_per_type_via_toml(self, tmp_path, monkeypatch):
         from dysonsphere.palettes import colors
