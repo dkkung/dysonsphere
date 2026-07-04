@@ -551,6 +551,7 @@ ds.save(alt.hconcat(left, right), "comparison")
 | `palette` | `None` | Single color or list of colors for violin fills |
 | `boxplotSize` | `theme(markSize) * 0.8` | Boxplot box width in pixels |
 | `boxplotColor` | `"black"` | Boxplot fill color |
+| `medianColor` | `"white"` | Boxplot median line color (reads against the black box) |
 | `fillOpacity` | `theme(markFillOpacity)` | Violin fill opacity |
 | `stroke` | `None` | Violin outline color (`None` = no outline) |
 | `strokeWidth` | `theme(markStrokeWidth)` | Violin outline width |
