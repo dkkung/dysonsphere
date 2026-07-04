@@ -4,6 +4,307 @@ import shutil
 import struct
 from pathlib import Path
 
+# Four base hues for the qualitative palette, in cycle order (blue, pink, yellow, green).
+# Chosen for distinguishability + colorblind robustness (deuteranopia-clean); green and
+# yellow are kept non-adjacent in categorical() so they never touch.
+_CATEGORICAL_HUES = ("blues", "pinks", "yellows", "greens")
+
+
+def categorical(members: int = 1) -> list[str]:
+    """
+    Qualitative color palette built from four base hues (blue, pink, yellow, green).
+
+    Every color is drawn from the existing ``blues``/``pinks``/``yellows``/``greens``
+    palettes at fixed stops - nothing is generated de novo, so retuning a base hue
+    regenerates this palette automatically.
+
+    Parameters
+    ----------
+    members:
+        Colors per associated group, ``1``-``4``.
+
+        - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major**
+          (cycle the four hues at the light tier, then mid, then dark) so adjacent
+          categories differ in hue. Returns 12 colors. This is the palette wired to
+          ``config.range.category``.
+        - ``2``/``3``/``4``: a **grouped** palette for paired data (``A1``/``A2`` …),
+          ordered **hue-major** - each consecutive block of ``members`` categories is one
+          hue climbing through ``members`` lightness levels. Returns ``4 * members`` colors.
+          Sort your categories so a group's members are adjacent, then pass this as the
+          color scale range.
+
+    Raises
+    ------
+    ValueError
+        If ``members`` is not in ``1``-``4`` (a 5th level would exceed the 12-stop palettes).
+
+    Examples
+    --------
+    Flat categorical (the default; also automatic via ``config.range.category``)::
+
+        alt.Color("g:N")                                       # picks it up automatically
+        alt.Color("g:N", scale=alt.Scale(range=categorical()))  # explicit
+
+    Paired data, members adjacent within each group::
+
+        groups = ["A1", "A2", "B1", "B2"]
+        alt.Color("g:N", sort=groups, scale=alt.Scale(range=categorical(2)))
+        # -> A1=blue-light, A2=blue-dark, B1=pink-light, B2=pink-dark, ...
+    """
+    if not 1 <= members <= 4:
+        raise ValueError(f"members must be between 1 and 4, got {members}")
+    if members == 1:
+        return [colors[h][s] for s in (1, 4, 7) for h in _CATEGORICAL_HUES]  # tier-major
+    stops = (1, 4, 7, 10)[:members]
+    return [colors[h][s] for h in _CATEGORICAL_HUES for s in stops]  # hue-major
+
+
+def palette(
+    name: str,
+    n: int | None = None,
+    start: int = 0,
+    end: int | None = None,
+    step: int = 1,
+    reverse: bool = False,
+) -> list[str]:
+    """
+    Sample colors from a named palette with control over start, stop, and spacing.
+
+    When ``n`` is provided, evenly samples ``n`` colors between ``start`` and
+    ``stop`` (linspace). Otherwise, returns every ``step``-th color from
+    ``start`` to ``stop`` — with default ``step=1`` this returns the full slice.
+
+    Parameters
+    ----------
+    name:
+        Key in the ``colors`` dict (e.g. ``"mpl_YlGnBu"``).
+    n:
+        Number of colors to return (evenly spaced). Takes priority over ``step``.
+    start:
+        Index of the first color to include. Defaults to 0.
+    end:
+        Index of the last color to include (inclusive). Defaults to the last
+        index in the palette.
+    step:
+        Step between color indices. Defaults to 1 (every color).
+    reverse:
+        If True, reverse the returned list.
+
+    Examples
+    --------
+    All colors in the palette:
+
+        palette("mpl_YlGnBu")
+
+    Last 4 colors:
+
+        palette("mpl_YlGnBu", start=5)
+
+    Four evenly-spaced colors across the full palette:
+
+        palette("mpl_YlGnBu", n=4)
+
+    Every second color from index 0 to 6 (returns indices 0, 2, 4, 6):
+
+        palette("mpl_YlGnBu", end=6, step=2)
+
+    Four evenly-spaced colors, reversed:
+
+        palette("mpl_YlGnBu", n=4, reverse=True)
+    """
+    palette = colors[name]
+    total = len(palette)
+    if end is None:
+        end = total - 1
+
+    if n is not None:
+        if n == 1:
+            indices = [start]
+        else:
+            indices = [round(start + i * (end - start) / (n - 1)) for i in range(n)]
+    else:
+        indices = list(range(start, end + 1, step))
+
+    result = [palette[i] for i in indices]
+    return result[::-1] if reverse else result
+
+
+def _ase_encode_name(name: str) -> bytes:
+    """Encode a swatch/group name as ASE UTF-16BE: uint16 char count (incl. null) + chars + null."""
+    encoded = (name + "\0").encode("utf-16-be")
+    return struct.pack(">H", len(name) + 1) + encoded
+
+
+def _ase_color_block(name: str, r: int, g: int, b: int) -> bytes:
+    data = _ase_encode_name(name) + b"RGB " + struct.pack(">fff", r / 255, g / 255, b / 255) + struct.pack(">H", 2)
+    return struct.pack(">HI", 0x0001, len(data)) + data
+
+
+def _ase_group_start(name: str) -> bytes:
+    data = _ase_encode_name(name)
+    return struct.pack(">HI", 0xC001, len(data)) + data
+
+
+def _ase_group_end() -> bytes:
+    return struct.pack(">HI", 0xC002, 0)
+
+
+def _write_ase(palette_colors: dict[str, list[str]], path: Path) -> None:
+    """Write palette_colors to an ASE (Adobe Swatch Exchange) binary file at path."""
+    blocks: list[bytes] = []
+    block_count = 0
+    for palette_name, hexes in palette_colors.items():
+        blocks.append(_ase_group_start(palette_name))
+        block_count += 1
+        for i, h in enumerate(hexes):
+            r, g, b = int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
+            blocks.append(_ase_color_block(f"{palette_name} - {i}", r, g, b))
+            block_count += 1
+        blocks.append(_ase_group_end())
+        block_count += 1
+    path.write_bytes(b"ASEF" + struct.pack(">HHI", 1, 0, block_count) + b"".join(blocks))
+
+
+def _find_illustrator_swatches() -> Path | None:
+    """Return the path to the Illustrator User Defined Swatches folder, or None if not found.
+
+    Searches the platform-specific Adobe data directories for any installed Illustrator
+    version and locale without hardcoding either. Prefers the highest (newest) version.
+    macOS: ~/Library/Application Support/Adobe/Adobe Illustrator {ver}/{locale}/Swatches/
+    Windows: %APPDATA%/Adobe/Adobe Illustrator {ver} Settings/{locale}/Swatches/
+    """
+    search_roots: list[Path] = [Path.home() / "Library" / "Application Support" / "Adobe"]
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        search_roots.append(Path(appdata) / "Adobe")
+    for root in search_roots:
+        if not root.exists():
+            continue
+        ai_dirs = sorted(root.glob("Adobe Illustrator *"), reverse=True)
+        for ai_dir in ai_dirs:
+            for swatches in sorted(ai_dir.glob("*/Swatches")):
+                return swatches
+    return None
+
+
+def export_swatches(
+    directory: str | Path | None = None,
+    palettes: list[str] | None = None,
+    name: str = "dysonsphere",
+) -> None:
+    """
+    Write a JSX script and an ASE swatch library for Adobe Illustrator to *directory*
+    (default: current working directory).
+
+    Produces two files (``name`` defaults to ``"dysonsphere"``):
+
+    - ``import_{name}_palettes_to_illustrator.jsx`` — run via
+      File > Scripts > Other Script... to load the selected palettes into the active
+      document's Swatches panel as named groups.
+    - ``{name}.ase`` — Adobe Swatch Exchange file containing the selected palettes as
+      named groups. Automatically copied to the Illustrator User Defined Swatches
+      folder if it can be detected; otherwise copy it there manually. After restarting
+      Illustrator it appears under Open Swatch Library > User Defined > {name}.
+
+    Parameters
+    ----------
+    directory:
+        Output directory for the two files. Defaults to the current working directory.
+    palettes:
+        Names of the palettes to export (keys of ``dysonsphere.colors``). ``None``
+        (default) exports every palette. Pass a non-empty list to export only a subset,
+        e.g. ``["reds", "blues", "redsblues"]``. Unknown names raise ``ValueError``.
+    name:
+        Base name for the generated files and the Illustrator swatch library. Defaults
+        to ``"dysonsphere"``.
+    """
+    dest_dir = Path(directory) if directory is not None else Path.cwd()
+
+    if palettes is None:
+        selected = colors
+    else:
+        if not palettes:
+            raise ValueError("palettes must be a non-empty list of palette names, or None to export all")
+        unknown = [p for p in palettes if p not in colors]
+        if unknown:
+            raise ValueError(f"unknown palette name(s): {unknown}; valid names are the keys of dysonsphere.colors")
+        selected = {p: colors[p] for p in palettes}
+
+    # --- JSX: loads swatches into the active document ---
+    js_palettes = json.dumps(selected, indent=4)
+    jsx = f"""\
+// Adobe Illustrator script to import {name} palettes as named swatch groups.
+// Run via File > Scripts > Other Script...
+// For a persistent library that survives across sessions and documents, use the
+// dysonsphere.ase file that was generated alongside this script.
+
+function hexToRGB(hex) {{
+    hex = hex.replace('#', '');
+    return [
+        parseInt(hex.substring(0, 2), 16),
+        parseInt(hex.substring(2, 4), 16),
+        parseInt(hex.substring(4, 6), 16),
+    ];
+}}
+
+var palettes = {js_palettes};
+
+var paletteCount = 0;
+for (var _k in palettes) paletteCount++;
+
+// Add swatches to the active document (or a new one).
+// Remove any pre-existing dysonsphere groups so re-running the script is idempotent.
+var doc = app.documents.length > 0 ? app.activeDocument : app.documents.add();
+var existingGroups = doc.swatchGroups;
+for (var x = existingGroups.length - 1; x >= 0; x--) {{
+    if (existingGroups[x].name.indexOf("{name} ") === 0 || palettes.hasOwnProperty(existingGroups[x].name)) {{
+        existingGroups[x].remove();
+    }}
+}}
+for (var paletteName in palettes) {{
+    var hexColors = palettes[paletteName];
+    var colorGroup = doc.swatchGroups.add();
+    colorGroup.name = paletteName;
+    for (var i = 0; i < hexColors.length; i++) {{
+        var rgb = hexToRGB(hexColors[i]);
+        var color = new RGBColor();
+        color.red = rgb[0];
+        color.green = rgb[1];
+        color.blue = rgb[2];
+        var swatch = doc.swatches.add();
+        swatch.name = paletteName + " - " + i;
+        swatch.color = color;
+        colorGroup.addSwatch(swatch);
+    }}
+}}
+
+alert("Loaded " + paletteCount + " palettes into the active document.\\n"
+    + "For a persistent library: open the .ase file via\\n"
+    + "Open Swatch Library > Other Library...");
+"""
+    jsx_path = dest_dir / f"import_{name}_palettes_to_illustrator.jsx"
+    jsx_path.write_text(jsx, encoding="utf-8")
+    print(f"Created {jsx_path}")
+
+    # --- ASE: persistent swatch library ---
+    ase_path = dest_dir / f"{name}.ase"
+    _write_ase(selected, ase_path)
+    print(f"Created {ase_path}")
+
+    swatches_dir = _find_illustrator_swatches()
+    if swatches_dir is not None:
+        installed = swatches_dir / f"{name}.ase"
+        shutil.copy(ase_path, installed)
+        print(f"Installed to {installed}")
+        print(f"Restart Illustrator, then open via Open Swatch Library > User Defined > {name}")
+    else:
+        print(f"Illustrator Swatches folder not found — copy {ase_path.name} there manually.")
+        print("Typical location: ~/Library/Application Support/Adobe/Adobe Illustrator <ver>/<locale>/Swatches/")
+
+
+# ============================ Palette data ============================
+# Large color table. The derived colors["categorical"] line must stay AFTER it.
+
 colors = {
     # ── Palette build methodology ─────────────────────────────────────────────────
     # All palettes below are built in Oklab (Ottosson 2020) for true
@@ -4666,303 +4967,5 @@ colors = {
 }
 
 
-# Four base hues for the qualitative palette, in cycle order (blue, pink, yellow, green).
-# Chosen for distinguishability + colorblind robustness (deuteranopia-clean); green and
-# yellow are kept non-adjacent in categorical() so they never touch.
-_CATEGORICAL_HUES = ("blues", "pinks", "yellows", "greens")
-
-
-def categorical(members: int = 1) -> list[str]:
-    """
-    Qualitative color palette built from four base hues (blue, pink, yellow, green).
-
-    Every color is drawn from the existing ``blues``/``pinks``/``yellows``/``greens``
-    palettes at fixed stops - nothing is generated de novo, so retuning a base hue
-    regenerates this palette automatically.
-
-    Parameters
-    ----------
-    members:
-        Colors per associated group, ``1``-``4``.
-
-        - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major**
-          (cycle the four hues at the light tier, then mid, then dark) so adjacent
-          categories differ in hue. Returns 12 colors. This is the palette wired to
-          ``config.range.category``.
-        - ``2``/``3``/``4``: a **grouped** palette for paired data (``A1``/``A2`` …),
-          ordered **hue-major** - each consecutive block of ``members`` categories is one
-          hue climbing through ``members`` lightness levels. Returns ``4 * members`` colors.
-          Sort your categories so a group's members are adjacent, then pass this as the
-          color scale range.
-
-    Raises
-    ------
-    ValueError
-        If ``members`` is not in ``1``-``4`` (a 5th level would exceed the 12-stop palettes).
-
-    Examples
-    --------
-    Flat categorical (the default; also automatic via ``config.range.category``)::
-
-        alt.Color("g:N")                                       # picks it up automatically
-        alt.Color("g:N", scale=alt.Scale(range=categorical()))  # explicit
-
-    Paired data, members adjacent within each group::
-
-        groups = ["A1", "A2", "B1", "B2"]
-        alt.Color("g:N", sort=groups, scale=alt.Scale(range=categorical(2)))
-        # -> A1=blue-light, A2=blue-dark, B1=pink-light, B2=pink-dark, ...
-    """
-    if not 1 <= members <= 4:
-        raise ValueError(f"members must be between 1 and 4, got {members}")
-    if members == 1:
-        return [colors[h][s] for s in (1, 4, 7) for h in _CATEGORICAL_HUES]  # tier-major
-    stops = (1, 4, 7, 10)[:members]
-    return [colors[h][s] for h in _CATEGORICAL_HUES for s in stops]  # hue-major
-
-
 # Named entry so config.range.category can reference it and it appears in swatch exports.
 colors["categorical"] = categorical(1)
-
-
-def palette(
-    name: str,
-    n: int | None = None,
-    start: int = 0,
-    end: int | None = None,
-    step: int = 1,
-    reverse: bool = False,
-) -> list[str]:
-    """
-    Sample colors from a named palette with control over start, stop, and spacing.
-
-    When ``n`` is provided, evenly samples ``n`` colors between ``start`` and
-    ``stop`` (linspace). Otherwise, returns every ``step``-th color from
-    ``start`` to ``stop`` — with default ``step=1`` this returns the full slice.
-
-    Parameters
-    ----------
-    name:
-        Key in the ``colors`` dict (e.g. ``"mpl_YlGnBu"``).
-    n:
-        Number of colors to return (evenly spaced). Takes priority over ``step``.
-    start:
-        Index of the first color to include. Defaults to 0.
-    end:
-        Index of the last color to include (inclusive). Defaults to the last
-        index in the palette.
-    step:
-        Step between color indices. Defaults to 1 (every color).
-    reverse:
-        If True, reverse the returned list.
-
-    Examples
-    --------
-    All colors in the palette:
-
-        palette("mpl_YlGnBu")
-
-    Last 4 colors:
-
-        palette("mpl_YlGnBu", start=5)
-
-    Four evenly-spaced colors across the full palette:
-
-        palette("mpl_YlGnBu", n=4)
-
-    Every second color from index 0 to 6 (returns indices 0, 2, 4, 6):
-
-        palette("mpl_YlGnBu", end=6, step=2)
-
-    Four evenly-spaced colors, reversed:
-
-        palette("mpl_YlGnBu", n=4, reverse=True)
-    """
-    palette = colors[name]
-    total = len(palette)
-    if end is None:
-        end = total - 1
-
-    if n is not None:
-        if n == 1:
-            indices = [start]
-        else:
-            indices = [round(start + i * (end - start) / (n - 1)) for i in range(n)]
-    else:
-        indices = list(range(start, end + 1, step))
-
-    result = [palette[i] for i in indices]
-    return result[::-1] if reverse else result
-
-
-def _ase_encode_name(name: str) -> bytes:
-    """Encode a swatch/group name as ASE UTF-16BE: uint16 char count (incl. null) + chars + null."""
-    encoded = (name + "\0").encode("utf-16-be")
-    return struct.pack(">H", len(name) + 1) + encoded
-
-
-def _ase_color_block(name: str, r: int, g: int, b: int) -> bytes:
-    data = _ase_encode_name(name) + b"RGB " + struct.pack(">fff", r / 255, g / 255, b / 255) + struct.pack(">H", 2)
-    return struct.pack(">HI", 0x0001, len(data)) + data
-
-
-def _ase_group_start(name: str) -> bytes:
-    data = _ase_encode_name(name)
-    return struct.pack(">HI", 0xC001, len(data)) + data
-
-
-def _ase_group_end() -> bytes:
-    return struct.pack(">HI", 0xC002, 0)
-
-
-def _write_ase(palette_colors: dict[str, list[str]], path: Path) -> None:
-    """Write palette_colors to an ASE (Adobe Swatch Exchange) binary file at path."""
-    blocks: list[bytes] = []
-    block_count = 0
-    for palette_name, hexes in palette_colors.items():
-        blocks.append(_ase_group_start(palette_name))
-        block_count += 1
-        for i, h in enumerate(hexes):
-            r, g, b = int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
-            blocks.append(_ase_color_block(f"{palette_name} - {i}", r, g, b))
-            block_count += 1
-        blocks.append(_ase_group_end())
-        block_count += 1
-    path.write_bytes(b"ASEF" + struct.pack(">HHI", 1, 0, block_count) + b"".join(blocks))
-
-
-def _find_illustrator_swatches() -> Path | None:
-    """Return the path to the Illustrator User Defined Swatches folder, or None if not found.
-
-    Searches the platform-specific Adobe data directories for any installed Illustrator
-    version and locale without hardcoding either. Prefers the highest (newest) version.
-    macOS: ~/Library/Application Support/Adobe/Adobe Illustrator {ver}/{locale}/Swatches/
-    Windows: %APPDATA%/Adobe/Adobe Illustrator {ver} Settings/{locale}/Swatches/
-    """
-    search_roots: list[Path] = [Path.home() / "Library" / "Application Support" / "Adobe"]
-    appdata = os.environ.get("APPDATA")
-    if appdata:
-        search_roots.append(Path(appdata) / "Adobe")
-    for root in search_roots:
-        if not root.exists():
-            continue
-        ai_dirs = sorted(root.glob("Adobe Illustrator *"), reverse=True)
-        for ai_dir in ai_dirs:
-            for swatches in sorted(ai_dir.glob("*/Swatches")):
-                return swatches
-    return None
-
-
-def export_swatches(
-    directory: str | Path | None = None,
-    palettes: list[str] | None = None,
-    name: str = "dysonsphere",
-) -> None:
-    """
-    Write a JSX script and an ASE swatch library for Adobe Illustrator to *directory*
-    (default: current working directory).
-
-    Produces two files (``name`` defaults to ``"dysonsphere"``):
-
-    - ``import_{name}_palettes_to_illustrator.jsx`` — run via
-      File > Scripts > Other Script... to load the selected palettes into the active
-      document's Swatches panel as named groups.
-    - ``{name}.ase`` — Adobe Swatch Exchange file containing the selected palettes as
-      named groups. Automatically copied to the Illustrator User Defined Swatches
-      folder if it can be detected; otherwise copy it there manually. After restarting
-      Illustrator it appears under Open Swatch Library > User Defined > {name}.
-
-    Parameters
-    ----------
-    directory:
-        Output directory for the two files. Defaults to the current working directory.
-    palettes:
-        Names of the palettes to export (keys of ``dysonsphere.colors``). ``None``
-        (default) exports every palette. Pass a non-empty list to export only a subset,
-        e.g. ``["reds", "blues", "redsblues"]``. Unknown names raise ``ValueError``.
-    name:
-        Base name for the generated files and the Illustrator swatch library. Defaults
-        to ``"dysonsphere"``.
-    """
-    dest_dir = Path(directory) if directory is not None else Path.cwd()
-
-    if palettes is None:
-        selected = colors
-    else:
-        if not palettes:
-            raise ValueError("palettes must be a non-empty list of palette names, or None to export all")
-        unknown = [p for p in palettes if p not in colors]
-        if unknown:
-            raise ValueError(f"unknown palette name(s): {unknown}; valid names are the keys of dysonsphere.colors")
-        selected = {p: colors[p] for p in palettes}
-
-    # --- JSX: loads swatches into the active document ---
-    js_palettes = json.dumps(selected, indent=4)
-    jsx = f"""\
-// Adobe Illustrator script to import {name} palettes as named swatch groups.
-// Run via File > Scripts > Other Script...
-// For a persistent library that survives across sessions and documents, use the
-// dysonsphere.ase file that was generated alongside this script.
-
-function hexToRGB(hex) {{
-    hex = hex.replace('#', '');
-    return [
-        parseInt(hex.substring(0, 2), 16),
-        parseInt(hex.substring(2, 4), 16),
-        parseInt(hex.substring(4, 6), 16),
-    ];
-}}
-
-var palettes = {js_palettes};
-
-var paletteCount = 0;
-for (var _k in palettes) paletteCount++;
-
-// Add swatches to the active document (or a new one).
-// Remove any pre-existing dysonsphere groups so re-running the script is idempotent.
-var doc = app.documents.length > 0 ? app.activeDocument : app.documents.add();
-var existingGroups = doc.swatchGroups;
-for (var x = existingGroups.length - 1; x >= 0; x--) {{
-    if (existingGroups[x].name.indexOf("{name} ") === 0 || palettes.hasOwnProperty(existingGroups[x].name)) {{
-        existingGroups[x].remove();
-    }}
-}}
-for (var paletteName in palettes) {{
-    var hexColors = palettes[paletteName];
-    var colorGroup = doc.swatchGroups.add();
-    colorGroup.name = paletteName;
-    for (var i = 0; i < hexColors.length; i++) {{
-        var rgb = hexToRGB(hexColors[i]);
-        var color = new RGBColor();
-        color.red = rgb[0];
-        color.green = rgb[1];
-        color.blue = rgb[2];
-        var swatch = doc.swatches.add();
-        swatch.name = paletteName + " - " + i;
-        swatch.color = color;
-        colorGroup.addSwatch(swatch);
-    }}
-}}
-
-alert("Loaded " + paletteCount + " palettes into the active document.\\n"
-    + "For a persistent library: open the .ase file via\\n"
-    + "Open Swatch Library > Other Library...");
-"""
-    jsx_path = dest_dir / f"import_{name}_palettes_to_illustrator.jsx"
-    jsx_path.write_text(jsx, encoding="utf-8")
-    print(f"Created {jsx_path}")
-
-    # --- ASE: persistent swatch library ---
-    ase_path = dest_dir / f"{name}.ase"
-    _write_ase(selected, ase_path)
-    print(f"Created {ase_path}")
-
-    swatches_dir = _find_illustrator_swatches()
-    if swatches_dir is not None:
-        installed = swatches_dir / f"{name}.ase"
-        shutil.copy(ase_path, installed)
-        print(f"Installed to {installed}")
-        print(f"Restart Illustrator, then open via Open Swatch Library > User Defined > {name}")
-    else:
-        print(f"Illustrator Swatches folder not found — copy {ase_path.name} there manually.")
-        print("Typical location: ~/Library/Application Support/Adobe/Adobe Illustrator <ver>/<locale>/Swatches/")
