@@ -37,6 +37,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "chartWidth": 100,
     "closed": None,
     "cornerRadius": False,
+    "inwardTicks": False,
     "darkmode": False,
     "dashedGrid": False,
     "dashedLine": False,
@@ -205,7 +206,9 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
 
     # Computed defaults — None means "derive from other params"
     if p["closed"] is None:
-        p["closed"] = p["viewFill"] is not None
+        # inward ticks point into the plot, so they need a closed (non-offset) axis;
+        # default closed=True when inwardTicks is set (an explicit closed=False still wins).
+        p["closed"] = p["inwardTicks"] or p["viewFill"] is not None
     if p["markSize"] is None:
         p["markSize"] = min(p["chartWidth"], p["chartHeight"]) * 0.1
     if p["markStrokeWidth"] is None:

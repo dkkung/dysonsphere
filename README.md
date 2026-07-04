@@ -114,7 +114,8 @@ ds.theme(   # custom configuration
 | `chartFill` | `"white"` | Background fill of the entire chart |
 | `chartHeight` | `100` | Default chart height in pixels |
 | `chartWidth` | `100` | Default chart width in pixels |
-| `closed` | auto | Draw a border around the plot area. Auto-enabled when `viewFill` is set |
+| `closed` | auto | Draw a border around the plot area. Auto-enabled when `viewFill` is set or `inwardTicks=True` |
+| `inwardTicks` | `False` | Point axis ticks *into* the plot (physics/astronomy style), including log/power minor ticks; also defaults `closed=True`. Applied by `ds.save()` |
 | `boxplotOutliers` | `False` | Show boxplot outlier points. `False` = hidden (`size 0`); `True` = shown at `markSize / 10`; explicit `float` = that point size. Per-chart `mark_boxplot(outliers={"size": n})` still overrides |
 | `cornerRadius` | `False` | Corner rounding for rect, bar, boxplot box, and arc marks. `False` = none; `True` = `min(chartWidth, chartHeight) / 100` (1 px at default 100×100); explicit `float` = pixels. Bars use `cornerRadiusEnd` (tip only); all others use `cornerRadius` (all corners) |
 | `darkmode` | `False` | Invert text and axis colors for dark backgrounds |
@@ -374,11 +375,14 @@ ds.save(chart, "plots/myplot")
 
 - **Tick alignment** — Vega floors axis tick positions to integers for screen rendering; at 1200 PPI this becomes a visible gap between ticks and their marks. `ds.save()` corrects tick transforms to exact float positions.
 - **Minor tick correction** — corrects sub-pixel rounding on log-scale and power-scale minor ticks so spacing is visually uniform at high DPI.
+- **Inward ticks** — when `inwardTicks=True`, flips axis ticks (major, minor, and secondary) to point into the plot; Altair/Vega-Lite can't render inward ticks natively.
 - **Axis layering** — moves axis elements to the front so they render above chart marks (relevant for `viewFill`-filled charts).
 - **SVG simplification** — flattens Vega's redundant `<g>` wrappers for cleaner Illustrator imports.
 - **Light/dark variants** — renders both background modes in a single call by toggling `darkmode` in the active theme.
 
 Calling `chart.save()` directly skips all of the above and will produce misaligned ticks and incorrect minor tick spacing in dysonsphere charts.
+
+> **Notebook preview is approximate.** Displaying an Altair chart inline (in a notebook or IDE) renders it through Vega-Lite's own renderer, which does **not** run these post-processing steps — so the preview is not publication-accurate. Ticks aren't pixel-aligned, log/superscript labels aren't typeset, and (most visibly) with `inwardTicks=True` the ticks still point **outward** in the preview. Always judge the final figure from `ds.save()` output.
 
 `ds.save()` writes a chart in one or more formats and background variants. **By default it writes SVG + the Vega-Lite JSON spec, light background only** — `myplot.svg` and `myplot.json`. The formats (`"svg"`/`"png"`/`"json"`) and backgrounds (`"light"`/`"dark"`) are set by `format` / `background` (a string or a list), each defaulting to the theme options `saveFormat` / `saveBackground` (so you can change the defaults globally or in `dysonsphere.toml`). A `_light`/`_dark` suffix is added **only when more than one background** is rendered. It accepts any Altair chart type — `Chart`, `LayerChart`, `FacetChart`, `HConcatChart`, `VConcatChart`, or `ConcatChart` — as well as a zero-argument callable that returns one.
 

@@ -239,6 +239,8 @@ def save(
                     else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3)),
                 )
                 _fix_log_minor_ticks(svg_path)
+                if alt.theme.options.get("inwardTicks"):
+                    _flip_ticks_inward(svg_path)
                 _layer_axes_to_front(svg_path)
                 _simplify_svg(svg_path)
                 _fix_superscript_labels(svg_path)
@@ -693,6 +695,41 @@ def _fix_log_minor_ticks(path: str) -> None:
             minor_els = [(el, x) for el, x, s in ticks if s == minor_size]
             _correct_axis(major_xs, minor_els, is_x=True)
 
+    if changed:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(ET.tostring(root, encoding="unicode"))
+
+
+def _flip_ticks_inward(path: str) -> None:
+    """Negate axis-tick line geometry so ticks point into the plot (theme(inwardTicks=True)).
+
+    Vega/Vega-Lite always render ticks outward and reject a negative ``tickSize``, so inward
+    ticks are produced here as an SVG post-process. Runs AFTER the tick-position fixers
+    (``_fix_tick_alignment`` / ``_fix_log_minor_ticks``), which rely on the outward geometry to
+    detect ticks, then negates the non-zero ``x2``/``y2`` of every ``<line>`` inside an axis-tick
+    group. x-axis ticks carry their length in ``y2`` (``x2="0"``), y-axis ticks in ``x2``
+    (``y2="0"``), so negating the non-zero coordinate flips the direction. Covers primary,
+    secondary (right/top), major, and minor (log/power) ticks uniformly, since all are
+    ``role-axis-tick`` groups.
+    """
+    import xml.etree.ElementTree as ET
+
+    NS = "http://www.w3.org/2000/svg"
+    ET.register_namespace("", NS)
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+
+    tree = ET.parse(path)
+    root = tree.getroot()
+    changed = False
+    for g in root.iter(f"{{{NS}}}g"):
+        if "role-axis-tick" not in g.get("class", ""):
+            continue
+        for line in g.iter(f"{{{NS}}}line"):
+            for attr in ("x2", "y2"):
+                v = line.get(attr)
+                if v is not None and float(v) != 0.0:
+                    line.set(attr, v[1:] if v.startswith("-") else "-" + v)
+                    changed = True
     if changed:
         with open(path, "w", encoding="utf-8") as f:
             f.write(ET.tostring(root, encoding="unicode"))

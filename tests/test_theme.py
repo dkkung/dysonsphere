@@ -196,6 +196,28 @@ class TestRangePalettes:
         assert self._scheme("diverging") == colors["greensblues"]
 
 
+class TestInwardTicks:
+    def test_off_by_default(self):
+        theme()
+        assert alt.theme.options["inwardTicks"] is False
+        assert alt.theme.options["closed"] is False  # no viewFill, no inwardTicks
+
+    def test_defaults_closed(self):
+        # inward ticks need a closed (non-offset) axis, so closed defaults True with them
+        theme(inwardTicks=True)
+        assert alt.theme.options["closed"] is True
+
+    def test_explicit_closed_false_wins(self):
+        theme(inwardTicks=True, closed=False)
+        assert alt.theme.options["closed"] is False
+
+    def test_tick_size_stays_positive(self):
+        # inward is applied as an SVG post-process (not a negative config tickSize),
+        # so the tick-position fixers still see the outward geometry they expect.
+        theme(inwardTicks=True)
+        assert _dysonsphere_theme()["config"]["axis"]["tickSize"] == alt.theme.options["tickSize"]
+
+
 class TestThemeRegistration:
     def test_theme_registered_as_dysonsphere(self):
         assert "dysonsphere" in alt.theme.names()
