@@ -81,6 +81,17 @@ class TestMarkViolin:
         for layer in spec["layer"]:
             assert "xOffset" not in layer.get("encoding", {})
 
+    def test_median_color_wired_to_spec(self, group_df):
+        # Proves the medianColor param flows to the boxplot median fill. Uses an explicit
+        # value (not the default) so it doesn't pin the cosmetic default, which may change.
+        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES, medianColor="red")
+        box = next(
+            lyr
+            for lyr in result.to_dict()["layer"]
+            if isinstance(lyr.get("mark"), dict) and lyr["mark"].get("type") == "boxplot"
+        )
+        assert box["mark"]["median"]["fill"] == "red"
+
     def test_x_title_defaults_to_col_name(self, group_df):
         result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
         spec = result.to_dict()
