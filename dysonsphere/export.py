@@ -308,28 +308,34 @@ def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairCh
 def _fix_tick_alignment(
     path: str, band_padding: float = 0.1, chart_width: float = 100.0, axis_offset: float = 0.0
 ) -> None:
-    """Move x-axis tick and grid lines from Vega's floor'd integer positions to exact mark centers.
+    """Move axis tick and grid lines from Vega's rounded integer positions onto the exact
+    positions of the marks they label.
 
-    Vega snaps axis tick/grid group transforms to integers for crisp screen rendering but
-    keeps mark coordinates as floats.  At high DPI (scale ≥ 4) this produces visible
-    misalignment.
+    Vega snaps axis tick/grid group ``transform`` values to integers for crisp screen rendering
+    but keeps mark coordinates as floats.  At high DPI (scale >= 4) the <1px gap is visible, so
+    ticks drift off the marks.
 
-    Handles both mark-rule role-axis-tick and mark-rule role-axis-grid groups.  Tick lines
-    use translate(x,0); grid lines use translate(x,-chartHeight) with y2=chartHeight.  Both
-    formats are matched by the collection regex; grid lines are distinguished by |ty| > 50.
+    Strategy: **read, don't re-derive.**  A categorical tick belongs on the mark that sits at its
+    category (a bar or box centre) or bounds it (a heatmap ``rect`` edge).  Pass 1 collects those
+    exact anchor positions from the mark path data, in *global* coordinates (accumulating ancestor
+    ``<g>`` translates) so a tick only ever matches a mark in its own panel -- which makes
+    ``hconcat`` / ``vconcat`` panels (even ones that mix mark types, e.g. strip beside violin)
+    resolve independently.  Pass 2 walks each ``mark-rule role-axis-tick`` / ``role-axis-grid``
+    group and snaps every line to the nearest anchor within ``_TOL`` px: x-ticks use bar/box
+    centres and rect x-edges, y-ticks use rect y-edges.
 
-    For bar charts: tick centers are read from the bar path data (aria-roledescription="bar").
-    For heatmaps (binned/linear axes): ticks sit on rect bin edges, not band centers, so each
-    axis group whose ticks all lie within 1px of a rect-mark edge (aria-roledescription="rect
-    mark") is snapped to those edges — on both x and y (Vega rounds, rather than floors, linear
-    tick transforms).  The 1px gate keeps a nominal band chart that merely carries rect marks
-    (e.g. an add_shade layer, whose ticks sit at band centers ~half a step from any shade edge)
-    on the band path below.  For all other charts (strip, violin, etc.): band centers are
-    computed analytically from the number of categories and theme scale parameters, then ticks
-    and grid lines are moved to those float positions.  A validation step ensures the fix is
-    only applied to nominal band scales — quantitative and time axes are left untouched.  When
-    two band-scale formulas (Case pi and Case 0) floor to the same integers, box mark x-centers
-    (aria-roledescription="box") are used to resolve the ambiguity.
+    Anchors handled (all read from path ``d``): ``bar`` and ``box`` (``M x,y h w`` -> centre
+    ``x + w/2``; ``box`` covers the median indicator embedded in ``mark_strip`` / ``mark_violin``,
+    so those need no formula) and ``rect mark`` (``M x,y h w v h2`` -> x-edges ``{x, x+w}``,
+    y-edges ``{y, y+h2}``).
+
+    Fallback: a group whose ticks match no anchor (a plain point-scale scatter, or a
+    ``mark_line`` / ``mark_tick`` categorical axis with no positional mark) is snapped by the
+    analytic band formula -- Case pi (``step = W/(n+bp)``), Case 0 (``step = W/(n+2*bp)``), or
+    point scale (``step = W/n``) -- which is why ``band_padding`` and ``chart_width`` are still
+    accepted.  A quantitative/time axis matches no formula and is left untouched.  There is no
+    Case-pi-vs-Case-0 disambiguation any more: the only marks that produced that ambiguity (boxes)
+    are now read exactly, so an ambiguous *and* anchorless group simply bails.
 
     axis_offset: the theme's effective axis offset (tickSize when axisOffset is None, 0 when
     closed=True).  Grid lines' y-span is extended by this amount so they reach the top chart
@@ -345,204 +351,159 @@ def _fix_tick_alignment(
     tree = ET.parse(path)
     root = tree.getroot()
 
-    # --- bar charts: read centers from path data ---
-    bar_centers: list[float] = []
-    for el in root.iter(f"{{{NS}}}path"):
-        if el.get("aria-roledescription") != "bar":
-            continue
-        d = el.get("d", "")
-        m = re.match(r"M([\d.]+),[-\d.e+]+h([\d.]+)", d)
-        if m:
-            bar_centers.append(round(float(m.group(1)) + float(m.group(2)) / 2, 4))
+    _AXIS_CLS = {"mark-rule role-axis-tick", "mark-rule role-axis-grid"}
+    _TOL = 2.0  # px: a tick's floored/rounded position is <1px off its true anchor
+    _xlate = re.compile(r"translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)")
+    _tick = re.compile(r"translate\(([-\d.eE]+),([-\d.eE]+)\)$")
 
-    if bar_centers:
-        unique_centers = sorted(set(bar_centers))
+    # --- Pass 1: exact mark anchors in global coordinates ---
+    # A vertical x-tick belongs on a bar/box centre or a rect x-edge; a horizontal y-tick
+    # belongs on a rect y-edge.  Positions are accumulated in GLOBAL coordinates (summing
+    # ancestor <g> translates) so a tick only matches marks in its own panel: other panels'
+    # marks are a panel-width away, which is what makes mixed hconcat/vconcat resolve.
+    x_anchors: list[float] = []  # bar/box centres + rect x-edges
+    y_anchors: list[float] = []  # rect y-edges
 
-        def nearest(tick_x: float) -> float | None:
-            c = min(unique_centers, key=lambda v: abs(v - tick_x))
-            return c if abs(c - tick_x) < 2.0 else None
-
-        def apply_bar_fix(el: ET.Element) -> None:
-            for child in el:
-                cls = child.get("class", "")
-                if cls in ("mark-rule role-axis-tick", "mark-rule role-axis-grid"):
-                    for line in child:
-                        t = line.get("transform", "")
-                        m = re.match(r"translate\((\d+(?:\.\d+)?),([-\d.]+)\)$", t)
-                        if m:
-                            c = nearest(float(m.group(1)))
-                            if c is not None:
-                                line.set("transform", f"translate({c},{m.group(2)})")
-                else:
-                    apply_bar_fix(child)
-
-        apply_bar_fix(root)
-
-    else:
-        # --- non-bar charts: compute band centers analytically ---
-        # Process each <g class="mark-rule role-axis-tick|grid"> independently.
-        # hconcat panels with different mark types (strip=Case 0, violin=Case pi)
-        # produce different integer tick positions; processing them as one set
-        # yields 2n unique positions that match no formula. Per-group processing
-        # lets each panel's axis be matched and corrected with its own formula.
-        #
-        # Three scale formulas per group:
-        #   pi. Band, paddingInner=paddingOuter=band_padding (boxplot/violin)
-        #      step = W / (n + bp);  center_i = step·(i + 0.5 + bp/2)
-        #   0.  Band, paddingInner=0 (xOffset/strip), paddingOuter=band_padding
-        #      step = W / (n + 2·bp);  center_i = step·(bp + i + 0.5)
-        #   pt. Point scale, pointPadding=0.5 (default for scatter/strip marks)
-        #      step = W / n;  position_i = step·(0.5 + i)
-        # All use Vega's Math.floor (or Math.round for pt).
-
-        # Global box mark centers for ambiguous-case disambiguation (pi and 0
-        # floor to the same integers, e.g. n=6, W=100, bp=0.1).
-        box_ctr: list[float] = []
-        for el in root.iter(f"{{{NS}}}path"):
-            if el.get("aria-roledescription") == "box":
-                mb = re.match(r"M([\d.]+),[-\d.e+]+L([\d.]+),", el.get("d", ""))
-                if mb:
-                    box_ctr.append((float(mb.group(1)) + float(mb.group(2))) / 2)
-        sorted_box = sorted(box_ctr)
-
-        # Rect-mark bin edges for binned/linear (heatmap) axes.  A rect mark path is
-        # "M x0,y0 h w v h2 h -w Z", so its x-edges are {x0, x0+w} and its y-edges are
-        # {y0, y0+h2}.  On a binned quantitative axis the ticks sit on these bin
-        # boundaries, but Vega rounds tick transforms to integers; when the bin
-        # pixel-width is non-integral the ticks visibly drift off the rect edges.
-        rect_x_edges: list[float] = []
-        rect_y_edges: list[float] = []
-        for el in root.iter(f"{{{NS}}}path"):
-            if el.get("aria-roledescription") == "rect mark":
-                mr = re.match(r"M([\d.]+),([-\d.eE+]+)h([-\d.eE+]+)v([-\d.eE+]+)", el.get("d", ""))
-                if mr:
-                    x0, y0, w, h = (float(mr.group(i)) for i in range(1, 5))
-                    rect_x_edges += [x0, x0 + w]
-                    rect_y_edges += [y0, y0 + h]
-        sorted_rect_x = sorted({round(v, 4) for v in rect_x_edges})
-        sorted_rect_y = sorted({round(v, 4) for v in rect_y_edges})
-
-        def _snap_axis_to_rect_edges(g: ET.Element) -> bool:
-            """Snap one axis group's tick/grid lines to rect-mark bin edges.
-
-            Returns True if the group is a binned/linear axis (every tick lies within
-            1px of a bin edge) and its lines were snapped; False otherwise, so the
-            caller falls through to the nominal band-scale logic.  This gate keeps
-            band charts that merely carry rect marks (e.g. an add_shade layer over a
-            strip plot, whose ticks sit at band centers, ~half a step from any shade
-            edge) on the band path.
-            """
-            parsed: list[tuple[ET.Element, float, float]] = []
-            for line in g:
-                m = re.match(r"translate\(([-\d.]+),([-\d.]+)\)$", line.get("transform", ""))
+    def _collect(el: ET.Element, cx: float, cy: float) -> None:
+        for ch in el:
+            ccx, ccy = cx, cy
+            mt = _xlate.search(ch.get("transform", ""))
+            if mt:
+                ccx += float(mt.group(1))
+                ccy += float(mt.group(2))
+            role = ch.get("aria-roledescription")
+            if role in ("bar", "box"):
+                # "M x,y h w ..." -> centre x + w/2 (a box is a bar mark; both are rect paths)
+                m = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", ch.get("d", ""))
                 if m:
-                    parsed.append((line, float(m.group(1)), float(m.group(2))))
-            if not parsed:
-                return False
-            txs = {round(p[1], 4) for p in parsed}
-            tys = {round(p[2], 4) for p in parsed}
-            # x-axis ticks vary in tx at constant ty; y-axis ticks vary in ty at constant tx.
-            if len(txs) > 1 and len(tys) == 1:
-                positions, edges, is_x = txs, sorted_rect_x, True
-            elif len(tys) > 1 and len(txs) == 1:
-                positions, edges, is_x = tys, sorted_rect_y, False
+                    x_anchors.append(round(ccx + float(m.group(1)) + float(m.group(2)) / 2, 4))
+            elif role == "rect mark":
+                # "M x,y h w v h2 ..." -> x-edges {x, x+w}, y-edges {y, y+h2}
+                m = re.match(r"M([-\d.]+),([-\d.eE+]+)h([-\d.eE+]+)v([-\d.eE+]+)", ch.get("d", ""))
+                if m:
+                    x0, y0, w, h = (float(m.group(i)) for i in range(1, 5))
+                    x_anchors.extend([round(ccx + x0, 4), round(ccx + x0 + w, 4)])
+                    y_anchors.extend([round(ccy + y0, 4), round(ccy + y0 + h, 4)])
+            _collect(ch, ccx, ccy)
+
+    _collect(root, 0.0, 0.0)
+    sorted_x = sorted(set(x_anchors))
+    sorted_y = sorted(set(y_anchors))
+
+    modified = False
+
+    def _nearest(pos: float, anchors: list[float]) -> float | None:
+        c = min(anchors, key=lambda a: abs(a - pos))
+        return c if abs(c - pos) <= _TOL else None
+
+    def _snap_group(g: ET.Element, cx: float, cy: float) -> bool:
+        """Snap one axis group to the nearest mark anchors.  Returns True if the group is
+        anchor-aligned (every tick maps to an anchor) and was snapped; else False so the caller
+        falls back to the band formula.  Orientation is read from which translate coordinate
+        varies (x-ticks vary tx at constant ty; y-ticks vary ty at constant tx)."""
+        nonlocal modified
+        lines: list[tuple[ET.Element, float, float]] = []
+        for line in g:
+            m = _tick.match(line.get("transform", ""))
+            if m:
+                lines.append((line, float(m.group(1)), float(m.group(2))))
+        if not lines:
+            return False
+        txs = {round(tx, 3) for _, tx, _ in lines}
+        tys = {round(ty, 3) for _, _, ty in lines}
+        if len(txs) > 1 and len(tys) == 1:
+            is_x, anchors = True, sorted_x
+        elif len(tys) > 1 and len(txs) == 1:
+            is_x, anchors = False, sorted_y
+        else:
+            return False
+        if not anchors:
+            return False
+        gpos = [(cx + tx) if is_x else (cy + ty) for _, tx, ty in lines]
+        if any(_nearest(p, anchors) is None for p in gpos):
+            return False  # not this axis's marks -> leave to the fallback
+        is_grid = g.get("class") == "mark-rule role-axis-grid"
+        for (line, tx, ty), gp in zip(lines, gpos):
+            a = _nearest(gp, anchors)
+            if a is None:
+                continue
+            if is_x:
+                if is_grid and ty < -50 and axis_offset > 0:
+                    y2 = line.get("y2")
+                    if y2 is not None and float(y2) > 50:
+                        line.set("y2", str(float(y2) + axis_offset))
+                    ty -= axis_offset
+                line.set("transform", f"translate({round(a - cx, 4)},{ty})")
             else:
-                return False
-            if not edges:
-                return False
+                line.set("transform", f"translate({tx},{round(a - cy, 4)})")
+            modified = True
+        return True
 
-            def nearest(v: float) -> float | None:
-                c = min(edges, key=lambda e: abs(e - v))
-                return c if abs(c - v) <= 1.0 else None
-
-            if any(nearest(p) is None for p in positions):
-                return False
-            is_grid = g.get("class") == "mark-rule role-axis-grid"
-            for line, tx, ty in parsed:
-                if is_x:
-                    c = nearest(round(tx, 4))
-                    if c is None:
-                        continue
-                    if is_grid and ty < -50 and axis_offset > 0:
-                        y2 = line.get("y2")
-                        if y2 is not None and float(y2) > 50:
-                            line.set("y2", str(float(y2) + axis_offset))
-                        ty -= axis_offset
-                    line.set("transform", f"translate({c},{ty})")
-                else:
-                    c = nearest(round(ty, 4))
-                    if c is None:
-                        continue
-                    line.set("transform", f"translate({tx},{c})")
-            return True
-
-        _AXIS_CLS = {"mark-rule role-axis-tick", "mark-rule role-axis-grid"}
-        modified_any = False
-        for g in root.iter(f"{{{NS}}}g"):
-            if g.get("class") not in _AXIS_CLS:
-                continue
-            # Binned/linear (heatmap) axis: snap ticks to bin-boundary rect edges.
-            if _snap_axis_to_rect_edges(g):
-                modified_any = True
-                continue
-            # Collect unique local x positions for this axis group.
-            xs: list[float] = []
-            for line in g:
-                m = re.match(r"translate\((\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)$", line.get("transform", ""))
-                if m:
-                    v = float(m.group(1))
-                    if v > 0:
-                        xs.append(v)
-            if not xs:
-                continue
-            xs = sorted(set(xs))
-            n = len(xs)
-
-            step0 = chart_width / (n + 2 * band_padding)
-            expected0 = [int(step0 * (band_padding + i + 0.5)) for i in range(n)]
-
-            step_pi = chart_width / (n + band_padding)
-            expected_pi = [int(step_pi * (i + 0.5 + band_padding / 2)) for i in range(n)]
-
-            step_pt = chart_width / n
-            expected_pt = [round(step_pt * (0.5 + i)) for i in range(n)]
-
-            actual_int = [int(v) for v in xs]
-            if actual_int == expected_pi and actual_int == expected0:
-                if not sorted_box:
-                    continue
-                pi_err = sum(abs(b - step_pi * (i + 0.5 + band_padding / 2)) for i, b in enumerate(sorted_box))
-                z0_err = sum(abs(b - step0 * (band_padding + i + 0.5)) for i, b in enumerate(sorted_box))
-                if pi_err < z0_err:
-                    center_map = {v: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, v in enumerate(xs)}
-                else:
-                    center_map = {v: round(step0 * (band_padding + i + 0.5), 4) for i, v in enumerate(xs)}
-            elif actual_int == expected_pi:
-                center_map = {v: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, v in enumerate(xs)}
-            elif actual_int == expected0:
-                center_map = {v: round(step0 * (band_padding + i + 0.5), 4) for i, v in enumerate(xs)}
-            elif actual_int == expected_pt:
-                center_map = {v: round(step_pt * (0.5 + i), 4) for i, v in enumerate(xs)}
-            else:
-                continue
-
-            is_grid = g.get("class") == "mark-rule role-axis-grid"
-            for line in g:
-                m = re.match(r"translate\(([\d.]+),([-\d.]+)\)$", line.get("transform", ""))
-                if m:
-                    c = center_map.get(float(m.group(1)))
-                    if c is not None:
-                        ty = float(m.group(2))
-                        if is_grid and ty < -50 and axis_offset > 0:
-                            y2 = line.get("y2")
-                            if y2 is not None and float(y2) > 50:
-                                line.set("y2", str(float(y2) + axis_offset))
-                            ty -= axis_offset
-                        line.set("transform", f"translate({c},{ty})")
-                        modified_any = True
-
-        if not modified_any:
+    def _fallback(g: ET.Element) -> None:
+        """Analytic band-formula snap for an x-axis group with no matching mark anchors
+        (point-scale scatter, or a mark_line/mark_tick categorical axis)."""
+        nonlocal modified
+        xs = []
+        for line in g:
+            m = re.match(r"translate\((\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)$", line.get("transform", ""))
+            if m and float(m.group(1)) > 0:
+                xs.append(float(m.group(1)))
+        if not xs:
             return
+        xs = sorted(set(xs))
+        n = len(xs)
+        step0 = chart_width / (n + 2 * band_padding)
+        step_pi = chart_width / (n + band_padding)
+        step_pt = chart_width / n
+        exp0 = [int(step0 * (band_padding + i + 0.5)) for i in range(n)]
+        exp_pi = [int(step_pi * (i + 0.5 + band_padding / 2)) for i in range(n)]
+        exp_pt = [round(step_pt * (0.5 + i)) for i in range(n)]
+        actual = [int(v) for v in xs]
+        # No box disambiguation: boxes are read as anchors, so an ambiguous (pi == 0) group here
+        # is genuinely anchorless -> leave it untouched rather than guess.
+        if actual == exp_pi and actual != exp0:
+            centers = {v: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, v in enumerate(xs)}
+        elif actual == exp0 and actual != exp_pi:
+            centers = {v: round(step0 * (band_padding + i + 0.5), 4) for i, v in enumerate(xs)}
+        elif actual == exp_pt:
+            centers = {v: round(step_pt * (0.5 + i), 4) for i, v in enumerate(xs)}
+        else:
+            return
+        is_grid = g.get("class") == "mark-rule role-axis-grid"
+        for line in g:
+            m = re.match(r"translate\(([\d.]+),([-\d.]+)\)$", line.get("transform", ""))
+            if not m:
+                continue
+            c = centers.get(float(m.group(1)))
+            if c is None:
+                continue
+            ty = float(m.group(2))
+            if is_grid and ty < -50 and axis_offset > 0:
+                y2 = line.get("y2")
+                if y2 is not None and float(y2) > 50:
+                    line.set("y2", str(float(y2) + axis_offset))
+                ty -= axis_offset
+            line.set("transform", f"translate({c},{ty})")
+            modified = True
+
+    # --- Pass 2: walk axis groups (with accumulated panel offset) and snap ---
+    def _walk(el: ET.Element, cx: float, cy: float) -> None:
+        for ch in el:
+            ccx, ccy = cx, cy
+            mt = _xlate.search(ch.get("transform", ""))
+            if mt:
+                ccx += float(mt.group(1))
+                ccy += float(mt.group(2))
+            if ch.get("class") in _AXIS_CLS:
+                if not _snap_group(ch, ccx, ccy):
+                    _fallback(ch)
+            else:
+                _walk(ch, ccx, ccy)
+
+    _walk(root, 0.0, 0.0)
+
+    if not modified:
+        return
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(ET.tostring(root, encoding="unicode"))
