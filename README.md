@@ -404,7 +404,11 @@ ds.save(chart, "plots/myplot")
 
 Calling `chart.save()` directly skips all of the above and will produce misaligned ticks and incorrect minor tick spacing in dysonsphere charts.
 
-> **Notebook preview is approximate.** Displaying an Altair chart inline (in a notebook or IDE) renders it through Vega-Lite's own renderer, which does **not** run these post-processing steps — so the preview is not publication-accurate. Ticks aren't pixel-aligned, log/superscript labels aren't typeset, and (most visibly) with `inwardTicks=True` the ticks still point **outward** in the preview. Always judge the final figure from `ds.save()` output.
+> **Notebook preview is approximate.** Displaying an Altair chart inline (in a notebook or IDE) renders it through Vega-Lite's own renderer, which does **not** run these post-processing steps — so the preview is not publication-accurate. Ticks aren't pixel-aligned, log/superscript labels aren't typeset, and (most visibly) with `inwardTicks=True` the ticks still point **outward** in the preview. For an accurate inline preview, use **`ds.show(chart)`** — it runs the same pipeline as `ds.save()` and returns an `IPython.display.SVG`, so the preview matches the saved figure (no file written). Requires IPython.
+>
+> ```python
+> ds.show(chart)   # accurate inline preview in a notebook (last expression in a cell)
+> ```
 
 `ds.save()` writes a chart in one or more formats and background variants. **By default it writes SVG + the Vega-Lite JSON spec, light background only** — `myplot.svg` and `myplot.json`. The formats (`"svg"`/`"png"`/`"json"`) and backgrounds (`"light"`/`"dark"`) are set by `format` / `background` (a string or a list), each defaulting to the theme options `saveFormat` / `saveBackground` (so you can change the defaults globally or in `dysonsphere.toml`). A `_light`/`_dark` suffix is added **only when more than one background** is rendered. It accepts any Altair chart type — `Chart`, `LayerChart`, `FacetChart`, `HConcatChart`, `VConcatChart`, or `ConcatChart` — as well as a zero-argument callable that returns one.
 
