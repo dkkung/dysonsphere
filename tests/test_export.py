@@ -358,19 +358,19 @@ class TestFixTickAlignment:
         # No box marks → can't resolve; ticks stay at integer positions
         assert xs == pytest.approx([float(x) for x in ints0], abs=0.001)
 
-    def test_ambiguous_box_marks_at_case0_picks_case0(self, tmp_path):
-        # When ambiguous, box marks at Case 0 positions should cause Case 0 to be applied.
+    def test_box_anchors_snap_to_case0(self, tmp_path):
+        # Box marks (a rect path "M x,y h w …") are read as exact anchors: ticks snap to the box
+        # centres even when Case 0 and Case pi floor to the same integers — no formula guessing.
         bp = 0.1
         W = 100
         n = 6
         step0 = W / (n + 2 * bp)
-        ints = [int(step0 * (bp + i + 0.5)) for i in range(n)]  # same for both formulas
+        ints = [int(step0 * (bp + i + 0.5)) for i in range(n)]  # both formulas floor to these
 
         lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="-3"/>' for x in ints)
-        # Box marks at Case 0 centers: M(center-3),y L(center+3),y ...
+        # Box marks at Case 0 centres, in real Vega rect-path form: M(centre-3),y h6 v5 h-6 Z.
         box_marks = "".join(
-            f'<path aria-roledescription="box" d="M{step0 * (bp + i + 0.5) - 3},10L{step0 * (bp + i + 0.5) + 3},10"/>'
-            for i in range(n)
+            f'<path aria-roledescription="box" d="M{step0 * (bp + i + 0.5) - 3},10h6v5h-6Z"/>' for i in range(n)
         )
         svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{lines}</g>{box_marks}</svg>'
         path = _write(tmp_path, "t.svg", svg)
@@ -379,8 +379,8 @@ class TestFixTickAlignment:
         expected = [round(step0 * (bp + i + 0.5), 4) for i in range(n)]
         assert xs == pytest.approx(expected, abs=0.001)
 
-    def test_ambiguous_box_marks_at_case_pi_picks_case_pi(self, tmp_path):
-        # When ambiguous, box marks at Case pi positions should cause Case pi to be applied.
+    def test_box_anchors_snap_to_case_pi(self, tmp_path):
+        # Same, with the boxes at Case pi centres (violin/boxplot band positioning).
         bp = 0.1
         W = 100
         n = 6
@@ -389,10 +389,7 @@ class TestFixTickAlignment:
 
         lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="-3"/>' for x in ints)
         box_marks = "".join(
-            f'<path aria-roledescription="box"'
-            f' d="M{step_pi * (i + 0.5 + bp / 2) - 3},10'
-            f'L{step_pi * (i + 0.5 + bp / 2) + 3},10"/>'
-            for i in range(n)
+            f'<path aria-roledescription="box" d="M{step_pi * (i + 0.5 + bp / 2) - 3},10h6v5h-6Z"/>' for i in range(n)
         )
         svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{lines}</g>{box_marks}</svg>'
         path = _write(tmp_path, "t.svg", svg)
@@ -498,6 +495,78 @@ class TestFixTickAlignment:
         _fix_tick_alignment(path, band_padding=bp, chart_width=W)
         expected = [round(step_pi * (i + 0.5 + bp / 2), 4) for i in range(n)]
         assert sorted(_tick_xs(path)) == pytest.approx(expected, abs=0.001)
+
+    def test_bar_anchors_snap(self, tmp_path):
+        # Bar centres (a rect path "M x,y h w …") are read as anchors; ticks snap to them.
+        W, n, bp = 100, 5, 0.1
+        centers = [round(W / (n + bp) * (i + 0.5 + bp / 2), 4) for i in range(n)]
+        ints = [int(c) for c in centers]
+        lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="3"/>' for x in ints)
+        bars = "".join(f'<path aria-roledescription="bar" d="M{c - 5},50h10v20h-10Z"/>' for c in centers)
+        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{lines}</g>{bars}</svg>'
+        path = _write(tmp_path, "t.svg", svg)
+        _fix_tick_alignment(path, chart_width=W)
+        assert _tick_xs(path) == pytest.approx(centers, abs=0.001)
+
+    def test_panels_resolve_independently(self, tmp_path):
+        # Two panels at different global x-offsets, each with its own box anchors and (crucially)
+        # different local centres. A tick in one panel must snap to *its* box, not the other's —
+        # the global-coordinate scoping that makes mixed hconcat/vconcat work.
+        def panel(cx, ints, centers):
+            lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="3"/>' for x in ints)
+            boxes = "".join(f'<path aria-roledescription="box" d="M{c - 3},10h6v5h-6Z"/>' for c in centers)
+            return f'<g transform="translate({cx},0)"><g class="mark-rule role-axis-tick">{lines}</g>{boxes}</g>'
+
+        a = panel(0, [9, 25], [9.677, 25.806])  # Case 0 (strip)
+        b = panel(200, [9, 25], [9.016, 25.41])  # Case pi (violin)
+        path = _write(tmp_path, "t.svg", f'<svg xmlns="{NS}">{a}{b}</svg>')
+        _fix_tick_alignment(path, chart_width=100)
+        root = ET.parse(path).getroot()
+        xs = sorted(
+            round(float(m.group(1)), 3)
+            for ln in root.iter(f"{{{NS}}}line")
+            if (m := re.match(r"translate\(([-\d.]+),", ln.get("transform", "")))
+        )
+        # Each panel kept its own local centres — not cross-contaminated.
+        assert xs == pytest.approx([9.016, 9.677, 25.41, 25.806], abs=0.001)
+
+    def test_strip_violin_hconcat_end_to_end(self, tmp_path):
+        # Capstone: real Vega output. Strip (Case 0) beside violin (Case pi) in one hconcat —
+        # every tick must land on a box centre in its own panel.
+        import numpy as np
+
+        import dysonsphere as ds
+
+        rng = np.random.default_rng(0)
+        cats = ["a", "b", "c", "d"]
+        df = pl.DataFrame({"g": [c for c in cats for _ in range(20)], "y": rng.normal(0, 1, 80).tolist()})
+        theme()
+        mixed = alt.hconcat(ds.mark_strip(df, "g", "y", cats), ds.mark_violin(df, "g", "y", cats))
+        save(mixed, str(tmp_path / "m"), format="svg", background="light")
+        root = ET.parse(tmp_path / "m.svg").getroot()
+        boxes: list[float] = []
+        ticks: list[float] = []
+
+        def walk(el, cx):
+            for ch in el:
+                ccx = cx
+                mt = re.search(r"translate\(([-\d.]+)[,\s]", ch.get("transform", ""))
+                if mt:
+                    ccx += float(mt.group(1))
+                if ch.get("aria-roledescription") == "box":
+                    m = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", ch.get("d", ""))
+                    if m:
+                        boxes.append(round(ccx + float(m.group(1)) + float(m.group(2)) / 2, 2))
+                y2 = ch.get("y2")
+                if ch.tag == f"{{{NS}}}line" and ch.get("x2") == "0" and y2 and 0 < abs(float(y2)) < 20:
+                    if re.match(r"translate\(([-\d.]+),", ch.get("transform", "")):
+                        ticks.append(round(ccx, 2))
+                walk(ch, ccx)
+
+        walk(root, 0.0)
+        assert boxes and ticks
+        for t in ticks:
+            assert min(abs(b - t) for b in boxes) < 0.1, f"tick {t} not on any box centre"
 
 
 # ── _fix_log_minor_ticks() ───────────────────────────────────────────────────
