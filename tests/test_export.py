@@ -13,6 +13,7 @@ from dysonsphere.export import (
     _fix_log_minor_ticks,
     _fix_superscript_labels,
     _fix_tick_alignment,
+    _flip_ticks_inward,
     _layer_axes_to_front,
     _simplify_svg,
     save,
@@ -638,6 +639,57 @@ class TestFixLogMinorTicks:
         _fix_log_minor_ticks(path)
         xs = _x_minor_positions(path, minor_size=3)
         assert sorted(xs) == pytest.approx([97 * k / 5 for k in range(1, 5)], abs=0.01)
+
+
+# ── _flip_ticks_inward() ─────────────────────────────────────────────────────
+
+
+class TestFlipTicksInward:
+    def test_flips_x_and_y_tick_geometry(self, tmp_path):
+        svg = (
+            f'<svg xmlns="{NS}">'
+            '<g class="mark-rule role-axis-tick">'
+            '<line transform="translate(10,0)" x1="0" y1="0" x2="0" y2="3"/>'  # x-axis tick (down/out)
+            '<line transform="translate(0,20)" x1="0" y1="0" x2="-3" y2="0"/>'  # y-axis tick (left/out)
+            "</g></svg>"
+        )
+        path = _write(tmp_path, "t.svg", svg)
+        _flip_ticks_inward(path)
+        lines = list(ET.parse(path).getroot().iter(f"{{{NS}}}line"))
+        # x-axis tick: y2 negated (now up/inward), x2 untouched (was 0)
+        assert lines[0].get("y2") == "-3" and lines[0].get("x2") == "0"
+        # y-axis tick: x2 negated (now right/inward), y2 untouched (was 0)
+        assert lines[1].get("x2") == "3" and lines[1].get("y2") == "0"
+
+    def test_leaves_non_tick_lines_untouched(self, tmp_path):
+        svg = (
+            f'<svg xmlns="{NS}">'
+            '<g class="mark-rule role-axis-domain">'
+            '<line transform="translate(0,0)" x1="0" y1="0" x2="0" y2="100"/>'  # domain line, not a tick
+            "</g></svg>"
+        )
+        path = _write(tmp_path, "t.svg", svg)
+        _flip_ticks_inward(path)
+        assert next(ET.parse(path).getroot().iter(f"{{{NS}}}line")).get("y2") == "100"
+
+    def test_save_with_inward_ticks_points_ticks_in(self, tmp_path):
+        theme(inwardTicks=True)
+        df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        save(chart, str(tmp_path / "out"), format=["svg"], background=["light"])
+        root = ET.parse(str(tmp_path / "out.svg")).getroot()
+        # x-axis tick marks are <line transform="translate(N,0)" x2="0" y2="±tickSize">; inward => y2
+        # negative. (_simplify_svg has flattened the role-axis-tick group by now, so detect by
+        # geometry.) Filter small |y2| to exclude the full-height domain/border rule lines.
+        y2s = []
+        for line in root.iter(f"{{{NS}}}line"):
+            v = line.get("y2")
+            if v is None or not re.match(r"translate\([\d.]+,0\)$", line.get("transform", "")):
+                continue
+            fv = float(v)
+            if 0 < abs(fv) < 20:
+                y2s.append(fv)
+        assert y2s and all(v < 0 for v in y2s)  # x-axis ticks point up (into the plot)
 
 
 # ── _layer_axes_to_front() ───────────────────────────────────────────────────
