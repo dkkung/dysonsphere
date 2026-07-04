@@ -219,6 +219,14 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
         p["boxplotOutliers"] = p["markSize"] / 10
     if p["chartFill"] is None and not p["darkmode"]:
         p["chartFill"] = "white"
+    # Offset the axis line and legend from the plot by 1.5x the tick length — enough separation
+    # to read as an intentional (Prism-style) detached axis, not a rendering gap. Resolved once
+    # here (not inline at each use) so the axis config, legend config, and save()'s grid-span fix
+    # all read one consistent value from alt.theme.options.
+    if p["axisOffset"] is None:
+        p["axisOffset"] = p["tickSize"] * 1.5
+    if p["legendOffset"] is None:
+        p["legendOffset"] = p["tickSize"] * 1.5
     # smallestFontSize is a fixed floor (5) and a minimize switch: True drops the whole
     # plot's base font to it; False / an int just leaves it retrievable.
     if p["smallestFontSize"] is True:
@@ -253,6 +261,13 @@ def _dysonsphere_theme() -> dict[str, Any]:
         if opts.get(type_key) is not None:
             return opts[type_key]
         return default
+
+    # config.range.category must be a BARE array so a nominal scale maps positionally
+    # (category i -> color i), which the tier-major `categorical` palette relies on. The
+    # {"scheme": [...]} form is invalid for nominal and silently drops the range. A Vega
+    # scheme *name* (a str, e.g. "tableau10") still needs the {"scheme": ...} wrapper.
+    _cat = _scheme("categoryPalette", colors["categorical"])
+    category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
     return {
         "background": (None if opts["transparentBackground"] else opts["chartFill"]),  # background of the entire chart
@@ -290,9 +305,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
-                "offset": 0
-                if opts["closed"]
-                else (opts["axisOffset"] if opts["axisOffset"] is not None else opts["tickSize"]),
+                "offset": 0 if opts["closed"] else opts["axisOffset"],
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
                 "tickColor": "white" if opts["darkmode"] else "black",
@@ -446,7 +459,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
             },
             "legend": {
                 "disable": not opts["legend"],
-                "offset": opts["legendOffset"] if opts["legendOffset"] is not None else opts["tickSize"],
+                "offset": opts["legendOffset"],
                 "gradientLength": opts["markSize"] * 5,
                 "gradientThickness": opts["markSize"] * 0.5,
                 "gradientOpacity": opts["markFillOpacity"],
@@ -486,10 +499,10 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "range": {
-                "category": {"scheme": _scheme("categoryPalette", colors["blues"][::2])},
-                "diverging": {"scheme": _scheme("divergingPalette", colors["redsblues"])},
+                "category": category_range,
+                "diverging": {"scheme": _scheme("divergingPalette", colors["pinksblues"])},
                 "heatmap": {"scheme": _scheme("heatmapPalette", colors["blues"])},
-                "ordinal": {"scheme": _scheme("ordinalPalette", colors["blues"])},
+                "ordinal": {"scheme": _scheme("ordinalPalette", colors["greys"])},
                 "ramp": {"scheme": _scheme("rampPalette", colors["blues"])},
             },
             "rule": {

@@ -58,6 +58,7 @@ ds.save(chart, "plots/myplot")
 - **[Palettes](#palettes)**
   - [Accessing palettes](#accessing-palettes)
   - [dysonsphere.palette()](#dysonspherepalette)
+  - [dysonsphere.categorical()](#dysonspherecategorical)
   - [Default palettes](#default-palettes)
   - [Available palettes](#available-palettes)
   - [Exporting palettes as swatches for Adobe Illustrator](#exporting-palettes-as-swatches-for-adobe-illustrator)
@@ -108,7 +109,7 @@ ds.theme(   # custom configuration
 
 | Parameter | Default | Description |
 |---|---|---|
-| `axisOffset` | `tickSize` | Distance between axis line and data area |
+| `axisOffset` | `tickSize × 1.5` | Distance between axis line and data area |
 | `axisWidth` | `0.25` | Stroke width of axes, ticks, and rules |
 | `bandPadding` | `0.1` | Inner and outer padding for ordinal bands |
 | `chartFill` | `"white"` | Background fill of the entire chart |
@@ -132,7 +133,7 @@ ds.theme(   # custom configuration
 | `grid` | `False` | Show axis grid lines |
 | `gridColor` | `colors["greys"][0]` | Grid line color |
 | `legend` | `True` | Show legends |
-| `legendOffset` | `tickSize` | Distance between legend and chart edge |
+| `legendOffset` | `tickSize × 1.5` | Distance between legend and chart edge |
 | `legendStroke` | `False` | Draw a border around the legend box |
 | `markFill` | `colors["greys"][1]` (`#DBDBDB`) | Default fill color for filled marks (used when there's no `color=` encoding) |
 | `markFillOpacity` | `1.0` | Default mark fill opacity |
@@ -275,17 +276,38 @@ ds.palette("blues", n=4, reverse=True)  # reversed
 | `step` | `1` | Step between indices (used when `n` is not set) |
 | `reverse` | `False` | Reverse the returned list |
 
+### dysonsphere.categorical()
+
+A four-hue qualitative palette (blue, pink, yellow, green) for categorical data, derived from the base palettes. It is the default `category` range, so a plain `color="g:N"` uses it automatically — call it directly to customize, or to color **paired** data.
+
+```python
+ds.categorical()      # flat palette for unrelated groups (12 colors); the default category range
+ds.categorical(2)     # paired data: A1/A2, B1/B2, … (each group one hue, light→dark)
+ds.categorical(3)     # triples
+ds.categorical(4)     # quadruples
+```
+
+`members` (1–4) is the number of colors per associated group. `members=1` (default) cycles the four hues at each lightness tier, so adjacent categories differ in hue — for **unrelated** groups. `members≥2` groups by hue instead: each block of `members` consecutive categories is one hue climbing in lightness — for **paired** data. Sort your categories so a group's members are adjacent, then pass it as the color range:
+
+```python
+groups = ["A1", "A2", "B1", "B2"]
+alt.Color("g:N", sort=groups, scale=alt.Scale(range=ds.categorical(2)))
+# A1=blue-light, A2=blue-dark, B1=pink-light, B2=pink-dark
+```
+
+Every color is drawn from the existing `blues`/`pinks`/`yellows`/`greens` palettes (nothing generated de novo), and the set is colorblind-robust (deuteranopia-clean). Also available as `ds.colors["categorical"]`.
+
 ### Default palettes
 
 When no explicit `scale=` is set on a color encoding, Vega-Lite falls back to the theme's range defaults:
 
 | Range type | Default palette | Override with | Used for |
 |---|---|---|---|
-| `category` | `blues` (even indices: 0, 2, 4, 6, 8, 10) | `categoryPalette` | Nominal/unordered groups |
-| `ordinal` | `blues` | `ordinalPalette` | Ordered discrete values |
+| `category` | `categorical` (blue/pink/yellow/green) | `categoryPalette` | Nominal/unordered groups |
+| `ordinal` | `greys` | `ordinalPalette` | Ordered discrete values |
 | `ramp` | `blues` | `rampPalette` | Sequential continuous (legend ramps) |
 | `heatmap` | `blues` | `heatmapPalette` | Rect/heatmap marks |
-| `diverging` | `redsblues` | `divergingPalette` | Diverging scales |
+| `diverging` | `pinksblues` | `divergingPalette` | Diverging scales |
 
 Setting `ds.theme(palette="mypalette")` overrides all five types simultaneously. To override an individual type, set its **Override with** key from the table above — each accepts a palette name, a custom palette, a raw hex list, or a Vega scheme name:
 
