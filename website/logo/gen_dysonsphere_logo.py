@@ -7,7 +7,8 @@
                                                         (font-independent; renders anywhere)
 
 The mark is a sphere of flat panels shaded across the MID of blues2 (a single dual-mode logo: no
-near-white to vanish on light, no near-black to vanish on dark), transparent background. The wordmark
+near-white to vanish on light, no near-black to vanish on dark), with a bright star glowing inside
+the shell (through the panel gaps), transparent background. The wordmark
 is two-tone (dyson / sphere), Graphik Light, centered on the panel group's exact horizontal center.
 
 Run:  uv run --no-project --with fonttools python website/logo/gen_dysonsphere_logo.py
@@ -68,14 +69,37 @@ for c in quads:
 panels.sort(key=lambda p: p[0])
 
 xs = [x for _, pts, _ in panels for x, _ in pts]
+ys = [y for _, pts, _ in panels for _, y in pts]
 CENTER_X = (min(xs) + max(xs)) / 2
+CENTER_Y = (min(ys) + max(ys)) / 2
+
+# The star inside the shell: a bright radial-gradient sphere (white-hot -> light yellow -> pink ->
+# turquoise) smaller than the shell, glowing out through the panel gaps, plus a turquoise corona.
+# Centered on the panel bbox. Vivid on dark; a soft inner luminosity on light.
+STAR = [
+    "  <defs>",
+    '    <radialGradient id="corona" cx="50%" cy="50%" r="50%">',
+    '      <stop offset="0.35" stop-color="#5ee7d6" stop-opacity="0.55"/>',
+    '      <stop offset="0.72" stop-color="#45e0cf" stop-opacity="0.35"/>',
+    '      <stop offset="1" stop-color="#45e0cf" stop-opacity="0"/>',
+    "    </radialGradient>",
+    '    <radialGradient id="starcore" cx="50%" cy="42%" r="60%">',
+    '      <stop offset="0" stop-color="#ffffff"/>',
+    '      <stop offset="0.24" stop-color="#fff0a0"/>',
+    '      <stop offset="0.55" stop-color="#ff9ed0"/>',
+    '      <stop offset="1" stop-color="#45e0cf"/>',
+    "    </radialGradient>",
+    "  </defs>",
+    f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 1.15:.1f}" fill="url(#corona)"/>',
+    f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 0.72:.1f}" fill="url(#starcore)"/>',
+]
 POLYS = [f'  <polygon points="{" ".join(f"{x:.2f},{y:.2f}" for x, y in pts)}" fill="{f}"/>'
          for _, pts, f in panels]
 
 
 def doc(body: list[str]) -> str:
     head = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" fill="none">'
-    return "\n".join([head, *POLYS, *body, "</svg>"]) + "\n"
+    return "\n".join([head, *STAR, *POLYS, *body, "</svg>"]) + "\n"
 
 
 def live_text() -> list[str]:

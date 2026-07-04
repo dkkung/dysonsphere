@@ -58,9 +58,11 @@ in `website/`; developed on the `website` branch, in a git worktree (see Working
 tilt, palette range, colors, and font are parameters at the top of the generator.
 
 - `logo/dysonsphere_logo.svg` - the **mark** (no text): a sphere of flat panels shaded across the
-  MID of blues2. A single dual-mode logo - the mid range skips near-white (vanishes on light) and
-  near-black (vanishes on dark), so one transparent SVG works on both backgrounds (no light/dark
-  variants). This is the file the site uses.
+  MID of blues2, with a bright **star glowing inside the shell** (a radial gradient - white-hot ->
+  light yellow -> pink -> turquoise - showing through the panel gaps, plus a turquoise corona; vivid
+  on dark, a soft luminosity on light). A single dual-mode logo - the mid range skips near-white
+  (vanishes on light) and near-black (vanishes on dark), so one transparent SVG works on both
+  backgrounds (no light/dark variants). This is the file the site uses.
 - `logo/dysonsphere_logo_portrait_with_text.svg` - mark + wordmark as live `<text>` (Graphik Light,
   two-tone: dyson = blues2[6], sphere = blues2[2]). For editing / where Graphik is installed.
 - `logo/dysonsphere_logo_portrait_with_text_outlined.svg` - the same lockup with the wordmark

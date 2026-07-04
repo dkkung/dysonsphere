@@ -1,4 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 210" fill="none">
+  <defs>
+    <radialGradient id="corona" cx="50%" cy="50%" r="50%">
+      <stop offset="0.35" stop-color="#5ee7d6" stop-opacity="0.55"/>
+      <stop offset="0.72" stop-color="#45e0cf" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#45e0cf" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="starcore" cx="50%" cy="42%" r="60%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.24" stop-color="#fff0a0"/>
+      <stop offset="0.55" stop-color="#ff9ed0"/>
+      <stop offset="1" stop-color="#45e0cf"/>
+    </radialGradient>
+  </defs>
+  <circle cx="100.00" cy="91.92" r="96.6" fill="url(#corona)"/>
+  <circle cx="100.00" cy="91.92" r="60.5" fill="url(#starcore)"/>
   <polygon points="22.58,65.02 22.58,73.53 41.01,39.70 41.01,33.41" fill="#64a7dc"/>
   <polygon points="177.42,73.53 177.42,65.02 158.99,33.41 158.99,39.70" fill="#292c7c"/>
   <polygon points="43.81,30.52 43.81,36.81 75.86,15.61 75.86,13.18" fill="#7fbde3"/>
