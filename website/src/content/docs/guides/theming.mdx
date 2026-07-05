@@ -1,42 +1,70 @@
 ---
 title: Theming
-description: Register the dysonsphere theme, switch palettes, and support dark mode.
+description: Register the dysonsphere theme, switch palettes, and tune every publication default.
 ---
 
-import Chart from '../../../components/Chart.astro';
+import Example from '../../../components/Example.astro';
 
 `ds.theme()` registers a global Altair theme, so every chart you build afterwards inherits
 perceptually uniform palettes and publication-ready styling. Call it once; override per chart with
-ordinary Altair encodings.
+ordinary Altair encodings. Calling it again replaces the theme entirely.
 
 ## Palettes
 
-Pass `palette=` to set the categorical color scheme - any palette name from `ds.colors`:
+Pass `palette=` to set the categorical color scheme - any palette name from `ds.colors` (browse
+them all in the [Palettes](/guides/palettes/) gallery):
 
-```python
-import altair as alt
-import dysonsphere as ds
-from vega_datasets import data
+<Example name="bar" alt="Bar chart of mean barley yield by variety, blues palette" />
 
-ds.theme(palette="blues")
+### Per-type palettes
 
-barley = data.barley()
-chart = (
-    alt.Chart(barley)
-    .mark_bar()
-    .encode(
-        x=alt.X("variety:N", sort="-y", title="Variety"),
-        y=alt.Y("mean(yield):Q", title="Mean yield (bu/acre)"),
-        color=alt.Color("variety:N", legend=None),
-    )
-)
-```
+`palette` sets the master categorical scheme. To recolor just one channel, use the per-type keys:
+`categoryPalette`, `divergingPalette`, `heatmapPalette`, `ordinalPalette`, `rampPalette`. Here only
+the continuous heatmap is restyled:
 
-<Chart name="bar" alt="Bar chart of mean barley yield by variety, blues palette" />
+<Example name="heatmap_palette" alt="2D histogram heatmap with the lagoon palette" />
+
+## Style presets
+
+Two presets ship built in - `"notebook"` and `"presentation"` - selected with `style=`. A
+`dysonsphere.toml` config file can customise them or add your own named styles; `ds.create_config()`
+scaffolds one.
+
+<Example name="style_presentation" alt="Bar chart with the presentation style preset" />
+
+## Frame and grid
+
+`closed=True` draws a full frame (all four spines); `grid=True` adds grid lines, and
+`dashedGrid=False` makes them solid.
+
+<Example name="closed_frame" alt="Scatter plot with a closed frame" />
+
+<Example name="grid_lines" alt="Line chart with grid lines" />
+
+## Rounded marks
+
+`cornerRadius=True` rounds bar tips (and rects and arcs) by a size derived from the chart
+dimensions; pass a float for explicit pixels.
+
+<Example name="corner_radius" alt="Bar chart with rounded bar tips" />
+
+## Label angles
+
+`xLabelAngle` / `yLabelAngle` rotate axis labels (in degrees); alignment is derived from the sign,
+so crowded categories stay legible.
+
+<Example name="label_angle" alt="Bar chart with angled x-axis labels" />
 
 ## Dark mode
 
-dysonsphere draws on a transparent background and adapts to dark backgrounds with
-`ds.theme(darkmode=True)`, which inverts the axis and text ink to white while leaving palette
-colors intact. The charts on this page switch automatically when you toggle the site's light/dark
-theme - that is the same `darkmode` flag at work.
+dysonsphere draws on a transparent background and adapts with `ds.theme(darkmode=True)`, which
+inverts the axis and text ink to white while leaving palette colors intact. Every chart on this
+site switches automatically when you toggle the site's light/dark theme - that is the same
+`darkmode` flag at work.
+
+## More knobs
+
+The theme exposes dozens of parameters - `axisOffset`, `tickSize`, `inwardTicks`, `fontSize` /
+`secondaryFontSize` / `smallestFontSize`, `markSize`, `markStrokeWidth`, `bandPadding`, `sigFigs`,
+and the axis-element toggles (`xAxis`, `xTicks`, `xLabels`, and their `y` counterparts). See the
+[Theming reference](/reference/theme/) for the full list.

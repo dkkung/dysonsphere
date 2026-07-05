@@ -1,27 +1,31 @@
 ---
 title: Nonlinear axes
-description: Correctly spaced minor ticks for log and power axes.
+description: Correctly spaced minor ticks and typeset labels for log and power axes.
 ---
 
-import Chart from '../../../components/Chart.astro';
+import Example from '../../../components/Example.astro';
 
-`add_log_ticks()` adds correctly spaced minor ticks to a log-scale axis; `add_pow_ticks()` does the
-same for power and square-root axes. Both wrap your chart and share its scale.
+Vega rounds SVG tick positions to integers, which makes minor ticks on nonlinear axes drift
+visibly at print DPI. dysonsphere adds correctly spaced minor ticks and fixes the rounding in the
+exported SVG.
 
-```python
-import altair as alt
-import dysonsphere as ds
-from vega_datasets import data
+## Log axes
 
-ds.theme()
+`add_log_ticks()` adds minor ticks to a log-scale axis (base 10 or any integer base). It wraps your
+chart and shares its scale.
 
-stocks = data.stocks()
-line = alt.Chart(stocks).mark_line().encode(
-    x=alt.X("date:T", title=None),
-    y=alt.Y("price:Q", scale=alt.Scale(type="log"), title="Price (USD)"),
-    color=alt.Color("symbol:N", title="Symbol"),
-)
-chart = ds.add_log_ticks(line, stocks, "price", axis="y")
-```
+<Example name="log" alt="Log-scale line chart of stock prices with minor ticks" />
 
-<Chart name="log" alt="Log-scale line chart of stock prices over time with minor ticks" />
+### Typeset labels
+
+`log_label_expr()` returns a Vega `labelExpr` for superscript log labels (`10¹`, `10²`, …), in
+`"power"`, `"scientific"`, `"e"`, or `"si"` notation.
+
+<Example name="nonlinear_labels" alt="Log-scale chart with typeset power-notation labels" />
+
+## Power axes
+
+`add_pow_ticks()` does the same for power and square-root scales, interpolating minor ticks evenly
+in transformed space. Pass the same `majorValues` you give the main axis.
+
+<Example name="nonlinear_pow" alt="Square-root axis scatter with evenly spaced minor ticks" />

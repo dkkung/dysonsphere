@@ -3,43 +3,55 @@ title: Statistical annotations
 description: Significance brackets and correlation readouts, with reports baked into exports.
 ---
 
-import Chart from '../../../components/Chart.astro';
+import Example from '../../../components/Example.astro';
+
+`add_comparisons()` and `add_correlation()` compute statistics with scipy and draw them as layers.
+Every call also builds a structured report - descriptives, exact p-values, and effect sizes - that
+`save()` embeds in the export metadata, so a figure carries its own analysis. Pass `report=True` to
+print it, or `save=True` to write a text file.
 
 ## Group comparisons
 
-`add_comparisons()` runs an omnibus or pairwise test and draws significance brackets. It also
-computes a full descriptive + effect-size report that `save()` embeds in the export metadata (read
-it back with `ds.read()`).
+`add_comparisons()` classifies `test=` into **pairwise** (`mannwhitneyu`, `ttest_ind`, `ttest_rel`,
+`wilcoxon`, `tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`, `alexandergovern`). Here an
+ANOVA with a corner label plus two pairwise brackets:
 
-```python
-import dysonsphere as ds
-from vega_datasets import data
+<Example name="comparisons" alt="Fuel economy by origin with an ANOVA label and pairwise brackets" />
 
-ds.theme()
+### Pairwise tests and corrections
 
-cars = data.cars().dropna(subset=["Miles_per_Gallon"])
-origins = ["USA", "Europe", "Japan"]
+Give a list of pairs; brackets stack automatically. `correction=` applies Holm or Bonferroni
+multiple-comparison adjustment.
 
-chart = ds.mark_strip(cars, "Origin", "Miles_per_Gallon", origins, yTitle="Miles per gallon") + ds.add_comparisons(
-    cars, "Origin", "Miles_per_Gallon", [("USA", "Europe"), ("USA", "Japan")], test="anova", categories=origins
-)
-```
+<Example name="comparisons_pairwise" alt="Three pairwise Mann-Whitney brackets with Holm correction" />
 
-<Chart name="comparisons" alt="Fuel economy by origin with ANOVA and pairwise brackets" />
+### Label styles
+
+`labelStyle="asterisks"` renders `*` / `**` / `***` / `ns`; `bracketStyle="line"` drops the end
+ticks.
+
+<Example name="comparisons_asterisks" alt="Pairwise comparison with asterisk labels and line brackets" />
+
+### Number notation
+
+`notation=` controls the p-value format (`"scientific"`, `"e"`, `"power"`), and `sigFigs=` sets the
+precision.
+
+<Example name="comparisons_notation" alt="Comparison bracket with scientific-notation p-value" />
+
+### Omnibus with post-hoc
+
+For an omnibus test, the corner label reports the omnibus result and the brackets are filled by the
+matching post-hoc (Kruskal-Wallis → Dunn here). `omnibusVerbose=True` adds the statistic, degrees of
+freedom, and effect size.
+
+<Example name="comparisons_kruskal" alt="Kruskal-Wallis omnibus label with Dunn post-hoc brackets" />
 
 ## Correlation
 
-`add_correlation()` adds a coefficient, p-value, and (for Pearson) an OLS fit line to a scatter.
-`verbose=True` shows the full readout.
+`add_correlation()` adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
+scatter. `verbose=True` shows the full readout; rank methods report the coefficient only.
 
-```python
-import altair as alt
+<Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
 
-cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
-scatter = alt.Chart(cars).mark_point().encode(
-    x="Horsepower:Q", y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon")
-)
-chart = scatter + ds.add_correlation(cars, "Horsepower", "Miles_per_Gallon", verbose=True)
-```
-
-<Chart name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
+<Example name="correlation_spearman" alt="Weight versus miles per gallon, Spearman coefficient" />

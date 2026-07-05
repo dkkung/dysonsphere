@@ -1,0 +1,79 @@
+---
+title: Saving & reading
+description: Export self-describing figures and read the provenance, statistics, and data back out.
+---
+
+`ds.save()` is more than a renderer: it embeds provenance, the resolved theme, any statistics, and
+your data into the exported files, so every figure is its own lab-notebook entry. `ds.read()` and
+`ds.load()` pull that information back.
+
+## Saving
+
+```python
+import dysonsphere as ds
+
+ds.theme()
+# ... build `chart` ...
+
+ds.save(chart, "figure")
+```
+
+By default this writes `figure.svg` and `figure.json`. Control the outputs with `format=` (any of
+`"svg"`, `"png"`, `"json"`, `"html"` - a string or a list) and `background=` (`"light"`, `"dark"`,
+or both). A two-background export gets `_light` / `_dark` suffixes; a single background gets clean
+names.
+
+```python
+ds.save(chart, "figure", format=["svg", "png", "json"], background=["light", "dark"])
+```
+
+The SVG is post-processed for publication: `<g>` wrappers are flattened for Illustrator, axis ticks
+and log/power minor ticks are snapped to exact positions, and superscript exponents are realigned.
+
+## What gets embedded
+
+When `saveMetadata=True` (the default), `save()` writes a `dysonsphere` metadata block into all
+three formats:
+
+- **provenance** - a content checksum, an export identifier, the user, the timestamp, and the
+  versions of Python, Altair, dysonsphere, numpy, scipy, and polars.
+- **theme** - the resolved `ds.theme()` arguments, so the look can be reproduced exactly.
+- **statistics** - the structured records from any `add_comparisons()` / `add_correlation()` on the
+  chart (exact p-values, effect sizes, descriptives).
+- **report** - the human-readable version of those statistics.
+
+## Reading it back
+
+```python
+ds.read("figure.json")                    # the human-readable report (default)
+ds.read("figure.json", what="statistics") # structured records (list of dicts)
+ds.read("figure.json", what="metadata")   # the whole dysonsphere block
+ds.read("figure.json", what="data")       # the original DataFrame
+```
+
+`read()` works on JSON, SVG, and PNG for metadata and reports; `what="data"` is JSON-only (only the
+JSON carries the full data). `what="data"` returns the user's frame, filtering out dysonsphere's
+internal sidecar datasets; pick the output type with `output=` (`"polars"`, `"pandas"`, `"duckdb"`,
+or `"records"`).
+
+## Rebuilding the chart
+
+```python
+chart = ds.load("figure.json")            # an Altair object, theme re-applied
+spec  = ds.load("figure.json", raw=True)  # the untouched Vega-Lite spec dict
+```
+
+`load()` is JSON-only (it needs the full spec) and re-applies the baked theme so the reconstructed
+chart renders identically.
+
+## Statistics without a file
+
+`add_comparisons()` and `add_correlation()` can surface their report directly:
+
+```python
+chart = base + ds.add_comparisons(df, "group", "value", pairs, test="anova", report=True)
+# report=True prints it; save="dir/" writes a timestamped .txt
+```
+
+See the [Saving & loading](/reference/export/) and [Reading exports](/reference/metadata/)
+reference pages for the full API.

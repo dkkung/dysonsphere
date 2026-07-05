@@ -1,98 +1,97 @@
 #!/usr/bin/env python
-"""Build the site's example charts and write light + dark Vega-Lite specs for live rendering.
+"""Execute every example under website/examples/ and write light + dark Vega-Lite specs.
 
-Uses the standard vega-datasets (cars, barley, stocks) styled with dysonsphere. Each chart is
-rendered twice - once with ``darkmode=False`` (black ink) and once with ``darkmode=True`` (white
-ink) - both with ``transparentBackground=True``, so the Chart component can swap to the variant
-matching the site's light/dark theme and let the page background provide contrast (no card).
+The example registry: each ``website/examples/<name>.py`` is a complete, copy-runnable snippet
+that defines a variable named ``chart`` (the same contract as the playground). This script executes
+each file twice - once with ``darkmode=False`` and once with ``darkmode=True``, both with
+``transparentBackground=True`` - and writes ``website/public/charts/<name>-light.json`` /
+``<name>-dark.json`` for the Chart/Example components to render live.
 
-The theme render args (``darkmode`` / ``transparentBackground``) live only here, never in the
-snippets shown to users; the chart-building code is what a user would actually write.
+The SAME source file is imported raw (vite ``?raw``) by ``Example.astro`` as the shown snippet, so
+the displayed code and the rendered chart can never drift apart.
+
+The site render args (``darkmode`` / ``transparentBackground``) are injected by monkeypatching
+``ds.theme`` during exec - they never appear in the snippet, which stays exactly what a user
+would write.
 
 Run from the repo/worktree root:
 
-    uv run --with vega-datasets python website/scripts/gen_examples.py
+    uv run --with vega-datasets python website/scripts/gen_examples.py [name ...]
+
+With no arguments every example is rebuilt; with names, just those.
 """
 
 from __future__ import annotations
 
+import functools
 import json
+import sys
 from pathlib import Path
 
 import altair as alt
-from vega_datasets import data
 
 import dysonsphere as ds
 
+EXAMPLES = Path("website/examples")
 OUT = Path("website/public/charts")
-ORIGINS = ["USA", "Europe", "Japan"]
+
+_real_theme = ds.theme
 
 
-def examples() -> dict:
-    """Chart builders keyed by name. Each reads the *current* global theme when called, so we can
-    build every chart once per light/dark theme."""
-    cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
-    barley = ds.ensure_polars(data.barley())
-    stocks = ds.ensure_polars(data.stocks())
+def build(path: Path, dark: bool) -> dict:
+    """Execute one example file and return the chart's Vega-Lite spec dict."""
 
-    def strip():
-        return ds.mark_strip(cars, "Origin", "Miles_per_Gallon", ORIGINS, yTitle="Miles per gallon")
+    @functools.wraps(_real_theme)
+    def patched_theme(*args, **kwargs):
+        kwargs["darkmode"] = dark
+        kwargs["transparentBackground"] = True
+        return _real_theme(*args, **kwargs)
 
-    def violin():
-        return ds.mark_violin(cars, "Origin", "Horsepower", ORIGINS, yTitle="Horsepower")
-
-    def comparisons():
-        base = ds.mark_strip(cars, "Origin", "Miles_per_Gallon", ORIGINS, yTitle="Miles per gallon")
-        return base + ds.add_comparisons(
-            cars, "Origin", "Miles_per_Gallon", [("USA", "Europe"), ("USA", "Japan")], test="anova", categories=ORIGINS
-        )
-
-    def correlation():
-        scatter = alt.Chart(cars).mark_point().encode(
-            x=alt.X("Horsepower:Q"), y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon")
-        )
-        return scatter + ds.add_correlation(cars, "Horsepower", "Miles_per_Gallon", verbose=True)
-
-    def bar():
-        return (
-            alt.Chart(barley)
-            .mark_bar()
-            .encode(
-                x=alt.X("variety:N", sort="-y", title="Variety"),
-                y=alt.Y("mean(yield):Q", title="Mean yield (bu/acre)"),
-                color=alt.Color("variety:N", legend=None),
-            )
-        )
-
-    def log():
-        line = alt.Chart(stocks).mark_line().encode(
-            x=alt.X("date:T", title=None),
-            y=alt.Y("price:Q", scale=alt.Scale(type="log"), title="Price (USD)"),
-            color=alt.Color("symbol:N", title="Symbol"),
-        )
-        return ds.add_log_ticks(line, stocks, "price", axis="y")
-
-    return {
-        "strip": strip,
-        "violin": violin,
-        "comparisons": comparisons,
-        "correlation": correlation,
-        "bar": bar,
-        "log": log,
-    }
+    # Baseline in case the snippet never calls ds.theme(); the patch covers it when it does.
+    patched_theme()
+    ds.theme = patched_theme
+    try:
+        ns: dict = {}
+        exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), ns)
+    finally:
+        ds.theme = _real_theme
+    chart = ns.get("chart")
+    if chart is None:
+        raise SystemExit(f"{path}: does not define a variable named 'chart'")
+    spec = chart.to_dict()
+    # The stats registry is per-process; clear between examples so records never cross charts.
+    ds.clear_stats()
+    return spec
 
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    builders = examples()
-    # Per-example theme overrides so a guide's shown snippet matches its rendered chart.
-    theme_overrides = {"bar": {"palette": "blues"}}
-    for mode, dark in (("light", False), ("dark", True)):
-        for name, builder in builders.items():
-            ds.theme(transparentBackground=True, darkmode=dark, **theme_overrides.get(name, {}))
-            (OUT / f"{name}-{mode}.json").write_text(json.dumps(builder().to_dict()), encoding="utf-8")
-            print(f"wrote {name}-{mode}.json")
-        ds.clear_stats()
+    names = sys.argv[1:]
+    paths = sorted(EXAMPLES.glob("*.py"))
+    if names:
+        paths = [p for p in paths if p.stem in names]
+        missing = set(names) - {p.stem for p in paths}
+        if missing:
+            raise SystemExit(f"no such example(s): {', '.join(sorted(missing))}")
+    if not paths:
+        raise SystemExit(f"no examples found under {EXAMPLES}")
+    failures = []
+    for path in paths:
+        for mode, dark in (("light", False), ("dark", True)):
+            try:
+                spec = build(path, dark)
+            except SystemExit:
+                raise
+            except Exception as e:  # keep going; report all broken examples at the end
+                failures.append(f"{path.stem} ({mode}): {e}")
+                break
+            (OUT / f"{path.stem}-{mode}.json").write_text(json.dumps(spec), encoding="utf-8")
+        else:
+            print(f"built {path.stem}")
+    # Restore a clean global theme for anything importing after us.
+    alt.theme.enable("default")
+    if failures:
+        raise SystemExit("FAILED:\n  " + "\n  ".join(failures))
 
 
 if __name__ == "__main__":

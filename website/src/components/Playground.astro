@@ -1,6 +1,10 @@
 ---
-// Interactive dysonsphere playground: runs dysonsphere in the browser via Pyodide (WebAssembly)
-// and renders the result live with vega-embed. The editor is CodeMirror 6 with Python highlighting.
+// Interactive dysonsphere playground: runs dysonsphere in the browser via the shared Pyodide
+// runtime (src/lib/runtime.ts, also used by Chart Studio) and renders the result live with
+// vega-embed. The editor is CodeMirror 6 with Python highlighting.
+//
+// Deep links: /playground/#code=<base64 utf-8> pre-fills the editor (used by every example's
+// "Open in playground" link).
 ---
 
 <div id="ds-playground" class="pg">
@@ -28,8 +32,7 @@
 	import { python } from '@codemirror/lang-python';
 	import { githubLight, githubDark } from '@uiw/codemirror-theme-github';
 	import { Compartment } from '@codemirror/state';
-
-	const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v314.0.2/full/';
+	import { getRuntime, onRuntimeStatus, type DsRuntime } from '../lib/runtime';
 
 	const DEFAULT_CODE = `import polars as pl
 import altair as alt
@@ -55,6 +58,18 @@ chart = (
 
 	const isDark = () => document.documentElement.dataset.theme === 'dark';
 
+	/** Code from a #code=<base64> deep link, if present and decodable. */
+	function hashCode(): string | null {
+		const m = location.hash.match(/#code=([^&]+)/);
+		if (!m) return null;
+		try {
+			const bytes = Uint8Array.from(atob(decodeURIComponent(m[1])), (c) => c.charCodeAt(0));
+			return new TextDecoder().decode(bytes);
+		} catch {
+			return null;
+		}
+	}
+
 	async function initPlayground() {
 		const root = document.getElementById('ds-playground');
 		if (!root || root.dataset.booted) return;
@@ -66,18 +81,17 @@ chart = (
 		const editorParent = document.getElementById('pg-editor') as HTMLElement;
 
 		// CodeMirror editor with Python highlighting; theme follows the site's light/dark toggle.
-		// GitHub theme to match the docs code blocks (Starlight's Expressive Code default);
-		// swaps light/dark with the site toggle.
+		// GitHub theme to match the docs code blocks; swaps light/dark with the site toggle.
 		const themeCompartment = new Compartment();
 		const cmTheme = () => (isDark() ? githubDark : githubLight);
 		const editor = new EditorView({
-			doc: DEFAULT_CODE,
+			doc: hashCode() ?? DEFAULT_CODE,
 			extensions: [basicSetup, python(), themeCompartment.of(cmTheme())],
 			parent: editorParent,
 		});
 		new MutationObserver(() => {
 			editor.dispatch({ effects: themeCompartment.reconfigure(cmTheme()) });
-			if (runFn) run(); // re-render the chart in the new theme's ink
+			if (runtime) run(); // re-render the chart in the new theme's ink
 		}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
 		const setStatus = (msg: string, kind = '') => {
@@ -85,14 +99,14 @@ chart = (
 			statusEl.dataset.kind = kind;
 		};
 
-		let runFn: ((code: string) => string) | null = null;
+		let runtime: DsRuntime | null = null;
 
 		async function run() {
-			if (!runFn) return;
+			if (!runtime) return;
 			setStatus('Running…');
 			runBtn.disabled = true;
 			try {
-				const spec = JSON.parse(runFn(editor.state.doc.toString(), isDark()));
+				const spec = JSON.parse(runtime.runChart(editor.state.doc.toString(), isDark()));
 				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
 				setStatus('Rendered.', 'ok');
 			} catch (e) {
@@ -104,33 +118,11 @@ chart = (
 		}
 
 		try {
-			setStatus('Loading Pyodide (WebAssembly runtime)…');
-			const { loadPyodide } = await import(/* @vite-ignore */ PYODIDE_URL + 'pyodide.mjs');
-			const pyodide = await loadPyodide({ indexURL: PYODIDE_URL });
-
-			setStatus('Installing dysonsphere + polars + scipy (first load, tens of MB)…');
-			await pyodide.loadPackage('micropip');
-			const micropip = pyodide.pyimport('micropip');
-			await micropip.install('dysonsphere');
-
-			await pyodide.runPythonAsync(`
-import json
-import altair as alt
-def _run(code, dark):
-    ns = {}
-    exec(code, ns)
-    ch = ns.get("chart")
-    if ch is None:
-        raise RuntimeError("Define a variable named 'chart' (a dysonsphere/Altair chart).")
-    # Match the site theme: invert ink for dark and draw transparent so the page provides
-    # contrast. Kept out of the user's snippet - applied just before serializing.
-    alt.theme.options["darkmode"] = dark
-    alt.theme.options["transparentBackground"] = True
-    return json.dumps(ch.to_dict())
-`);
-			runFn = pyodide.globals.get('_run');
-
-			setStatus('Ready.', 'ok');
+			onRuntimeStatus((msg) => {
+				// Boot progress; once running, run()/setStatus takes over.
+				if (!runtime) setStatus(msg);
+			});
+			runtime = await getRuntime();
 			runBtn.disabled = false;
 			runBtn.addEventListener('click', run);
 			await run();
@@ -160,15 +152,15 @@ def _run(code, dark):
 	}
 	.pg__panel {
 		border: 1px solid var(--sl-color-gray-5);
-		border-radius: 0.5rem;
+		border-radius: 0.65rem;
 		overflow: hidden;
 		background: var(--sl-color-bg);
 	}
 	.pg__label {
 		padding: 0.5rem 0.75rem;
-		font-size: 0.75rem;
+		font-size: 0.72rem;
 		font-weight: 600;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--sl-color-gray-3);
 		border-bottom: 1px solid var(--sl-color-gray-5);
@@ -189,13 +181,17 @@ def _run(code, dark):
 		border-top: 1px solid var(--sl-color-gray-5);
 	}
 	#pg-run {
-		background: var(--sl-color-accent);
-		color: var(--sl-color-white);
+		background: var(--sl-color-white);
+		color: var(--sl-color-black);
 		border: 0;
-		border-radius: 0.375rem;
+		border-radius: 0.45rem;
 		padding: 0.4rem 1rem;
-		font-weight: 600;
+		font-weight: 550;
 		cursor: pointer;
+		transition: opacity 0.15s ease;
+	}
+	#pg-run:hover:not(:disabled) {
+		opacity: 0.85;
 	}
 	#pg-run:disabled {
 		opacity: 0.55;

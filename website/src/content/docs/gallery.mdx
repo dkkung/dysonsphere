@@ -3,49 +3,40 @@ title: Gallery
 description: Live, interactive charts built with dysonsphere on the standard vega-datasets.
 ---
 
-import Chart from '../../components/Chart.astro';
+import Example from '../../components/Example.astro';
 
-Every chart below is **live and interactive** - hover for tooltips, and use the actions menu
-(top-right of each chart) to export SVG, PNG, or the Vega-Lite JSON. All are built with
-dysonsphere on the standard [vega-datasets](https://github.com/vega/vega-datasets), not synthetic
-data.
+Every chart below is **live and interactive** - hover for tooltips, use the actions menu
+(top-right) to export SVG, PNG, or the Vega-Lite JSON, and follow **Open in playground** to edit the
+code. All are built with dysonsphere on the standard
+[vega-datasets](https://github.com/vega/vega-datasets). A dedicated molecular-biology gallery is on
+the way.
 
-## Strip plot
+## Distributions
 
-Fuel economy by region of origin - `mark_strip()` on the `cars` dataset (jittered points with a
-median tick and mean error bars).
+<Example name="strip_beeswarm" alt="Beeswarm strip plot of miles per gallon by car origin" chartOnly />
 
-<Chart name="strip" alt="Strip plot of miles per gallon by car origin" />
+<Example name="violin_styled" alt="Styled violin plot of horsepower by car origin" chartOnly />
 
-## Violin plot
+## Statistics
 
-Engine power by region - `mark_violin()` pairs a kernel-density silhouette with an embedded boxplot.
+<Example name="comparisons_kruskal" alt="Kruskal-Wallis omnibus with Dunn post-hoc brackets" chartOnly />
 
-<Chart name="violin" alt="Violin plot of horsepower by car origin" />
+<Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" chartOnly />
 
-## Statistical comparisons
+## Color
 
-`add_comparisons()` runs an ANOVA and draws pairwise significance brackets, with the full
-descriptive + effect-size report baked into the export metadata.
+<Example name="heatmap_palette" alt="2D histogram heatmap with the lagoon palette" chartOnly />
 
-<Chart name="comparisons" alt="Fuel economy by origin with ANOVA and pairwise comparison brackets" />
+<Example name="corner_radius" alt="Bar chart with rounded bar tips" chartOnly />
 
-## Correlation
+## Annotation
 
-`add_correlation()` adds a Pearson coefficient, p-value, and OLS fit line - here, the classic
-negative relationship between horsepower and fuel economy.
+<Example name="shade_bands" alt="Bar chart with alternating band shading" chartOnly />
 
-<Chart name="correlation" alt="Scatter of horsepower versus miles per gallon with an OLS fit line" />
-
-## Categorical palette
-
-A bar chart of mean barley yield by variety, colored with dysonsphere's perceptually uniform
-category palette.
-
-<Chart name="bar" alt="Bar chart of mean barley yield by variety" />
+<Example name="multilabel_sample_size" alt="Strip plot with sample size and category-label rows" chartOnly />
 
 ## Nonlinear axes
 
-`add_log_ticks()` adds correctly spaced minor ticks to a log-scale axis - stock prices over time.
+<Example name="log" alt="Log-scale line chart of stock prices with minor ticks" chartOnly />
 
-<Chart name="log" alt="Log-scale line chart of stock prices over time" />
+<Example name="nonlinear_pow" alt="Square-root axis scatter with evenly spaced minor ticks" chartOnly />

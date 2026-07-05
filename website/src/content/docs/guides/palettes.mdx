@@ -1,0 +1,38 @@
+---
+title: Palettes
+description: Browse all 300+ perceptually uniform dysonsphere palettes and use them in a chart.
+---
+
+import Example from '../../../components/Example.astro';
+import Palettes from '../../../components/Palettes.astro';
+
+Every dysonsphere palette is built in [Oklab](https://bottosson.github.io/posts/oklab/) and
+resampled by arc length, so sequential ramps step evenly in perceived lightness and diverging ramps
+balance around a neutral midpoint. Pass a palette name anywhere a `palette=` argument is accepted,
+or pull colors directly with `ds.palette(name, n)`.
+
+## Using a palette
+
+`ds.palette(name, n)` returns `n` evenly spaced stops; `start`, `end`, `step`, and `reverse` give
+finer control. Feed the result into any Altair `scale=alt.Scale(range=...)`:
+
+<Example name="palette_slice" alt="Dose-response bars colored with a sliced ember palette" />
+
+## Qualitative categories
+
+`ds.categorical(members=n)` returns the CVD-robust qualitative palette (blue / pink / yellow /
+green) sized to your group count:
+
+<Example name="palette_categorical" alt="Strip plot colored with the categorical palette" />
+
+## Browser
+
+All {' '}palettes below. Filter by name or kind; click any swatch to copy its name.
+
+<Palettes />
+
+## Illustrator swatches
+
+`ds.export_swatches()` writes an Illustrator ExtendScript and an `.ase` swatch file for the whole
+catalogue (or a subset), so the exact colors are available in your vector editor. See the
+[Palettes reference](/reference/palettes/).
