@@ -231,7 +231,23 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
 
     overrides = _load_style_overrides(style)
     p: dict[str, Any] = {**_BUILTIN_DEFAULTS, **overrides, **kwargs}
+    _compute_derived(p)
 
+    # Resolve every palette-valued key: a name in `colors` (built-in or custom)
+    # becomes its hex list; anything else (a raw list, or a Vega scheme name) is
+    # passed through unchanged.
+    for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
+        val = p[key]
+        p[key] = colors[val] if isinstance(val, str) and val in colors else val
+
+    alt.theme.options = {**p, "tickWidth": p["axisWidth"]}
+
+
+def _compute_derived(p: dict[str, Any]) -> None:
+    """Resolve the derive-at-theme-time sentinels in *p* in place (None / True markers).
+
+    Shared by :func:`theme` and the :func:`_opt` fallback so both resolve the same way.
+    """
     # Computed defaults — None means "derive from other params"
     if p["closed"] is None:
         # inward ticks point into the plot, so they need a closed (non-offset) axis;
@@ -270,14 +286,30 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
             p["secondaryFontSize"] = max(p["secondaryFontSize"], p["smallestFontSize"])
         # … unless the user explicitly set fontSize below the floor (escape hatch)
 
-    # Resolve every palette-valued key: a name in `colors` (built-in or custom)
-    # becomes its hex list; anything else (a raw list, or a Vega scheme name) is
-    # passed through unchanged.
-    for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
-        val = p[key]
-        p[key] = colors[val] if isinstance(val, str) and val in colors else val
 
-    alt.theme.options = {**p, "tickWidth": p["axisWidth"]}
+_FALLBACK_OPTIONS: dict[str, Any] | None = None
+
+
+def _opt(key: str) -> Any:
+    """Read a theme option, falling back to the (derived) built-in default.
+
+    The single accessor for theme options outside theme.py — replaces scattered
+    ``alt.theme.options.get(key, hardcoded)`` calls, whose per-site hardcoded fallbacks
+    could silently drift from ``_BUILTIN_DEFAULTS``. After ``ds.theme()`` every option is
+    present in ``alt.theme.options``, so the fallback only matters when a chart helper is
+    called before any ``theme()``; it then sees the fully derived built-in defaults
+    (``markSize`` 10.0, ``axisOffset`` 4.5, …), computed once and cached. Unknown keys
+    raise ``KeyError``.
+    """
+    try:
+        return alt.theme.options[key]
+    except KeyError:
+        global _FALLBACK_OPTIONS
+        if _FALLBACK_OPTIONS is None:
+            defaults = dict(_BUILTIN_DEFAULTS)
+            _compute_derived(defaults)
+            _FALLBACK_OPTIONS = defaults
+        return _FALLBACK_OPTIONS[key]
 
 
 @alt.theme.register("dysonsphere", enable=True)

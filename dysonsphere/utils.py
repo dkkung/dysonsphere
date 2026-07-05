@@ -4,6 +4,8 @@ from typing import Any, NamedTuple
 
 import polars as pl
 
+from .theme import _opt
+
 
 class BandGeometry(NamedTuple):
     """Pixel geometry of an n-category band axis - see :func:`band_geometry`."""
@@ -57,14 +59,13 @@ def band_geometry(
         A named tuple ``(step, centers, starts, ends)``, each position list in
         category-index order.
     """
-    import altair as alt
 
     if n < 1:
         raise ValueError(f"n must be >= 1, got {n}")
     if span is None:
-        span = alt.theme.options.get("chartWidth", 100)
+        span = _opt("chartWidth")
     if bandPadding is None:
-        bandPadding = alt.theme.options.get("bandPadding", 0.1)
+        bandPadding = _opt("bandPadding")
     bp = bandPadding
     if scale == "offset":
         step = span / (n + 2 * bp)

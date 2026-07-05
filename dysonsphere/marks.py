@@ -4,6 +4,7 @@ import altair as alt
 import numpy as np
 import polars as pl
 
+from .theme import _opt
 from .transforms import add_beeswarm, add_jitter
 from .utils import _internal_data, band_geometry, ensure_polars
 
@@ -111,11 +112,11 @@ def mark_violin(
 
     df = ensure_polars(df)
     if fillOpacity is None:
-        fillOpacity = alt.theme.options.get("markFillOpacity", 1.0)
+        fillOpacity = _opt("markFillOpacity")
     if strokeWidth is None:
-        strokeWidth = alt.theme.options.get("markStrokeWidth", 0.5)
-    mark_size = alt.theme.options.get("markSize", 10)
-    chart_width = alt.theme.options.get("chartWidth", 100)  # x:Q domain of the violin layer
+        strokeWidth = _opt("markStrokeWidth")
+    mark_size = _opt("markSize")
+    chart_width = _opt("chartWidth")  # x:Q domain of the violin layer
     # mark_boxplot lowers to a band scale with paddingInner=paddingOuter=bandPadding
     # (scale="band"), which is NOT the xOffset/mark_circle variant (scale="offset").
     geo = band_geometry(len(categories), scale="band")
@@ -160,7 +161,7 @@ def mark_violin(
     _x_title: str | None = xCol if isinstance(xTitle, _UnsetType) else xTitle
 
     if xLabelAngle is None:
-        xLabelAngle = alt.theme.options.get("xLabelAngle", 0)
+        xLabelAngle = _opt("xLabelAngle")
     if xLabelAngle != 0:
         align = "right" if xLabelAngle < 0 else "left"
         x_axis = alt.Axis(labelAngle=xLabelAngle % 360, labelAlign=align)
@@ -292,9 +293,9 @@ def mark_strip(
     _y_title: str | None = yCol if isinstance(yTitle, _UnsetType) else yTitle
     _x_title: str | None = xCol if isinstance(xTitle, _UnsetType) else xTitle
     if markSize is None:
-        markSize = alt.theme.options.get("markSize", 10)
+        markSize = _opt("markSize")
     if markOpacity is None:
-        markOpacity = alt.theme.options.get("markFillOpacity", 1.0)
+        markOpacity = _opt("markFillOpacity")
 
     if scatter == "jitter":
         df = add_jitter(df, spread=spread)
@@ -305,7 +306,7 @@ def mark_strip(
     else:
         raise ValueError(f"scatter must be 'jitter' or 'beeswarm', got {scatter!r}")
 
-    band_padding = alt.theme.options.get("bandPadding", 0.1)
+    band_padding = _opt("bandPadding")
     step = band_geometry(len(categories)).step
     # NOT a band centre: the xOffset scale positions relative to the band start, so this
     # is the in-band midpoint expressed in xOffset range coordinates.
@@ -317,7 +318,7 @@ def mark_strip(
     )
 
     if xLabelAngle is None:
-        xLabelAngle = alt.theme.options.get("xLabelAngle", 0)
+        xLabelAngle = _opt("xLabelAngle")
     if xLabelAngle != 0:
         align = "right" if xLabelAngle < 0 else "left"
         x_axis = alt.Axis(labelAngle=xLabelAngle % 360, labelAlign=align)

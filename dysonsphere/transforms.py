@@ -1,9 +1,9 @@
 from typing import Any
 
-import altair as alt
 import numpy as np
 import polars as pl
 
+from .theme import _opt
 from .utils import ensure_polars
 
 
@@ -72,9 +72,9 @@ def beeswarm_offsets(
         )
     """
     if heightPx is None:
-        heightPx = alt.theme.options.get("chartHeight", 300)
+        heightPx = _opt("chartHeight")
     if spread is None:
-        spread = np.sqrt(alt.theme.options.get("markSize", 10) / np.pi)
+        spread = np.sqrt(_opt("markSize") / np.pi)
 
     yVals = np.asarray(yVals, dtype=float)
     n = len(yVals)
@@ -241,8 +241,8 @@ def add_jitter(
     """
     df = ensure_polars(df)
     if spread is None:
-        w = alt.theme.options.get("chartWidth", 100)
-        h = alt.theme.options.get("chartHeight", 100)
+        w = _opt("chartWidth")
+        h = _opt("chartHeight")
         spread = min(w, h) / 50
     rng = np.random.default_rng(seed)
     return df.with_columns(pl.Series(outCol, rng.normal(0, spread, len(df))))

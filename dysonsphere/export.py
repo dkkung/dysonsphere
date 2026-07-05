@@ -13,6 +13,7 @@ from typing import Callable, Union, cast
 import altair as alt
 
 from . import metadata
+from .theme import _opt
 
 _AltairChart = Union[
     alt.Chart,
@@ -64,14 +65,10 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     """
     base_obj.save(svg_path)  # marker names are in the object but never render into SVG
     root = ET.parse(svg_path).getroot()  # parsed ONCE; every fixer mutates this tree
-    axis_offset = (
-        0
-        if alt.theme.options.get("closed")
-        else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3))
-    )
+    axis_offset = 0 if _opt("closed") else _opt("axisOffset")
     if axis_offset:
         _extend_grid_span(root, axis_offset)
-    if alt.theme.options.get("inwardTicks"):
+    if _opt("inwardTicks"):
         _flip_ticks_inward(root)
     _layer_axes_to_front(root)
     _simplify_svg(root)
@@ -215,10 +212,8 @@ def save(
     # Resolve format/background (str or list) against the theme defaults, then validate up
     # front — before draining — so an invalid request errors cleanly and leaves the queue
     # for the next real save().
-    _formats = _resolve_choice(format, alt.theme.options.get("saveFormat", ["svg", "json"]), _VALID_FORMATS, "format")
-    _backgrounds = _resolve_choice(
-        background, alt.theme.options.get("saveBackground", ["light"]), _VALID_BACKGROUNDS, "background"
-    )
+    _formats = _resolve_choice(format, _opt("saveFormat"), _VALID_FORMATS, "format")
+    _backgrounds = _resolve_choice(background, _opt("saveBackground"), _VALID_BACKGROUNDS, "background")
 
     # Records are NOT drained here.  Instead, each add_comparisons()/add_correlation() tagged
     # its annotation layer with a marker name; below we resolve the chart, find which markers
@@ -247,8 +242,8 @@ def save(
         return str(out.parent / f"{out.name}{'_' + bg if multi else ''}.{ext}")
 
     _want_render = "svg" in _formats or "png" in _formats
-    original_darkmode = alt.theme.options.get("darkmode", False)
-    original_transparent = alt.theme.options.get("transparent", False)
+    original_darkmode = _opt("darkmode")
+    original_transparent = _opt("transparent")
     # Cap the rows inlined for this save (every format renders via to_dict(), which enforces
     # it; overrideMaxRows lifts it) — restored on the way out via the ExitStack.  Over the cap,
     # Altair raises MaxRowsError, which we catch and re-raise with a clearer message.

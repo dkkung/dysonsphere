@@ -510,3 +510,45 @@ class TestDeprecatedAliases:
         with pytest.warns(DeprecationWarning, match="transparentBackground"):
             theme()
         assert alt.theme.options["transparent"] is True
+
+
+# ── _opt() theme-option accessor ─────────────────────────────────────────────
+
+
+class TestOptAccessor:
+    def test_reads_active_theme(self):
+        from dysonsphere.theme import _opt
+
+        theme(bandPadding=0.25)
+        assert _opt("bandPadding") == 0.25
+
+    def test_falls_back_to_builtin_default(self):
+        from dysonsphere.theme import _opt
+
+        alt.theme.options = {}  # no theme() called
+        try:
+            assert _opt("bandPadding") == 0.1
+            assert _opt("chartWidth") == 100
+        finally:
+            theme()
+
+    def test_fallback_resolves_derived_defaults(self):
+        # the raw builtin for markSize/axisOffset is None (a derive-at-theme-time
+        # sentinel); the fallback must expose the DERIVED value, not the sentinel
+        from dysonsphere.theme import _opt
+
+        alt.theme.options = {}
+        try:
+            assert _opt("markSize") == 10.0  # min(100, 100) * 0.1
+            assert _opt("axisOffset") == 4.5  # tickSize 3 * 1.5
+            assert _opt("markStrokeWidth") == 0.25  # axisWidth
+            assert _opt("closed") is False
+        finally:
+            theme()
+
+    def test_unknown_key_raises(self):
+        from dysonsphere.theme import _opt
+
+        theme()
+        with pytest.raises(KeyError):
+            _opt("notAThing")

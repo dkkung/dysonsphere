@@ -4,6 +4,7 @@ from typing import cast
 import altair as alt
 import polars as pl
 
+from .theme import _opt
 from .utils import _internal_data, band_geometry, count_n
 
 
@@ -254,9 +255,9 @@ def _multilabel_layer(
     symbol_rows = [r for r in row_order if row_styles[r] == "symbol"]
 
     if chartWidth is None:
-        chartWidth = alt.theme.options.get("chartWidth", 100)
+        chartWidth = _opt("chartWidth")
     if fontSize is None:
-        fontSize = alt.theme.options.get("fontSize", 7)
+        fontSize = _opt("fontSize")
     if rowHeight is None:
         rowHeight = 10
 
@@ -375,7 +376,7 @@ def _multilabel_layer(
     if symbol_rows:
         # Colours are resolved at call time from alt.theme.options so that darkmode
         # variants are correct. Use a callable with ds.save() to rebuild per variant.
-        darkmode = alt.theme.options.get("darkmode", False)
+        darkmode = _opt("darkmode")
         if darkmode:
             positive_color = "white"
             negative_fill = colors["greys"][11]
@@ -390,9 +391,9 @@ def _multilabel_layer(
             positive_color = palette[-1]
 
         if symbolSize is None:
-            symbolSize = alt.theme.options.get("markSize", 10) * 4
+            symbolSize = _opt("markSize") * 4
         if strokeWidth is None:
-            strokeWidth = alt.theme.options.get("markStrokeWidth", 0.25)
+            strokeWidth = _opt("markStrokeWidth")
 
         plus_df = marks_df.filter(pl.col("__label").is_in(symbol_rows) & (pl.col("__value") == "+"))
         minus_df = marks_df.filter(pl.col("__label").is_in(symbol_rows) & (pl.col("__value") == "−"))
@@ -549,11 +550,11 @@ def _multilabel_layer(
             span_pairs = list(span.items())
 
         if spanTickHeight is None:
-            spanTickHeight = alt.theme.options.get("tickSize", 3)
+            spanTickHeight = _opt("tickSize")
 
         geo = band_geometry(len(categories), chartWidth)
-        axisWidth_val = alt.theme.options.get("axisWidth", 0.25)
-        darkmode_val = alt.theme.options.get("darkmode", False)
+        axisWidth_val = _opt("axisWidth")
+        darkmode_val = _opt("darkmode")
         span_color = "white" if darkmode_val else "black"
         _one_row = _internal_data([{}])  # 1-row internal data for the pixel-positioned span marks
 
