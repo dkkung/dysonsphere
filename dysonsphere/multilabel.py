@@ -4,7 +4,7 @@ from typing import cast
 import altair as alt
 import polars as pl
 
-from .utils import _internal_data, count_n
+from .utils import _internal_data, band_geometry, count_n
 
 
 def _multilabel_layer(
@@ -551,9 +551,7 @@ def _multilabel_layer(
         if spanTickHeight is None:
             spanTickHeight = alt.theme.options.get("tickSize", 3)
 
-        band_padding = alt.theme.options.get("bandPadding", 0.1)
-        n_cats = len(categories)
-        step = chartWidth / (n_cats + 2 * band_padding)
+        geo = band_geometry(len(categories), chartWidth)
         axisWidth_val = alt.theme.options.get("axisWidth", 0.25)
         darkmode_val = alt.theme.options.get("darkmode", False)
         span_color = "white" if darkmode_val else "black"
@@ -595,8 +593,8 @@ def _multilabel_layer(
                 indices.append(categories.index(cat))
             i_start, i_end = min(indices), max(indices)
 
-            x1 = step * (band_padding + 0.5 + i_start) - step * 0.30
-            x2 = step * (band_padding + 0.5 + i_end) + step * 0.30
+            x1 = geo.centers[i_start] - geo.step * 0.30
+            x2 = geo.centers[i_end] + geo.step * 0.30
             x_mid = (x1 + x2) / 2
 
             # Rule — alt.value() for all positions so no :Q scale is added to the layer

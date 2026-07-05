@@ -4,7 +4,7 @@ from typing import Any, cast
 import altair as alt
 import polars as pl
 
-from .utils import _internal_data
+from .utils import _internal_data, band_geometry
 
 # Reference lines
 
@@ -765,31 +765,30 @@ def add_shade(
             # Nested tuples: ((x_start, x_end), (y_start, y_end)).
             # Each half is resolved independently — string → pixel value via
             # band scale; numeric → Q field that shares the main chart's scale.
-            band_padding = alt.theme.options.get("bandPadding", 0.1)
             chart_width = alt.theme.options.get("chartWidth", 100)
             chart_height = alt.theme.options.get("chartHeight", 100)
             n = len(categories) if categories else 0
             cat_index = {cat: i for i, cat in enumerate(categories)} if categories else {}
-            x_step = chart_width / (n + 2 * band_padding) if n else None
-            y_step = chart_height / (n + 2 * band_padding) if n else None
+            x_geo = band_geometry(n, chart_width) if n else None
+            y_geo = band_geometry(n, chart_height) if n else None
             if flush is None:
                 flush = alt.theme.options.get("closed", False)
 
-            def _half(ch: str, start, end, step, span) -> tuple:
+            def _half(ch: str, start, end, geo, span) -> tuple:
                 # A string range → pixel span via the band scale; a numeric range → data span.
                 if isinstance(start, str):
                     if categories is None:
                         raise ValueError(f"categories is required when positions contains string {ch}-ranges.")
                     si, ei = cat_index[start], cat_index[end]
-                    lo = 0 if (flush and si == 0) else step * (band_padding + si)
-                    hi = span if (flush and ei == n - 1) else step * (band_padding + ei + 1)
+                    lo = 0 if (flush and si == 0) else geo.starts[si]
+                    hi = span if (flush and ei == n - 1) else geo.ends[ei]
                     return ("px", lo, hi)
                 return ("q", start, end)
 
             for k, (x_range, y_range) in enumerate(positions):
                 color = palette[k % n_colors]
-                x_spec = _half("x", x_range[0], x_range[1], x_step, chart_width)
-                y_spec = _half("y", y_range[0], y_range[1], y_step, chart_height)
+                x_spec = _half("x", x_range[0], x_range[1], x_geo, chart_width)
+                y_spec = _half("y", y_range[0], y_range[1], y_geo, chart_height)
                 layers.append(_shade_rect(color, x=x_spec, y=y_spec))
 
         elif len(positions) > 0 and isinstance(positions[0][0], str):
@@ -798,12 +797,11 @@ def add_shade(
             # shade layer does not participate in scale merging.
             if categories is None:
                 raise ValueError("categories is required when positions contains string tuples.")
-            band_padding = alt.theme.options.get("bandPadding", 0.1)
             n = len(categories)
             span = (
                 alt.theme.options.get("chartHeight", 100) if axis == "y" else alt.theme.options.get("chartWidth", 100)
             )
-            step = span / (n + 2 * band_padding)
+            geo = band_geometry(n, span)
             cat_index = {cat: i for i, cat in enumerate(categories)}
 
             if flush is None:
@@ -811,8 +809,8 @@ def add_shade(
 
             for k, (start, end) in enumerate(positions):
                 si, ei = cat_index[start], cat_index[end]
-                lo = 0 if (flush and si == 0) else step * (band_padding + si)
-                hi = span if (flush and ei == n - 1) else step * (band_padding + ei + 1)
+                lo = 0 if (flush and si == 0) else geo.starts[si]
+                hi = span if (flush and ei == n - 1) else geo.ends[ei]
                 color = palette[k % n_colors]
                 spec = ("px", lo, hi)
                 layers.append(_shade_rect(color, **({"y": spec} if axis == "y" else {"x": spec})))
@@ -836,10 +834,8 @@ def add_shade(
     n = len(categories)
     color_map = [palette[(i // repeat) % n_colors] for i in range(n)]
 
-    band_padding = alt.theme.options.get("bandPadding", 0.1)
     chart_width = alt.theme.options.get("chartWidth", 100)
-    # step = range/(n + 2*bandPadding); band i spans [step*(bp+i), step*(bp+i+1)].
-    step = chart_width / (n + 2 * band_padding)
+    geo = band_geometry(n, chart_width)
 
     if flush is None:
         flush = alt.theme.options.get("closed", False)
@@ -853,8 +849,8 @@ def add_shade(
         j = i
         while j < n and color_map[j] == color_map[i]:
             j += 1
-        left = 0 if (flush and i == 0) else step * (band_padding + i)
-        right = chart_width if (flush and j == n) else step * (band_padding + j)
+        left = 0 if (flush and i == 0) else geo.starts[i]
+        right = chart_width if (flush and j == n) else geo.ends[j - 1]
         run_layers.append(
             alt.Chart(_internal_data(dummy_df))
             .mark_rect(**mark_kwargs, color=color_map[i])
@@ -1021,15 +1017,10 @@ def _pvalue_layer(
         )
     )
 
-    # Band center formula for xOffset charts (paddingInner=0 forced by xOffset,
-    # paddingOuter = bandPadding from theme):
-    #   step = chartWidth / (n + 2*bandPadding)
-    #   center_i = step * (bandPadding + i + 0.5)
-    # Verified against SVG tick positions.
-    band_padding = alt.theme.options.get("bandPadding", 0.1)
-    n = len(categories)
-    step = chartWidth / (n + 2 * band_padding)
-    x_mid_px = step * (2 * band_padding + g1_idx + g2_idx + 1) / 2
+    # Bracket label sits midway between the two bands' centres (xOffset charts lower to
+    # the offset band-scale variant - see utils.band_geometry).
+    geo = band_geometry(len(categories), chartWidth)
+    x_mid_px = (geo.centers[g1_idx] + geo.centers[g2_idx]) / 2
     text = (
         alt.Chart(_internal_data([{"y": y, "label": label}]))
         .mark_text(

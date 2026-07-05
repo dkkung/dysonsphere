@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 
 from .transforms import add_beeswarm, add_jitter
-from .utils import _internal_data, ensure_polars
+from .utils import _internal_data, band_geometry, ensure_polars
 
 
 class _UnsetType:
@@ -115,13 +115,10 @@ def mark_violin(
     if strokeWidth is None:
         strokeWidth = alt.theme.options.get("markStrokeWidth", 0.5)
     mark_size = alt.theme.options.get("markSize", 10)
-    band_padding = alt.theme.options.get("bandPadding", 0.1)
-    chart_width = alt.theme.options.get("chartWidth", 100)
-    # mark_boxplot uses paddingInner=paddingOuter=band_padding, so the D3 band
-    # scale formula is step = W / (n - paddingInner + 2*paddingOuter) = W / (n + bp).
-    # Band center for index i = step * (0.5 + bp/2 + i).  This differs from the
-    # xOffset/mark_circle formula (W / (n + 2*bp); center = step*(bp + 0.5 + i)).
-    step = chart_width / (len(categories) + band_padding)
+    chart_width = alt.theme.options.get("chartWidth", 100)  # x:Q domain of the violin layer
+    # mark_boxplot lowers to a band scale with paddingInner=paddingOuter=bandPadding
+    # (scale="band"), which is NOT the xOffset/mark_circle variant (scale="offset").
+    geo = band_geometry(len(categories), scale="band")
     half_width = mark_size * 0.75
 
     # Precompute absolute x positions for each violin point so the violin
@@ -130,7 +127,7 @@ def mark_violin(
     # chart that also uses xOffset (e.g. mark_strip).
     violin_rows = []
     for i, group in enumerate(categories):
-        x_center = step * (0.5 + band_padding / 2 + i)
+        x_center = geo.centers[i]
         vals = df.filter(pl.col(xCol) == group)[yCol].to_numpy()
         y_min = float(vals.min()) - 1
         y_max = float(vals.max()) + 1
@@ -309,8 +306,9 @@ def mark_strip(
         raise ValueError(f"scatter must be 'jitter' or 'beeswarm', got {scatter!r}")
 
     band_padding = alt.theme.options.get("bandPadding", 0.1)
-    chart_width = alt.theme.options.get("chartWidth", 100)
-    step = chart_width / (len(categories) + 2 * band_padding)
+    step = band_geometry(len(categories)).step
+    # NOT a band centre: the xOffset scale positions relative to the band start, so this
+    # is the in-band midpoint expressed in xOffset range coordinates.
     band_center = step * (0.5 - band_padding)
     max_offset = cast(float, df[offset_col].abs().cast(pl.Float64).max() or 0.0)
     offset_scale = alt.Scale(
