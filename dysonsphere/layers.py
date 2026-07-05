@@ -738,11 +738,13 @@ def add_shade(
 
     def _shade_rect(color, *, x=None, y=None) -> alt.Chart:
         """One ``mark_rect`` layer. ``x`` / ``y`` are each ``None``, a pixel range ``("px", lo,
-        hi)``, or a data range ``("q", start, end)``. Datum mode shares ``src`` and positions data
-        ranges by ``alt.datum`` (pixel ranges always use ``alt.value``); the default builds a small
-        sidecar dataset with ``__<ch>s`` / ``__<ch>e`` ``:Q`` fields."""
+        hi)``, or a data range ``("q", start, end)``. Pixel ranges use ``alt.value``; data ranges
+        use ``alt.datum`` - NEVER a data field, whose ``title=None`` would null the base chart's
+        axis title (a field on the shared channel joins Vega-Lite's layer axis-title merge). Datum
+        mode shares ``src`` (faceteable); the default builds a fresh internal sidecar
+        (read-filtered, deliberately NOT faceteable). Both share the base chart's scale, so the
+        datum lands at the right data coordinate."""
         enc: dict = {}
-        fields: dict = {}
         for ch, spec in (("x", x), ("y", y)):
             if spec is None:
                 continue
@@ -750,17 +752,9 @@ def add_shade(
             c2 = ch + "2"
             if kind == "px":
                 enc[ch], enc[c2] = alt.value(a), alt.value(b)
-            elif datum_mode:
+            else:  # ("q", ...) data range - datum keeps the base axis title (a field would clobber it)
                 enc[ch], enc[c2] = alt.datum(float(a)), alt.datum(float(b))
-            else:
-                _Ch, _Ch2 = (alt.X, alt.X2) if ch == "x" else (alt.Y, alt.Y2)
-                fields[f"__{ch}s"], fields[f"__{ch}e"] = [float(a)], [float(b)]
-                # title=None so the shade's field never clobbers the base chart's axis title
-                enc[ch], enc[c2] = _Ch(f"__{ch}s:Q", title=None), _Ch2(f"__{ch}e:Q")
-        if datum_mode:
-            base = _datum_base(src)
-        else:
-            base = alt.Chart(_internal_data(pl.DataFrame(fields) if fields else dummy_df))
+        base = _datum_base(src) if datum_mode else alt.Chart(_internal_data(dummy_df))
         return base.mark_rect(**mark_kwargs, color=color).encode(**enc)
 
     # ── positions mode ────────────────────────────────────────────────────────
