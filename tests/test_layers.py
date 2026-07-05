@@ -40,19 +40,21 @@ class TestAddLabels:
     def test_no_connector(self, df):
         assert len(add_labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 3
 
-    def _connector_dashes(self, chart):
+    def _connector_stroke_dashes(self, chart):
         return [lyr["mark"]["strokeDash"] for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rule"]
 
-    def test_connector_dash_default_solid(self, df):
-        dashes = self._connector_dashes(add_labels(df, "x", "y", "g"))
+    def test_connector_stroke_dash_default_solid(self, df):
+        dashes = self._connector_stroke_dashes(add_labels(df, "x", "y", "g"))
         assert dashes and all(d == [0, 0] for d in dashes)
 
-    def test_connector_dash_true_uses_theme(self, df):
+    def test_connector_stroke_dash_true_uses_theme(self, df):
         # default_theme fixture sets dashedWidth=[2, 2]
-        assert all(d == [2, 2] for d in self._connector_dashes(add_labels(df, "x", "y", "g", connectorDash=True)))
+        dashes = self._connector_stroke_dashes(add_labels(df, "x", "y", "g", connectorStrokeDash=True))
+        assert all(d == [2, 2] for d in dashes)
 
-    def test_connector_dash_list_passthrough(self, df):
-        assert all(d == [4, 2] for d in self._connector_dashes(add_labels(df, "x", "y", "g", connectorDash=[4, 2])))
+    def test_connector_stroke_dash_list_passthrough(self, df):
+        dashes = self._connector_stroke_dashes(add_labels(df, "x", "y", "g", connectorStrokeDash=[4, 2]))
+        assert all(d == [4, 2] for d in dashes)
 
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
