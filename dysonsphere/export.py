@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 import uuid
 from contextlib import ExitStack
 from datetime import datetime, timezone
@@ -37,6 +38,34 @@ def _resolve_choice(value, default, valid: tuple[str, ...], name: str) -> list[s
     if invalid:
         raise ValueError(f"{name} must be one of {valid}, got {invalid!r}")
     return items
+
+
+def _render_fixed_svg(base_obj, svg_path: str) -> str:
+    """Render an Altair object to SVG at *svg_path*, run every dysonsphere SVG post-processor,
+    and return the corrected SVG string.
+
+    Shared by :func:`save` and :func:`show` so the fixer pipeline stays identical: tick
+    alignment, log/power minor-tick correction, inward-tick flip (when ``inwardTicks``), axis
+    layering, ``<g>`` simplification, and superscript-label typesetting. The caller sets up the
+    theme (e.g. ``transparentBackground``) and owns the file's lifecycle.
+    """
+    base_obj.save(svg_path)  # marker names are in the object but never render into SVG
+    _fix_tick_alignment(
+        svg_path,
+        band_padding=alt.theme.options.get("bandPadding", 0.1),
+        chart_width=alt.theme.options.get("chartWidth", 100),
+        axis_offset=0
+        if alt.theme.options.get("closed")
+        else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3)),
+    )
+    _fix_log_minor_ticks(svg_path)
+    if alt.theme.options.get("inwardTicks"):
+        _flip_ticks_inward(svg_path)
+    _layer_axes_to_front(svg_path)
+    _simplify_svg(svg_path)
+    _fix_superscript_labels(svg_path)
+    with open(svg_path, encoding="utf-8") as f:
+        return f.read()
 
 
 def save(
@@ -253,23 +282,7 @@ def save(
             if _want_render:
                 alt.theme.options["transparentBackground"] = True
                 svg_path = _path(bg, "svg")
-                base_obj.save(svg_path)  # marker names are in the object but never render into SVG
-                _fix_tick_alignment(
-                    svg_path,
-                    band_padding=alt.theme.options.get("bandPadding", 0.1),
-                    chart_width=alt.theme.options.get("chartWidth", 100),
-                    axis_offset=0
-                    if alt.theme.options.get("closed")
-                    else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3)),
-                )
-                _fix_log_minor_ticks(svg_path)
-                if alt.theme.options.get("inwardTicks"):
-                    _flip_ticks_inward(svg_path)
-                _layer_axes_to_front(svg_path)
-                _simplify_svg(svg_path)
-                _fix_superscript_labels(svg_path)
-                with open(svg_path, encoding="utf-8") as f:
-                    svg_content = f.read()
+                svg_content = _render_fixed_svg(base_obj, svg_path)
                 # Inject the metadata channels + user <desc> after the opening <svg> tag.  A
                 # lambda replacement keeps backslashes/braces in the JSON literal (not regex).
                 _inserts = metadata._svg_inserts(_usermeta_json, _report_sections, description)
@@ -293,6 +306,40 @@ def save(
         _cap_stack.close()
         alt.theme.options["darkmode"] = original_darkmode
         alt.theme.options["transparentBackground"] = original_transparent
+
+
+def show(chart: _AltairChart | Callable[[], _AltairChart]):
+    """Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
+    inline display in a notebook.
+
+    Altair's own inline renderer (used when you just display a chart) does NOT run
+    dysonsphere's SVG post-processors, so its preview is approximate - ticks aren't
+    pixel-aligned, log/superscript labels aren't typeset, and with ``inwardTicks=True`` the
+    ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
+    :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
+    the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
+    writes no file.
+
+    Accepts the same chart types as :func:`save`, including a zero-argument callable (called
+    once). Requires IPython (present in any notebook); otherwise raises ``ImportError`` - use
+    :func:`save` to write a file instead.
+    """
+    try:
+        from IPython.display import SVG
+    except ImportError as e:
+        raise ImportError(
+            "ds.show() needs IPython (available in notebooks). Use ds.save() to write a file instead."
+        ) from e
+
+    base_obj = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
+    _prev_transp = alt.theme.options.get("transparentBackground")
+    alt.theme.options["transparentBackground"] = True
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            svg = _render_fixed_svg(base_obj, str(Path(d) / "preview.svg"))
+    finally:
+        alt.theme.options["transparentBackground"] = _prev_transp
+    return SVG(svg)
 
 
 def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict":
