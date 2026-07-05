@@ -202,11 +202,6 @@ darkmode = true
 fontSize = 18
 transparent = true
 
-[presentation]
-fontSize = 12
-darkmode = true
-transparent = true
-
 # Custom styles - add your own style sections below
 
 [my_style]  # Rename to your desired style name

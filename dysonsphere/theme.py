@@ -20,11 +20,6 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
         "fontSize": 18,
         "transparent": True,
     },
-    "presentation": {
-        "fontSize": 12,
-        "darkmode": True,
-        "transparent": True,
-    },
 }
 
 # DEPRECATED (remove at v3.0): old parameter names accepted as aliases, with a warning.
