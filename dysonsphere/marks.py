@@ -329,7 +329,16 @@ def mark_strip(
 
     points = (
         alt.Chart(df)
-        .mark_circle(size=markSize, opacity=markOpacity)
+        # Stroke pinned here, NOT inherited: the theme's config.circle has stroke=None
+        # (bare overlay dots are stroke-less), but strip/beeswarm points keep the house
+        # outlined-dot look. Black in darkmode too (outlines light palette fills).
+        .mark_circle(
+            size=markSize,
+            opacity=markOpacity,
+            stroke="black" if _opt("darkmode") else _opt("markStroke"),
+            strokeWidth=_opt("markStrokeWidth"),
+            strokeOpacity=_opt("markStrokeOpacity"),
+        )
         .encode(
             x=x,
             y=alt.Y(f"{yCol}:Q", title=_y_title),
