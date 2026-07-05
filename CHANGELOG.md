@@ -20,6 +20,7 @@
 
 ### Changes
 
+- **`categorical(members=)` accepts up to 10 members** (was capped at 4). `members<=4` keep the exact classic tier stops (unchanged output); `5`-`10` spread the lightness stops evenly across the usable ramp, shrinking within-hue contrast with each extra member - documented, with a pointer to sequential per-group slices for ordinal series. Raises above 10, where distinct stops run out.
 - **`mark_strip` specs are deterministic.** The mean/error summary used an order-nondeterministic `group_by`, so two builds of the identical chart could differ in inlined dataset order (changing the spec checksum and the error-bar z-order run to run). The summary now preserves input group order.
 - **Custom marks share a `_MarkScaffold` (internal).** `mark_violin`/`mark_strip` now build their shared chrome (dataframe coercion, title sentinels, x-axis with label angle + mapping, x/y/color encodings with category sorting and palette handling) from one composition helper, so shared parameters land once for every mark. Output specs are unchanged (verified identical).
 - **`mark_circle` dots have no outline.** The theme's circle config no longer applies `markStroke` - at the small overlay-dot default size a stroke swamps the fill. Set `stroke` per chart to restore one. `mark_strip`/beeswarm points are unaffected: they now pin the house outline explicitly instead of inheriting it from the circle config.

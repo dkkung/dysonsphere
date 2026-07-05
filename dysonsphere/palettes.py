@@ -21,22 +21,33 @@ def categorical(members: int = 1) -> list[str]:
     Parameters
     ----------
     members:
-        Colors per associated group, ``1``-``4``.
+        Colors per associated group.
 
         - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major**
           (cycle the four hues at the light tier, then mid, then dark) so adjacent
           categories differ in hue. Returns 12 colors. This is the palette wired to
           ``config.range.category``.
-        - ``2``/``3``/``4``: a **grouped** palette for paired data (``A1``/``A2`` …),
-          ordered **hue-major** - each consecutive block of ``members`` categories is one
-          hue climbing through ``members`` lightness levels. Returns ``4 * members`` colors.
+        - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered
+          **hue-major** - each consecutive block of ``members`` categories is one hue
+          climbing through ``members`` lightness levels. Returns ``4 * members`` colors.
           Sort your categories so a group's members are adjacent, then pass this as the
           color scale range.
+
+        Up to ``4`` members the lightness stops are the classic tier stops
+        (``1, 4, 7, 10`` - three ramp steps apart, matching the flat palette's tiers);
+        beyond ``4`` the stops spread evenly across the usable ramp (``1``-``10``),
+        which **shrinks the within-hue contrast** with every extra member - fine at
+        normal mark sizes for ``5``-``6``, increasingly ambiguous past that, and capped
+        at ``10`` where distinct stops run out. If your "members" are actually ordinal
+        (a dose series, timepoints), a sequential slice per group -
+        ``palette("blues", n=5)`` - usually communicates that better than a
+        categorical palette pretending they're unordered.
 
     Raises
     ------
     ValueError
-        If ``members`` is not in ``1``-``4`` (a 5th level would exceed the 12-stop palettes).
+        If ``members`` is below ``1``, or too large for distinct lightness stops in the
+        12-stop base palettes (above ``10``).
 
     Examples
     --------
@@ -51,11 +62,24 @@ def categorical(members: int = 1) -> list[str]:
         alt.Color("g:N", sort=groups, scale=alt.Scale(range=categorical(2)))
         # -> A1=blue-light, A2=blue-dark, B1=pink-light, B2=pink-dark, ...
     """
-    if not 1 <= members <= 4:
-        raise ValueError(f"members must be between 1 and 4, got {members}")
+    if members < 1:
+        raise ValueError(f"members must be at least 1, got {members}")
     if members == 1:
         return [colors[h][s] for s in (1, 4, 7) for h in _CATEGORICAL_HUES]  # tier-major
-    stops = (1, 4, 7, 10)[:members]
+    if 1 + 3 * (members - 1) <= 10:
+        # The classic tier stops - (1, 4, 7, 10)[:members] - kept exactly for members<=4
+        # so the grouped palette stays consistent with the flat palette's tiers (and with
+        # prior versions).
+        stops = tuple(range(1, 1 + 3 * members, 3))
+    else:
+        # Spread evenly across the usable ramp [1, 10] (0 is near-background, 11 near-black).
+        # Every extra member shrinks the within-hue lightness contrast; stops collide above 10.
+        stops = tuple(round(1 + 9 * i / (members - 1)) for i in range(members))
+        if len(set(stops)) != members:
+            raise ValueError(
+                f"members={members} needs more distinct lightness stops than the 12-stop "
+                f"base palettes provide (max 10)."
+            )
     return [colors[h][s] for h in _CATEGORICAL_HUES for s in stops]  # hue-major
 
 

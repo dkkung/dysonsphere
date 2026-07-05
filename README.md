@@ -285,9 +285,10 @@ ds.categorical()      # flat palette for unrelated groups (12 colors); the defau
 ds.categorical(2)     # paired data: A1/A2, B1/B2, … (each group one hue, light→dark)
 ds.categorical(3)     # triples
 ds.categorical(4)     # quadruples
+ds.categorical(5)     # quintuples and beyond (up to 10) - within-hue contrast shrinks each step
 ```
 
-`members` (1–4) is the number of colors per associated group. `members=1` (default) cycles the four hues at each lightness tier, so adjacent categories differ in hue — for **unrelated** groups. `members≥2` groups by hue instead: each block of `members` consecutive categories is one hue climbing in lightness — for **paired** data. Sort your categories so a group's members are adjacent, then pass it as the color range:
+`members` is the number of colors per associated group. `members=1` (default) cycles the four hues at each lightness tier, so adjacent categories differ in hue — for **unrelated** groups. `members≥2` groups by hue instead: each block of `members` consecutive categories is one hue climbing in lightness — for **paired** data. Up to `4` the lightness stops are the classic well-separated tiers; `5`–`10` spread stops evenly across the ramp, trading within-hue contrast for group size (fine at normal mark sizes for 5–6, ambiguous past that — and if your members are really ordinal, like a dose series, a sequential slice per group such as `ds.palette("blues", n=5)` says so more honestly). Sort your categories so a group's members are adjacent, then pass it as the color range:
 
 ```python
 groups = ["A1", "A2", "B1", "B2"]
