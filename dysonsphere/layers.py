@@ -589,6 +589,7 @@ def add_labels(
     connector: bool = True,
     connectorColor: str | None = None,
     connectorStrokeDash: bool | list[int] = False,
+    connectorGap: float | None = None,
 ) -> alt.LayerChart:
     """Auto-place non-overlapping text labels for a set of points, with connector lines.
 
@@ -640,6 +641,12 @@ def add_labels(
     connectorStrokeDash:
         Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth``
         pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
+    connectorGap:
+        Pixel gap left at each end of the connector so it points at the marker / label rather than
+        touching them. ``None`` (default) -> ``markSize/10`` (1px at the default theme, scales with
+        the marks); ``0`` -> no gap; a float -> that many pixels. Increase it for large or thickly
+        stroked markers (the gap can't measure the marker itself - the base chart isn't visible
+        here). Automatically shrinks for very short connectors so the gaps don't consume the line.
     """
     from .utils import _repel_labels, _sample_spread, ensure_polars
 
@@ -694,8 +701,9 @@ def add_labels(
         return ((x - x0) / xspan * width, height - (y - y0) / yspan * height)
 
     anchors = [to_px(x, y) for x, y in zip(xs, ys)]
+    obstacles = [to_px(x, y) for x, y in zip(all_x, all_y)]  # ALL plotted points, so labels avoid them
     sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in label_texts]  # rough text-box estimate
-    label_pos = _repel_labels(anchors, sizes, width=width, height=height)
+    label_pos = _repel_labels(anchors, sizes, width=width, height=height, obstacles=obstacles)
 
     # Self-pin: force the shared x/y scale to the assumed domain (nice=False, zero=False) via an
     # invisible mark, so the connectors align with the points WITHOUT the caller pinning the base
@@ -731,10 +739,22 @@ def add_labels(
             text_x = ex = lx
             ey = ly - hh if dy <= 0 else ly + hh
         if connector:
+            # Small gap at each end so the line points at the marker/label rather than piercing the
+            # dot or touching the glyphs. connectorGap (px) defaults to markSize/10 (1px at the
+            # default markSize, scales with the marks); the seg*0.25 term only shrinks it for SHORT
+            # connectors so the two end gaps never eat the whole line - NOT a grow-with-length effect.
+            gap_cap = connectorGap if connectorGap is not None else _opt("markSize") / 10
+            seg = math.hypot(ex - ax, ey - ay)
+            if seg > 0 and gap_cap > 0:
+                g = min(gap_cap, seg * 0.25)
+                ux, uy = (ex - ax) / seg, (ey - ay) / seg
+                sx, sy, tx, ty = ax + ux * g, ay + uy * g, ex - ux * g, ey - uy * g
+            else:
+                sx, sy, tx, ty = ax, ay, ex, ey
             layers.append(
                 alt.Chart(_internal_data([{}]))
                 .mark_rule(**rule_kwargs)
-                .encode(x=alt.value(ax), y=alt.value(ay), x2=alt.value(ex), y2=alt.value(ey))
+                .encode(x=alt.value(sx), y=alt.value(sy), x2=alt.value(tx), y2=alt.value(ty))
             )
         layers.append(
             alt.Chart(_internal_data([{}]))
