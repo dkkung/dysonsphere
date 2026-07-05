@@ -243,3 +243,18 @@ class TestAddShadeDatum:
         base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
         with pytest.raises(ValueError, match="Facet charts require data"):
             (base + add_shade(positions=[(1.5, 2.5)], axis="x")).facet(column="g:N")
+
+    def test_default_preserves_base_axis_titles(self, df):
+        # Regression: a shade's data-range rect must not null the base chart's axis titles.
+        import re
+
+        import vl_convert as vlc
+
+        base = alt.Chart(df).mark_point().encode(x=alt.X("x:Q", title="XT"), y=alt.Y("value:Q", title="YT"))
+        svg = vlc.vegalite_to_svg((base + add_shade(positions=[((1.0, 2.0), (1.0, 2.0))], axis="both")).to_dict())
+
+        def rendered(t):
+            return bool(re.search(r"<text[^>]*>[^<]*" + re.escape(t) + r"[^<]*</text>", svg))
+
+        assert rendered("XT")
+        assert rendered("YT")
