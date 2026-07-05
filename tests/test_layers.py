@@ -57,6 +57,23 @@ class TestAddLabels:
         dashes = self._connector_stroke_dashes(add_labels(df, "x", "y", "g", connectorStrokeDash=[4, 2]))
         assert all(d == [4, 2] for d in dashes)
 
+    def test_connector_gap_shortens_line(self, df):
+        import math
+
+        def total_len(chart):
+            segs = [
+                (e["x"]["value"], e["y"]["value"], e["x2"]["value"], e["y2"]["value"])
+                for lyr in chart.to_dict()["layer"]
+                if lyr["mark"]["type"] == "rule"
+                for e in [lyr["encoding"]]
+            ]
+            return sum(math.dist((x, y), (x2, y2)) for x, y, x2, y2 in segs)
+
+        # a bigger gap leaves shorter visible connectors; gap=0 leaves the full length
+        assert total_len(add_labels(df, "x", "y", "g", connectorGap=3)) < total_len(
+            add_labels(df, "x", "y", "g", connectorGap=0)
+        )
+
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
         assert set(_text_values(add_labels(df, "x", "y", "g").to_dict())) == {"a", "b", "c"}

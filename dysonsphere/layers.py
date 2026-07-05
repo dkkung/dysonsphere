@@ -589,6 +589,7 @@ def add_labels(
     connector: bool = True,
     connectorColor: str | None = None,
     connectorStrokeDash: bool | list[int] = False,
+    connectorGap: float | None = None,
 ) -> alt.LayerChart:
     """Auto-place non-overlapping text labels for a set of points, with connector lines.
 
@@ -640,6 +641,12 @@ def add_labels(
     connectorStrokeDash:
         Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth``
         pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
+    connectorGap:
+        Pixel gap left at each end of the connector so it points at the marker / label rather than
+        touching them. ``None`` (default) -> ``markSize/10`` (1px at the default theme, scales with
+        the marks); ``0`` -> no gap; a float -> that many pixels. Increase it for large or thickly
+        stroked markers (the gap can't measure the marker itself - the base chart isn't visible
+        here). Automatically shrinks for very short connectors so the gaps don't consume the line.
     """
     from .utils import _repel_labels, _sample_spread, ensure_polars
 
@@ -733,12 +740,13 @@ def add_labels(
             ey = ly - hh if dy <= 0 else ly + hh
         if connector:
             # Small gap at each end so the line points at the marker/label rather than piercing the
-            # dot or touching the glyphs. Capped at markSize/10 (= 1px at the default markSize, and
-            # scales with the marks) and scaled down for short connectors so even the tiny vertical
-            # ones get a gap; 2*g < seg always, so a visible segment remains.
+            # dot or touching the glyphs. connectorGap (px) defaults to markSize/10 (1px at the
+            # default markSize, scales with the marks); the seg*0.25 term only shrinks it for SHORT
+            # connectors so the two end gaps never eat the whole line - NOT a grow-with-length effect.
+            gap_cap = connectorGap if connectorGap is not None else _opt("markSize") / 10
             seg = math.hypot(ex - ax, ey - ay)
-            if seg > 0:
-                g = min(_opt("markSize") / 10, seg * 0.25)
+            if seg > 0 and gap_cap > 0:
+                g = min(gap_cap, seg * 0.25)
                 ux, uy = (ex - ax) / seg, (ey - ay) / seg
                 sx, sy, tx, ty = ax + ux * g, ay + uy * g, ex - ux * g, ey - uy * g
             else:
