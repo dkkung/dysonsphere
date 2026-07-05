@@ -483,8 +483,12 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 # boxplots/violins/strips, where small dots read best.
                 "size": opts["markSize"] / 20,
                 # No outline: at this dot size a stroke swamps the fill. Explicit None
-                # (not omitted) so nothing is inherited from other mark configs.
+                # (not omitted) so nothing is inherited from other mark configs. The
+                # opacity/width stay configured so a re-enabled stroke (per chart or a
+                # future config) renders with the house style.
                 "stroke": None,
+                "strokeOpacity": opts["markStrokeOpacity"],
+                "strokeWidth": opts["markStrokeWidth"],
             },
             "errorband": {
                 "band": {
