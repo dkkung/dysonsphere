@@ -171,4 +171,9 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
         chosen = data.filter(pl.col(geneCol).is_in(label))
 
     names = [str(v) for v in chosen[geneCol].to_list()]
-    return ds.add_labels(data, log2fcCol, _NEGLOG_COL, geneCol, labels=names)
+    # Size the connector gap to clear the volcano's mark_point dots: radius = sqrt(config.point.size
+    # / pi) = sqrt((markSize/2)/pi), plus the marker stroke - so the line stops at the dot edge, not
+    # inside it (add_labels' default markSize/10 is tuned for tiny overlay dots and is too small).
+    mark_size = ext.opt("markSize")
+    gap = math.sqrt((mark_size / 2) / math.pi) + ext.opt("markStrokeWidth")
+    return ds.add_labels(data, log2fcCol, _NEGLOG_COL, geneCol, labels=names, connectorGap=gap)
