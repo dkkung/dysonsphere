@@ -58,9 +58,10 @@ class TestAddRule:
         result = add_rule(0.5, label="threshold")
         assert isinstance(result, alt.LayerChart)
 
-    def test_multiple_values_returns_chart(self):
+    def test_multiple_values_returns_layer(self):
+        # One datum layer per value (single-value stays a bare Chart, see test_no_label_returns_chart).
         result = add_rule([0.25, 0.5, 0.75])
-        assert isinstance(result, alt.Chart)
+        assert isinstance(result, alt.LayerChart)
 
     def test_multiple_values_with_labels_returns_layer(self):
         result = add_rule([0.25, 0.75], label=["low", "high"])
@@ -73,6 +74,41 @@ class TestAddRule:
     def test_invalid_axis_raises(self):
         with pytest.raises(ValueError, match="axis"):
             add_rule(0.5, axis="z")
+
+    def test_preserves_explicit_base_axis_titles(self):
+        # Regression: a rule must not null the base chart's axis title (the datum-vs-field fix).
+        import re
+
+        import vl_convert as vlc
+
+        base = (
+            alt.Chart(pl.DataFrame({"a": [0.0, 1, 2], "b": [0.0, 1, 2]}))
+            .mark_point()
+            .encode(x=alt.X("a:Q", title="MyXTitle"), y=alt.Y("b:Q", title="MyYTitle"))
+        )
+        svg = vlc.vegalite_to_svg((base + add_rule(1.0, axis="x") + add_rule(1.0, axis="y")).to_dict())
+
+        def rendered(t):
+            return bool(re.search(r"<text[^>]*>[^<]*" + re.escape(t) + r"[^<]*</text>", svg))
+
+        assert rendered("MyXTitle")
+        assert rendered("MyYTitle")
+
+    def test_preserves_derived_base_axis_title(self):
+        # A derived (field-name) base title must not gain a ", __v"-style suffix from the rule.
+        import re
+
+        import vl_convert as vlc
+
+        base = (
+            alt.Chart(pl.DataFrame({"weight": [0.0, 1, 2], "height": [0.0, 1, 2]}))
+            .mark_point()
+            .encode(x="weight:Q", y="height:Q")
+        )
+        svg = vlc.vegalite_to_svg((base + add_rule(1.0, axis="x")).to_dict())
+        texts = re.findall(r"<text[^>]*>([^<]+)</text>", svg)
+        assert "weight" in texts
+        assert not any("__" in t for t in texts)  # no leaked sidecar field name
 
 
 class TestAddRuleDatum:

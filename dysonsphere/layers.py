@@ -1,4 +1,5 @@
 import math
+from collections.abc import Callable
 from typing import Any, cast
 
 import altair as alt
@@ -100,7 +101,7 @@ def _datum_base(src: Any) -> alt.Chart:
 
 
 def _datum_ref_layers(
-    src: Any,
+    base_factory: "Callable[[], alt.Chart]",
     pos_ch: str,
     vals: list[float],
     mark_kwargs: dict,
@@ -110,13 +111,21 @@ def _datum_ref_layers(
     perp_ch: str | None = None,
     perp_val: float | None = None,
 ) -> list[alt.Chart]:
-    """Facet-safe datum layers for ``add_rule(data=...)``: one rule layer per value, plus (when
-    ``labels`` given) one text layer per value, each built on :func:`_datum_base`."""
-    layers = [_datum_base(src).mark_rule(**mark_kwargs).encode(**{pos_ch: alt.datum(v)}) for v in vals]
+    """Datum-positioned rule layers: one rule layer per value, plus (when ``labels`` given) one
+    text layer per value, each built on a fresh base from ``base_factory``.
+
+    Positions come from a constant ``alt.datum`` (never a data field). This is what keeps the
+    base chart's axis title intact: a field on the shared position channel participates in
+    Vega-Lite's layer axis-title merge (an explicit ``title=None`` nulls the base title; a
+    derived field title concatenates into it), whereas a constant datum contributes no title.
+    ``base_factory`` decides faceting: ``_datum_base(src)`` (shared frame) is facet-safe; a
+    fresh internal sidecar is the non-facet-safe default. One layer per value, so multiple
+    values yield multiple layers."""
+    layers = [base_factory().mark_rule(**mark_kwargs).encode(**{pos_ch: alt.datum(v)}) for v in vals]
     if labels is not None:
         assert text_kwargs is not None and perp_ch is not None
         layers += [
-            _datum_base(src)
+            base_factory()
             .mark_text(**text_kwargs)
             .encode(**{pos_ch: alt.datum(v), perp_ch: alt.value(perp_val), "text": alt.value(lbl)})
             for v, lbl in zip(vals, labels)
@@ -240,38 +249,38 @@ def add_rule(
         else None
     )
 
-    # Datum (facet-safe) mode: every layer shares `data` and is positioned by a constant datum, so
-    # `(base + add_rule(..., data=df))` can be faceted (a faceted chart needs all its layers to
-    # share one data variable) and the line repeats identically in each panel.
+    # Both modes position by a constant `alt.datum` (never a data field), so the base chart's axis
+    # title survives the Vega-Lite layer merge - see _datum_ref_layers.  They differ only in the
+    # per-layer base: datum (facet-safe) mode shares `data` (via _datum_base) so
+    # `(base + add_rule(..., data=df))` can be faceted; the default builds a fresh internal sidecar
+    # (filtered by read(what="data"), and deliberately NOT facet-safe).
     if data is not None:
         from .utils import ensure_polars
 
         src = ensure_polars(data)
-        if geom is None:
-            layers = _datum_ref_layers(src, axis, vals, mark_kwargs)
-        else:
-            perp_ch, perp_val, text_kwargs = geom
-            layers = _datum_ref_layers(
-                src, axis, vals, mark_kwargs, labels=labels, text_kwargs=text_kwargs, perp_ch=perp_ch, perp_val=perp_val
-            )
-        return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
-    # Data-backed mode (default): one sidecar layer carries the value(s) as a `__v` field.
-    _Pos = alt.Y if axis == "y" else alt.X
-    rule = (
-        alt.Chart(_internal_data(pl.DataFrame({"__v": vals})))
-        .mark_rule(**mark_kwargs)
-        .encode(**{axis: _Pos("__v:Q", title=None)})
-    )
+        def base_factory() -> alt.Chart:
+            return _datum_base(src)
+    else:
+
+        def base_factory() -> alt.Chart:
+            return alt.Chart(_internal_data([{}]))
+
     if geom is None:
-        return rule
-    perp_ch, perp_val, text_kwargs = geom
-    text = (
-        alt.Chart(_internal_data(pl.DataFrame({"__v": vals, "__label": labels})))
-        .mark_text(**text_kwargs)
-        .encode(**{axis: _Pos("__v:Q", title=None)}, text=alt.Text("__label:N"), **{perp_ch: alt.value(perp_val)})
-    )
-    return cast(alt.LayerChart, alt.layer(rule, text))
+        layers = _datum_ref_layers(base_factory, axis, vals, mark_kwargs)
+    else:
+        perp_ch, perp_val, text_kwargs = geom
+        layers = _datum_ref_layers(
+            base_factory,
+            axis,
+            vals,
+            mark_kwargs,
+            labels=labels,
+            text_kwargs=text_kwargs,
+            perp_ch=perp_ch,
+            perp_val=perp_val,
+        )
+    return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
 
 _TEXT_PRESETS: dict[str, dict] = {
