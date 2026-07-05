@@ -650,9 +650,9 @@ def add_labels(
         (set this for unusually large or heavily stroked markers, which the gap can't measure since
         the base chart isn't visible here). Automatically shrinks for very short connectors.
     alwaysShowConnectors:
-        By default (``False``) a connector is omitted when the label ends up sitting on its own point
-        (the point falls within the label box) - the stub would just be noise, and the adjacent label
-        is unambiguous. ``True`` draws every connector regardless.
+        By default (``False``) a connector is omitted when it would be too short to be worth drawing -
+        the label ended up adjacent to its own point (segment shorter than the label font size), so the
+        stub is just noise and the label alone is unambiguous. ``True`` draws every connector.
     """
     from .utils import _repel_labels, _sample_spread, ensure_polars
 
@@ -755,12 +755,12 @@ def add_labels(
                 if connectorGap is not None
                 else math.sqrt(_opt("markSize") / (2 * math.pi)) + _opt("markStrokeWidth")
             )
-            # Skip the connector when the label sits on its own point (the point falls within the label
-            # box + a small margin): the tiny stub is just noise overlapping the marker/glyphs. The
-            # label alone is unambiguous there. alwaysShowConnectors forces it drawn regardless.
-            on_point = abs(dx) <= hw + gap_cap and abs(dy) <= hh + gap_cap
-            if alwaysShowConnectors or not on_point:
-                seg = math.hypot(ex - ax, ey - ay)
+            seg = math.hypot(ex - ax, ey - ay)  # point -> label box edge (the connector length)
+            # Skip a connector too short to be worth drawing: when the label ends up adjacent to its
+            # own point the stub is just noise overlapping the marker/glyphs, and the label alone is
+            # unambiguous. Threshold = the label font size (~4x the end gap, so a visible line always
+            # remains for kept connectors). alwaysShowConnectors forces every connector drawn.
+            if alwaysShowConnectors or seg >= fs:
                 if seg > 0 and gap_cap > 0:
                     g = min(gap_cap, seg * 0.25)
                     ux, uy = (ex - ax) / seg, (ey - ay) / seg

@@ -34,8 +34,10 @@ class TestAddLabels:
         assert isinstance(add_labels(df, "x", "y", "g"), alt.LayerChart)
 
     def test_layer_count_with_leaders(self, df):
-        # 1 invisible scale-pin layer + (connector + text) per label
-        assert len(add_labels(df, "x", "y", "g").to_dict()["layer"]) == 1 + 3 * 2
+        # 1 invisible scale-pin layer + (connector + text) per label (alwaysShowConnectors so no
+        # short-connector is dropped, making the count deterministic)
+        chart = add_labels(df, "x", "y", "g", alwaysShowConnectors=True)
+        assert len(chart.to_dict()["layer"]) == 1 + 3 * 2
 
     def test_no_connector(self, df):
         # 1 pin layer + 1 text per label
@@ -77,11 +79,12 @@ class TestAddLabels:
     def _n_connectors(self, chart):
         return sum(1 for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rule")
 
-    def test_short_connectors_skipped_by_default(self, df):
-        # a huge gap makes every point fall within its label box -> all connectors are "on point"
-        # and skipped by default, but alwaysShowConnectors forces one per label
-        assert self._n_connectors(add_labels(df, "x", "y", "g", connectorGap=1000)) == 0
-        assert self._n_connectors(add_labels(df, "x", "y", "g", connectorGap=1000, alwaysShowConnectors=True)) == 3
+    def test_short_connectors_skipped_by_default(self):
+        # a lone point: the label settles adjacent to it -> connector too short to draw, so it's
+        # skipped by default, but alwaysShowConnectors forces it
+        one = pl.DataFrame({"x": [1.0], "y": [1.0], "g": ["a"]})
+        assert self._n_connectors(add_labels(one, "x", "y", "g")) == 0
+        assert self._n_connectors(add_labels(one, "x", "y", "g", alwaysShowConnectors=True)) == 1
 
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
