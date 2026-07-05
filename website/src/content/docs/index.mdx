@@ -21,8 +21,10 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, Code } from '@astrojs/starlight/components';
 import Chart from '../../components/Chart.astro';
+// The raw source of the hero example, so the shown code and the rendered chart come from one file.
+import homeSource from '../../../examples/home_demo.py?raw';
 
 <div class="landing">
 
@@ -34,34 +36,15 @@ pip install dysonsphere
 
 <section class="landing__demo">
 	<div class="landing__demo-code">
-		```python
-		import altair as alt
-		import dysonsphere as ds
-		from vega_datasets import data
-
-		ds.theme()
-
-		cars = data.cars().dropna(subset=["Miles_per_Gallon"])
-		origins = ["USA", "Europe", "Japan"]
-
-		chart = (
-		    alt.Chart(cars)
-		    .mark_boxplot()
-		    .encode(
-		        x=alt.X("Origin:N", sort=origins, title="Origin"),
-		        y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon"),
-		        color=alt.Color("Origin:N", sort=origins, legend=None),
-		    )
-		)
-		```
+		<Code code={homeSource.trimEnd()} lang="python" />
 	</div>
 	<div class="landing__demo-chart">
-		<Chart name="home_demo" alt="Boxplot of fuel economy by car origin, colored per origin" />
+		<Chart name="home_demo" alt="Beeswarm points over themed boxplots by group, with a condition table" />
 	</div>
 	<p class="landing__demo-caption">
-		Live chart - hover for the export menu. One <code>theme()</code> call and plain Altair inherits
-		the grey boxes, single-stroke median, rounded whisker caps, and perceptually uniform palette -
-		no per-mark styling.
+		Live chart - hover for the export menu. Beeswarm points, themed boxplots, and a condition
+		table below the axis, composed with <code>+</code>; one <code>theme()</code> call styles every
+		mark, and the categorical palette is perceptually uniform.
 	</p>
 </section>
 
