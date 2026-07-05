@@ -147,6 +147,25 @@ def _derive_exp(df, field: str, base: int = 10) -> tuple[int, int]:
     return int(math.floor(log(col_min))), int(math.ceil(log(col_max)))
 
 
+def _infer_field(chart, axis: str) -> str | None:
+    """Best-effort field name from a plain ``alt.Chart``'s x/y encoding shorthand.
+
+    Reads ``chart.encoding.<axis>._kwds["shorthand"]`` (the ``.field`` accessor returns a
+    ``_PropertySetter`` descriptor, not the value) and strips the ``:Q`` type suffix.
+    Returns ``None`` when the field can't be recovered — a ``LayerChart`` (no top-level
+    encoding), a missing/complex channel, or an aggregate/expression shorthand — so the
+    caller falls back to requiring an explicit ``field=``.
+    """
+    enc = getattr(chart, "encoding", alt.Undefined)
+    channel = getattr(enc, axis, alt.Undefined) if enc is not alt.Undefined else alt.Undefined
+    shorthand = getattr(channel, "_kwds", {}).get("shorthand") if channel is not alt.Undefined else None
+    if not isinstance(shorthand, str):
+        return None
+    name = shorthand.split(":")[0]
+    # Reject aggregates/expressions (e.g. "mean(x)", "count()") — not a plain column.
+    return name if name and "(" not in name else None
+
+
 def add_log_ticks(
     chart: alt.Chart | alt.LayerChart,
     df,
@@ -194,9 +213,12 @@ def add_log_ticks(
     df:
         DataFrame (Polars or Pandas) used for the main chart.
     field:
-        Column name of the log-scale field. Required when ``axis`` is
-        ``'x'`` or ``'y'``; omit when ``axis='both'`` and use
-        ``xField`` / ``yField`` instead.
+        Column name of the log-scale field. When ``axis`` is ``'x'`` or
+        ``'y'`` and this is ``None``, it is inferred from the chart's
+        matching encoding shorthand (``chart.encoding.x`` / ``.y``); pass
+        it explicitly for a ``LayerChart`` (no top-level encoding) or an
+        aggregate/expression encoding, where inference is not possible.
+        Omit when ``axis='both'`` and use ``xField`` / ``yField`` instead.
     axis:
         ``'x'``, ``'y'`` (default), or ``'both'``. When ``'both'``,
         ``xField`` and ``yField`` must be provided.
@@ -268,7 +290,12 @@ def add_log_ticks(
         return alt.layer(chart, x_layer, y_layer).resolve_axis(x="independent", y="independent")
 
     if field is None:
-        raise ValueError(f"field is required when axis='{axis}'.")
+        field = _infer_field(chart, axis)
+    if field is None:
+        raise ValueError(
+            f"field is required when axis='{axis}' (could not infer it from the chart's "
+            f"{axis} encoding; pass field= explicitly for a LayerChart or aggregate encoding)."
+        )
     lo, hi = _derive_exp(df, field, base)
     lo = expMin if expMin is not None else lo
     hi = expMax if expMax is not None else hi

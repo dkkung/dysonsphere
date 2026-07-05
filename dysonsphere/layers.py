@@ -29,6 +29,100 @@ def _rule_mark_kwargs(
     return kwargs
 
 
+def _rule_label_geometry(
+    axis: str,
+    labelAlign: str | None,
+    labelPosition: str | None,
+    labelOffsetX: int,
+    labelOffsetY: int,
+    fontSize: float,
+    color: str | None,
+) -> tuple[str, float, dict]:
+    """Resolve a reference-line label's placement to ``(perp_channel, perp_anchor, text_kwargs)``.
+
+    ``perp_channel`` is the pixel-anchored channel perpendicular to the line (``"x"`` for a
+    horizontal ``axis="y"`` rule, ``"y"`` for a vertical ``axis="x"`` rule); ``perp_anchor`` is
+    its ``alt.value`` position; ``text_kwargs`` are the ``mark_text`` properties.  Shared by the
+    data-backed and datum (facet-safe) paths so their label placement can't drift apart.
+    """
+    if axis == "y":
+        la = labelAlign if labelAlign is not None else "left"
+        lp = labelPosition if labelPosition is not None else "top"
+        if la not in ("left", "center", "right"):
+            raise ValueError(f"labelAlign must be 'left', 'center', or 'right' for axis='y', got {la!r}")
+        if lp not in ("top", "bottom"):
+            raise ValueError(f"labelPosition must be 'top' or 'bottom' for axis='y', got {lp!r}")
+        chart_width = alt.theme.options.get("chartWidth", 100)
+        perp_ch, perp_val = "x", {"left": 0, "center": chart_width / 2, "right": chart_width}[la]
+        align, dx = la, labelOffsetX
+        dy = (-3 if lp == "top" else 3) + labelOffsetY
+        baseline = "bottom" if lp == "top" else "top"
+    else:
+        la = labelAlign if labelAlign is not None else "top"
+        lp = labelPosition if labelPosition is not None else "right"
+        if la not in ("top", "center", "bottom"):
+            raise ValueError(f"labelAlign must be 'top', 'center', or 'bottom' for axis='x', got {la!r}")
+        if lp not in ("left", "right"):
+            raise ValueError(f"labelPosition must be 'left' or 'right' for axis='x', got {lp!r}")
+        chart_height = alt.theme.options.get("chartHeight", 100)
+        perp_val, baseline = {
+            "top": (0, "top"),
+            "center": (chart_height / 2, "middle"),
+            "bottom": (chart_height, "bottom"),
+        }[la]
+        perp_ch = "y"
+        align = "left" if lp == "right" else "right"
+        dx = (3 if lp == "right" else -3) + labelOffsetX
+        dy = labelOffsetY
+    text_kwargs: dict = {"align": align, "dx": dx, "dy": dy, "baseline": baseline, "fontSize": fontSize}
+    if color is not None:
+        text_kwargs["color"] = color
+    return perp_ch, perp_val, text_kwargs
+
+
+_DATUM_AGG = "__dsagg"
+
+
+def _datum_base(src: Any) -> alt.Chart:
+    """Facet-safe datum base: a chart on the shared frame ``src``, collapsed to a single row.
+
+    The foundation of every facet-safe annotation ``data=`` path (``add_rule`` / ``add_text`` /
+    ``add_shade``).  It shares ``src`` so a faceted composition partitions correctly — Altair
+    requires all layers of a facet to share one data variable — and the dummy ``transform_aggregate``
+    collapses N rows to one so constant ``alt.datum`` / ``alt.value`` marks don't overplot N times.
+    Build the mark + a datum/value-only encoding on the result; **never reference a data field**
+    (that would reintroduce a sidecar dataset and break faceting).  See the facet-safe datum-mode
+    discipline in CLAUDE.md.
+    """
+    # Altair's transform_aggregate **kwds form isn't stubbed, hence the ty ignore.
+    return alt.Chart(src).transform_aggregate(**{_DATUM_AGG: "count()"})  # ty: ignore[invalid-argument-type]
+
+
+def _datum_ref_layers(
+    src: Any,
+    pos_ch: str,
+    vals: list[float],
+    mark_kwargs: dict,
+    *,
+    labels: list[str] | None = None,
+    text_kwargs: dict | None = None,
+    perp_ch: str | None = None,
+    perp_val: float | None = None,
+) -> list[alt.Chart]:
+    """Facet-safe datum layers for ``add_rule(data=...)``: one rule layer per value, plus (when
+    ``labels`` given) one text layer per value, each built on :func:`_datum_base`."""
+    layers = [_datum_base(src).mark_rule(**mark_kwargs).encode(**{pos_ch: alt.datum(v)}) for v in vals]
+    if labels is not None:
+        assert text_kwargs is not None and perp_ch is not None
+        layers += [
+            _datum_base(src)
+            .mark_text(**text_kwargs)
+            .encode(**{pos_ch: alt.datum(v), perp_ch: alt.value(perp_val), "text": alt.value(lbl)})
+            for v, lbl in zip(vals, labels)
+        ]
+    return layers
+
+
 def add_rule(
     value: float | list[float],
     *,
@@ -43,6 +137,7 @@ def add_rule(
     strokeDash: bool | list[int] | None = None,
     opacity: float = 1.0,
     fontSize: float | None = None,
+    data: "pl.DataFrame | Any | None" = None,
 ) -> alt.Chart | alt.LayerChart:
     """
     Add one or more horizontal or vertical reference lines to a chart.
@@ -85,6 +180,13 @@ def add_rule(
         Line opacity. Defaults to ``1.0``.
     fontSize:
         Label font size. ``None`` inherits from the active theme.
+    data:
+        Facet-safe (datum) mode. ``None`` (default) builds the rule from its own small internal
+        dataset — the normal behavior, but **incompatible with faceting** (Altair requires every
+        layer of a faceted chart to share one data variable). Pass the **same DataFrame you gave
+        the base chart** to switch to datum mode: the rule then shares that data and is positioned
+        by a constant ``alt.datum`` instead of a sidecar dataset, so ``(base + add_rule(..., data=df))``
+        can be faceted and the line repeats in every panel. Accepts a polars or pandas DataFrame.
 
     Examples
     --------
@@ -92,6 +194,10 @@ def add_rule(
 
         # Horizontal line at y=0
         chart = base + ds.add_rule(0)
+
+        # Facet-safe: pass the same df as the base, then facet
+        df_chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        faceted = (df_chart + ds.add_rule(5.0, label="Threshold", data=df)).facet("group:N")
 
         # Labeled horizontal line, label above-left by default
         chart = base + ds.add_rule(5.0, label="Threshold", color="#c0392b")
@@ -115,105 +221,56 @@ def add_rule(
     if axis not in ("x", "y"):
         raise ValueError(f"axis must be 'x' or 'y', got {axis!r}")
 
-    vals = value if isinstance(value, list) else [value]
+    vals = [float(v) for v in (value if isinstance(value, list) else [value])]
     mark_kwargs = _rule_mark_kwargs(color, strokeWidth, strokeDash, opacity)
     fs = fontSize if fontSize is not None else alt.theme.options.get("fontSize", 7)
 
-    if axis == "y":
-        # Horizontal rule: value is a y-coordinate.
-        # labelAlign: where along the line (x-axis): "left", "center", "right".
-        # labelPosition: which side of the line (y-axis): "top", "bottom".
-        df = pl.DataFrame({"__v": [float(v) for v in vals]})
-        rule = alt.Chart(_internal_data(df)).mark_rule(**mark_kwargs).encode(y=alt.Y("__v:Q", title=None))
-        if label is None:
-            return rule
-
+    labels: list[str] | None = None
+    if label is not None:
         labels = [label] if isinstance(label, str) else list(label)
         if len(labels) != len(vals):
             raise ValueError(f"label has {len(labels)} items but value has {len(vals)}")
+    # Label geometry is resolved once and shared by both paths (axis="y": horizontal rule,
+    # labelAlign along x / labelPosition top|bottom; axis="x": vertical rule, labelAlign along y /
+    # labelPosition right|left).
+    geom = (
+        _rule_label_geometry(axis, labelAlign, labelPosition, labelOffsetX, labelOffsetY, fs, color)
+        if labels is not None
+        else None
+    )
 
-        la = labelAlign if labelAlign is not None else "left"
-        lp = labelPosition if labelPosition is not None else "top"
-        if la not in ("left", "center", "right"):
-            raise ValueError(f"labelAlign must be 'left', 'center', or 'right' for axis='y', got {la!r}")
-        if lp not in ("top", "bottom"):
-            raise ValueError(f"labelPosition must be 'top' or 'bottom' for axis='y', got {lp!r}")
+    # Datum (facet-safe) mode: every layer shares `data` and is positioned by a constant datum, so
+    # `(base + add_rule(..., data=df))` can be faceted (a faceted chart needs all its layers to
+    # share one data variable) and the line repeats identically in each panel.
+    if data is not None:
+        from .utils import ensure_polars
 
-        chart_width = alt.theme.options.get("chartWidth", 100)
-        x_anchor = {"left": 0, "center": chart_width / 2, "right": chart_width}[la]
-        base_dy = -3 if lp == "top" else 3
-        vl_baseline = "bottom" if lp == "top" else "top"
-
-        ldf = pl.DataFrame({"__v": [float(v) for v in vals], "__label": labels})
-        text_kwargs: dict = {
-            "align": la,
-            "dx": labelOffsetX,
-            "dy": base_dy + labelOffsetY,
-            "baseline": vl_baseline,
-            "fontSize": fs,
-        }
-        if color is not None:
-            text_kwargs["color"] = color
-        text = (
-            alt.Chart(_internal_data(ldf))
-            .mark_text(**text_kwargs)
-            .encode(
-                y=alt.Y("__v:Q", title=None),
-                text=alt.Text("__label:N"),
-                x=alt.value(x_anchor),
+        src = ensure_polars(data)
+        if geom is None:
+            layers = _datum_ref_layers(src, axis, vals, mark_kwargs)
+        else:
+            perp_ch, perp_val, text_kwargs = geom
+            layers = _datum_ref_layers(
+                src, axis, vals, mark_kwargs, labels=labels, text_kwargs=text_kwargs, perp_ch=perp_ch, perp_val=perp_val
             )
-        )
-        return cast(alt.LayerChart, alt.layer(rule, text))
+        return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
-    else:  # axis == "x"
-        # Vertical rule: value is an x-coordinate.
-        # labelAlign: where along the line (y-axis): "top", "center", "bottom".
-        # labelPosition: which side of the line (x-axis): "right", "left".
-        df = pl.DataFrame({"__v": [float(v) for v in vals]})
-        rule = alt.Chart(_internal_data(df)).mark_rule(**mark_kwargs).encode(x=alt.X("__v:Q", title=None))
-        if label is None:
-            return rule
-
-        labels = [label] if isinstance(label, str) else list(label)
-        if len(labels) != len(vals):
-            raise ValueError(f"label has {len(labels)} items but value has {len(vals)}")
-
-        la = labelAlign if labelAlign is not None else "top"
-        lp = labelPosition if labelPosition is not None else "right"
-        if la not in ("top", "center", "bottom"):
-            raise ValueError(f"labelAlign must be 'top', 'center', or 'bottom' for axis='x', got {la!r}")
-        if lp not in ("left", "right"):
-            raise ValueError(f"labelPosition must be 'left' or 'right' for axis='x', got {lp!r}")
-
-        chart_height = alt.theme.options.get("chartHeight", 100)
-        y_anchor, vl_baseline = {
-            "top": (0, "top"),
-            "center": (chart_height / 2, "middle"),
-            "bottom": (chart_height, "bottom"),
-        }[la]
-        base_dx = 3 if lp == "right" else -3
-        vl_align = "left" if lp == "right" else "right"
-
-        ldf = pl.DataFrame({"__v": [float(v) for v in vals], "__label": labels})
-        text_kwargs = {
-            "align": vl_align,
-            "dx": base_dx + labelOffsetX,
-            "dy": labelOffsetY,
-            "baseline": vl_baseline,
-            "fontSize": fs,
-        }
-        if color is not None:
-            text_kwargs["color"] = color
-        text = (
-            alt.Chart(_internal_data(ldf))
-            .mark_text(**text_kwargs)
-            .encode(
-                x=alt.X("__v:Q", title=None),
-                text=alt.Text("__label:N"),
-                y=alt.value(y_anchor),
-            )
-        )
-        return cast(alt.LayerChart, alt.layer(rule, text))
+    # Data-backed mode (default): one sidecar layer carries the value(s) as a `__v` field.
+    _Pos = alt.Y if axis == "y" else alt.X
+    rule = (
+        alt.Chart(_internal_data(pl.DataFrame({"__v": vals})))
+        .mark_rule(**mark_kwargs)
+        .encode(**{axis: _Pos("__v:Q", title=None)})
+    )
+    if geom is None:
+        return rule
+    perp_ch, perp_val, text_kwargs = geom
+    text = (
+        alt.Chart(_internal_data(pl.DataFrame({"__v": vals, "__label": labels})))
+        .mark_text(**text_kwargs)
+        .encode(**{axis: _Pos("__v:Q", title=None)}, text=alt.Text("__label:N"), **{perp_ch: alt.value(perp_val)})
+    )
+    return cast(alt.LayerChart, alt.layer(rule, text))
 
 
 _TEXT_PRESETS: dict[str, dict] = {
@@ -265,7 +322,8 @@ def add_text(
     fontStyle: str | None = None,
     font: str | None = None,
     opacity: float = 1.0,
-) -> alt.Chart:
+    data: "pl.DataFrame | Any | None" = None,
+) -> alt.Chart | alt.LayerChart:
     """
     Add one or more text annotations to a chart.
 
@@ -350,6 +408,12 @@ def add_text(
         inherits from the active theme.
     opacity:
         Text opacity. Defaults to ``1.0``.
+    data:
+        Facet-safe (datum) mode. ``None`` (default) builds the annotation from its own internal
+        dataset — the normal behavior, but **incompatible with faceting**. Pass the **same
+        DataFrame you gave the base chart** to share its data and position the text by ``alt.datum``
+        (data coordinates) / ``alt.value`` (pixels), so ``(base + add_text(..., data=df))`` can be
+        faceted and the text repeats in every panel. Accepts a polars or pandas DataFrame.
 
     Examples
     --------
@@ -377,6 +441,9 @@ def add_text(
 
         # Fixed pixel position via alt.value() passthrough
         chart + ds.add_text("†", x=alt.value(60), y=alt.value(10))
+
+        # Facet-safe: pass the same df as the base, then facet
+        chart + ds.add_text("★", x="B", y=18.0, data=df)
     """
     if position is not None and position not in _TEXT_PRESETS:
         raise ValueError(f"position must be one of {sorted(_TEXT_PRESETS)}, got {position!r}")
@@ -432,13 +499,13 @@ def add_text(
     x_pixel = _is_alt_value(xs[0])
     y_pixel = _is_alt_value(ys[0])
 
-    data: dict = {"__text": texts}
+    field_data: dict = {"__text": texts}
     if not x_pixel:
-        data["__x"] = [float(v) if isinstance(v, (int, float)) else str(v) for v in xs]
+        field_data["__x"] = [float(v) if isinstance(v, (int, float)) else str(v) for v in xs]
     if not y_pixel:
-        data["__y"] = [float(v) if isinstance(v, (int, float)) else str(v) for v in ys]
+        field_data["__y"] = [float(v) if isinstance(v, (int, float)) else str(v) for v in ys]
 
-    df = pl.DataFrame(data)
+    df = pl.DataFrame(field_data)
 
     mark_kwargs: dict = {
         "align": align,
@@ -458,6 +525,25 @@ def add_text(
         mark_kwargs["fontStyle"] = fontStyle
     if font is not None:
         mark_kwargs["font"] = font
+
+    # Datum (facet-safe) mode: share `data` across the composition and position each annotation by
+    # a constant datum (data coords) or value (pixels), so `(base + add_text(..., data=df))` can be
+    # faceted — the text repeats in every panel. One layer per annotation; no sidecar dataset.
+    if data is not None:
+        from .utils import ensure_polars
+
+        src = ensure_polars(data)
+
+        def _pos(v) -> Any:
+            if _is_alt_value(v):
+                return alt.value(v["value"])
+            return alt.datum(float(v) if isinstance(v, (int, float)) else str(v))
+
+        layers = [
+            _datum_base(src).mark_text(**mark_kwargs).encode(text=alt.value(t), x=_pos(xv), y=_pos(yv))
+            for t, xv, yv in zip(texts, xs, ys)
+        ]
+        return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
     enc: dict = {"text": alt.Text("__text:N")}
 
@@ -495,6 +581,7 @@ def add_shade(
     strokeWidth: float | None = None,
     strokeDash: list[float] | bool | None = None,
     flush: bool | None = None,
+    data: "pl.DataFrame | Any | None" = None,
 ) -> alt.LayerChart:
     """
     Build a background shading layer as filled ``mark_rect`` bands.
@@ -598,6 +685,14 @@ def add_shade(
         Extend the outermost rects to the axis domain edge (band mode and
         string positions only). ``None`` inherits from the theme's
         ``closed`` setting.
+    data:
+        Facet-safe (datum) mode, **positions mode only**. ``None`` (default) builds each rect from
+        its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass
+        the **same DataFrame you gave the base chart** to share its data and position numeric ranges
+        by ``alt.datum`` (string/pixel ranges already use ``alt.value``), so
+        ``(base + add_shade(positions=..., data=df))`` can be faceted and the shading repeats in
+        every panel. Accepts polars or pandas. **Band mode** (``positions`` omitted) does not
+        support ``data=`` and raises.
     """
     from .palettes import colors as _colors
 
@@ -626,6 +721,42 @@ def add_shade(
 
     dummy_df = pl.DataFrame({"__dummy": [0]})
 
+    datum_mode = data is not None
+    src = None
+    if datum_mode:
+        from .utils import ensure_polars
+
+        if positions is None:
+            raise ValueError("add_shade(data=...) is a facet-safe positions mode only; band mode does not support it.")
+        src = ensure_polars(data)
+
+    def _shade_rect(color, *, x=None, y=None) -> alt.Chart:
+        """One ``mark_rect`` layer. ``x`` / ``y`` are each ``None``, a pixel range ``("px", lo,
+        hi)``, or a data range ``("q", start, end)``. Datum mode shares ``src`` and positions data
+        ranges by ``alt.datum`` (pixel ranges always use ``alt.value``); the default builds a small
+        sidecar dataset with ``__<ch>s`` / ``__<ch>e`` ``:Q`` fields."""
+        enc: dict = {}
+        fields: dict = {}
+        for ch, spec in (("x", x), ("y", y)):
+            if spec is None:
+                continue
+            kind, a, b = spec
+            c2 = ch + "2"
+            if kind == "px":
+                enc[ch], enc[c2] = alt.value(a), alt.value(b)
+            elif datum_mode:
+                enc[ch], enc[c2] = alt.datum(float(a)), alt.datum(float(b))
+            else:
+                _Ch, _Ch2 = (alt.X, alt.X2) if ch == "x" else (alt.Y, alt.Y2)
+                fields[f"__{ch}s"], fields[f"__{ch}e"] = [float(a)], [float(b)]
+                # title=None so the shade's field never clobbers the base chart's axis title
+                enc[ch], enc[c2] = _Ch(f"__{ch}s:Q", title=None), _Ch2(f"__{ch}e:Q")
+        if datum_mode:
+            base = _datum_base(src)
+        else:
+            base = alt.Chart(_internal_data(pl.DataFrame(fields) if fields else dummy_df))
+        return base.mark_rect(**mark_kwargs, color=color).encode(**enc)
+
     # ── positions mode ────────────────────────────────────────────────────────
     if positions is not None:
         layers: list[alt.Chart] = []
@@ -644,43 +775,22 @@ def add_shade(
             if flush is None:
                 flush = alt.theme.options.get("closed", False)
 
+            def _half(ch: str, start, end, step, span) -> tuple:
+                # A string range → pixel span via the band scale; a numeric range → data span.
+                if isinstance(start, str):
+                    if categories is None:
+                        raise ValueError(f"categories is required when positions contains string {ch}-ranges.")
+                    si, ei = cat_index[start], cat_index[end]
+                    lo = 0 if (flush and si == 0) else step * (band_padding + si)
+                    hi = span if (flush and ei == n - 1) else step * (band_padding + ei + 1)
+                    return ("px", lo, hi)
+                return ("q", start, end)
+
             for k, (x_range, y_range) in enumerate(positions):
-                x_start, x_end = x_range
-                y_start, y_end = y_range
                 color = palette[k % n_colors]
-                enc: dict = {}
-                data_fields: dict = {}
-
-                if isinstance(x_start, str):
-                    if categories is None:
-                        raise ValueError("categories is required when positions contains string x-ranges.")
-                    si, ei = cat_index[x_start], cat_index[x_end]
-                    lo = 0 if (flush and si == 0) else x_step * (band_padding + si)
-                    hi = chart_width if (flush and ei == n - 1) else x_step * (band_padding + ei + 1)
-                    enc["x"] = alt.value(lo)
-                    enc["x2"] = alt.value(hi)
-                else:
-                    data_fields["__x_start"] = [float(x_start)]
-                    data_fields["__x_end"] = [float(x_end)]
-                    enc["x"] = alt.X("__x_start:Q")
-                    enc["x2"] = alt.X2("__x_end:Q")
-
-                if isinstance(y_start, str):
-                    if categories is None:
-                        raise ValueError("categories is required when positions contains string y-ranges.")
-                    si, ei = cat_index[y_start], cat_index[y_end]
-                    lo = 0 if (flush and si == 0) else y_step * (band_padding + si)
-                    hi = chart_height if (flush and ei == n - 1) else y_step * (band_padding + ei + 1)
-                    enc["y"] = alt.value(lo)
-                    enc["y2"] = alt.value(hi)
-                else:
-                    data_fields["__y_start"] = [float(y_start)]
-                    data_fields["__y_end"] = [float(y_end)]
-                    enc["y"] = alt.Y("__y_start:Q")
-                    enc["y2"] = alt.Y2("__y_end:Q")
-
-                df = pl.DataFrame(data_fields) if data_fields else dummy_df
-                layers.append(alt.Chart(_internal_data(df)).mark_rect(**mark_kwargs, color=color).encode(**enc))
+                x_spec = _half("x", x_range[0], x_range[1], x_step, chart_width)
+                y_spec = _half("y", y_range[0], y_range[1], y_step, chart_height)
+                layers.append(_shade_rect(color, x=x_spec, y=y_spec))
 
         elif len(positions) > 0 and isinstance(positions[0][0], str):
             # String tuples: category names on a nominal axis.
@@ -704,32 +814,16 @@ def add_shade(
                 lo = 0 if (flush and si == 0) else step * (band_padding + si)
                 hi = span if (flush and ei == n - 1) else step * (band_padding + ei + 1)
                 color = palette[k % n_colors]
-                enc = (
-                    {"y": alt.value(lo), "y2": alt.value(hi)}
-                    if axis == "y"
-                    else {"x": alt.value(lo), "x2": alt.value(hi)}
-                )
-                layers.append(alt.Chart(_internal_data(dummy_df)).mark_rect(**mark_kwargs, color=color).encode(**enc))
+                spec = ("px", lo, hi)
+                layers.append(_shade_rect(color, **({"y": spec} if axis == "y" else {"x": spec})))
 
         else:
-            # Numeric tuples: data-space coordinates on a quantitative axis.
-            # Encode as Q fields so the shade shares the main chart's scale.
+            # Numeric tuples: data-space coordinates on a quantitative axis. Default → Q fields that
+            # share the main chart's scale; datum mode → alt.datum on the same channel.
             for k, (start, end) in enumerate(positions):
                 color = palette[k % n_colors]
-                pos_df = pl.DataFrame({"__start": [float(start)], "__end": [float(end)]})
-                if axis == "y":
-                    chart = (
-                        alt.Chart(_internal_data(pos_df))
-                        .mark_rect(**mark_kwargs, color=color)
-                        .encode(y=alt.Y("__start:Q"), y2=alt.Y2("__end:Q"))
-                    )
-                else:
-                    chart = (
-                        alt.Chart(_internal_data(pos_df))
-                        .mark_rect(**mark_kwargs, color=color)
-                        .encode(x=alt.X("__start:Q"), x2=alt.X2("__end:Q"))
-                    )
-                layers.append(chart)
+                spec = ("q", start, end)
+                layers.append(_shade_rect(color, **({"y": spec} if axis == "y" else {"x": spec})))
 
         return cast(alt.LayerChart, alt.layer(*layers))
 
@@ -1126,7 +1220,7 @@ def add_comparisons(
         ``max(y values for all annotated groups) + yPad``.
     yStep:
         Vertical distance (data units) between stacking levels. Defaults to
-        ``yPad * 2``.
+        ``yPad * 1.5``.
     yPad:
         Padding above the data maximum when ``yStart`` is auto-placed. Defaults
         to a fixed visual gap of ~8 px (``bracketStyle='line'``) or ~10 px
@@ -1277,7 +1371,7 @@ def add_comparisons(
         _render_report,
         _run_omnibus,
     )
-    from .utils import ensure_polars
+    from .utils import ensure_polars, frame_checksum
 
     df = ensure_polars(df)
 
@@ -1431,7 +1525,7 @@ def add_comparisons(
                 )
 
             if yStep is None:
-                yStep = yPad * 2.25
+                yStep = yPad * 1.5
 
             # Assign stacking levels via greedy interval scheduling.
             # Shorter spans go to lower levels so narrow brackets sit closer to the data.
@@ -1491,6 +1585,7 @@ def add_comparisons(
         comparison_test=comparison_name,
         correction=effective_correction,
         pvalues_provided=pvalues is not None,
+        data_checksum=frame_checksum(df),
     )
     marker = _register_report(record)
     if report or save:
@@ -1647,7 +1742,7 @@ def add_correlation(
     from pathlib import Path
 
     from .statistics import _make_correlation_record, _register_report, _render_report, _run_correlation
-    from .utils import ensure_polars
+    from .utils import ensure_polars, frame_checksum
 
     if verbose:  # shortcut for the fullest readout; overrides the individual toggles
         coefficient, includePvalue, includeEquation = "both", True, True
@@ -1716,7 +1811,7 @@ def add_correlation(
         )
 
     # Structured record → export metadata; printed/written on request.
-    record = _make_correlation_record(result, xCol, yCol)
+    record = _make_correlation_record(result, xCol, yCol, data_checksum=frame_checksum(df))
     marker = _register_report(record)
     if report or save:
         report_text = _render_report(record)

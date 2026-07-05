@@ -31,11 +31,13 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisOffset": None,
     "axisWidth": 0.25,
     "bandPadding": 0.1,
+    "boxplotOutliers": False,
     "chartFill": None,
     "chartHeight": 100,
     "chartWidth": 100,
     "closed": None,
     "cornerRadius": False,
+    "inwardTicks": False,
     "darkmode": False,
     "dashedGrid": False,
     "dashedLine": False,
@@ -53,9 +55,9 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "legend": True,
     "legendOffset": None,
     "legendStroke": False,
-    "markFill": "black",
+    "markFill": colors["greys"][1],
     "markFillOpacity": 1.0,
-    "markMedianFill": "white",
+    "markMedianFill": "black",
     "markMedianStroke": "black",
     "markSize": None,
     "markStroke": "black",
@@ -204,15 +206,27 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
 
     # Computed defaults — None means "derive from other params"
     if p["closed"] is None:
-        p["closed"] = p["viewFill"] is not None
+        # inward ticks point into the plot, so they need a closed (non-offset) axis;
+        # default closed=True when inwardTicks is set (an explicit closed=False still wins).
+        p["closed"] = p["inwardTicks"] or p["viewFill"] is not None
     if p["markSize"] is None:
         p["markSize"] = min(p["chartWidth"], p["chartHeight"]) * 0.1
     if p["markStrokeWidth"] is None:
         p["markStrokeWidth"] = p["axisWidth"]
     if p["cornerRadius"] is True:
         p["cornerRadius"] = min(p["chartWidth"], p["chartHeight"]) / 100
+    if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
+        p["boxplotOutliers"] = p["markSize"] / 10
     if p["chartFill"] is None and not p["darkmode"]:
         p["chartFill"] = "white"
+    # Offset the axis line and legend from the plot by 1.5x the tick length — enough separation
+    # to read as an intentional (Prism-style) detached axis, not a rendering gap. Resolved once
+    # here (not inline at each use) so the axis config, legend config, and save()'s grid-span fix
+    # all read one consistent value from alt.theme.options.
+    if p["axisOffset"] is None:
+        p["axisOffset"] = p["tickSize"] * 1.5
+    if p["legendOffset"] is None:
+        p["legendOffset"] = p["tickSize"] * 1.5
     # smallestFontSize is a fixed floor (5) and a minimize switch: True drops the whole
     # plot's base font to it; False / an int just leaves it retrievable.
     if p["smallestFontSize"] is True:
@@ -247,6 +261,13 @@ def _dysonsphere_theme() -> dict[str, Any]:
         if opts.get(type_key) is not None:
             return opts[type_key]
         return default
+
+    # config.range.category must be a BARE array so a nominal scale maps positionally
+    # (category i -> color i), which the tier-major `categorical` palette relies on. The
+    # {"scheme": [...]} form is invalid for nominal and silently drops the range. A Vega
+    # scheme *name* (a str, e.g. "tableau10") still needs the {"scheme": ...} wrapper.
+    _cat = _scheme("categoryPalette", colors["categorical"])
+    category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
     return {
         "background": (None if opts["transparentBackground"] else opts["chartFill"]),  # background of the entire chart
@@ -284,9 +305,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
-                "offset": 0
-                if opts["closed"]
-                else (opts["axisOffset"] if opts["axisOffset"] is not None else opts["tickSize"]),
+                "offset": 0 if opts["closed"] else opts["axisOffset"],
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
                 "tickColor": "white" if opts["darkmode"] else "black",
@@ -339,11 +358,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 **({"cornerRadiusEnd": opts["cornerRadius"]} if opts["cornerRadius"] else {}),
             },
             "boxplot": {
-                "size": opts["markSize"] * 0.8,
+                "size": opts["markSize"] * 0.9,
                 "ticks": {
                     "cornerRadius": opts["markStrokeWidth"],
                     "fill": "white" if opts["darkmode"] else "black",
-                    "size": opts["markSize"] * 0.6,
+                    "size": opts["markSize"] * 0.45,  # half the box width (markSize * 0.9)
                     "thickness": opts["markStrokeWidth"],
                 },
                 "box": {
@@ -356,10 +375,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "median": {
                     "fill": opts["markMedianFill"],
                     "fillOpacity": opts["markFillOpacity"],
-                    "size": opts["markSize"] * 0.8,
-                    "stroke": opts["markMedianStroke"],
-                    "strokeOpacity": opts["markStrokeOpacity"],
-                    "strokeWidth": opts["markStrokeWidth"],
+                    "size": opts["markSize"] * 0.9,  # spans the box
+                    # a single stroke of markStrokeWidth thickness (no competing outline stroke)
+                    "thickness": opts["markStrokeWidth"],
                 },
                 "rule": {
                     "fill": "white" if opts["darkmode"] else "black",
@@ -374,16 +392,18 @@ def _dysonsphere_theme() -> dict[str, Any]:
                     "color": "white" if opts["darkmode"] else "black",
                     "fill": "white" if opts["darkmode"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
-                    "size": 0,
+                    "size": opts["boxplotOutliers"] or 0,  # False → 0 (hidden); a number → that size
                     "stroke": opts["markStroke"],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
                 },
             },
             "circle": {
-                "fill": "white",
+                "fill": "white" if opts["darkmode"] else "black",
                 "fillOpacity": opts["markFillOpacity"],
-                "size": opts["markSize"] / 4,
+                # Small default: mark_circle is primarily used to layer raw points over
+                # boxplots/violins/strips, where small dots read best.
+                "size": opts["markSize"] / 20,
                 "stroke": "black" if opts["darkmode"] else opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
@@ -439,7 +459,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
             },
             "legend": {
                 "disable": not opts["legend"],
-                "offset": opts["legendOffset"] if opts["legendOffset"] is not None else opts["tickSize"],
+                "offset": opts["legendOffset"],
                 "gradientLength": opts["markSize"] * 5,
                 "gradientThickness": opts["markSize"] * 0.5,
                 "gradientOpacity": opts["markFillOpacity"],
@@ -479,10 +499,10 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "range": {
-                "category": {"scheme": _scheme("categoryPalette", colors["blues"][::2])},
-                "diverging": {"scheme": _scheme("divergingPalette", colors["redsblues"])},
+                "category": category_range,
+                "diverging": {"scheme": _scheme("divergingPalette", colors["pinksblues"])},
                 "heatmap": {"scheme": _scheme("heatmapPalette", colors["blues"])},
-                "ordinal": {"scheme": _scheme("ordinalPalette", colors["blues"])},
+                "ordinal": {"scheme": _scheme("ordinalPalette", colors["greys"])},
                 "ramp": {"scheme": _scheme("rampPalette", colors["blues"])},
             },
             "rule": {

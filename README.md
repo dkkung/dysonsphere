@@ -58,6 +58,7 @@ ds.save(chart, "plots/myplot")
 - **[Palettes](#palettes)**
   - [Accessing palettes](#accessing-palettes)
   - [dysonsphere.palette()](#dysonspherepalette)
+  - [dysonsphere.categorical()](#dysonspherecategorical)
   - [Default palettes](#default-palettes)
   - [Available palettes](#available-palettes)
   - [Exporting palettes as swatches for Adobe Illustrator](#exporting-palettes-as-swatches-for-adobe-illustrator)
@@ -108,13 +109,15 @@ ds.theme(   # custom configuration
 
 | Parameter | Default | Description |
 |---|---|---|
-| `axisOffset` | `tickSize` | Distance between axis line and data area |
+| `axisOffset` | `tickSize × 1.5` | Distance between axis line and data area |
 | `axisWidth` | `0.25` | Stroke width of axes, ticks, and rules |
 | `bandPadding` | `0.1` | Inner and outer padding for ordinal bands |
 | `chartFill` | `"white"` | Background fill of the entire chart |
 | `chartHeight` | `100` | Default chart height in pixels |
 | `chartWidth` | `100` | Default chart width in pixels |
-| `closed` | auto | Draw a border around the plot area. Auto-enabled when `viewFill` is set |
+| `closed` | auto | Draw a border around the plot area. Auto-enabled when `viewFill` is set or `inwardTicks=True` |
+| `inwardTicks` | `False` | Point axis ticks *into* the plot (physics/astronomy style), including log/power minor ticks; also defaults `closed=True`. Applied by `ds.save()` |
+| `boxplotOutliers` | `False` | Show boxplot outlier points. `False` = hidden (`size 0`); `True` = shown at `markSize / 10`; explicit `float` = that point size. Per-chart `mark_boxplot(outliers={"size": n})` still overrides |
 | `cornerRadius` | `False` | Corner rounding for rect, bar, boxplot box, and arc marks. `False` = none; `True` = `min(chartWidth, chartHeight) / 100` (1 px at default 100×100); explicit `float` = pixels. Bars use `cornerRadiusEnd` (tip only); all others use `cornerRadius` (all corners) |
 | `darkmode` | `False` | Invert text and axis colors for dark backgrounds |
 | `dashedGrid` | `False` | Render axis grid lines dashed (uses `dashedWidth` pattern); off by default so grids are solid |
@@ -130,9 +133,9 @@ ds.theme(   # custom configuration
 | `grid` | `False` | Show axis grid lines |
 | `gridColor` | `colors["greys"][0]` | Grid line color |
 | `legend` | `True` | Show legends |
-| `legendOffset` | `tickSize` | Distance between legend and chart edge |
+| `legendOffset` | `tickSize × 1.5` | Distance between legend and chart edge |
 | `legendStroke` | `False` | Draw a border around the legend box |
-| `markFill` | `"black"` | Default fill color for marks |
+| `markFill` | `colors["greys"][1]` (`#DBDBDB`) | Default fill color for filled marks (used when there's no `color=` encoding) |
 | `markFillOpacity` | `1.0` | Default mark fill opacity |
 | `markSize` | `min(chartWidth, chartHeight) * 0.1` | Mark size; for points, this is area in px<sup>2</sup> |
 | `markStroke` | `"black"` | Default stroke color for marks |
@@ -273,17 +276,38 @@ ds.palette("blues", n=4, reverse=True)  # reversed
 | `step` | `1` | Step between indices (used when `n` is not set) |
 | `reverse` | `False` | Reverse the returned list |
 
+### dysonsphere.categorical()
+
+A four-hue qualitative palette (blue, pink, yellow, green) for categorical data, derived from the base palettes. It is the default `category` range, so a plain `color="g:N"` uses it automatically — call it directly to customize, or to color **paired** data.
+
+```python
+ds.categorical()      # flat palette for unrelated groups (12 colors); the default category range
+ds.categorical(2)     # paired data: A1/A2, B1/B2, … (each group one hue, light→dark)
+ds.categorical(3)     # triples
+ds.categorical(4)     # quadruples
+```
+
+`members` (1–4) is the number of colors per associated group. `members=1` (default) cycles the four hues at each lightness tier, so adjacent categories differ in hue — for **unrelated** groups. `members≥2` groups by hue instead: each block of `members` consecutive categories is one hue climbing in lightness — for **paired** data. Sort your categories so a group's members are adjacent, then pass it as the color range:
+
+```python
+groups = ["A1", "A2", "B1", "B2"]
+alt.Color("g:N", sort=groups, scale=alt.Scale(range=ds.categorical(2)))
+# A1=blue-light, A2=blue-dark, B1=pink-light, B2=pink-dark
+```
+
+Every color is drawn from the existing `blues`/`pinks`/`yellows`/`greens` palettes (nothing generated de novo), and the set is colorblind-robust (deuteranopia-clean). Also available as `ds.colors["categorical"]`.
+
 ### Default palettes
 
 When no explicit `scale=` is set on a color encoding, Vega-Lite falls back to the theme's range defaults:
 
 | Range type | Default palette | Override with | Used for |
 |---|---|---|---|
-| `category` | `blues` (even indices: 0, 2, 4, 6, 8, 10) | `categoryPalette` | Nominal/unordered groups |
-| `ordinal` | `blues` | `ordinalPalette` | Ordered discrete values |
+| `category` | `categorical` (blue/pink/yellow/green) | `categoryPalette` | Nominal/unordered groups |
+| `ordinal` | `greys` | `ordinalPalette` | Ordered discrete values |
 | `ramp` | `blues` | `rampPalette` | Sequential continuous (legend ramps) |
 | `heatmap` | `blues` | `heatmapPalette` | Rect/heatmap marks |
-| `diverging` | `redsblues` | `divergingPalette` | Diverging scales |
+| `diverging` | `pinksblues` | `divergingPalette` | Diverging scales |
 
 Setting `ds.theme(palette="mypalette")` overrides all five types simultaneously. To override an individual type, set its **Override with** key from the table above — each accepts a palette name, a custom palette, a raw hex list, or a Vega scheme name:
 
@@ -373,13 +397,22 @@ ds.save(chart, "plots/myplot")
 
 - **Tick alignment** — Vega floors axis tick positions to integers for screen rendering; at 1200 PPI this becomes a visible gap between ticks and their marks. `ds.save()` corrects tick transforms to exact float positions.
 - **Minor tick correction** — corrects sub-pixel rounding on log-scale and power-scale minor ticks so spacing is visually uniform at high DPI.
+- **Inward ticks** — when `inwardTicks=True`, flips axis ticks (major, minor, and secondary) to point into the plot; Altair/Vega-Lite can't render inward ticks natively.
 - **Axis layering** — moves axis elements to the front so they render above chart marks (relevant for `viewFill`-filled charts).
 - **SVG simplification** — flattens Vega's redundant `<g>` wrappers for cleaner Illustrator imports.
 - **Light/dark variants** — renders both background modes in a single call by toggling `darkmode` in the active theme.
 
 Calling `chart.save()` directly skips all of the above and will produce misaligned ticks and incorrect minor tick spacing in dysonsphere charts.
 
-`ds.save()` writes a chart in one or more formats and background variants. **By default it writes SVG + the Vega-Lite JSON spec, light background only** — `myplot.svg` and `myplot.json`. The formats (`"svg"`/`"png"`/`"json"`) and backgrounds (`"light"`/`"dark"`) are set by `format` / `background` (a string or a list), each defaulting to the theme options `saveFormat` / `saveBackground` (so you can change the defaults globally or in `dysonsphere.toml`). A `_light`/`_dark` suffix is added **only when more than one background** is rendered. It accepts any Altair chart type — `Chart`, `LayerChart`, `FacetChart`, `HConcatChart`, `VConcatChart`, or `ConcatChart` — as well as a zero-argument callable that returns one.
+> **Notebook preview is approximate.** Displaying an Altair chart inline (in a notebook or IDE) renders it through Vega-Lite's own renderer, which does **not** run these post-processing steps — so the preview is not publication-accurate. Ticks aren't pixel-aligned, log/superscript labels aren't typeset, and (most visibly) with `inwardTicks=True` the ticks still point **outward** in the preview. For an accurate inline preview, use **`ds.show(chart)`** — it runs the same pipeline as `ds.save()` and returns an `IPython.display.SVG`, so the preview matches the saved figure (no file written). Requires IPython.
+>
+> ```python
+> ds.show(chart)   # accurate inline preview in a notebook (last expression in a cell)
+> ```
+
+`ds.save()` writes a chart in one or more formats and background variants. **By default it writes SVG + the Vega-Lite JSON spec, light background only** — `myplot.svg` and `myplot.json`. The formats (`"svg"`/`"png"`/`"json"`/`"html"`) and backgrounds (`"light"`/`"dark"`) are set by `format` / `background` (a string or a list), each defaulting to the theme options `saveFormat` / `saveBackground` (so you can change the defaults globally or in `dysonsphere.toml`). A `_light`/`_dark` suffix is added **only when more than one background** is rendered. It accepts any Altair chart type — `Chart`, `LayerChart`, `FacetChart`, `HConcatChart`, `VConcatChart`, or `ConcatChart` — as well as a zero-argument callable that returns one.
+
+> **`format="html"` is the interactive tier.** It writes a self-contained interactive page (the Vega JS is bundled in, so it works offline — tooltips, pan, zoom), fully themed and with the metadata block embedded. But it renders live in the browser via Vega, so — like the notebook preview — it does **not** get the static SVG post-processors: no pixel-perfect tick alignment, no inward ticks, no superscript typesetting. Use `"svg"`/`"png"` for the publication-accurate static figure.
 
 ```python
 ds.save(chart, "myplot")                              # myplot.svg + myplot.json  (defaults)
@@ -406,10 +439,11 @@ By default, `ds.save()` embeds a machine-readable JSON block — `{"provenance":
 
 The block has these keys:
 
-- `provenance` — the generation facts as structured fields: `vegaliteChecksum` (a `sha256:` fingerprint of the chart's spec — same content ⇒ same checksum, so you can validate a file or spot duplicates), `exportIdentifier` (a `uuid4` shared by every file from one `ds.save()` call), `user`, `script`, `timestamp` (ISO-8601), `python`, `altair`, `dysonsphere`. (In a Jupyter notebook `script` is `<jupyter-notebook>`; if the OS exposes no username, `user` is `unknown_user`.)
-- `statistics` — the structured records from any [`add_comparisons()`](#adding-p-value-annotations) / `add_correlation()` calls (per-group descriptives, the omnibus result, the comparison test + correction method, and every comparison with exact p-values and effect sizes). Read it back with `json.load(open("myplot.json"))["usermeta"]["dysonsphere"]["statistics"]` — no text parsing, and trivial to turn into CSV/TSV. **Only the statistics whose annotations are actually on the saved chart are embedded**, so building a stats chart you never save can't leak into a later save; `ds.clear_stats()` drops any pending records if you want to reset (handy in notebooks).
+- `provenance` — the generation facts as structured fields: `dataChecksum` (a list of `sha256:` fingerprints, one per input dataframe, identifying the *data* independent of how it was drawn — two charts with different specs but the same data share it; order-independent, so re-sorted rows still match), `vegaliteChecksum` (a `sha256:` fingerprint of the chart's spec — same content ⇒ same checksum, so you can validate a file or spot duplicates), `exportIdentifier` (a `uuid4` shared by every file from one `ds.save()` call), `user`, `script`, `timestamp` (ISO-8601), and `environment` — a nested `{python, altair, dysonsphere, numpy, scipy, polars}` version dict (the interpreter, the tool, and its runtime dependencies, grouped in one place; `numpy`/`scipy`/`polars` are the versions your statistics and data were produced with, so a reported number can be reproduced). (In a Jupyter notebook `script` is `<jupyter-notebook>`; if the OS exposes no username, `user` is `unknown_user`.)
+- `statistics` — the structured records from any [`add_comparisons()`](#adding-p-value-annotations) / `add_correlation()` calls (per-group descriptives, the omnibus result, the comparison test + correction method, and every comparison with exact p-values and effect sizes). Each record also carries a `dataChecksum` fingerprinting the dataframe it was computed from, so records from different data are distinguishable (and it matches the top-level `dataChecksum` when the annotation is on the chart's own frame). Read it back with `json.load(open("myplot.json"))["usermeta"]["dysonsphere"]["statistics"]` — no text parsing, and trivial to turn into CSV/TSV. **Only the statistics whose annotations are actually on the saved chart are embedded**, so building a stats chart you never save can't leak into a later save; `ds.clear_stats()` drops any pending records if you want to reset (handy in notebooks).
 - `report` — a **container** of human-readable renderings, keyed by section: `report.provenance` (a "Generated by … using Python …, Altair …, dysonsphere …" sentence, always present) and `report.statistics` (the descriptive + effect-size text, present when the chart has any comparisons/correlations). So you can read the whole thing straight out of the file, and the nesting leaves room for future sections (`report.methods`, …) as non-breaking siblings. On by default (`embedReport=True`); set `embedReport=False` to keep just the structured block. In the SVG and PNG each section rides in its own readable channel (`<metadata id="dysonsphere-report-<section>">` / `iTXt dysonsphere-report-<section>`, real newlines) rather than escaped inside the JSON blob.
 - `theme` — the resolved `ds.theme()` arguments used for the figure (dysonsphere params, not Altair's), so the exact styling is recorded and reconstructable.
+- `description` — your `save(description=...)` caption, when set (the last member). It also lives in the native spots (the Vega-Lite `description` key, the SVG `<desc>`, and the PNG `iTXt Description`); this copy makes it a first-class member of the self-contained block, readable via `ds.read(..., what="metadata")` from any of the three formats.
 
 None of this touches `description` — that stays your `description=` text only. (The report is also available standalone via `ds.add_comparisons(..., report=True)` to stdout or `save="dir"` to a `.txt`.)
 
@@ -549,6 +583,7 @@ ds.save(alt.hconcat(left, right), "comparison")
 | `palette` | `None` | Single color or list of colors for violin fills |
 | `boxplotSize` | `theme(markSize) * 0.8` | Boxplot box width in pixels |
 | `boxplotColor` | `"black"` | Boxplot fill color |
+| `medianColor` | `"white"` | Boxplot median line color (reads against the black box) |
 | `fillOpacity` | `theme(markFillOpacity)` | Violin fill opacity |
 | `stroke` | `None` | Violin outline color (`None` = no outline) |
 | `strokeWidth` | `theme(markStrokeWidth)` | Violin outline width |
@@ -946,6 +981,9 @@ shade = ds.add_shade(
 | `strokeWidth` | `None` | Explicit border width in pixels. Overrides `axisWidth` when `stroke=True` |
 | `strokeDash` | `None` | `None` → solid; `True` → inherit `dashedWidth` from theme; list (e.g. `[4, 2]`) → explicit pattern |
 | `flush` | `None` | Extend outermost rects to the axis domain edge. `None` inherits from `theme(closed=...)` |
+| `data` | `None` | Facet-safe (datum) mode, **positions mode only**. Pass the same DataFrame as the base chart to share its data and position numeric ranges by `alt.datum`, so `(base + add_shade(positions=..., data=df))` can be faceted. Band mode does not support it (raises) |
+
+**Faceting note.** As with `add_rule`, a shade layer carries its own data by default and can't be faceted. In **positions mode**, pass `data=` (the same frame as the base) to switch to datum mode so `(base + add_shade(positions=..., data=df)).facet(...)` works and the shading repeats in every panel.
 
 #### Reference lines
 
@@ -991,6 +1029,14 @@ chart = base + ds.add_rule(10, axis="x", label="t₀", labelPosition="left")
 | `strokeDash` | `None` | `None` = theme `dashedRule`; `False` = solid; `True` = `dashedWidth`; list = explicit pattern |
 | `opacity` | `1.0` | Line opacity |
 | `fontSize` | `None` | Label font size; `None` inherits from theme |
+| `data` | `None` | Facet-safe (datum) mode. `None` builds the rule from its own internal dataset (the normal behavior, but **not facetable**). Pass the **same DataFrame as the base chart** to share its data and position by `alt.datum`, so `(base + add_rule(..., data=df))` can be faceted and the line repeats in every panel. Accepts polars or pandas |
+
+**Faceting note.** By default a reference line carries its own small dataset, and Altair won't facet a layered chart whose layers don't share one data variable — so `(base + add_rule(5)).facet(...)` raises. Pass `data=` (the same frame as the base) to switch to datum mode, which faceting handles correctly:
+
+```python
+base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
+faceted = (base + ds.add_rule(5.0, label="Threshold", data=df)).facet("group:N")
+```
 
 #### Text annotations
 
@@ -1028,6 +1074,9 @@ The `x` and `y` parameters accept three forms: a `float`/`int` for quantitative 
 | `fontStyle` | `None` | `"normal"` or `"italic"`; `None` inherits from theme |
 | `font` | `None` | Font family name (e.g. `"sans-serif"`, `"Georgia"`); `None` inherits from theme |
 | `opacity` | `1.0` | Text opacity |
+| `data` | `None` | Facet-safe (datum) mode. Pass the same DataFrame as the base chart to share its data and position the text by `alt.datum` / `alt.value`, so `(base + add_text(..., data=df))` can be faceted and the text repeats in every panel |
+
+**Faceting note.** Like `add_rule` / `add_shade`, a text annotation carries its own data by default and can't be faceted. Pass `data=` (the same frame as the base) to switch to datum mode so `(base + add_text(..., data=df)).facet(...)` works.
 
 ### Non-linear axes
 
@@ -1119,13 +1168,15 @@ chart = ds.add_log_ticks(chart, df, "fc", axis="x", base=2, nMinor=3)
 chart = ds.add_log_ticks(chart, df, axis="both", xField="fc", yField="pvalue")
 ```
 
+For single-axis mode you can omit `field` entirely — it is inferred from the chart's matching encoding, so `ds.add_log_ticks(chart, df, axis="x")` picks up the `x` field automatically. Pass `field` explicitly for a `LayerChart` (no top-level encoding) or an aggregate encoding.
+
 The `expMin` / `expMax` parameters are auto-derived from `df[field].min()` / `.max()` when omitted. When specifying an explicit `domain=` on the main chart's scale, pass matching `expMin` / `expMax` to `add_log_ticks()` so the minor tick layer's internal domain aligns correctly.
 
 | Parameter | Default | Description |
 |---|---|---|
 | `Chart` | required | Chart to add minor ticks to |
 | `df` | required | Polars or pandas DataFrame |
-| `field` | `None` | Log-scaled column name. Required for single-axis mode; omit when `axis='both'` |
+| `field` | `None` | Log-scaled column name. Inferred from the chart's `x`/`y` encoding when omitted (single-axis mode); pass explicitly for a `LayerChart` or an aggregate encoding, where inference isn't possible. Omit when `axis='both'` |
 | `axis` | `'y'` | `'x'`, `'y'`, or `'both'`. When `'both'`, provide `xField` and `yField` instead of `field` |
 | `base` | `10` | Logarithm base matching the axis scale (`10` or `2` are the common choices) |
 | `nMinor` | `1` | Minor ticks per interval for non-base-10 axes. Ignored when `base=10` |

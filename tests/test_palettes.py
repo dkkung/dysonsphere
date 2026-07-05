@@ -3,7 +3,7 @@ import struct
 
 import pytest
 
-from dysonsphere.palettes import colors, palette
+from dysonsphere.palettes import categorical, colors, palette
 
 HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -94,6 +94,41 @@ def test_palette_step():
 def test_palette_unknown_key_raises():
     with pytest.raises(KeyError):
         palette("nonexistent_palette_xyz")
+
+
+class TestCategorical:
+    HUES = ("blues", "pinks", "yellows", "greens")
+
+    def test_default_is_members_one(self):
+        assert categorical() == categorical(1)
+
+    def test_named_palette_matches_function(self):
+        assert colors["categorical"] == categorical(1)
+
+    @pytest.mark.parametrize("members,length", [(1, 12), (2, 8), (3, 12), (4, 16)])
+    def test_lengths(self, members, length):
+        assert len(categorical(members)) == length
+
+    def test_flat_is_tier_major(self):
+        # members=1 cycles the four hues at each tier: hue-inner, stop-outer.
+        expected = [colors[h][s] for s in (1, 4, 7) for h in self.HUES]
+        assert categorical(1) == expected
+
+    def test_grouped_is_hue_major(self):
+        # members>=2 groups by hue: stop-inner, hue-outer.
+        expected = [colors[h][s] for h in self.HUES for s in (1, 4)]
+        assert categorical(2) == expected
+
+    def test_every_color_derived_from_base_hues(self):
+        # Nothing is generated de novo - every color lives in one of the four base hues.
+        pool = {hx for h in self.HUES for hx in colors[h]}
+        for members in (1, 2, 3, 4):
+            assert set(categorical(members)) <= pool
+
+    @pytest.mark.parametrize("bad", [0, 5, -1, 100])
+    def test_out_of_range_raises(self, bad):
+        with pytest.raises(ValueError, match="members must be between 1 and 4"):
+            categorical(bad)
 
 
 class TestExportSwatches:

@@ -23,6 +23,7 @@ def mark_violin(
     *,
     boxplotSize: int | None = None,
     boxplotColor: str = "black",
+    medianColor: str = "white",
     palette: str | list[str] | None = None,
     fillOpacity: float | None = None,
     stroke: str | None = None,
@@ -54,6 +55,9 @@ def mark_violin(
         Width of the boxplot box in pixels.
     boxplotColor:
         Fill color of the boxplot.
+    medianColor:
+        Fill color of the boxplot median line. Defaults to ``"white"`` so it reads
+        against the default black box; overrides the theme's ``markMedianFill``.
     palette:
         Fill color of all violins. When ``None``, each group inherits its
         color from the theme's active category palette.
@@ -202,6 +206,7 @@ def mark_violin(
             color=boxplotColor,
             ticks=False,
             rule={"stroke": boxplotColor},
+            median={"fill": medianColor},
             **({"size": boxplotSize} if boxplotSize is not None else {}),
         )
         .encode(

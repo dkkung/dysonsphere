@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 import uuid
 from contextlib import ExitStack
 from datetime import datetime, timezone
@@ -21,7 +22,7 @@ _AltairChart = Union[
     alt.ConcatChart,
 ]
 
-_VALID_FORMATS = ("svg", "png", "json")
+_VALID_FORMATS = ("svg", "png", "json", "html")
 _VALID_BACKGROUNDS = ("light", "dark")
 
 
@@ -37,6 +38,34 @@ def _resolve_choice(value, default, valid: tuple[str, ...], name: str) -> list[s
     if invalid:
         raise ValueError(f"{name} must be one of {valid}, got {invalid!r}")
     return items
+
+
+def _render_fixed_svg(base_obj, svg_path: str) -> str:
+    """Render an Altair object to SVG at *svg_path*, run every dysonsphere SVG post-processor,
+    and return the corrected SVG string.
+
+    Shared by :func:`save` and :func:`show` so the fixer pipeline stays identical: tick
+    alignment, log/power minor-tick correction, inward-tick flip (when ``inwardTicks``), axis
+    layering, ``<g>`` simplification, and superscript-label typesetting. The caller sets up the
+    theme (e.g. ``transparentBackground``) and owns the file's lifecycle.
+    """
+    base_obj.save(svg_path)  # marker names are in the object but never render into SVG
+    _fix_tick_alignment(
+        svg_path,
+        band_padding=alt.theme.options.get("bandPadding", 0.1),
+        chart_width=alt.theme.options.get("chartWidth", 100),
+        axis_offset=0
+        if alt.theme.options.get("closed")
+        else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3)),
+    )
+    _fix_log_minor_ticks(svg_path)
+    if alt.theme.options.get("inwardTicks"):
+        _flip_ticks_inward(svg_path)
+    _layer_axes_to_front(svg_path)
+    _simplify_svg(svg_path)
+    _fix_superscript_labels(svg_path)
+    with open(svg_path, encoding="utf-8") as f:
+        return f.read()
 
 
 def save(
@@ -89,8 +118,19 @@ def save(
         PNG ``iTXt Description`` chunk. Independent of ``saveMetadata``.
     format:
         Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw
-        Vega-Lite spec), as a single string or a list. ``None`` (default) uses the theme
-        option ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
+        Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled
+        in), as a single string or a list. ``None`` (default) uses the theme option
+        ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
+
+        ``"html"`` is the **interactive / approximate** tier: it renders live in the browser
+        via Vega, so it is fully themed and carries the metadata block, but it does NOT get
+        dysonsphere's static SVG post-processors (pixel-perfect tick alignment, superscript
+        typesetting). In particular ``inwardTicks`` is deliberately **not** applied to HTML:
+        the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that
+        works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different
+        Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label
+        spacing), so it renders inconsistently and is left off. Use ``"svg"``/``"png"`` for the
+        publication-accurate static figure.
     background:
         Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles
         ``darkmode``), as a single string or a list. ``None`` (default) uses the theme
@@ -194,7 +234,7 @@ def save(
     _row_cap = alt.data_transformers.enable("default", max_rows=None if overrideMaxRows else maxRows)
     _cap_stack.enter_context(_row_cap)  # ty: ignore[invalid-argument-type]  (Altair PluginEnabler lacks CM stub)
     try:
-        if _want_render:
+        if _want_render or "html" in _formats:
             import vl_convert as vlc
 
         for bg in _backgrounds:
@@ -215,6 +255,8 @@ def save(
                     export_id=export_id,
                     timestamp=timestamp,
                     checksum=metadata._spec_checksum(spec),
+                    data_checksum=metadata._data_checksum(spec),
+                    description=description,
                 )
 
             if "json" in _formats:
@@ -224,24 +266,23 @@ def save(
                     jspec["usermeta"] = {**base_um, **_usermeta}
                 Path(_path(bg, "json")).write_text(json.dumps(jspec, ensure_ascii=False, indent=2), encoding="utf-8")
 
+            if "html" in _formats:
+                # Interactive, self-contained HTML (Vega JS bundled in). It renders live in the
+                # browser via Vega, so it does NOT get dysonsphere's static SVG fixers (tick
+                # alignment, inward ticks, superscript typesetting) - the interactive/approximate
+                # tier. It IS fully themed and carries the metadata block; use svg/png for the
+                # publication-accurate static figure. (inwardTicks is intentionally not applied: the
+                # negative-tickSize trick renders inconsistently across the browser's Vega build.)
+                hspec = dict(spec)
+                if _usermeta is not None:
+                    base_um = hspec["usermeta"] if isinstance(hspec.get("usermeta"), dict) else {}
+                    hspec["usermeta"] = {**base_um, **_usermeta}
+                Path(_path(bg, "html")).write_text(vlc.vegalite_to_html(hspec, bundle=True), encoding="utf-8")
+
             if _want_render:
                 alt.theme.options["transparentBackground"] = True
                 svg_path = _path(bg, "svg")
-                base_obj.save(svg_path)  # marker names are in the object but never render into SVG
-                _fix_tick_alignment(
-                    svg_path,
-                    band_padding=alt.theme.options.get("bandPadding", 0.1),
-                    chart_width=alt.theme.options.get("chartWidth", 100),
-                    axis_offset=0
-                    if alt.theme.options.get("closed")
-                    else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3)),
-                )
-                _fix_log_minor_ticks(svg_path)
-                _layer_axes_to_front(svg_path)
-                _simplify_svg(svg_path)
-                _fix_superscript_labels(svg_path)
-                with open(svg_path, encoding="utf-8") as f:
-                    svg_content = f.read()
+                svg_content = _render_fixed_svg(base_obj, svg_path)
                 # Inject the metadata channels + user <desc> after the opening <svg> tag.  A
                 # lambda replacement keeps backslashes/braces in the JSON literal (not regex).
                 _inserts = metadata._svg_inserts(_usermeta_json, _report_sections, description)
@@ -265,6 +306,40 @@ def save(
         _cap_stack.close()
         alt.theme.options["darkmode"] = original_darkmode
         alt.theme.options["transparentBackground"] = original_transparent
+
+
+def show(chart: _AltairChart | Callable[[], _AltairChart]):
+    """Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
+    inline display in a notebook.
+
+    Altair's own inline renderer (used when you just display a chart) does NOT run
+    dysonsphere's SVG post-processors, so its preview is approximate - ticks aren't
+    pixel-aligned, log/superscript labels aren't typeset, and with ``inwardTicks=True`` the
+    ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
+    :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
+    the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
+    writes no file.
+
+    Accepts the same chart types as :func:`save`, including a zero-argument callable (called
+    once). Requires IPython (present in any notebook); otherwise raises ``ImportError`` - use
+    :func:`save` to write a file instead.
+    """
+    try:
+        from IPython.display import SVG
+    except ImportError as e:
+        raise ImportError(
+            "ds.show() needs IPython (available in notebooks). Use ds.save() to write a file instead."
+        ) from e
+
+    base_obj = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
+    _prev_transp = alt.theme.options.get("transparentBackground")
+    alt.theme.options["transparentBackground"] = True
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            svg = _render_fixed_svg(base_obj, str(Path(d) / "preview.svg"))
+    finally:
+        alt.theme.options["transparentBackground"] = _prev_transp
+    return SVG(svg)
 
 
 def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict":
@@ -306,23 +381,36 @@ def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairCh
 def _fix_tick_alignment(
     path: str, band_padding: float = 0.1, chart_width: float = 100.0, axis_offset: float = 0.0
 ) -> None:
-    """Move x-axis tick and grid lines from Vega's floor'd integer positions to exact mark centers.
+    """Move axis tick and grid lines from Vega's rounded integer positions onto the exact
+    positions of the marks they label.
 
-    Vega snaps axis tick/grid group transforms to integers for crisp screen rendering but
-    keeps mark coordinates as floats.  At high DPI (scale ≥ 4) this produces visible
-    misalignment.
+    Vega snaps axis tick/grid group ``transform`` values to integers for crisp screen rendering
+    but keeps mark coordinates as floats.  At high DPI (scale >= 4) the <1px gap is visible, so
+    ticks drift off the marks.
 
-    Handles both mark-rule role-axis-tick and mark-rule role-axis-grid groups.  Tick lines
-    use translate(x,0); grid lines use translate(x,-chartHeight) with y2=chartHeight.  Both
-    formats are matched by the collection regex; grid lines are distinguished by |ty| > 50.
+    Strategy: **read, don't re-derive.**  A categorical tick belongs on the mark that sits at its
+    category (a bar or box centre) or bounds it (a heatmap ``rect`` edge).  Pass 1 collects those
+    exact anchor positions from the mark path data, in *global* coordinates (accumulating ancestor
+    ``<g>`` translates) so a tick only ever matches a mark in its own panel -- which makes
+    ``hconcat`` / ``vconcat`` panels (even ones that mix mark types, e.g. strip beside violin)
+    resolve independently.  Pass 2 walks each ``mark-rule role-axis-tick`` / ``role-axis-grid``
+    group and snaps every line to the nearest anchor within ``_TOL`` px: x-ticks use bar/box
+    centres and rect x-edges, y-ticks use rect y-edges.
 
-    For bar charts: tick centers are read from the bar path data (aria-roledescription="bar").
-    For all other charts (strip, violin, etc.): band centers are computed analytically
-    from the number of categories and theme scale parameters, then ticks and grid lines are
-    moved to those float positions.  A validation step ensures the fix is only applied to
-    nominal band scales — quantitative and time axes are left untouched.  When two band-scale
-    formulas (Case pi and Case 0) floor to the same integers, box mark x-centers
-    (aria-roledescription="box") are used to resolve the ambiguity.
+    Anchors handled (all read from path ``d``): ``bar`` and ``box`` -- square corners are
+    ``M x,y h w`` -> centre ``x + w/2``; rounded corners (``cornerRadius``) are
+    ``M x1,y L x2,y a...`` -> centre ``(x1 + x2)/2`` (the top edge runs between the two
+    symmetric corner insets); ``box`` covers the median indicator embedded in ``mark_strip`` /
+    ``mark_violin``, so those need no formula.  And ``rect mark`` (``M x,y h w v h2`` -> x-edges
+    ``{x, x+w}``, y-edges ``{y, y+h2}``).
+
+    Fallback: a group whose ticks match no anchor (a plain point-scale scatter, or a
+    ``mark_line`` / ``mark_tick`` categorical axis with no positional mark) is snapped by the
+    analytic band formula -- Case pi (``step = W/(n+bp)``), Case 0 (``step = W/(n+2*bp)``), or
+    point scale (``step = W/n``) -- which is why ``band_padding`` and ``chart_width`` are still
+    accepted.  A quantitative/time axis matches no formula and is left untouched.  There is no
+    Case-pi-vs-Case-0 disambiguation any more: the only marks that produced that ambiguity (boxes)
+    are now read exactly, so an ambiguous *and* anchorless group simply bails.
 
     axis_offset: the theme's effective axis offset (tickSize when axisOffset is None, 0 when
     closed=True).  Grid lines' y-span is extended by this amount so they reach the top chart
@@ -338,129 +426,165 @@ def _fix_tick_alignment(
     tree = ET.parse(path)
     root = tree.getroot()
 
-    # --- bar charts: read centers from path data ---
-    bar_centers: list[float] = []
-    for el in root.iter(f"{{{NS}}}path"):
-        if el.get("aria-roledescription") != "bar":
-            continue
-        d = el.get("d", "")
-        m = re.match(r"M([\d.]+),[-\d.e+]+h([\d.]+)", d)
-        if m:
-            bar_centers.append(round(float(m.group(1)) + float(m.group(2)) / 2, 4))
+    _AXIS_CLS = {"mark-rule role-axis-tick", "mark-rule role-axis-grid"}
+    _TOL = 2.0  # px: a tick's floored/rounded position is <1px off its true anchor
+    _xlate = re.compile(r"translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)")
+    _tick = re.compile(r"translate\(([-\d.eE]+),([-\d.eE]+)\)$")
 
-    if bar_centers:
-        unique_centers = sorted(set(bar_centers))
+    # --- Pass 1: exact mark anchors in global coordinates ---
+    # A vertical x-tick belongs on a bar/box centre or a rect x-edge; a horizontal y-tick
+    # belongs on a rect y-edge.  Positions are accumulated in GLOBAL coordinates (summing
+    # ancestor <g> translates) so a tick only matches marks in its own panel: other panels'
+    # marks are a panel-width away, which is what makes mixed hconcat/vconcat resolve.
+    x_anchors: list[float] = []  # bar/box centres + rect x-edges
+    y_anchors: list[float] = []  # rect y-edges
 
-        def nearest(tick_x: float) -> float | None:
-            c = min(unique_centers, key=lambda v: abs(v - tick_x))
-            return c if abs(c - tick_x) < 2.0 else None
-
-        def apply_bar_fix(el: ET.Element) -> None:
-            for child in el:
-                cls = child.get("class", "")
-                if cls in ("mark-rule role-axis-tick", "mark-rule role-axis-grid"):
-                    for line in child:
-                        t = line.get("transform", "")
-                        m = re.match(r"translate\((\d+(?:\.\d+)?),([-\d.]+)\)$", t)
-                        if m:
-                            c = nearest(float(m.group(1)))
-                            if c is not None:
-                                line.set("transform", f"translate({c},{m.group(2)})")
-                else:
-                    apply_bar_fix(child)
-
-        apply_bar_fix(root)
-
-    else:
-        # --- non-bar charts: compute band centers analytically ---
-        # Process each <g class="mark-rule role-axis-tick|grid"> independently.
-        # hconcat panels with different mark types (strip=Case 0, violin=Case pi)
-        # produce different integer tick positions; processing them as one set
-        # yields 2n unique positions that match no formula. Per-group processing
-        # lets each panel's axis be matched and corrected with its own formula.
-        #
-        # Three scale formulas per group:
-        #   pi. Band, paddingInner=paddingOuter=band_padding (boxplot/violin)
-        #      step = W / (n + bp);  center_i = step·(i + 0.5 + bp/2)
-        #   0.  Band, paddingInner=0 (xOffset/strip), paddingOuter=band_padding
-        #      step = W / (n + 2·bp);  center_i = step·(bp + i + 0.5)
-        #   pt. Point scale, pointPadding=0.5 (default for scatter/strip marks)
-        #      step = W / n;  position_i = step·(0.5 + i)
-        # All use Vega's Math.floor (or Math.round for pt).
-
-        # Global box mark centers for ambiguous-case disambiguation (pi and 0
-        # floor to the same integers, e.g. n=6, W=100, bp=0.1).
-        box_ctr: list[float] = []
-        for el in root.iter(f"{{{NS}}}path"):
-            if el.get("aria-roledescription") == "box":
-                mb = re.match(r"M([\d.]+),[-\d.e+]+L([\d.]+),", el.get("d", ""))
-                if mb:
-                    box_ctr.append((float(mb.group(1)) + float(mb.group(2))) / 2)
-        sorted_box = sorted(box_ctr)
-
-        _AXIS_CLS = {"mark-rule role-axis-tick", "mark-rule role-axis-grid"}
-        modified_any = False
-        for g in root.iter(f"{{{NS}}}g"):
-            if g.get("class") not in _AXIS_CLS:
-                continue
-            # Collect unique local x positions for this axis group.
-            xs: list[float] = []
-            for line in g:
-                m = re.match(r"translate\((\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)$", line.get("transform", ""))
+    def _collect(el: ET.Element, cx: float, cy: float) -> None:
+        for ch in el:
+            ccx, ccy = cx, cy
+            mt = _xlate.search(ch.get("transform", ""))
+            if mt:
+                ccx += float(mt.group(1))
+                ccy += float(mt.group(2))
+            role = ch.get("aria-roledescription")
+            if role in ("bar", "box"):
+                # A box/bar is a rect path.  Square corners: "M x,y h w ..." -> centre x + w/2.
+                # Rounded corners (cornerRadius): "M x1,y L x2,y a..." (the top edge is a line
+                # between the two rounded corners, inset symmetrically) -> centre (x1 + x2)/2.
+                d = ch.get("d", "")
+                mh = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", d)
+                ml = re.match(r"M([-\d.]+),[-\d.eE+]+L([-\d.]+),", d)
+                if mh:
+                    x_anchors.append(round(ccx + float(mh.group(1)) + float(mh.group(2)) / 2, 4))
+                elif ml:
+                    x_anchors.append(round(ccx + (float(ml.group(1)) + float(ml.group(2))) / 2, 4))
+            elif role == "rect mark":
+                # "M x,y h w v h2 ..." -> x-edges {x, x+w}, y-edges {y, y+h2}
+                m = re.match(r"M([-\d.]+),([-\d.eE+]+)h([-\d.eE+]+)v([-\d.eE+]+)", ch.get("d", ""))
                 if m:
-                    v = float(m.group(1))
-                    if v > 0:
-                        xs.append(v)
-            if not xs:
+                    x0, y0, w, h = (float(m.group(i)) for i in range(1, 5))
+                    x_anchors.extend([round(ccx + x0, 4), round(ccx + x0 + w, 4)])
+                    y_anchors.extend([round(ccy + y0, 4), round(ccy + y0 + h, 4)])
+            _collect(ch, ccx, ccy)
+
+    _collect(root, 0.0, 0.0)
+    sorted_x = sorted(set(x_anchors))
+    sorted_y = sorted(set(y_anchors))
+
+    modified = False
+
+    def _nearest(pos: float, anchors: list[float]) -> float | None:
+        c = min(anchors, key=lambda a: abs(a - pos))
+        return c if abs(c - pos) <= _TOL else None
+
+    def _snap_group(g: ET.Element, cx: float, cy: float) -> bool:
+        """Snap one axis group to the nearest mark anchors.  Returns True if the group is
+        anchor-aligned (every tick maps to an anchor) and was snapped; else False so the caller
+        falls back to the band formula.  Orientation is read from which translate coordinate
+        varies (x-ticks vary tx at constant ty; y-ticks vary ty at constant tx)."""
+        nonlocal modified
+        lines: list[tuple[ET.Element, float, float]] = []
+        for line in g:
+            m = _tick.match(line.get("transform", ""))
+            if m:
+                lines.append((line, float(m.group(1)), float(m.group(2))))
+        if not lines:
+            return False
+        txs = {round(tx, 3) for _, tx, _ in lines}
+        tys = {round(ty, 3) for _, _, ty in lines}
+        if len(txs) > 1 and len(tys) == 1:
+            is_x, anchors = True, sorted_x
+        elif len(tys) > 1 and len(txs) == 1:
+            is_x, anchors = False, sorted_y
+        else:
+            return False
+        if not anchors:
+            return False
+        gpos = [(cx + tx) if is_x else (cy + ty) for _, tx, ty in lines]
+        if any(_nearest(p, anchors) is None for p in gpos):
+            return False  # not this axis's marks -> leave to the fallback
+        is_grid = g.get("class") == "mark-rule role-axis-grid"
+        for (line, tx, ty), gp in zip(lines, gpos):
+            a = _nearest(gp, anchors)
+            if a is None:
                 continue
-            xs = sorted(set(xs))
-            n = len(xs)
-
-            step0 = chart_width / (n + 2 * band_padding)
-            expected0 = [int(step0 * (band_padding + i + 0.5)) for i in range(n)]
-
-            step_pi = chart_width / (n + band_padding)
-            expected_pi = [int(step_pi * (i + 0.5 + band_padding / 2)) for i in range(n)]
-
-            step_pt = chart_width / n
-            expected_pt = [round(step_pt * (0.5 + i)) for i in range(n)]
-
-            actual_int = [int(v) for v in xs]
-            if actual_int == expected_pi and actual_int == expected0:
-                if not sorted_box:
-                    continue
-                pi_err = sum(abs(b - step_pi * (i + 0.5 + band_padding / 2)) for i, b in enumerate(sorted_box))
-                z0_err = sum(abs(b - step0 * (band_padding + i + 0.5)) for i, b in enumerate(sorted_box))
-                if pi_err < z0_err:
-                    center_map = {v: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, v in enumerate(xs)}
-                else:
-                    center_map = {v: round(step0 * (band_padding + i + 0.5), 4) for i, v in enumerate(xs)}
-            elif actual_int == expected_pi:
-                center_map = {v: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, v in enumerate(xs)}
-            elif actual_int == expected0:
-                center_map = {v: round(step0 * (band_padding + i + 0.5), 4) for i, v in enumerate(xs)}
-            elif actual_int == expected_pt:
-                center_map = {v: round(step_pt * (0.5 + i), 4) for i, v in enumerate(xs)}
+            if is_x:
+                if is_grid and ty < -50 and axis_offset > 0:
+                    y2 = line.get("y2")
+                    if y2 is not None and float(y2) > 50:
+                        line.set("y2", str(float(y2) + axis_offset))
+                    ty -= axis_offset
+                line.set("transform", f"translate({round(a - cx, 4)},{ty})")
             else:
-                continue
+                line.set("transform", f"translate({tx},{round(a - cy, 4)})")
+            modified = True
+        return True
 
-            is_grid = g.get("class") == "mark-rule role-axis-grid"
-            for line in g:
-                m = re.match(r"translate\(([\d.]+),([-\d.]+)\)$", line.get("transform", ""))
-                if m:
-                    c = center_map.get(float(m.group(1)))
-                    if c is not None:
-                        ty = float(m.group(2))
-                        if is_grid and ty < -50 and axis_offset > 0:
-                            y2 = line.get("y2")
-                            if y2 is not None and float(y2) > 50:
-                                line.set("y2", str(float(y2) + axis_offset))
-                            ty -= axis_offset
-                        line.set("transform", f"translate({c},{ty})")
-                        modified_any = True
-
-        if not modified_any:
+    def _fallback(g: ET.Element) -> None:
+        """Analytic band-formula snap for an x-axis group with no matching mark anchors
+        (point-scale scatter, or a mark_line/mark_tick categorical axis)."""
+        nonlocal modified
+        xs = []
+        for line in g:
+            m = re.match(r"translate\((\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)$", line.get("transform", ""))
+            if m and float(m.group(1)) > 0:
+                xs.append(float(m.group(1)))
+        if not xs:
             return
+        xs = sorted(set(xs))
+        n = len(xs)
+        step0 = chart_width / (n + 2 * band_padding)
+        step_pi = chart_width / (n + band_padding)
+        step_pt = chart_width / n
+        exp0 = [int(step0 * (band_padding + i + 0.5)) for i in range(n)]
+        exp_pi = [int(step_pi * (i + 0.5 + band_padding / 2)) for i in range(n)]
+        exp_pt = [round(step_pt * (0.5 + i)) for i in range(n)]
+        actual = [int(v) for v in xs]
+        # No box disambiguation: boxes are read as anchors, so an ambiguous (pi == 0) group here
+        # is genuinely anchorless -> leave it untouched rather than guess.
+        if actual == exp_pi and actual != exp0:
+            centers = {v: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, v in enumerate(xs)}
+        elif actual == exp0 and actual != exp_pi:
+            centers = {v: round(step0 * (band_padding + i + 0.5), 4) for i, v in enumerate(xs)}
+        elif actual == exp_pt:
+            centers = {v: round(step_pt * (0.5 + i), 4) for i, v in enumerate(xs)}
+        else:
+            return
+        is_grid = g.get("class") == "mark-rule role-axis-grid"
+        for line in g:
+            m = re.match(r"translate\(([\d.]+),([-\d.]+)\)$", line.get("transform", ""))
+            if not m:
+                continue
+            c = centers.get(float(m.group(1)))
+            if c is None:
+                continue
+            ty = float(m.group(2))
+            if is_grid and ty < -50 and axis_offset > 0:
+                y2 = line.get("y2")
+                if y2 is not None and float(y2) > 50:
+                    line.set("y2", str(float(y2) + axis_offset))
+                ty -= axis_offset
+            line.set("transform", f"translate({c},{ty})")
+            modified = True
+
+    # --- Pass 2: walk axis groups (with accumulated panel offset) and snap ---
+    def _walk(el: ET.Element, cx: float, cy: float) -> None:
+        for ch in el:
+            ccx, ccy = cx, cy
+            mt = _xlate.search(ch.get("transform", ""))
+            if mt:
+                ccx += float(mt.group(1))
+                ccy += float(mt.group(2))
+            if ch.get("class") in _AXIS_CLS:
+                if not _snap_group(ch, ccx, ccy):
+                    _fallback(ch)
+            else:
+                _walk(ch, ccx, ccy)
+
+    _walk(root, 0.0, 0.0)
+
+    if not modified:
+        return
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(ET.tostring(root, encoding="unicode"))
@@ -642,6 +766,41 @@ def _fix_log_minor_ticks(path: str) -> None:
             minor_els = [(el, x) for el, x, s in ticks if s == minor_size]
             _correct_axis(major_xs, minor_els, is_x=True)
 
+    if changed:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(ET.tostring(root, encoding="unicode"))
+
+
+def _flip_ticks_inward(path: str) -> None:
+    """Negate axis-tick line geometry so ticks point into the plot (theme(inwardTicks=True)).
+
+    Vega/Vega-Lite always render ticks outward and reject a negative ``tickSize``, so inward
+    ticks are produced here as an SVG post-process. Runs AFTER the tick-position fixers
+    (``_fix_tick_alignment`` / ``_fix_log_minor_ticks``), which rely on the outward geometry to
+    detect ticks, then negates the non-zero ``x2``/``y2`` of every ``<line>`` inside an axis-tick
+    group. x-axis ticks carry their length in ``y2`` (``x2="0"``), y-axis ticks in ``x2``
+    (``y2="0"``), so negating the non-zero coordinate flips the direction. Covers primary,
+    secondary (right/top), major, and minor (log/power) ticks uniformly, since all are
+    ``role-axis-tick`` groups.
+    """
+    import xml.etree.ElementTree as ET
+
+    NS = "http://www.w3.org/2000/svg"
+    ET.register_namespace("", NS)
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+
+    tree = ET.parse(path)
+    root = tree.getroot()
+    changed = False
+    for g in root.iter(f"{{{NS}}}g"):
+        if "role-axis-tick" not in g.get("class", ""):
+            continue
+        for line in g.iter(f"{{{NS}}}line"):
+            for attr in ("x2", "y2"):
+                v = line.get(attr)
+                if v is not None and float(v) != 0.0:
+                    line.set(attr, v[1:] if v.startswith("-") else "-" + v)
+                    changed = True
     if changed:
         with open(path, "w", encoding="utf-8") as f:
             f.write(ET.tostring(root, encoding="unicode"))
