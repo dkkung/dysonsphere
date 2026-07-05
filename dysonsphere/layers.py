@@ -575,19 +575,6 @@ def add_text(
 # Auto-placed point labels (force-repel)
 
 
-def _box_edge(center: tuple[float, float], toward: tuple[float, float], hw: float, hh: float) -> tuple[float, float]:
-    """Point where the segment from ``center`` toward ``toward`` exits the box (half-size hw x hh
-    centred at ``center``) - i.e. where a leader line should meet the label box edge."""
-    cx, cy = center
-    dx, dy = toward[0] - cx, toward[1] - cy
-    if dx == 0 and dy == 0:
-        return center
-    sx = hw / abs(dx) if dx else float("inf")
-    sy = hh / abs(dy) if dy else float("inf")
-    s = min(sx, sy, 1.0)  # never past the anchor itself
-    return (cx + s * dx, cy + s * dy)
-
-
 def add_labels(
     df: "pl.DataFrame | Any",
     xCol: str,
@@ -598,10 +585,10 @@ def add_labels(
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
     color: str | None = None,
-    leaderLines: bool = True,
-    leaderColor: str | None = None,
+    connector: bool = True,
+    connectorColor: str | None = None,
 ) -> alt.LayerChart:
-    """Auto-place non-overlapping text labels for a set of points, with leader lines.
+    """Auto-place non-overlapping text labels for a set of points, with connector lines.
 
     Force-directed placement (deterministic - reproducible figures) nudges each label off its
     point and away from the others, drawing a thin leader line from each point to its label. Every
@@ -629,11 +616,11 @@ def add_labels(
     color:
         Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware
         black/white).
-    leaderLines:
+    connector:
         Whether to draw the line connecting each point to its label (default ``True``).
-    leaderColor:
-        Leader line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware).
-        Leaders otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke,
+    connectorColor:
+        Connector line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware).
+        Connectors otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke,
         opaque) but are always solid, never the theme's ``dashedRule``.
     """
     from .utils import _repel_labels, ensure_polars
@@ -646,16 +633,16 @@ def add_labels(
 
     width, height = _opt("chartWidth"), _opt("chartHeight")
     fs = fontSize if fontSize is not None else _opt("secondaryFontSize")
-    # Text and leaders INHERIT the theme's mark_text / mark_rule config (darkmode-aware color,
+    # Text and connectors INHERIT the theme's mark_text / mark_rule config (darkmode-aware color,
     # rounded caps, axisWidth stroke, opaque) - resolved per render, so they track darkmode without
-    # a callable. We only force the leader dash solid (never the theme's dashedRule) and apply an
-    # explicit color when the caller passes one.
-    text_kwargs: dict = {"fontSize": fs, "align": "center", "baseline": "middle"}
+    # a callable. We only force the connector dash solid (never the theme's dashedRule) and apply an
+    # explicit color when the caller passes one. (align is set per-label below, by side.)
+    text_kwargs: dict = {"fontSize": fs, "baseline": "middle"}
     if color is not None:
         text_kwargs["color"] = color
     rule_kwargs: dict = {"strokeDash": [0, 0]}
-    if leaderColor is not None:
-        rule_kwargs["color"] = leaderColor
+    if connectorColor is not None:
+        rule_kwargs["color"] = connectorColor
 
     if n == 0:
         return cast(alt.LayerChart, alt.layer(alt.Chart(_internal_data([{}])).mark_point(opacity=0)))
@@ -675,8 +662,24 @@ def add_labels(
 
     layers: list[alt.Chart] = []
     for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, labels):
-        if leaderLines:
-            ex, ey = _box_edge((lx, ly), (ax, ay), w / 2, h / 2)
+        hw, hh = w / 2, h / 2
+        dx, dy = ax - lx, ay - ly  # label centre -> point
+        # Attach the connector on the box side facing the point (aspect-aware: which edge a straight
+        # line to the point would cross). A left/right edge -> justify the text AWAY from the point,
+        # anchored at that edge, so it reads as flowing out of the connector and edits grow outward.
+        # A top/bottom edge (near-vertical connector, e.g. a label directly above its point) ->
+        # CENTRE-justify, connector to the middle of that edge - so the connector stays vertical and
+        # a center-justified edit keeps it aligned. The connector endpoint coincides with the text
+        # anchor either way.
+        if hw > 0 and hh > 0 and abs(dx) / hw >= abs(dy) / hh:
+            align = "left" if dx <= 0 else "right"
+            text_x = ex = lx - hw if dx <= 0 else lx + hw
+            ey = ly
+        else:
+            align = "center"
+            text_x = ex = lx
+            ey = ly - hh if dy <= 0 else ly + hh
+        if connector:
             layers.append(
                 alt.Chart(_internal_data([{}]))
                 .mark_rule(**rule_kwargs)
@@ -684,8 +687,8 @@ def add_labels(
             )
         layers.append(
             alt.Chart(_internal_data([{}]))
-            .mark_text(**text_kwargs)
-            .encode(x=alt.value(lx), y=alt.value(ly), text=alt.value(text))
+            .mark_text(align=align, **text_kwargs)
+            .encode(x=alt.value(text_x), y=alt.value(ly), text=alt.value(text))
         )
     return cast(alt.LayerChart, alt.layer(*layers))
 

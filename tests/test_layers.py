@@ -37,8 +37,8 @@ class TestAddLabels:
         # one leader + one text layer per label
         assert len(add_labels(df, "x", "y", "g").to_dict()["layer"]) == 6
 
-    def test_no_leader_lines(self, df):
-        assert len(add_labels(df, "x", "y", "g", leaderLines=False).to_dict()["layer"]) == 3
+    def test_no_connector(self, df):
+        assert len(add_labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 3
 
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
