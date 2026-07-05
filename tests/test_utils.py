@@ -27,6 +27,17 @@ class TestSampleSpread:
         assert 0 in idx and 9 in idx
 
 
+class TestRepelLabelsObstacles:
+    def test_obstacles_shift_placement(self):
+        # background points near where the label would sit must push it off them
+        anchor = [(150.0, 150.0)]
+        size = [(20.0, 8.0)]
+        base = _repel_labels(anchor, size, width=300, height=300)[0]  # obstacles default to anchor
+        obs = [(150.0, 150.0), (140.0, 138.0), (144.0, 140.0), (138.0, 142.0)]  # a cluster up-left
+        shifted = _repel_labels(anchor, size, width=300, height=300, obstacles=obs)[0]
+        assert math.dist(base, shifted) > 1.0  # the extra points moved the label
+
+
 class TestRepelLabels:
     def test_empty(self):
         assert _repel_labels([], [], width=100, height=100) == []

@@ -694,8 +694,9 @@ def add_labels(
         return ((x - x0) / xspan * width, height - (y - y0) / yspan * height)
 
     anchors = [to_px(x, y) for x, y in zip(xs, ys)]
+    obstacles = [to_px(x, y) for x, y in zip(all_x, all_y)]  # ALL plotted points, so labels avoid them
     sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in label_texts]  # rough text-box estimate
-    label_pos = _repel_labels(anchors, sizes, width=width, height=height)
+    label_pos = _repel_labels(anchors, sizes, width=width, height=height, obstacles=obstacles)
 
     # Self-pin: force the shared x/y scale to the assumed domain (nice=False, zero=False) via an
     # invisible mark, so the connectors align with the points WITHOUT the caller pinning the base

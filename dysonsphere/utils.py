@@ -92,6 +92,7 @@ def _repel_labels(
     *,
     width: float,
     height: float,
+    obstacles: "list[tuple[float, float]] | None" = None,
     iterations: int = 300,
 ) -> list[tuple[float, float]]:
     """Force-directed, non-overlapping label placement (deterministic) - the engine behind
@@ -99,13 +100,16 @@ def _repel_labels(
 
     ``anchors`` are the pixel positions of the points being labelled and ``sizes`` each label's
     ``(width, height)`` box in pixels (pixel origin top-left, y growing downward, matching a
-    rendered SVG). Returns one label-CENTRE pixel position per anchor. Each label box repels the
-    others (pushed apart along its axis of least penetration), a weak spring pulls it back toward
-    its anchor, and it is clamped inside the ``width`` x ``height`` panel; iterated to a relaxed
-    layout. Fully deterministic (no RNG - a tiny index-based offset breaks exact ties), so the
-    same inputs always give the same figure. **Never drops a label** (force-show): in an
-    impossibly dense region labels settle at their least-overlapping positions rather than
-    disappearing.
+    rendered SVG). ``obstacles`` are the pixel positions of ALL plotted points to avoid covering
+    (default: just the ``anchors``); passing every point - not only the labelled ones - is what
+    keeps labels off the background markers AND breaks them out of a boring straight-up column (a
+    label near a dense region is pushed toward the emptier side). Returns one label-CENTRE pixel
+    position per anchor. Each label box repels the other labels (pushed apart along its axis of
+    least penetration) and every obstacle it overlaps (net push toward open space), a weak spring
+    pulls it back toward its anchor, and it is clamped inside the ``width`` x ``height`` panel;
+    iterated to a relaxed layout. Fully deterministic (no RNG - a tiny index-based offset breaks
+    exact ties), so the same inputs always give the same figure. **Never drops a label**
+    (force-show): in an impossibly dense region labels settle at their least-overlapping positions.
     """
     import numpy as np
 
@@ -113,12 +117,13 @@ def _repel_labels(
     if n == 0:
         return []
     a = np.array(anchors, dtype=float)
+    obs = np.array(obstacles if obstacles is not None else anchors, dtype=float)
     half = np.array(sizes, dtype=float) / 2.0 + 2.0  # +2px padding so boxes gap, not just touch
     pos = a.copy()
     pos[:, 1] -= half[:, 1] + 2.0  # start just above each anchor (y grows downward)
     pos[:, 0] += np.arange(n) * 1e-3  # deterministic tie-break for coincident anchors
 
-    k_spring, k_label, k_point, point_r = 0.015, 0.4, 0.4, 3.0
+    k_spring, k_label, k_point, point_r = 0.015, 0.4, 0.35, 3.0
     for _ in range(iterations):
         disp = np.zeros_like(pos)
         for i in range(n):
@@ -133,14 +138,18 @@ def _repel_labels(
                         push = np.array([0.0, overlap[1] * (1.0 if d[1] >= 0 else -1.0)])
                     disp[i] += push * k_label
                     disp[j] -= push * k_label
-            for k in range(n):  # label <-> point repulsion (lift labels off the markers)
-                d = pos[i] - a[k]
-                ox, oy = (half[i, 0] + point_r) - abs(d[0]), (half[i, 1] + point_r) - abs(d[1])
-                if ox > 0 and oy > 0:
-                    if ox <= oy:
-                        disp[i, 0] += ox * (1.0 if d[0] >= 0 else -1.0) * k_point
-                    else:
-                        disp[i, 1] += oy * (1.0 if d[1] >= 0 else -1.0) * k_point
+            # label <-> obstacle repulsion (all plotted points): net push away from every point the
+            # label box covers, so it clears the markers and drifts toward open space.
+            d = pos[i] - obs
+            ox = (half[i, 0] + point_r) - np.abs(d[:, 0])
+            oy = (half[i, 1] + point_r) - np.abs(d[:, 1])
+            hit = (ox > 0) & (oy > 0)
+            if hit.any():
+                dd = d[hit]
+                pen = np.minimum(ox[hit], oy[hit])
+                norm = np.linalg.norm(dd, axis=1)
+                norm[norm == 0] = 1e-9
+                disp[i] += (dd / norm[:, None] * pen[:, None]).sum(axis=0) * k_point
         disp += (a - pos) * k_spring  # weak spring back toward anchor
         pos += disp
         pos[:, 0] = np.clip(pos[:, 0], half[:, 0], width - half[:, 0])
