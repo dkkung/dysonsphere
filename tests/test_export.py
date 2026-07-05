@@ -483,9 +483,8 @@ class TestExtendGridSpan:
         # bottom on the axis, the y2 restores the span up to the top border.
         lines = "".join(f'<line transform="translate({x},-100)" x1="0" y1="0" x2="0" y2="100"/>' for x in [10, 50, 90])
         svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-grid">{lines}</g></svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _extend_grid_span(path, 3)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(svg)
+        _extend_grid_span(root, 3)
         ty_vals, y2_vals = [], []
         for line in root.iter(f"{{{NS}}}line"):
             m = re.match(r"translate\([\d.]+,([-\d.]+)\)", line.get("transform", ""))
@@ -502,9 +501,9 @@ class TestExtendGridSpan:
             '<line transform="translate(0,40)" x1="0" y1="0" x2="100" y2="0"/>'
             "</g></svg>"
         )
-        path = _write(tmp_path, "t.svg", svg)
-        _extend_grid_span(path, 3)
-        line = next(ET.parse(path).getroot().iter(f"{{{NS}}}line"))
+        root = ET.fromstring(svg)
+        _extend_grid_span(root, 3)
+        line = next(root.iter(f"{{{NS}}}line"))
         assert line.get("transform") == "translate(0,40)"
         assert line.get("y2") == "0"
 
@@ -521,9 +520,9 @@ class TestFlipTicksInward:
             '<line transform="translate(0,20)" x1="0" y1="0" x2="-3" y2="0"/>'  # y-axis tick (left/out)
             "</g></svg>"
         )
-        path = _write(tmp_path, "t.svg", svg)
-        _flip_ticks_inward(path)
-        lines = list(ET.parse(path).getroot().iter(f"{{{NS}}}line"))
+        root = ET.fromstring(svg)
+        _flip_ticks_inward(root)
+        lines = list(root.iter(f"{{{NS}}}line"))
         # x-axis tick: y2 negated (now up/inward), x2 untouched (was 0)
         assert lines[0].get("y2") == "-3" and lines[0].get("x2") == "0"
         # y-axis tick: x2 negated (now right/inward), y2 untouched (was 0)
@@ -536,9 +535,9 @@ class TestFlipTicksInward:
             '<line transform="translate(0,0)" x1="0" y1="0" x2="0" y2="100"/>'  # domain line, not a tick
             "</g></svg>"
         )
-        path = _write(tmp_path, "t.svg", svg)
-        _flip_ticks_inward(path)
-        assert next(ET.parse(path).getroot().iter(f"{{{NS}}}line")).get("y2") == "100"
+        root = ET.fromstring(svg)
+        _flip_ticks_inward(root)
+        assert next(root.iter(f"{{{NS}}}line")).get("y2") == "100"
 
     def test_save_with_inward_ticks_points_ticks_in(self, tmp_path):
         theme(inwardTicks=True)
@@ -573,9 +572,9 @@ class TestLayerAxesToFront:
               <g class="data-layer"/>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _layer_axes_to_front(path)
-        children = list(ET.parse(path).getroot())
+        root = ET.fromstring(svg)
+        _layer_axes_to_front(root)
+        children = list(root)
         assert children[-1].get("class") == "mark-group role-axis"
 
     def test_grid_axis_stays_in_place(self, tmp_path):
@@ -589,9 +588,9 @@ class TestLayerAxesToFront:
               <g class="data-layer"/>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _layer_axes_to_front(path)
-        children = list(ET.parse(path).getroot())
+        root = ET.fromstring(svg)
+        _layer_axes_to_front(root)
+        children = list(root)
         assert children[0].get("class") == "mark-group role-axis"
 
     def test_background_fill_and_stroke_split(self, tmp_path):
@@ -602,9 +601,8 @@ class TestLayerAxesToFront:
               <g class="data-layer"/>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _layer_axes_to_front(path)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(svg)
+        _layer_axes_to_front(root)
         paths = list(root.iter(f"{{{NS}}}path"))
         assert any(p.get("stroke") == "none" for p in paths)  # original → stroke removed
         assert any(p.get("fill") == "none" for p in paths)  # clone → fill=none
@@ -622,9 +620,8 @@ class TestSimplifySvg:
               </g>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _simplify_svg(path)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(svg)
+        _simplify_svg(root)
         assert root.find(f"{{{NS}}}g") is None
         assert root.find(f"{{{NS}}}rect") is not None
 
@@ -636,9 +633,8 @@ class TestSimplifySvg:
               </g>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _simplify_svg(path)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(svg)
+        _simplify_svg(root)
         g = root.find(f"{{{NS}}}g")
         assert g is not None and g.get("transform") == "translate(10,20)"
 
@@ -650,9 +646,8 @@ class TestSimplifySvg:
               </g>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _simplify_svg(path)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(svg)
+        _simplify_svg(root)
         assert root.find(f"{{{NS}}}g") is None
         assert root.find(f"{{{NS}}}rect") is not None
 
@@ -664,9 +659,8 @@ class TestSimplifySvg:
               </g>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _simplify_svg(path)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(svg)
+        _simplify_svg(root)
         assert root.find(f"{{{NS}}}g") is not None
 
     def test_nested_redundant_groups_flattened(self, tmp_path):
@@ -679,9 +673,8 @@ class TestSimplifySvg:
               </g>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _simplify_svg(path)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(svg)
+        _simplify_svg(root)
         assert root.find(f"{{{NS}}}g") is None
         assert root.find(f"{{{NS}}}rect") is not None
 
@@ -694,11 +687,10 @@ class TestFixSuperscriptLabels:
             </svg>
         """)
 
-    def test_scientific_two_digit_exponent(self, tmp_path):
+    def test_scientific_two_digit_exponent(self):
         # ¹ (U+00B9, Latin-1) mixed with ⁴ (U+2074, Superscripts block) — the misalignment case
-        path = _write(tmp_path, "t.svg", self._svg_with_text("P = 1.94×10⁻¹⁴"))
-        _fix_superscript_labels(path)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(self._svg_with_text("P = 1.94×10⁻¹⁴"))
+        _fix_superscript_labels(root)
         text_el = root.find(f"{{{NS}}}text")
         assert text_el is not None
         assert text_el.text == "P = 1.94×10"
@@ -708,23 +700,22 @@ class TestFixSuperscriptLabels:
         assert tspan.get("font-size") == "4"
         assert tspan.text == "−14"
 
-    def test_power_notation_single_digit(self, tmp_path):
-        path = _write(tmp_path, "t.svg", self._svg_with_text("P ≈ 10⁻⁵"))
-        _fix_superscript_labels(path)
-        root = ET.parse(path).getroot()
+    def test_power_notation_single_digit(self):
+        root = ET.fromstring(self._svg_with_text("P ≈ 10⁻⁵"))
+        _fix_superscript_labels(root)
         text_el = root.find(f"{{{NS}}}text")
         assert text_el is not None
         tspan = text_el.find(f"{{{NS}}}tspan")
         assert tspan is not None
         assert tspan.text == "−5"
 
-    def test_no_match_leaves_svg_unchanged(self, tmp_path):
-        original = self._svg_with_text("P = 0.023")
-        path = _write(tmp_path, "t.svg", original)
-        mtime_before = (tmp_path / "t.svg").stat().st_mtime
-        _fix_superscript_labels(path)
-        # File not rewritten when there is nothing to fix
-        assert (tmp_path / "t.svg").stat().st_mtime == mtime_before
+    def test_no_match_leaves_tree_unchanged(self):
+        root = ET.fromstring(self._svg_with_text("P = 0.023"))
+        _fix_superscript_labels(root)
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        assert text_el.text == "P = 0.023"  # untouched
+        assert text_el.find(f"{{{NS}}}tspan") is None  # nothing injected
 
     def test_aria_label_attribute_not_modified(self, tmp_path):
         # Vega adds aria-label attributes with the same text — must not inject <tspan> there
@@ -733,9 +724,8 @@ class TestFixSuperscriptLabels:
               <text aria-label="P = 1.94×10⁻¹⁴">P = 1.94×10⁻¹⁴</text>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_superscript_labels(path)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(svg)
+        _fix_superscript_labels(root)
         text_el = root.find(f"{{{NS}}}text")
         assert text_el is not None
         # aria-label attribute must remain a plain string (no injected markup)
@@ -750,9 +740,8 @@ class TestFixSuperscriptLabels:
               <text><tspan dy="0">P = 3.03×10⁻¹⁴</tspan></text>
             </svg>
         """)
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_superscript_labels(path)
-        root = ET.parse(path).getroot()
+        root = ET.fromstring(svg)
+        _fix_superscript_labels(root)
         outer_tspan = root.find(f".//{{{NS}}}tspan[@dy='0']")
         assert outer_tspan is not None
         assert outer_tspan.text == "P = 3.03×10"

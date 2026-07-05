@@ -4,6 +4,7 @@ import json
 import re
 import tempfile
 import uuid
+import xml.etree.ElementTree as ET
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,11 @@ _AltairChart = Union[
     alt.HConcatChart,
     alt.ConcatChart,
 ]
+
+_SVG_NS = "http://www.w3.org/2000/svg"
+# Registered once so ET serializes SVG without ns0: prefixes, from any fixer or test.
+ET.register_namespace("", _SVG_NS)
+ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 
 _VALID_FORMATS = ("svg", "png", "json", "html")
 _VALID_BACKGROUNDS = ("light", "dark")
@@ -51,24 +57,28 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     The remaining post-processors are shared by :func:`save` and :func:`show` so the pipeline
     stays identical: grid-span extension (the axisOffset top-border gap), inward-tick flip
     (when ``inwardTicks``), axis layering, ``<g>`` simplification, and superscript-label
-    typesetting. The caller sets up the theme (e.g. ``transparent``) and owns the
-    file's lifecycle.
+    typesetting. The SVG is parsed once here and each fixer mutates the shared ElementTree;
+    the corrected tree is serialized once at the end (a single parse/write round trip, not
+    one per fixer). The caller sets up the theme (e.g. ``transparent``) and owns the file's
+    lifecycle.
     """
     base_obj.save(svg_path)  # marker names are in the object but never render into SVG
+    root = ET.parse(svg_path).getroot()  # parsed ONCE; every fixer mutates this tree
     axis_offset = (
         0
         if alt.theme.options.get("closed")
         else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3))
     )
     if axis_offset:
-        _extend_grid_span(svg_path, axis_offset)
+        _extend_grid_span(root, axis_offset)
     if alt.theme.options.get("inwardTicks"):
-        _flip_ticks_inward(svg_path)
-    _layer_axes_to_front(svg_path)
-    _simplify_svg(svg_path)
-    _fix_superscript_labels(svg_path)
-    with open(svg_path, encoding="utf-8") as f:
-        return f.read()
+        _flip_ticks_inward(root)
+    _layer_axes_to_front(root)
+    _simplify_svg(root)
+    _fix_superscript_labels(root)
+    svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
+    Path(svg_path).write_text(svg, encoding="utf-8")
+    return svg
 
 
 def save(
@@ -390,7 +400,7 @@ def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairCh
     return cast("_AltairChart", alt.Chart.from_dict(stripped))
 
 
-def _extend_grid_span(path: str, axis_offset: float) -> None:
+def _extend_grid_span(root: ET.Element, axis_offset: float) -> None:
     """Extend x-axis grid lines upward to close the top-border gap left by the axis offset.
 
     The x-axis group is placed ``axis_offset`` px below the chart area (the detached-axis
@@ -399,24 +409,14 @@ def _extend_grid_span(path: str, axis_offset: float) -> None:
     inside a ``role-axis-grid`` group) is stretched by ``axis_offset`` at both ends: the
     translate keeps the bottom on the axis, the ``y2`` restores the span.
 
+    Mutates the parsed SVG tree in place (like every fixer in ``_render_fixed_svg``).
     (Formerly part of ``_fix_tick_alignment``.  Tick/grid *positions* need no fixing any
     more - the theme renders with ``tickRound: false`` / ``axisBand.tickOffset: 0``, so they
     already sit on the exact fractional scale positions.)
     """
-    import re
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-
-    tree = ET.parse(path)
-    root = tree.getroot()
-    changed = False
     _xlate = re.compile(r"translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)")
 
     def _walk(el: ET.Element) -> None:
-        nonlocal changed
         for ch in el:
             if ch.get("class") == "mark-rule role-axis-grid":
                 for line in ch:
@@ -428,17 +428,13 @@ def _extend_grid_span(path: str, axis_offset: float) -> None:
                     if ty < 0 and float(y2) > 0:  # vertical grid line hanging from the x-axis group
                         line.set("y2", str(float(y2) + axis_offset))
                         line.set("transform", f"translate({m.group(1)},{ty - axis_offset})")
-                        changed = True
             else:
                 _walk(ch)
 
     _walk(root)
-    if changed:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(ET.tostring(root, encoding="unicode"))
 
 
-def _flip_ticks_inward(path: str) -> None:
+def _flip_ticks_inward(root: ET.Element) -> None:
     """Negate axis-tick line geometry so ticks point into the plot (theme(inwardTicks=True)).
 
     Vega/Vega-Lite always render ticks outward and reject a negative ``tickSize``, so inward
@@ -449,30 +445,17 @@ def _flip_ticks_inward(path: str) -> None:
     secondary (right/top), major, and minor (log/power) ticks uniformly, since all are
     ``role-axis-tick`` groups.
     """
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-
-    tree = ET.parse(path)
-    root = tree.getroot()
-    changed = False
-    for g in root.iter(f"{{{NS}}}g"):
+    for g in root.iter(f"{{{_SVG_NS}}}g"):
         if "role-axis-tick" not in g.get("class", ""):
             continue
-        for line in g.iter(f"{{{NS}}}line"):
+        for line in g.iter(f"{{{_SVG_NS}}}line"):
             for attr in ("x2", "y2"):
                 v = line.get(attr)
                 if v is not None and float(v) != 0.0:
                     line.set(attr, v[1:] if v.startswith("-") else "-" + v)
-                    changed = True
-    if changed:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(ET.tostring(root, encoding="unicode"))
 
 
-def _layer_axes_to_front(path: str) -> None:
+def _layer_axes_to_front(root: ET.Element) -> None:
     """Re-order SVG children so axis domain/tick elements and the view border render last.
 
     Vega emits axis groups (domain lines, ticks, labels) before data marks, so marks
@@ -491,17 +474,9 @@ def _layer_axes_to_front(path: str) -> None:
     the border still renders in front.
     """
     import copy
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 
     def _is_grid_axis(el: ET.Element) -> bool:
-        return any(g.get("class", "") == "mark-rule role-axis-grid" for g in el.iter(f"{{{NS}}}g"))
-
-    tree = ET.parse(path)
-    root = tree.getroot()
+        return any(g.get("class", "") == "mark-rule role-axis-grid" for g in el.iter(f"{{{_SVG_NS}}}g"))
 
     def reorder(el: ET.Element) -> None:
         to_move = []  # existing children to remove and re-append at end
@@ -511,7 +486,7 @@ def _layer_axes_to_front(path: str) -> None:
             if cls == "mark-group role-axis" and not _is_grid_axis(child):
                 to_move.append(child)
             elif (
-                child.tag == f"{{{NS}}}path"
+                child.tag == f"{{{_SVG_NS}}}path"
                 and cls == "background"
                 and child.get("stroke") not in (None, "none")
                 and child.get("display") != "none"
@@ -536,41 +511,30 @@ def _layer_axes_to_front(path: str) -> None:
             reorder(child)
 
     reorder(root)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(ET.tostring(root, encoding="unicode"))
 
 
 _SUPERSCRIPT_MAP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789−")
 _SUP_LABEL_PATTERN = re.compile(r"([×≈]\s*10)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)")
 
 
-def _fix_superscript_labels(path: str) -> None:
+def _fix_superscript_labels(root: ET.Element) -> None:
     """Fix misaligned Unicode superscripts in scientific/power notation labels.
 
     Unicode superscript digits 1-3 (U+00B9/B2/B3, Latin-1 Supplement) and 0/4-9
     (U+2070, U+2074-U+2079, Superscripts block) live in different font metric tables and
     render at inconsistent vertical positions in many fonts, causing visible misalignment
-    in multi-digit exponents like 10^-14. Finds the pattern in SVG text/.text nodes only
-    (not attribute values) and replaces the exponent portion with a <tspan dy="-2.5"
-    font-size="4"> element using plain ASCII digits for consistent font metrics.
+    in multi-digit exponents like 10^-14. Operates on element .text values in the parsed
+    tree only (never attribute values, which carry the same label text in aria-label/title)
+    and replaces the exponent portion with a <tspan dy="-2.5" font-size="4"> element using
+    plain ASCII digits for consistent font metrics.
 
     Tuned for p-value label fontSize=6: exponent font-size=4 (~67%), dy=-2.5 (~42% shift).
     """
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-
-    tree = ET.parse(path)
-    root = tree.getroot()
-    changed = False
-
     # Collect matching text/tspan elements first to avoid modifying while iterating.
     targets = [
         el
         for el in root.iter()
-        if el.tag in (f"{{{NS}}}text", f"{{{NS}}}tspan") and el.text and _SUP_LABEL_PATTERN.search(el.text)
+        if el.tag in (f"{{{_SVG_NS}}}text", f"{{{_SVG_NS}}}tspan") and el.text and _SUP_LABEL_PATTERN.search(el.text)
     ]
 
     for el in targets:
@@ -582,7 +546,7 @@ def _fix_superscript_labels(path: str) -> None:
         exp_ascii = m.group(2).translate(_SUPERSCRIPT_MAP)
         suffix = text[m.end() :]
 
-        tspan = ET.Element(f"{{{NS}}}tspan")
+        tspan = ET.Element(f"{{{_SVG_NS}}}tspan")
         tspan.set("dy", "-2.5")
         tspan.set("font-size", "4")
         tspan.text = exp_ascii
@@ -590,14 +554,9 @@ def _fix_superscript_labels(path: str) -> None:
 
         el.text = prefix
         el.insert(0, tspan)
-        changed = True
-
-    if changed:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(ET.tostring(root, encoding="unicode"))
 
 
-def _simplify_svg(path: str) -> None:
+def _simplify_svg(root: ET.Element) -> None:
     """
     Reduce SVG grouping depth by inlining structurally redundant ``<g>`` elements.
 
@@ -624,15 +583,8 @@ def _simplify_svg(path: str) -> None:
     The result is a flatter, editor-friendly SVG that renders identically to the
     original.
     """
-    import re
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-
     KEEP_ATTRS = {"transform", "clip-path", "opacity", "mask", "filter", "style", "id"}
-    SKIP_TAGS = {f"{{{NS}}}defs", f"{{{NS}}}clipPath", f"{{{NS}}}symbol"}
+    SKIP_TAGS = {f"{{{_SVG_NS}}}defs", f"{{{_SVG_NS}}}clipPath", f"{{{_SVG_NS}}}symbol"}
 
     _NOOP_TRANSLATE = re.compile(r"translate\(\s*0(?:\.0+)?\s*[,\s]\s*0(?:\.0+)?\s*\)$")
 
@@ -652,7 +604,7 @@ def _simplify_svg(path: str) -> None:
         while i < len(parent):
             child = parent[i]
             _flatten(child)
-            if child.tag == f"{{{NS}}}g" and _is_noop(child):
+            if child.tag == f"{{{_SVG_NS}}}g" and _is_noop(child):
                 grandchildren = list(child)
                 parent.remove(child)
                 for j, gc in enumerate(grandchildren):
@@ -662,8 +614,4 @@ def _simplify_svg(path: str) -> None:
             else:
                 i += 1
 
-    tree = ET.parse(path)
-    _flatten(tree.getroot())
-    with open(path, "w", encoding="utf-8") as f:
-        f.write('<?xml version="1.0" encoding="utf-8"?>\n')
-        f.write(ET.tostring(tree.getroot(), encoding="unicode"))
+    _flatten(root)
