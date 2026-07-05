@@ -225,9 +225,26 @@ class TestAddComparisons:
 
 
 def _text_labels(layer):
-    """Pull rendered text-mark strings out of a chart's named datasets."""
-    datasets = layer.to_dict().get("datasets", {})
-    return [rows[0]["__text"] for rows in datasets.values() if rows and "__text" in rows[0]]
+    """Pull rendered text-mark strings from a chart spec.
+
+    add_text (test label, correlation readout) encodes its string via ``alt.value`` (an
+    ``encoding.text.value`` literal), not a dataset field - walk the layer tree for those.
+    """
+    found: list = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            text_enc = node.get("encoding", {}).get("text")
+            if isinstance(text_enc, dict) and "value" in text_enc:
+                found.append(text_enc["value"])
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(layer.to_dict())
+    return found
 
 
 class TestTestLabel:
@@ -431,8 +448,7 @@ class TestNotationDict:
         return labels
 
     def _test_label(self, layer):
-        d = layer.to_dict().get("datasets", {})
-        vals = [v[0].get("__text") for v in d.values() if v and "__text" in v[0]]
+        vals = _text_labels(layer)
         return vals[0] if vals else None
 
     def test_scalar_applies_to_all(self, tri_df):
@@ -902,13 +918,8 @@ class TestCorrelationLabel:
 
     def test_verbose_shortcut(self):
         # verbose=True == coefficient="both", includePvalue=True, includeEquation=True
-        spec = add_correlation(pl.DataFrame({"x": _CX, "y": _CY}), "x", "y", verbose=True).to_dict()
-        name = next(
-            lyr["data"]["name"]
-            for lyr in spec["layer"]
-            if lyr.get("encoding", {}).get("text", {}).get("field") == "__text"
-        )
-        readout = spec["datasets"][name][0]["__text"]
+        chart = add_correlation(pl.DataFrame({"x": _CX, "y": _CY}), "x", "y", verbose=True)
+        readout = _text_labels(chart)[0]
         assert "r = " in readout and "r² = " in readout and "P " in readout and ", y = " in readout
 
     def test_invalid_coefficient_raises(self):

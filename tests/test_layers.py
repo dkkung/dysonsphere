@@ -111,6 +111,34 @@ class TestAddRule:
         assert not any("__" in t for t in texts)  # no leaked sidecar field name
 
 
+class TestAddText:
+    def test_single_annotation_returns_chart(self):
+        assert isinstance(add_text("a", x=1.0, y=1.0), alt.Chart)
+
+    def test_multiple_annotations_return_layer(self):
+        # One datum layer per annotation (single stays a bare Chart).
+        assert isinstance(add_text(["a", "b"], x=[1.0, 2.0], y=[1.0, 2.0]), alt.LayerChart)
+
+    def test_preserves_base_axis_titles(self):
+        # Regression: text annotations must not null the base chart's axis titles.
+        import re
+
+        import vl_convert as vlc
+
+        base = (
+            alt.Chart(pl.DataFrame({"a": [0.0, 1, 2], "b": [0.0, 1, 2]}))
+            .mark_point()
+            .encode(x=alt.X("a:Q", title="XT"), y=alt.Y("b:Q", title="YT"))
+        )
+        svg = vlc.vegalite_to_svg((base + add_text("hi", x=1.0, y=1.0)).to_dict())
+
+        def rendered(t):
+            return bool(re.search(r"<text[^>]*>[^<]*" + re.escape(t) + r"[^<]*</text>", svg))
+
+        assert rendered("XT")
+        assert rendered("YT")
+
+
 class TestAddRuleDatum:
     """Facet-safe datum mode: add_rule(data=df) shares the base's frame and positions by datum."""
 
