@@ -581,7 +581,7 @@ def add_labels(
     yCol: str,
     labelCol: str,
     *,
-    labels: list | None = None,
+    labels: int | list | None = None,
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
@@ -614,9 +614,11 @@ def add_labels(
     labelCol:
         Column holding the label text.
     labels:
-        Which rows to label. ``None`` (default) labels every row; a list labels only the rows whose
-        ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``). The domain still spans the
-        full ``df``, so labeling a subset does not clip the axes.
+        Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n`
+        rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **list**
+        labels only the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``).
+        Pass the full plotted ``df`` and let ``labels`` do the selecting - the domain is inferred
+        from all of ``df``, so selecting a subset never clips the axes.
     xDomain, yDomain:
         ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``).
         Default: the full ``df`` extent. Pass explicitly only for **derived positions** - when the
@@ -637,15 +639,20 @@ def add_labels(
         Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth``
         pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
     """
-    from .utils import _repel_labels, ensure_polars
+    from .utils import _repel_labels, _sample_spread, ensure_polars
 
     data = ensure_polars(df)
     # Domain spans the FULL df (so labeling a subset via labels= never clips the axes); the label
-    # positions come from the selected rows. labels=None labels every row; a list selects the rows
-    # whose labelCol value is in it.
+    # positions come from the selected rows. labels=None labels every row; an int auto-selects that
+    # many evenly spread across the plot (unbiased, no cherry-picking); a list selects the rows whose
+    # labelCol value is in it.
     all_x = [float(v) for v in data[xCol].to_list()]
     all_y = [float(v) for v in data[yCol].to_list()]
-    if labels is not None:
+    if isinstance(labels, bool):  # bool is an int subclass - reject before the int branch
+        raise ValueError("labels must be None, an int, or a list of values - not a bool")
+    if isinstance(labels, int):
+        data = data[_sample_spread(all_x, all_y, labels)]
+    elif labels is not None:
         data = data.filter(pl.col(labelCol).is_in(labels))
     xs = [float(v) for v in data[xCol].to_list()]
     ys = [float(v) for v in data[yCol].to_list()]

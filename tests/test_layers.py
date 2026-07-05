@@ -65,6 +65,19 @@ class TestAddLabels:
         # labels= draws only the chosen rows
         assert set(_text_values(add_labels(df, "x", "y", "g", labels=["a", "c"]).to_dict())) == {"a", "c"}
 
+    def test_labels_int_auto_selects_n(self, df):
+        # labels=int auto-picks that many (even-spread), no curation
+        assert len(_text_values(add_labels(df, "x", "y", "g", labels=2).to_dict())) == 2
+
+    def test_labels_int_deterministic(self, df):
+        a = _text_values(add_labels(df, "x", "y", "g", labels=2).to_dict())
+        b = _text_values(add_labels(df, "x", "y", "g", labels=2).to_dict())
+        assert a == b
+
+    def test_labels_rejects_bool(self, df):
+        with pytest.raises(ValueError, match="not a bool"):
+            add_labels(df, "x", "y", "g", labels=True)
+
     def test_domain_spans_full_df_when_labeling_subset(self, df):
         # even labeling one point, the pinned scale must span the full df (no axis clipping)
         spec = add_labels(df, "x", "y", "g", labels=["a"]).to_dict()

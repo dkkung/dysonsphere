@@ -148,6 +148,37 @@ def _repel_labels(
     return [(float(p[0]), float(p[1])) for p in pos]
 
 
+def _sample_spread(xs: list[float], ys: list[float], n: int) -> list[int]:
+    """Return the indices of ``n`` points spread as evenly as possible across the (x, y) extent -
+    farthest-point sampling, deterministic (no RNG).
+
+    Used by ``add_labels(labels=n)`` to auto-pick a readable, unbiased subset to label without the
+    caller cherry-picking. Preferred over a uniform random sample, which is density-weighted and so
+    would clump labels in the busiest region. Coordinates are normalized to a unit square (so x and
+    y weigh equally); the seed is the point nearest the low corner, then each next point is the one
+    farthest from all already-chosen. ``n >= len`` returns every index; ``n <= 0`` returns none.
+    """
+    import numpy as np
+
+    total = len(xs)
+    if n >= total:
+        return list(range(total))
+    if n <= 0:
+        return []
+    pts = np.column_stack([xs, ys]).astype(float)
+    lo = pts.min(axis=0)
+    span = pts.max(axis=0) - lo
+    span[span == 0] = 1.0
+    p = (pts - lo) / span  # unit square
+    chosen = [int(np.argmin(p.sum(axis=1)))]  # deterministic seed: nearest the low corner
+    dist = np.linalg.norm(p - p[chosen[0]], axis=1)
+    for _ in range(n - 1):
+        i = int(np.argmax(dist))
+        chosen.append(i)
+        dist = np.minimum(dist, np.linalg.norm(p - p[i], axis=1))
+    return chosen
+
+
 def count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]:
     """
     Count the number of rows in ``df`` belonging to each category.

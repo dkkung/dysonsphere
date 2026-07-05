@@ -3,7 +3,28 @@ import math
 import polars as pl
 import pytest
 
-from dysonsphere.utils import _repel_labels, band_geometry, count_n, ensure_polars, frame_checksum
+from dysonsphere.utils import _repel_labels, _sample_spread, band_geometry, count_n, ensure_polars, frame_checksum
+
+
+class TestSampleSpread:
+    def test_returns_n_indices(self):
+        assert len(_sample_spread([float(i) for i in range(10)], [0.0] * 10, 3)) == 3
+
+    def test_n_ge_len_returns_all(self):
+        assert sorted(_sample_spread([1.0, 2.0, 3.0], [1.0, 2.0, 3.0], 5)) == [0, 1, 2]
+
+    def test_n_le_zero_empty(self):
+        assert _sample_spread([1.0, 2.0], [1.0, 2.0], 0) == []
+
+    def test_deterministic(self):
+        xs = [float(i) for i in range(20)]
+        ys = [float((i * 7) % 20) for i in range(20)]
+        assert _sample_spread(xs, ys, 5) == _sample_spread(xs, ys, 5)
+
+    def test_spread_reaches_extremes(self):
+        # an even spread over a line must include both ends
+        idx = _sample_spread([float(i) for i in range(10)], [0.0] * 10, 3)
+        assert 0 in idx and 9 in idx
 
 
 class TestRepelLabels:
