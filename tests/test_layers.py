@@ -74,6 +74,15 @@ class TestAddLabels:
             add_labels(df, "x", "y", "g", connectorGap=0)
         )
 
+    def _n_connectors(self, chart):
+        return sum(1 for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rule")
+
+    def test_short_connectors_skipped_by_default(self, df):
+        # a huge gap makes every point fall within its label box -> all connectors are "on point"
+        # and skipped by default, but alwaysShowConnectors forces one per label
+        assert self._n_connectors(add_labels(df, "x", "y", "g", connectorGap=1000)) == 0
+        assert self._n_connectors(add_labels(df, "x", "y", "g", connectorGap=1000, alwaysShowConnectors=True)) == 3
+
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
         assert set(_text_values(add_labels(df, "x", "y", "g").to_dict())) == {"a", "b", "c"}

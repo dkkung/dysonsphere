@@ -123,13 +123,16 @@ def _repel_labels(
     pos[:, 1] -= half[:, 1] + 2.0  # start just above each anchor (y grows downward)
     pos[:, 0] += np.arange(n) * 1e-3  # deterministic tie-break for coincident anchors
 
-    k_spring, k_label, k_point, point_r, k_seg = 0.015, 0.4, 0.35, 3.0, 0.5
+    # k_spring pulls each label back toward its point (higher -> shorter connectors); k_label/k_point
+    # clear label-label and label-point overlaps; k_seg keeps labels off other connectors.
+    k_spring, k_label, k_point, point_r, k_seg = 0.05, 0.4, 0.35, 3.0, 0.5
     # longer-range density escape: a label deep in a cluster feels the AABB pushes cancel (points on
     # all sides), so it never leaves. A soft 1/dist push from every point within `dens_r` gives a net
     # vector toward the sparse side, so the label drifts out to open space (then the spring/label
-    # forces settle it). Radius scales with the panel; strength kept low so it only biases direction.
+    # forces settle it). Radius scales with the panel; strength kept LOW so it only biases direction -
+    # too high and labels overshoot far from their points (comically long connectors).
     dens_r = 0.25 * min(width, height)
-    k_dens = 6.0
+    k_dens = 2.0
     for _ in range(iterations):
         disp = np.zeros_like(pos)
         for i in range(n):

@@ -590,6 +590,7 @@ def add_labels(
     connectorColor: str | None = None,
     connectorStrokeDash: bool | list[int] = False,
     connectorGap: float | None = None,
+    alwaysShowConnectors: bool = False,
 ) -> alt.LayerChart:
     """Auto-place non-overlapping text labels for a set of points, with connector lines.
 
@@ -648,6 +649,10 @@ def add_labels(
         smaller ``mark_circle``) automatically; ``0`` -> no gap; a float -> that many pixels
         (set this for unusually large or heavily stroked markers, which the gap can't measure since
         the base chart isn't visible here). Automatically shrinks for very short connectors.
+    alwaysShowConnectors:
+        By default (``False``) a connector is omitted when the label ends up sitting on its own point
+        (the point falls within the label box) - the stub would just be noise, and the adjacent label
+        is unambiguous. ``True`` draws every connector regardless.
     """
     from .utils import _repel_labels, _sample_spread, ensure_polars
 
@@ -750,18 +755,23 @@ def add_labels(
                 if connectorGap is not None
                 else math.sqrt(_opt("markSize") / (2 * math.pi)) + _opt("markStrokeWidth")
             )
-            seg = math.hypot(ex - ax, ey - ay)
-            if seg > 0 and gap_cap > 0:
-                g = min(gap_cap, seg * 0.25)
-                ux, uy = (ex - ax) / seg, (ey - ay) / seg
-                sx, sy, tx, ty = ax + ux * g, ay + uy * g, ex - ux * g, ey - uy * g
-            else:
-                sx, sy, tx, ty = ax, ay, ex, ey
-            layers.append(
-                alt.Chart(_internal_data([{}]))
-                .mark_rule(**rule_kwargs)
-                .encode(x=alt.value(sx), y=alt.value(sy), x2=alt.value(tx), y2=alt.value(ty))
-            )
+            # Skip the connector when the label sits on its own point (the point falls within the label
+            # box + a small margin): the tiny stub is just noise overlapping the marker/glyphs. The
+            # label alone is unambiguous there. alwaysShowConnectors forces it drawn regardless.
+            on_point = abs(dx) <= hw + gap_cap and abs(dy) <= hh + gap_cap
+            if alwaysShowConnectors or not on_point:
+                seg = math.hypot(ex - ax, ey - ay)
+                if seg > 0 and gap_cap > 0:
+                    g = min(gap_cap, seg * 0.25)
+                    ux, uy = (ex - ax) / seg, (ey - ay) / seg
+                    sx, sy, tx, ty = ax + ux * g, ay + uy * g, ex - ux * g, ey - uy * g
+                else:
+                    sx, sy, tx, ty = ax, ay, ex, ey
+                layers.append(
+                    alt.Chart(_internal_data([{}]))
+                    .mark_rule(**rule_kwargs)
+                    .encode(x=alt.value(sx), y=alt.value(sy), x2=alt.value(tx), y2=alt.value(ty))
+                )
         layers.append(
             alt.Chart(_internal_data([{}]))
             .mark_text(align=align, **text_kwargs)
