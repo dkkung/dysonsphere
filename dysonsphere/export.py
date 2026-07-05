@@ -22,7 +22,7 @@ _AltairChart = Union[
     alt.ConcatChart,
 ]
 
-_VALID_FORMATS = ("svg", "png", "json")
+_VALID_FORMATS = ("svg", "png", "json", "html")
 _VALID_BACKGROUNDS = ("light", "dark")
 
 
@@ -118,8 +118,19 @@ def save(
         PNG ``iTXt Description`` chunk. Independent of ``saveMetadata``.
     format:
         Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw
-        Vega-Lite spec), as a single string or a list. ``None`` (default) uses the theme
-        option ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
+        Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled
+        in), as a single string or a list. ``None`` (default) uses the theme option
+        ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
+
+        ``"html"`` is the **interactive / approximate** tier: it renders live in the browser
+        via Vega, so it is fully themed and carries the metadata block, but it does NOT get
+        dysonsphere's static SVG post-processors (pixel-perfect tick alignment, superscript
+        typesetting). In particular ``inwardTicks`` is deliberately **not** applied to HTML:
+        the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that
+        works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different
+        Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label
+        spacing), so it renders inconsistently and is left off. Use ``"svg"``/``"png"`` for the
+        publication-accurate static figure.
     background:
         Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles
         ``darkmode``), as a single string or a list. ``None`` (default) uses the theme
@@ -223,7 +234,7 @@ def save(
     _row_cap = alt.data_transformers.enable("default", max_rows=None if overrideMaxRows else maxRows)
     _cap_stack.enter_context(_row_cap)  # ty: ignore[invalid-argument-type]  (Altair PluginEnabler lacks CM stub)
     try:
-        if _want_render:
+        if _want_render or "html" in _formats:
             import vl_convert as vlc
 
         for bg in _backgrounds:
@@ -254,6 +265,19 @@ def save(
                     base_um = jspec["usermeta"] if isinstance(jspec.get("usermeta"), dict) else {}
                     jspec["usermeta"] = {**base_um, **_usermeta}
                 Path(_path(bg, "json")).write_text(json.dumps(jspec, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            if "html" in _formats:
+                # Interactive, self-contained HTML (Vega JS bundled in). It renders live in the
+                # browser via Vega, so it does NOT get dysonsphere's static SVG fixers (tick
+                # alignment, inward ticks, superscript typesetting) - the interactive/approximate
+                # tier. It IS fully themed and carries the metadata block; use svg/png for the
+                # publication-accurate static figure. (inwardTicks is intentionally not applied: the
+                # negative-tickSize trick renders inconsistently across the browser's Vega build.)
+                hspec = dict(spec)
+                if _usermeta is not None:
+                    base_um = hspec["usermeta"] if isinstance(hspec.get("usermeta"), dict) else {}
+                    hspec["usermeta"] = {**base_um, **_usermeta}
+                Path(_path(bg, "html")).write_text(vlc.vegalite_to_html(hspec, bundle=True), encoding="utf-8")
 
             if _want_render:
                 alt.theme.options["transparentBackground"] = True
