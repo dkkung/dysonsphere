@@ -57,11 +57,7 @@ class TestLabelExpr:
 
         df = pl.DataFrame({"g": ["metadata_group1", "metadata_group2"] * 3, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]})
         mapping = {"metadata_group1": "group 1", "metadata_group2": "group 2"}
-        chart = (
-            alt.Chart(df)
-            .mark_point()
-            .encode(x=alt.X("g:N", axis=alt.Axis(labelExpr=label_expr(mapping))), y="v:Q")
-        )
+        chart = alt.Chart(df).mark_point().encode(x=alt.X("g:N", axis=alt.Axis(labelExpr=label_expr(mapping))), y="v:Q")
         save(chart, str(tmp_path / "lab"), format="svg", background="light")
         svg = (tmp_path / "lab.svg").read_text(encoding="utf-8")
         assert ">group 1<" in svg and ">group 2<" in svg

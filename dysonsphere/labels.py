@@ -1,5 +1,6 @@
 """Display-label helpers: map raw data values to presentable labels at render time."""
 
+from collections.abc import Mapping
 from typing import Any
 
 # Escapes for embedding a Python string inside a single-quoted Vega expression literal.
@@ -17,7 +18,7 @@ def _js_literal(value: Any) -> str:
     raise TypeError(f"label_expr keys and labels must be str, int, float, or bool; got {type(value).__name__}")
 
 
-def label_expr(mapping: dict[Any, str | list[str]]) -> str:
+def label_expr(mapping: Mapping[Any, str | list[str]]) -> str:
     """
     Build a Vega ``labelExpr`` that maps raw data values to display labels.
 
@@ -61,7 +62,7 @@ def label_expr(mapping: dict[Any, str | list[str]]) -> str:
             y="value:Q",
         )
     """
-    if not isinstance(mapping, dict) or not mapping:
+    if not isinstance(mapping, Mapping) or not mapping:
         raise ValueError(f"mapping must be a non-empty dict, got {mapping!r}")
     parts = []
     for raw, label in mapping.items():

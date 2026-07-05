@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Final, cast
 
@@ -37,7 +38,7 @@ class _MarkScaffold:
     palette: str | list[str] | None = None
     legend: bool = False
     xLabelAngle: float | None = None
-    labelMap: dict[Any, str | list[str]] | None = None
+    labelMap: Mapping[Any, str | list[str]] | None = None
     xTitle: str | None | _UnsetType = _UNSET
     yTitle: str | None | _UnsetType = _UNSET
 
@@ -80,13 +81,13 @@ class _MarkScaffold:
             title = self.xCol if self.legend else None
         legend_kwargs: dict[str, Any] = {"symbolType": symbolType} if symbolType else {}
         pal = self.palette
-        scale = {} if pal is None else {"scale": alt.Scale(range=pal if isinstance(pal, list) else [pal])}
+        scale = alt.Undefined if pal is None else alt.Scale(range=pal if isinstance(pal, list) else [pal])
         return alt.Color(
             field if field is not None else f"{self.xCol}:N",
             sort=self.categories,
             title=title,
             legend=alt.Legend(**legend_kwargs) if self.legend else None,
-            **scale,
+            scale=scale,
         )
 
 
@@ -105,6 +106,7 @@ def mark_violin(
     strokeWidth: float | None = None,
     legend: bool = False,
     xLabelAngle: float | None = None,
+    labelMap: Mapping[Any, str | list[str]] | None = None,
     steps: int = 200,
     yTitle: str | None | _UnsetType = _UNSET,
     xTitle: str | None | _UnsetType = _UNSET,
@@ -148,6 +150,10 @@ def mark_violin(
         X-axis label rotation in degrees. Negative tilts left (e.g. ``-45``),
         positive tilts right; ``labelAlign`` is derived automatically from the
         sign. ``None`` inherits from ``theme(xLabelAngle)``.
+    labelMap:
+        ``{raw_value: label}`` mapping applied to the x-axis tick labels at render
+        time via :func:`label_expr` - the data keeps the raw values. A label may be
+        a list of strings for a multi-line label. Unmapped values show as-is.
     steps:
         Number of y grid points used for KDE estimation (per group).
     yTitle:
@@ -192,6 +198,7 @@ def mark_violin(
         palette=palette,
         legend=legend,
         xLabelAngle=xLabelAngle,
+        labelMap=labelMap,
         xTitle=xTitle,
         yTitle=yTitle,
     )
@@ -294,6 +301,7 @@ def mark_strip(
     spread: float | None = None,
     legend: bool = False,
     xLabelAngle: float | None = None,
+    labelMap: Mapping[Any, str | list[str]] | None = None,
     errorbars: bool = True,
     errorbarExtent: str = "sem",
     yTitle: str | None | _UnsetType = _UNSET,
@@ -331,6 +339,10 @@ def mark_strip(
         X-axis label rotation in degrees. Negative tilts left (e.g. ``-45``),
         positive tilts right; ``labelAlign`` is derived automatically from the
         sign. ``None`` inherits from ``theme(xLabelAngle)``.
+    labelMap:
+        ``{raw_value: label}`` mapping applied to the x-axis tick labels at render
+        time via :func:`label_expr` - the data keeps the raw values. A label may be
+        a list of strings for a multi-line label. Unmapped values show as-is.
     errorbars:
         Whether to show error bars around the group mean. When ``True``,
         the mean is shown as a tick with error bars. When ``False``, the
@@ -362,6 +374,7 @@ def mark_strip(
         palette=palette,
         legend=legend,
         xLabelAngle=xLabelAngle,
+        labelMap=labelMap,
         xTitle=xTitle,
         yTitle=yTitle,
     )
@@ -437,7 +450,9 @@ def mark_strip(
     else:
         raise ValueError(f"errorbarExtent must be 'sem' or 'sd', got {errorbarExtent!r}")
 
-    summary = df.group_by(xCol).agg([pl.col(yCol).mean().alias("__mean"), error_expr])
+    # maintain_order: group_by is otherwise order-nondeterministic, which changed the
+    # inlined summary dataset (and so the spec checksum + mark z-order) run to run.
+    summary = df.group_by(xCol, maintain_order=True).agg([pl.col(yCol).mean().alias("__mean"), error_expr])
 
     errorbar_layer = (
         alt.Chart(_internal_data(summary))

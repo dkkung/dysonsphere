@@ -554,6 +554,7 @@ chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
 | `spread` | `None` | Point spread in pixels. For jitter: std dev (defaults to `min(chartWidth, chartHeight) / 50`). For beeswarm: collision radius (defaults to `√(markSize/π)` from theme) |
 | `legend` | `False` | Show a color legend |
 | `xLabelAngle` | `theme(xLabelAngle)` | X-axis label rotation in degrees |
+| `labelMap` | `None` | `{raw_value: label}` display mapping for x-axis tick labels (see [Relabeling axis values](#relabeling-axis-values)); a list value renders multi-line |
 | `errorbars` | `True` | Show mean ± error bars |
 | `errorbarExtent` | `"sem"` | `"sem"` or `"sd"` |
 | `yTitle` | `yCol` | Y-axis title; `None` suppresses it |
@@ -591,11 +592,41 @@ ds.save(alt.hconcat(left, right), "comparison")
 | `strokeWidth` | `theme(markStrokeWidth)` | Violin outline width |
 | `legend` | `False` | Show a color legend |
 | `xLabelAngle` | `theme(xLabelAngle)` | X-axis label rotation in degrees |
+| `labelMap` | `None` | `{raw_value: label}` display mapping for x-axis tick labels (see [Relabeling axis values](#relabeling-axis-values)); a list value renders multi-line |
 | `steps` | `200` | KDE grid resolution per group |
 | `yTitle` | `yCol` | Y-axis title; `None` suppresses it |
 | `xTitle` | `xCol` | X-axis title; `None` suppresses it |
 
 ![marks example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/marks_example.png)
+
+### Relabeling axis values
+
+Dataframes often hold machine names (`metadata_group1`) where the plot needs presentable
+labels (`group 1`). Renaming the data is tedious and changes what gets exported;
+hand-writing a Vega `labelExpr` is worse. `ds.label_expr()` builds the expression for you —
+only the rendered labels change, while the data, the exported JSON, checksums, and
+statistics records keep the raw values.
+
+```python
+labels = {
+    "metadata_ctrl": "Control",
+    "metadata_tnf10": ["TNF-α", "(10 ng/mL)"],   # a list renders as a multi-line label
+}
+
+# anywhere Vega-Lite accepts a label expression:
+alt.X("treatment:N", axis=alt.Axis(labelExpr=ds.label_expr(labels)))     # axis ticks
+alt.Color("treatment:N", legend=alt.Legend(labelExpr=ds.label_expr(labels)))  # legend
+alt.Facet("treatment:N", header=alt.Header(labelExpr=ds.label_expr(labels)))  # facet headers
+
+# or let the custom marks wire it up for you:
+chart = ds.mark_strip(df, "treatment", "value", CATEGORIES, labelMap=labels)
+chart = ds.mark_violin(df, "treatment", "value", CATEGORIES, labelMap=labels)
+annotated = ds.add_multilabel(chart, CONDITIONS, categoryLabel=True, labelMap=labels)
+```
+
+Unmapped values fall back to the raw value; map a value to `""` to hide it. Numeric keys
+work (`{5: "five"}`). In `add_multilabel`'s category-label row the mapping is a plain text
+lookup (list labels are space-joined there, since those are text marks, not axis labels).
 
 ### Statistical annotations
 
