@@ -10,7 +10,7 @@ sidebar:
 ## `add_rule`
 
 ```python
-add_rule(value: float | list[float], *, axis: str = 'y', label: str | list[str] | None = None, labelPosition: str | None = None, labelAlign: str | None = None, labelOffsetX: int = 0, labelOffsetY: int = 0, color: str | None = None, strokeWidth: float | None = None, strokeDash: bool | list[int] | None = None, opacity: float = 1.0, fontSize: float | None = None)
+add_rule(value: float | list[float], *, axis: str = 'y', label: str | list[str] | None = None, labelPosition: str | None = None, labelAlign: str | None = None, labelOffsetX: int = 0, labelOffsetY: int = 0, color: str | None = None, strokeWidth: float | None = None, strokeDash: bool | list[int] | None = None, opacity: float = 1.0, fontSize: float | None = None, data: pl.DataFrame | Any | None = None)
 ```
 
 Add one or more horizontal or vertical reference lines to a chart.
@@ -31,6 +31,7 @@ Returns a layer that the caller composes with ``+``.
 - **`strokeDash`** (`bool | list[int] | None`) - ``None`` (default) inherits the theme's ``dashedRule`` setting. ``False`` forces a solid line. ``True`` uses the theme's ``dashedWidth`` pattern. A list (e.g. ``[4, 2]``) uses that pattern directly.
 - **`opacity`** (`float`) - Line opacity. Defaults to ``1.0``.
 - **`fontSize`** (`float | None`) - Label font size. ``None`` inherits from the active theme.
+- **`data`** (`pl.DataFrame | Any | None`) - Facet-safe (datum) mode. ``None`` (default) builds the rule from its own small internal dataset — the normal behavior, but **incompatible with faceting** (Altair requires every layer of a faceted chart to share one data variable). Pass the **same DataFrame you gave the base chart** to switch to datum mode: the rule then shares that data and is positioned by a constant ``alt.datum`` instead of a sidecar dataset, so ``(base + add_rule(..., data=df))`` can be faceted and the line repeats in every panel. Accepts a polars or pandas DataFrame.
 
 **Examples**
 
@@ -39,6 +40,10 @@ Returns a layer that the caller composes with ``+``.
 
     # Horizontal line at y=0
     chart = base + ds.add_rule(0)
+
+    # Facet-safe: pass the same df as the base, then facet
+    df_chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+    faceted = (df_chart + ds.add_rule(5.0, label="Threshold", data=df)).facet("group:N")
 
     # Labeled horizontal line, label above-left by default
     chart = base + ds.add_rule(5.0, label="Threshold", color="#c0392b")
@@ -63,7 +68,7 @@ Returns a layer that the caller composes with ``+``.
 ## `add_text`
 
 ```python
-add_text(text: str | list[str], x = None, y = None, *, position: str | None = None, angle: float = 0, align: str | None = None, baseline: str | None = None, offsetX: int = 0, offsetY: int = 0, color: str | None = None, fontSize: float | None = None, fontWeight: str | None = None, fontStyle: str | None = None, font: str | None = None, opacity: float = 1.0)
+add_text(text: str | list[str], x = None, y = None, *, position: str | None = None, angle: float = 0, align: str | None = None, baseline: str | None = None, offsetX: int = 0, offsetY: int = 0, color: str | None = None, fontSize: float | None = None, fontWeight: str | None = None, fontStyle: str | None = None, font: str | None = None, opacity: float = 1.0, data: pl.DataFrame | Any | None = None)
 ```
 
 Add one or more text annotations to a chart.
@@ -87,6 +92,7 @@ Returns a layer that the caller composes with ``+``.
 - **`fontStyle`** (`str | None`) - ``"normal"`` or ``"italic"``. ``None`` inherits from the active theme.
 - **`font`** (`str | None`) - Font family name (e.g. ``"sans-serif"``, ``"Georgia"``). ``None`` inherits from the active theme.
 - **`opacity`** (`float`) - Text opacity. Defaults to ``1.0``.
+- **`data`** (`pl.DataFrame | Any | None`) - Facet-safe (datum) mode. ``None`` (default) builds the annotation from its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass the **same DataFrame you gave the base chart** to share its data and position the text by ``alt.datum`` (data coordinates) / ``alt.value`` (pixels), so ``(base + add_text(..., data=df))`` can be faceted and the text repeats in every panel. Accepts a polars or pandas DataFrame.
 
 **Examples**
 
@@ -115,12 +121,15 @@ Returns a layer that the caller composes with ``+``.
 
     # Fixed pixel position via alt.value() passthrough
     chart + ds.add_text("†", x=alt.value(60), y=alt.value(10))
+
+    # Facet-safe: pass the same df as the base, then facet
+    chart + ds.add_text("★", x="B", y=18.0, data=df)
 ```
 
 ## `add_shade`
 
 ```python
-add_shade(categories: list[str] | None = None, xCol: str | None = None, *, positions: list[tuple] | None = None, axis: str = 'x', palette: list[str] | None = None, nShades: int = 2, repeat: int = 1, opacity: float = 1.0, stroke: bool = False, strokeWidth: float | None = None, strokeDash: list[float] | bool | None = None, flush: bool | None = None)
+add_shade(categories: list[str] | None = None, xCol: str | None = None, *, positions: list[tuple] | None = None, axis: str = 'x', palette: list[str] | None = None, nShades: int = 2, repeat: int = 1, opacity: float = 1.0, stroke: bool = False, strokeWidth: float | None = None, strokeDash: list[float] | bool | None = None, flush: bool | None = None, data: pl.DataFrame | Any | None = None)
 ```
 
 Build a background shading layer as filled ``mark_rect`` bands.
@@ -189,6 +198,7 @@ In both modes, compose behind the main chart with ``+``::
 - **`strokeWidth`** (`float | None`) - Explicit border width in pixels. Overrides ``axisWidth`` when ``stroke=True``. Has no effect when ``stroke=False``.
 - **`strokeDash`** (`list[float] | bool | None`) - Dash pattern for the rect border. ``None`` (default) → solid. ``True`` → inherit ``dashedWidth`` from the active theme. A list (e.g. ``[4, 2]``) → use that pattern directly.
 - **`flush`** (`bool | None`) - Extend the outermost rects to the axis domain edge (band mode and string positions only). ``None`` inherits from the theme's ``closed`` setting.
+- **`data`** (`pl.DataFrame | Any | None`) - Facet-safe (datum) mode, **positions mode only**. ``None`` (default) builds each rect from its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass the **same DataFrame you gave the base chart** to share its data and position numeric ranges by ``alt.datum`` (string/pixel ranges already use ``alt.value``), so ``(base + add_shade(positions=..., data=df))`` can be faceted and the shading repeats in every panel. Accepts polars or pandas. **Band mode** (``positions`` omitted) does not support ``data=`` and raises.
 
 ## `add_comparisons`
 
@@ -228,7 +238,7 @@ Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 - **`nComparisons`** (`int | None`) - Total number of comparisons for Bonferroni correction. Defaults to ``len(pairs)`` when ``correction='bonferroni'`` and not set explicitly.
 - **`yPositions`** (`list[float] | None`) - Explicit y positions (data units) for each bracket, one per pair in the same order. When provided, overrides all auto-stacking logic (``yStart``, ``yStep``, ``yPad`` are ignored).
 - **`yStart`** (`float | None`) - Y position (data units) of the lowest bracket. Defaults to ``max(y values for all annotated groups) + yPad``.
-- **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels. Defaults to ``yPad * 2``.
+- **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels. Defaults to ``yPad * 1.5``.
 - **`yPad`** (`float | None`) - Padding above the data maximum when ``yStart`` is auto-placed. Defaults to a fixed visual gap of ~8 px (``bracketStyle='line'``) or ~10 px (``bracketStyle='bracket'``), expressed in data units via ``chartHeight`` so the gap stays visually consistent regardless of chart height.
 - **`categories`** (`list | None`) - Ordered list of all x-axis categories. Inferred from ``df`` (sorted alphabetically) when not provided.
 - **`chartWidth`** (`int | None`) - Width of the chart in pixels, used to compute text x positions. Auto-detected from ``ds.theme()`` when not set.

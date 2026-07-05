@@ -7,6 +7,37 @@ sidebar:
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
 
+## `categorical`
+
+```python
+categorical(members: int = 1)
+```
+
+Qualitative color palette built from four base hues (blue, pink, yellow, green).
+
+Every color is drawn from the existing ``blues``/``pinks``/``yellows``/``greens``
+palettes at fixed stops - nothing is generated de novo, so retuning a base hue
+regenerates this palette automatically.
+
+**Parameters**
+
+- **`members`** (`int`) - Colors per associated group, ``1``-``4``. - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major** (cycle the four hues at the light tier, then mid, then dark) so adjacent categories differ in hue. Returns 12 colors. This is the palette wired to ``config.range.category``. - ``2``/``3``/``4``: a **grouped** palette for paired data (``A1``/``A2`` …), ordered **hue-major** - each consecutive block of ``members`` categories is one hue climbing through ``members`` lightness levels. Returns ``4 * members`` colors. Sort your categories so a group's members are adjacent, then pass this as the color scale range.
+
+**Examples**
+
+```python
+Flat categorical (the default; also automatic via ``config.range.category``)::
+
+    alt.Color("g:N")                                       # picks it up automatically
+    alt.Color("g:N", scale=alt.Scale(range=categorical()))  # explicit
+
+Paired data, members adjacent within each group::
+
+    groups = ["A1", "A2", "B1", "B2"]
+    alt.Color("g:N", sort=groups, scale=alt.Scale(range=categorical(2)))
+    # -> A1=blue-light, A2=blue-dark, B1=pink-light, B2=pink-dark, ...
+```
+
 ## `palette`
 
 ```python

@@ -104,7 +104,7 @@ and ``vconcat`` layouts.
 
 - **`chart`** (`alt.Chart | alt.LayerChart`) - The chart to add minor ticks to.
 - **`df`** - DataFrame (Polars or Pandas) used for the main chart.
-- **`field`** (`str | None`) - Column name of the log-scale field. Required when ``axis`` is ``'x'`` or ``'y'``; omit when ``axis='both'`` and use ``xField`` / ``yField`` instead.
+- **`field`** (`str | None`) - Column name of the log-scale field. When ``axis`` is ``'x'`` or ``'y'`` and this is ``None``, it is inferred from the chart's matching encoding shorthand (``chart.encoding.x`` / ``.y``); pass it explicitly for a ``LayerChart`` (no top-level encoding) or an aggregate/expression encoding, where inference is not possible. Omit when ``axis='both'`` and use ``xField`` / ``yField`` instead.
 - **`axis`** (`str`) - ``'x'``, ``'y'`` (default), or ``'both'``. When ``'both'``, ``xField`` and ``yField`` must be provided.
 - **`base`** (`int`) - Logarithm base matching the axis scale. Defaults to ``10``. Use ``2`` for log2 axes (e.g. volcano plots, fold-change axes). Any integer ≥ 2 is accepted.
 - **`nMinor`** (`int`) - Number of minor ticks per major interval for non-base-10 scales. Ignored when ``base=10`` (which always uses the 2×–9× pattern). Defaults to ``1`` (one tick at the geometric midpoint per interval). Use ``3`` for quarter-interval ticks.

@@ -63,3 +63,16 @@ name only.  If ``df`` is neither, a ``TypeError`` is raised.
     pdf = pd.DataFrame({"group": ["A", "B"], "value": [1.0, 2.0]})
     pldf = ds.ensure_polars(pdf)  # returns a polars.DataFrame
 ```
+
+## `frame_checksum`
+
+```python
+frame_checksum(df: pl.DataFrame | Any)
+```
+
+Order-independent ``sha256:<hex>`` fingerprint of a dataframe's rows.
+
+Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so identical
+content in any row order yields the same value.  Used to tag a statistics record with the
+identity of the dataframe it was computed from, so records from distinct dataframes are
+distinguishable (and identical-content frames match regardless of ordering).

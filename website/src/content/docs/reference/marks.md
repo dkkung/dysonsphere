@@ -10,7 +10,7 @@ sidebar:
 ## `mark_violin`
 
 ```python
-mark_violin(df: pl.DataFrame | Any, xCol: str, yCol: str, categories: list[str], *, boxplotSize: int | None = None, boxplotColor: str = 'black', palette: str | list[str] | None = None, fillOpacity: float | None = None, stroke: str | None = None, strokeWidth: float | None = None, legend: bool = False, xLabelAngle: float | None = None, steps: int = 200, yTitle: str | None | _UnsetType = _UNSET, xTitle: str | None | _UnsetType = _UNSET)
+mark_violin(df: pl.DataFrame | Any, xCol: str, yCol: str, categories: list[str], *, boxplotSize: int | None = None, boxplotColor: str = 'black', medianColor: str = 'white', palette: str | list[str] | None = None, fillOpacity: float | None = None, stroke: str | None = None, strokeWidth: float | None = None, legend: bool = False, xLabelAngle: float | None = None, steps: int = 200, yTitle: str | None | _UnsetType = _UNSET, xTitle: str | None | _UnsetType = _UNSET)
 ```
 
 Build an Altair layer combining a violin plot behind a boxplot.
@@ -26,6 +26,7 @@ layers (e.g. ``ds.add_comparisons``).
 - **`categories`** (`list[str]`) - Ordered list of all x-axis categories, used for positioning and axis labels.
 - **`boxplotSize`** (`int | None`) - Width of the boxplot box in pixels.
 - **`boxplotColor`** (`str`) - Fill color of the boxplot.
+- **`medianColor`** (`str`) - Fill color of the boxplot median line. Defaults to ``"white"`` so it reads against the default black box; overrides the theme's ``markMedianFill``.
 - **`palette`** (`str | list[str] | None`) - Fill color of all violins. When ``None``, each group inherits its color from the theme's active category palette.
 - **`fillOpacity`** (`float | None`) - Fill opacity of the violin. Inherits ``markFillOpacity`` from theme when ``None``.
 - **`stroke`** (`str | None`) - Outline color of the violin. Defaults to ``None`` (no outline).

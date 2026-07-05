@@ -34,7 +34,7 @@ Each background toggles ``darkmode`` for its render, restoring the original afte
 - **`filename`** (`str`) - Extensionless path for the output files (e.g. ``"myplot"`` or ``"plots/myplot"``). A bare name saves to the current working directory, matching Altair's default behaviour.
 - **`ppi`** (`int`) - Pixel density for PNG output.
 - **`description`** (`str | None`) - Optional, purely your own text. Stored verbatim (nothing appended) in the Vega-Lite JSON spec's ``description`` field, the SVG ``<desc>`` element, and the PNG ``iTXt Description`` chunk. Independent of ``saveMetadata``.
-- **`format`** (`str | list[str] | None`) - Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw Vega-Lite spec), as a single string or a list. ``None`` (default) uses the theme option ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
+- **`format`** (`str | list[str] | None`) - Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled in), as a single string or a list. ``None`` (default) uses the theme option ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises. ``"html"`` is the **interactive / approximate** tier: it renders live in the browser via Vega, so it is fully themed and carries the metadata block, but it does NOT get dysonsphere's static SVG post-processors (pixel-perfect tick alignment, superscript typesetting). In particular ``inwardTicks`` is deliberately **not** applied to HTML: the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label spacing), so it renders inconsistently and is left off. Use ``"svg"``/``"png"`` for the publication-accurate static figure.
 - **`background`** (`str | list[str] | None`) - Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles ``darkmode``), as a single string or a list. ``None`` (default) uses the theme option ``saveBackground`` (``"light"``). An empty list or unknown value raises.
 - **`maxRows`** (`int`) - Row cap for the data inlined into the output (default ``5000``, matching Altair). Every format renders via ``chart.to_dict()``, which inlines the data, and the JSON embeds it for :func:`read` — so data over this many rows would make the files huge and is **blocked with a clear error**. Raise it to allow larger data.
 - **`overrideMaxRows`** (`bool`) - If ``True``, removes the row cap entirely for this save (inlines all rows, however many). The deliberate opt-in for large data.
@@ -58,6 +58,27 @@ Callable — rebuilt per variant so dark-mode colours are correct::
         background=["light", "dark"],
     )
 ```
+
+## `show`
+
+```python
+show(chart: _AltairChart | Callable[[], _AltairChart])
+```
+
+Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
+inline display in a notebook.
+
+Altair's own inline renderer (used when you just display a chart) does NOT run
+dysonsphere's SVG post-processors, so its preview is approximate - ticks aren't
+pixel-aligned, log/superscript labels aren't typeset, and with ``inwardTicks=True`` the
+ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
+:func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
+the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
+writes no file.
+
+Accepts the same chart types as :func:`save`, including a zero-argument callable (called
+once). Requires IPython (present in any notebook); otherwise raises ``ImportError`` - use
+:func:`save` to write a file instead.
 
 ## `load`
 

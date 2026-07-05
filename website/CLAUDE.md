@@ -5,16 +5,27 @@ in `website/`; developed on the `website` branch, in a git worktree (see Working
 
 ## Layout
 
-- `src/content/docs/` - pages: `index.mdx` (home), `guides/*` (getting-started + feature guides),
-  `gallery.mdx`, `playground.mdx`, `reference/*` (generated API).
-- `src/components/` - `Chart.astro` (live vega-embed chart, light/dark reactive),
-  `Playground.astro` (Pyodide runtime + CodeMirror editor), and `SiteTitle.astro` (Starlight
-  override that two-tones the header wordmark to match the logo).
-- `src/styles/theme.css` - blues2 accent (from `ds.colors`), chart zoom, hover-only export menu.
-- `scripts/` - `gen_api.py`, `gen_examples.py`.
+- `src/content/docs/` - pages: `index.mdx` (home), `guides/*` (getting-started, theming, palettes,
+  marks, annotations, statistics, nonlinear, saving), `gallery.mdx`, `playground.mdx`, `studio.mdx`
+  (Chart Studio), `reference/*` (generated API).
+- `src/components/` - `Chart.astro` (live vega-embed chart from a named spec, light/dark reactive),
+  `Example.astro` (registry example: verbatim `examples/<name>.py` source as the code block + its
+  live chart + "Open in playground" deep link), `Playground.astro` (CodeMirror editor over the
+  shared runtime), `Studio.astro` (interactive plotter), `Palettes.astro` (client-side swatch
+  browser from generated JSON), `SiteTitle.astro` (two-toned header wordmark).
+- `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
+  `onRuntimeStatus()`). Both the playground and Chart Studio consume it, so the runtime boots once
+  and is reused. Exposes `runChart(code, dark)` and `loadTable(name, text, format)`.
+- `src/styles/theme.css` - the neutral-pro skin (greys ramp for chrome, desaturated blues2 accent),
+  landing layout, chart zoom, hover-only export menu.
+- `src/generated/` - build inputs generated from the library (`palettes.json`).
+- `examples/` - the **example registry**: one copy-runnable `<name>.py` per example, each defining
+  a `chart` variable. Source of truth for both the shown snippet and the rendered chart.
+- `scripts/` - `gen_api.py` (griffe → `reference/*.md`), `gen_examples.py` (exec each
+  `examples/*.py` → `public/charts/*.json`), `gen_palettes.py` (→ `src/generated/palettes.json`).
 - `logo/` - the logo family + its generator (see the Logo section).
 - `public/charts/` - generated Vega-Lite specs (`<name>-light.json` / `<name>-dark.json`).
-- `astro.config.mjs` - Starlight config + sidebar.
+- `astro.config.mjs` - Starlight config, sidebar, Inter/JetBrains-Mono fonts, Expressive Code.
 
 ## Commands
 
@@ -23,12 +34,26 @@ in `website/`; developed on the `website` branch, in a git worktree (see Working
 - npm 11 blocks install scripts: after `npm install`, run
   `npm approve-scripts esbuild sharp && npm rebuild esbuild sharp`.
 - Regenerate the API reference: `uv run --no-project --with griffe python website/scripts/gen_api.py`.
-- Regenerate the example charts: `uv run --with vega-datasets python website/scripts/gen_examples.py`.
-- Generated files (`reference/*.md`, `charts/*.json`) are committed for now; CI regeneration is a
-  deploy TODO.
+- Regenerate the example charts: `uv run --with vega-datasets python website/scripts/gen_examples.py`
+  (pass example names to rebuild a subset).
+- Regenerate the palette swatch data: `uv run python website/scripts/gen_palettes.py`.
+- Generated files (`reference/*.md`, `charts/*.json`, `src/generated/palettes.json`) are committed
+  for now; CI regeneration is a deploy TODO.
 
 ## Conventions and gotchas
 
+- **Example registry.** Every guide chart is a file in `examples/`; `Example.astro` shows that file
+  verbatim (vite `?raw`) AND renders the spec `gen_examples.py` produced from executing it, so shown
+  code and chart cannot drift. Each example must define `chart` (playground contract). To add one:
+  drop `examples/<name>.py`, run `gen_examples.py`, reference `<Example name="<name>" />`. The
+  generator monkeypatches `ds.theme` to inject `darkmode`/`transparentBackground` - keep those out
+  of the snippet.
+- **Shared runtime.** Don't boot Pyodide directly; call `getRuntime()` from `src/lib/runtime.ts`.
+  It's a singleton, so playground + studio share one boot. The Python bootstrap lives in
+  `PY_BOOTSTRAP`; site render args are applied there, never in shown code.
+- **Chart Studio codegen.** `Studio.astro` builds two versions of each snippet: a *display* one
+  (`pl.read_csv("file.csv")`, copy-runnable) and an *exec* one (`df = __tables__["data"]`, run via
+  the runtime). Uploaded data lives in `_studio_tables`; the shown code never references it.
 - **Chart size.** Charts are authored at dysonsphere's publication defaults (100x100 px, small
   fonts/marks); scale them for the web with CSS `zoom` on `.vega-embed .chart-wrapper` (tune
   `--ds-chart-zoom` in theme.css). Do NOT zoom `.vega-embed` (that scales the export menu too) or
@@ -95,11 +120,16 @@ background to check them on light/dark. Do this in `/tmp` and delete the scratch
 
 ## Status (living)
 
-Done: scaffold + blues2 theming + dark mode; griffe API reference; live gallery (vega-datasets);
-playground island (Pyodide + CodeMirror/GitHub editor); dark-reactive transparent charts; feature
-guides (theming, marks, statistics, nonlinear); chart display polish (zoom + hover menu); the logo
-(see the Logo section), wired into the header + homepage.
+Done: neutral-pro skin (greys-ramp chrome, desaturated blues2 accent, Inter/JetBrains Mono);
+redesigned landing (code+live-chart hero, feature cards); the example registry (`examples/*.py` +
+`Example.astro` + snippet-executing `gen_examples.py`, ~34 examples) with per-example "Open in
+playground" deep links; the shared Pyodide runtime (`src/lib/runtime.ts`); full guide set
+(getting-started, theming, palettes w/ live swatch browser, marks & transforms, annotations,
+statistics, nonlinear, saving & reading); Chart Studio (upload data → live chart + emitted Python);
+griffe API reference; the logo (unchanged), wired into header + homepage.
 
-TODO: finer theming; more guides (saving/reading, palettes, condition tables, transforms); deploy
-(`site`/`base` + a GitHub Actions workflow running the generators, and switching Pages off the old
-`docs/` gallery).
+TODO: molecular-biology gallery (synthetic gene-expression / dose-response / qPCR datasets - user
+wants this next; note the library already ships `nucleotides`/`proteins` palettes); deploy
+(`site`/`base` + a GitHub Actions workflow running the three generators, and switching Pages off the
+old `docs/` gallery). Browser-only checks still pending user confirmation: Studio upload/render,
+runtime shared-boot, playground deep links, light/dark on every new chart.
