@@ -291,9 +291,9 @@ See `## Style conventions` for the `-`-not-em-dashes rule, the 120-character lim
 5. Bump version in `pyproject.toml`
 6. `uv lock` — updates `uv.lock` to reflect the new version
 7. `uv run python scripts/build_all.py` — rebuild all docs assets (gallery, examples, swatches)
-8. Commit everything
-9. `git push origin main` — triggers GitHub Pages deploy from `docs/`
-10. `git tag vX.Y.Z && git push origin vX.Y.Z` — triggers PyPI publish via OIDC
+8. Commit everything to a release branch (e.g. `release-vX.Y.Z`) and push it — **`main` is a protected branch: direct pushes are rejected (PRs required, admins included), so a release lands via PR like any other change**
+9. Open a PR into `main` (title e.g. "Release vX.Y.Z") and merge it (0 approvals required, self-merge is fine) — the merge triggers the GitHub Pages deploy from `docs/`
+10. `git checkout main && git pull`, then `git tag vX.Y.Z && git push origin vX.Y.Z` — tag the MERGE commit on main (tag pushes are not blocked by branch protection); triggers PyPI publish via OIDC
 11. Draft a new release on GitHub: go to Releases → Draft a new release, select the tag, paste release notes, publish
 
-GitHub Pages deploys from `docs/` on every push to `main`. PyPI publishes on every `v*` tag push via `publish.yml`.
+GitHub Pages deploys from `docs/` on every push to `main`. PyPI publishes on every `v*` tag push via `publish.yml`. Branch protection on `main` (since 2026-07-05): pull requests required with 0 approvals, `enforce_admins` on (no direct pushes for anyone), force pushes and deletions blocked.
