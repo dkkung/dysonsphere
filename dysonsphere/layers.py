@@ -572,6 +572,115 @@ def add_text(
     return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
 
+# Auto-placed point labels (force-repel)
+
+
+def _box_edge(center: tuple[float, float], toward: tuple[float, float], hw: float, hh: float) -> tuple[float, float]:
+    """Point where the segment from ``center`` toward ``toward`` exits the box (half-size hw x hh
+    centred at ``center``) - i.e. where a leader line should meet the label box edge."""
+    cx, cy = center
+    dx, dy = toward[0] - cx, toward[1] - cy
+    if dx == 0 and dy == 0:
+        return center
+    sx = hw / abs(dx) if dx else float("inf")
+    sy = hh / abs(dy) if dy else float("inf")
+    s = min(sx, sy, 1.0)  # never past the anchor itself
+    return (cx + s * dx, cy + s * dy)
+
+
+def add_labels(
+    df: "pl.DataFrame | Any",
+    xCol: str,
+    yCol: str,
+    labelCol: str,
+    *,
+    xDomain: tuple[float, float] | None = None,
+    yDomain: tuple[float, float] | None = None,
+    fontSize: float | None = None,
+    color: str | None = None,
+    leaderLines: bool = True,
+    leaderColor: str | None = None,
+) -> alt.LayerChart:
+    """Auto-place non-overlapping text labels for a set of points, with leader lines.
+
+    Force-directed placement (deterministic - reproducible figures) nudges each label off its
+    point and away from the others, drawing a thin leader line from each point to its label. Every
+    requested label is shown (never dropped); in an impossibly dense region labels settle at their
+    least-overlapping positions. Returns a layer to compose onto the base chart with ``+``.
+
+    Because label placement is a pixel-space problem solved before Vega renders, the leader lines
+    align with the points ONLY if the base chart's x/y scales are pinned to match: pass the same
+    ``xDomain`` / ``yDomain`` here and set them on the base chart with ``alt.Scale(domain=...,
+    nice=False, zero=False)``. When omitted they default to the data extent of ``xCol`` / ``yCol``.
+
+    Parameters
+    ----------
+    df:
+        Points to label (polars or pandas). One label per row.
+    xCol, yCol:
+        Quantitative coordinate columns (must match the base chart's x / y encodings).
+    labelCol:
+        Column holding the label text.
+    xDomain, yDomain:
+        ``(min, max)`` data domains, matching the base chart's pinned scales. Default: the
+        ``xCol`` / ``yCol`` extent.
+    fontSize:
+        Label font size. ``None`` -> the theme's ``secondaryFontSize``.
+    color:
+        Label text color. ``None`` -> darkmode-aware black/white.
+    leaderLines:
+        Draw a leader line from each point to its label (default ``True``).
+    leaderColor:
+        Leader line color. ``None`` -> the label ``color``.
+    """
+    from .utils import _repel_labels, ensure_polars
+
+    data = ensure_polars(df)
+    xs = [float(v) for v in data[xCol].to_list()]
+    ys = [float(v) for v in data[yCol].to_list()]
+    labels = [str(v) for v in data[labelCol].to_list()]
+    n = len(labels)
+
+    width, height = _opt("chartWidth"), _opt("chartHeight")
+    fs = fontSize if fontSize is not None else _opt("secondaryFontSize")
+    darkmode = _opt("darkmode")
+    text_color = color if color is not None else ("white" if darkmode else "black")
+    line_color = leaderColor if leaderColor is not None else text_color
+
+    if n == 0:
+        return cast(alt.LayerChart, alt.layer(alt.Chart(_internal_data([{}])).mark_point(opacity=0)))
+
+    x0, x1 = xDomain if xDomain is not None else (min(xs), max(xs))
+    y0, y1 = yDomain if yDomain is not None else (min(ys), max(ys))
+    xspan = x1 - x0 or 1.0
+    yspan = y1 - y0 or 1.0
+
+    def to_px(x: float, y: float) -> tuple[float, float]:
+        # Match Vega's linear map with a pinned domain: x -> [0, width], y inverted -> [height, 0].
+        return ((x - x0) / xspan * width, height - (y - y0) / yspan * height)
+
+    anchors = [to_px(x, y) for x, y in zip(xs, ys)]
+    sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in labels]  # rough text-box estimate
+    label_pos = _repel_labels(anchors, sizes, width=width, height=height)
+
+    layers: list[alt.Chart] = []
+    for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, labels):
+        if leaderLines:
+            ex, ey = _box_edge((lx, ly), (ax, ay), w / 2, h / 2)
+            layers.append(
+                # strokeDash=[0, 0] forces solid - leaders shouldn't inherit the theme's dashedRule
+                alt.Chart(_internal_data([{}]))
+                .mark_rule(color=line_color, strokeWidth=_opt("axisWidth"), strokeDash=[0, 0])
+                .encode(x=alt.value(ax), y=alt.value(ay), x2=alt.value(ex), y2=alt.value(ey))
+            )
+        layers.append(
+            alt.Chart(_internal_data([{}]))
+            .mark_text(fontSize=fs, color=text_color, align="center", baseline="middle")
+            .encode(x=alt.value(lx), y=alt.value(ly), text=alt.value(text))
+        )
+    return cast(alt.LayerChart, alt.layer(*layers))
+
+
 # Background shading
 
 

@@ -86,6 +86,68 @@ def band_geometry(
     return BandGeometry(step, centers, starts, ends)
 
 
+def _repel_labels(
+    anchors: list[tuple[float, float]],
+    sizes: list[tuple[float, float]],
+    *,
+    width: float,
+    height: float,
+    iterations: int = 300,
+) -> list[tuple[float, float]]:
+    """Force-directed, non-overlapping label placement (deterministic) - the engine behind
+    :func:`add_labels`.
+
+    ``anchors`` are the pixel positions of the points being labelled and ``sizes`` each label's
+    ``(width, height)`` box in pixels (pixel origin top-left, y growing downward, matching a
+    rendered SVG). Returns one label-CENTRE pixel position per anchor. Each label box repels the
+    others (pushed apart along its axis of least penetration), a weak spring pulls it back toward
+    its anchor, and it is clamped inside the ``width`` x ``height`` panel; iterated to a relaxed
+    layout. Fully deterministic (no RNG - a tiny index-based offset breaks exact ties), so the
+    same inputs always give the same figure. **Never drops a label** (force-show): in an
+    impossibly dense region labels settle at their least-overlapping positions rather than
+    disappearing.
+    """
+    import numpy as np
+
+    n = len(anchors)
+    if n == 0:
+        return []
+    a = np.array(anchors, dtype=float)
+    half = np.array(sizes, dtype=float) / 2.0 + 2.0  # +2px padding so boxes gap, not just touch
+    pos = a.copy()
+    pos[:, 1] -= half[:, 1] + 2.0  # start just above each anchor (y grows downward)
+    pos[:, 0] += np.arange(n) * 1e-3  # deterministic tie-break for coincident anchors
+
+    k_spring, k_label, k_point, point_r = 0.015, 0.4, 0.4, 3.0
+    for _ in range(iterations):
+        disp = np.zeros_like(pos)
+        for i in range(n):
+            for j in range(i + 1, n):  # label <-> label box repulsion
+                d = pos[i] - pos[j]
+                overlap = (half[i] + half[j]) - np.abs(d)
+                if overlap[0] > 0 and overlap[1] > 0:
+                    # push apart along whichever axis is least overlapping (smaller move)
+                    if overlap[0] <= overlap[1]:
+                        push = np.array([overlap[0] * (1.0 if d[0] >= 0 else -1.0), 0.0])
+                    else:
+                        push = np.array([0.0, overlap[1] * (1.0 if d[1] >= 0 else -1.0)])
+                    disp[i] += push * k_label
+                    disp[j] -= push * k_label
+            for k in range(n):  # label <-> point repulsion (lift labels off the markers)
+                d = pos[i] - a[k]
+                ox, oy = (half[i, 0] + point_r) - abs(d[0]), (half[i, 1] + point_r) - abs(d[1])
+                if ox > 0 and oy > 0:
+                    if ox <= oy:
+                        disp[i, 0] += ox * (1.0 if d[0] >= 0 else -1.0) * k_point
+                    else:
+                        disp[i, 1] += oy * (1.0 if d[1] >= 0 else -1.0) * k_point
+        disp += (a - pos) * k_spring  # weak spring back toward anchor
+        pos += disp
+        pos[:, 0] = np.clip(pos[:, 0], half[:, 0], width - half[:, 0])
+        pos[:, 1] = np.clip(pos[:, 1], half[:, 1], height - half[:, 1])
+    return [(float(p[0]), float(p[1])) for p in pos]
+
+
 def count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]:
     """
     Count the number of rows in ``df`` belonging to each category.

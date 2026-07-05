@@ -2,8 +2,87 @@ import altair as alt
 import polars as pl
 import pytest
 
-from dysonsphere.layers import _rule_mark_kwargs, add_rule, add_shade, add_text
+from dysonsphere.layers import _rule_mark_kwargs, add_labels, add_rule, add_shade, add_text
 from dysonsphere.theme import theme
+
+
+def _text_values(spec):
+    """All text-mark strings in a chart spec (add_labels encodes text via alt.value)."""
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            t = node.get("encoding", {}).get("text")
+            if isinstance(t, dict) and "value" in t:
+                found.append(t["value"])
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(spec)
+    return found
+
+
+class TestAddLabels:
+    @pytest.fixture
+    def df(self):
+        return pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "g": ["a", "b", "c"]})
+
+    def test_returns_layerchart(self, df):
+        assert isinstance(add_labels(df, "x", "y", "g"), alt.LayerChart)
+
+    def test_layer_count_with_leaders(self, df):
+        # one leader + one text layer per label
+        assert len(add_labels(df, "x", "y", "g").to_dict()["layer"]) == 6
+
+    def test_no_leader_lines(self, df):
+        assert len(add_labels(df, "x", "y", "g", leaderLines=False).to_dict()["layer"]) == 3
+
+    def test_all_labels_shown(self, df):
+        # force-show: every requested label appears (never dropped)
+        assert set(_text_values(add_labels(df, "x", "y", "g").to_dict())) == {"a", "b", "c"}
+
+    def test_fontsize_defaults_to_secondary(self, df):
+        theme(fontSize=9)  # -> secondaryFontSize 8
+        spec = add_labels(df, "x", "y", "g").to_dict()
+        sizes = {lyr["mark"]["fontSize"] for lyr in spec["layer"] if lyr["mark"]["type"] == "text"}
+        assert sizes == {8}
+
+    def test_preserves_base_axis_titles(self, df):
+        # add_labels positions by pixels (alt.value), so it must not touch the base axis titles.
+        import re
+
+        import vl_convert as vlc
+
+        base = (
+            alt.Chart(df)
+            .mark_point()
+            .encode(
+                x=alt.X("x:Q", title="XT", scale=alt.Scale(domain=[1, 3], nice=False, zero=False)),
+                y=alt.Y("y:Q", title="YT", scale=alt.Scale(domain=[1, 3], nice=False, zero=False)),
+            )
+        )
+        svg = vlc.vegalite_to_svg(
+            (base + add_labels(df, "x", "y", "g", xDomain=(1.0, 3.0), yDomain=(1.0, 3.0))).to_dict()
+        )
+
+        def rendered(t):
+            return bool(re.search(r"<text[^>]*>[^<]*" + re.escape(t) + r"[^<]*</text>", svg))
+
+        assert rendered("XT")
+        assert rendered("YT")
+
+    def test_read_filters_sidecars(self, tmp_path, df):
+        import dysonsphere as ds
+
+        ds.theme()
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        out = tmp_path / "c"
+        ds.save(lambda: base + add_labels(df, "x", "y", "g"), str(out), format="json")
+        frame = ds.read(str(out) + ".json", what="data")
+        assert set(frame.columns) == {"x", "y", "g"}  # only the user's frame
 
 
 @pytest.fixture(autouse=True)
