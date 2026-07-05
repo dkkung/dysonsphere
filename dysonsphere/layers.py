@@ -627,11 +627,14 @@ def add_labels(
     fontSize:
         Label font size. ``None`` -> the theme's ``secondaryFontSize``.
     color:
-        Label text color. ``None`` -> darkmode-aware black/white.
+        Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware
+        black/white).
     leaderLines:
-        Draw a leader line from each point to its label (default ``True``).
+        Whether to draw the line connecting each point to its label (default ``True``).
     leaderColor:
-        Leader line color. ``None`` -> the label ``color``.
+        Leader line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware).
+        Leaders otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke,
+        opaque) but are always solid, never the theme's ``dashedRule``.
     """
     from .utils import _repel_labels, ensure_polars
 
@@ -643,9 +646,16 @@ def add_labels(
 
     width, height = _opt("chartWidth"), _opt("chartHeight")
     fs = fontSize if fontSize is not None else _opt("secondaryFontSize")
-    darkmode = _opt("darkmode")
-    text_color = color if color is not None else ("white" if darkmode else "black")
-    line_color = leaderColor if leaderColor is not None else text_color
+    # Text and leaders INHERIT the theme's mark_text / mark_rule config (darkmode-aware color,
+    # rounded caps, axisWidth stroke, opaque) - resolved per render, so they track darkmode without
+    # a callable. We only force the leader dash solid (never the theme's dashedRule) and apply an
+    # explicit color when the caller passes one.
+    text_kwargs: dict = {"fontSize": fs, "align": "center", "baseline": "middle"}
+    if color is not None:
+        text_kwargs["color"] = color
+    rule_kwargs: dict = {"strokeDash": [0, 0]}
+    if leaderColor is not None:
+        rule_kwargs["color"] = leaderColor
 
     if n == 0:
         return cast(alt.LayerChart, alt.layer(alt.Chart(_internal_data([{}])).mark_point(opacity=0)))
@@ -668,14 +678,13 @@ def add_labels(
         if leaderLines:
             ex, ey = _box_edge((lx, ly), (ax, ay), w / 2, h / 2)
             layers.append(
-                # strokeDash=[0, 0] forces solid - leaders shouldn't inherit the theme's dashedRule
                 alt.Chart(_internal_data([{}]))
-                .mark_rule(color=line_color, strokeWidth=_opt("axisWidth"), strokeDash=[0, 0])
+                .mark_rule(**rule_kwargs)
                 .encode(x=alt.value(ax), y=alt.value(ay), x2=alt.value(ex), y2=alt.value(ey))
             )
         layers.append(
             alt.Chart(_internal_data([{}]))
-            .mark_text(fontSize=fs, color=text_color, align="center", baseline="middle")
+            .mark_text(**text_kwargs)
             .encode(x=alt.value(lx), y=alt.value(ly), text=alt.value(text))
         )
     return cast(alt.LayerChart, alt.layer(*layers))
