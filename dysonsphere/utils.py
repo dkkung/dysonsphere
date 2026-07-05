@@ -124,6 +124,12 @@ def _repel_labels(
     pos[:, 0] += np.arange(n) * 1e-3  # deterministic tie-break for coincident anchors
 
     k_spring, k_label, k_point, point_r, k_seg = 0.015, 0.4, 0.35, 3.0, 0.5
+    # longer-range density escape: a label deep in a cluster feels the AABB pushes cancel (points on
+    # all sides), so it never leaves. A soft 1/dist push from every point within `dens_r` gives a net
+    # vector toward the sparse side, so the label drifts out to open space (then the spring/label
+    # forces settle it). Radius scales with the panel; strength kept low so it only biases direction.
+    dens_r = 0.25 * min(width, height)
+    k_dens = 6.0
     for _ in range(iterations):
         disp = np.zeros_like(pos)
         for i in range(n):
@@ -150,6 +156,13 @@ def _repel_labels(
                 norm = np.linalg.norm(dd, axis=1)
                 norm[norm == 0] = 1e-9
                 disp[i] += (dd / norm[:, None] * pen[:, None]).sum(axis=0) * k_point
+            # density-gradient escape (see dens_r/k_dens above): net 1/dist push from nearby points
+            dn = np.linalg.norm(d, axis=1)
+            near = (dn > 1e-9) & (dn < dens_r)
+            if near.any():
+                dd = d[near]
+                dnn = dn[near]
+                disp[i] += (dd / (dnn[:, None] ** 2)).sum(axis=0) * k_dens
             # label i <-> other labels' connector segments (anchor a[j] -> label pos[j]): if a
             # connector line passes through label i's box, push i off it so leaders don't run through
             # other labels. Treat the closest point on the segment like an obstacle.
