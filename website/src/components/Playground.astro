@@ -94,6 +94,15 @@ chart = (
 			if (runtime) run(); // re-render the chart in the new theme's ink
 		}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
+		// A new #code= deep link while already on this page (e.g. a second "Open in playground"
+		// click) should replace the editor contents and re-run.
+		window.addEventListener('hashchange', () => {
+			const code = hashCode();
+			if (code === null) return;
+			editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: code } });
+			if (runtime) run();
+		});
+
 		const setStatus = (msg: string, kind = '') => {
 			statusEl.textContent = msg;
 			statusEl.dataset.kind = kind;

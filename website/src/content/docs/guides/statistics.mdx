@@ -39,6 +39,11 @@ precision.
 
 <Example name="comparisons_notation" alt="Comparison bracket with scientific-notation p-value" />
 
+Both `bracketStyle` and `notation` also accept a **dict** for per-pair control (keys are pairs,
+matched regardless of order); `notation` additionally takes a `"test"` key for the omnibus label:
+
+<Example name="comparisons_perpair" alt="Two brackets with different per-pair styles and notation" />
+
 ### Omnibus with post-hoc
 
 For an omnibus test, the corner label reports the omnibus result and the brackets are filled by the

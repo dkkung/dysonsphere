@@ -25,7 +25,12 @@ names.
 
 ```python
 ds.save(chart, "figure", format=["svg", "png", "json"], background=["light", "dark"])
+ds.save(chart, "figure", format="html")   # a self-contained interactive HTML page
 ```
+
+The SVG post-processing means a notebook's inline preview (Altair renders straight from Vega-Lite)
+can differ subtly from the saved file. `ds.show(chart)` renders a chart *through* the `save()`
+pipeline so the preview matches the exported figure exactly.
 
 The SVG is post-processed for publication: `<g>` wrappers are flattened for Illustrator, axis ticks
 and log/power minor ticks are snapped to exact positions, and superscript exponents are realigned.

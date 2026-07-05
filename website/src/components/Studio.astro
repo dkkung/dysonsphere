@@ -6,6 +6,8 @@
 import palettes from '../generated/palettes.json';
 
 const paletteNames = palettes.map((p) => p.name);
+// name -> colors, for the live swatch preview under the palette input.
+const paletteColors = Object.fromEntries(palettes.map((p) => [p.name, p.colors]));
 ---
 
 <div id="studio" class="st">
@@ -58,6 +60,7 @@ const paletteNames = palettes.map((p) => p.name);
 				<datalist id="st-palette-list">
 					{paletteNames.map((n) => <option value={n} />)}
 				</datalist>
+				<span id="st-palette-preview" class="st__swatch" aria-hidden="true"></span>
 			</label>
 			<div class="st__dims">
 				<label>Width <input id="st-w" type="number" min="40" max="600" step="10" value="100" /></label>
@@ -82,7 +85,11 @@ const paletteNames = palettes.map((p) => p.name);
 		</div>
 		<div class="st__panel">
 			<div class="st__label">
-				Python <button id="st-copy" class="st__copy" type="button">Copy</button>
+				Python
+				<span class="st__label-actions">
+					<a id="st-playground" class="st__copy" href="#">Open in playground</a>
+					<button id="st-copy" class="st__copy" type="button">Copy</button>
+				</span>
 			</div>
 			<pre class="st__code"><code id="st-code"></code></pre>
 		</div>
@@ -92,6 +99,11 @@ const paletteNames = palettes.map((p) => p.name);
 <script>
 	import vegaEmbed from 'vega-embed';
 	import { getRuntime, onRuntimeStatus, type DsRuntime } from '../lib/runtime';
+	import palettes from '../generated/palettes.json';
+
+	const PALETTE_COLORS: Record<string, string[]> = Object.fromEntries(
+		palettes.map((p) => [p.name, p.colors]),
+	);
 
 	// A small self-contained sample: made-up dose/response with a categorical treatment.
 	const SAMPLE = `treatment,dose,response,replicate
@@ -139,17 +151,21 @@ high,100,22.9,3`;
 			return columns.find((c) => c.kind === kind);
 		}
 
-		function fillSelect(id: string, includeNone = false) {
+		function fillSelect(id: string, includeNone = false, onlyKind?: Column['kind']) {
 			const sel = el<HTMLSelectElement>(id);
 			const prev = sel.value;
+			// Filter to a kind when asked, but fall back to all columns if none match (e.g. a
+			// dataset with no numeric column would otherwise leave Y empty).
+			let cols = onlyKind ? columns.filter((c) => c.kind === onlyKind) : columns;
+			if (!cols.length) cols = columns;
 			sel.innerHTML = includeNone ? '<option value="">(none)</option>' : '';
-			for (const c of columns) {
+			for (const c of cols) {
 				const opt = document.createElement('option');
 				opt.value = c.name;
 				opt.textContent = `${c.name}  ·  ${c.kind[0].toUpperCase()}`;
 				sel.appendChild(opt);
 			}
-			if (prev && columns.some((c) => c.name === prev)) sel.value = prev;
+			if (prev && cols.some((c) => c.name === prev)) sel.value = prev;
 		}
 
 		// Pick sensible defaults after a new table loads.
@@ -270,9 +286,31 @@ high,100,22.9,3`;
 			return [...head, '', ...body].join('\n');
 		}
 
+		const BASE = import.meta.env.BASE_URL;
+		function syncPalettePreview() {
+			const name = el<HTMLInputElement>('st-palette').value.trim();
+			const colors = PALETTE_COLORS[name];
+			const preview = el('st-palette-preview');
+			preview.innerHTML = '';
+			if (!colors) return;
+			for (const c of colors) {
+				const stop = document.createElement('span');
+				stop.style.background = c;
+				preview.appendChild(stop);
+			}
+		}
+		function syncPlaygroundLink(displayCode: string) {
+			// base64 of UTF-8, matching the playground's #code= decoder.
+			const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(displayCode)));
+			el<HTMLAnchorElement>('st-playground').href = `${BASE}playground/#code=${encodeURIComponent(b64)}`;
+		}
+
 		let renderTimer: number | undefined;
 		async function render() {
-			codeEl.textContent = buildCode(true);
+			const displayCode = buildCode(true);
+			codeEl.textContent = displayCode;
+			syncPalettePreview();
+			syncPlaygroundLink(displayCode);
 			if (!runtime || !columns.length) return;
 			setStatus('Rendering…');
 			try {
@@ -297,7 +335,8 @@ high,100,22.9,3`;
 				const info = JSON.parse(runtime.loadTable(tableName, text, format));
 				columns = info.columns;
 				dataInfo.textContent = `${displayName} · ${info.rows} rows · ${columns.length} columns`;
-				for (const id of ['st-x', 'st-y']) fillSelect(id);
+				fillSelect('st-x');
+				fillSelect('st-y', false, 'quantitative'); // Y is always the measured value
 				fillSelect('st-color', true);
 				seedEncodings();
 				syncVisibility();
@@ -338,7 +377,7 @@ high,100,22.9,3`;
 		});
 
 		// Show the sample immediately (code + eventually the chart), boot the runtime in the bg.
-		codeEl.textContent = buildCode(true);
+		render();
 		onRuntimeStatus((msg) => {
 			if (!runtime) setStatus(msg);
 		});
@@ -447,6 +486,28 @@ high,100,22.9,3`;
 		font-size: 0.75rem;
 		color: var(--sl-color-gray-3);
 		margin: 0.6rem 0 0;
+	}
+	.st__swatch {
+		display: flex;
+		height: 0.75rem;
+		margin-top: 0.35rem;
+		border-radius: 0.25rem;
+		overflow: hidden;
+	}
+	.st__swatch:empty {
+		display: none;
+	}
+	.st__swatch span {
+		flex: 1;
+	}
+	.st__label-actions {
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+	}
+	a.st__copy {
+		text-decoration: none;
+		display: inline-block;
 	}
 	.st__output {
 		display: flex;
