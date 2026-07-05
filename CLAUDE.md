@@ -53,6 +53,9 @@ uv run python scripts/build/build_reference_line_example.py
 # Rebuild text annotation example → docs/text_example.png
 uv run python scripts/build/build_text_example.py
 
+# Rebuild point labels example → docs/labels_example.png
+uv run python scripts/build/build_labels_example.py
+
 # Rebuild nonlinear scale example → docs/nonlinear_example.png
 uv run python scripts/build/build_nonlinear_example.py
 
