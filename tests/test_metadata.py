@@ -490,6 +490,23 @@ class TestReadLoad:
         txts = list(outdir.glob("dysonsphere_report_*.txt"))
         assert len(txts) == 1 and txts[0].read_text(encoding="utf-8").startswith("Statistics")
 
+    def test_load_maps_deprecated_theme_key(self, tmp_path):
+        # files exported before the transparentBackground -> transparent rename replay
+        # their baked theme through the deprecated alias (warn, but load fine)
+        import dysonsphere as ds
+
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        ds.save(chart, str(tmp_path / "old"), format="json", background="light")
+        spec = json.loads((tmp_path / "old.json").read_text(encoding="utf-8"))
+        theme_block = spec["usermeta"]["dysonsphere"]["theme"]
+        theme_block["transparentBackground"] = theme_block.pop("transparent")  # simulate an old file
+        (tmp_path / "old.json").write_text(json.dumps(spec), encoding="utf-8")
+        with pytest.warns(DeprecationWarning, match="transparentBackground"):
+            obj = ds.load(str(tmp_path / "old.json"))
+        assert obj is not None
+        assert alt.theme.options["transparent"] is False
+
 
 # ── PNG metadata helpers ──────────────────────────────────────────────────────
 

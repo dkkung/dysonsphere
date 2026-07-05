@@ -55,13 +55,32 @@ class TestThemeDefaults:
         theme(viewFill="#eeeeee", closed=False)
         assert alt.theme.options["closed"] is False
 
-    def test_chart_fill_defaults_white_light_mode(self):
-        theme(darkmode=False)
-        assert alt.theme.options["chartFill"] == "white"
+    def test_chart_fill_auto_resolves_white_light_mode(self):
+        # chartFill stays None ("auto") in the options; the config resolves it live from
+        # darkmode so save()'s per-background toggle works without re-running theme()
+        from dysonsphere.theme import _dysonsphere_theme
 
-    def test_chart_fill_none_in_dark_mode(self):
-        theme(darkmode=True)
+        theme(darkmode=False)
         assert alt.theme.options["chartFill"] is None
+        assert _dysonsphere_theme()["background"] == "white"
+
+    def test_chart_fill_auto_resolves_black_dark_mode(self):
+        from dysonsphere.theme import _dysonsphere_theme
+
+        theme(darkmode=True)
+        assert _dysonsphere_theme()["background"] == "black"
+
+    def test_chart_fill_explicit_used_as_is(self):
+        from dysonsphere.theme import _dysonsphere_theme
+
+        theme(chartFill="#eeeeee")
+        assert _dysonsphere_theme()["background"] == "#eeeeee"
+
+    def test_transparent_suppresses_background(self):
+        from dysonsphere.theme import _dysonsphere_theme
+
+        theme(transparent=True)
+        assert _dysonsphere_theme()["background"] is None
 
     def test_secondary_font_size_default(self):
         theme()  # fontSize=7
@@ -465,3 +484,29 @@ class TestBoxplotOutliers:
     def test_explicit_size_used_as_is(self):
         theme(boxplotOutliers=5)
         assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == 5
+
+
+# ── deprecated aliases ───────────────────────────────────────────────────────
+
+
+class TestDeprecatedAliases:
+    def test_transparent_background_kwarg_warns_and_maps(self):
+        with pytest.warns(DeprecationWarning, match="transparentBackground"):
+            theme(transparentBackground=True)
+        assert alt.theme.options["transparent"] is True
+
+    def test_new_name_wins_when_both_given(self):
+        with pytest.warns(DeprecationWarning):
+            theme(transparentBackground=True, transparent=False)
+        assert alt.theme.options["transparent"] is False
+
+    def test_unknown_kwarg_still_raises(self):
+        with pytest.raises(TypeError, match="unexpected keyword"):
+            theme(notAThing=1)
+
+    def test_toml_key_warns_and_maps(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text("[default]\ntransparentBackground = true\n", encoding="utf-8")
+        with pytest.warns(DeprecationWarning, match="transparentBackground"):
+            theme()
+        assert alt.theme.options["transparent"] is True

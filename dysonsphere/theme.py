@@ -18,13 +18,18 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
         "chartHeight": 900,
         "darkmode": True,
         "fontSize": 18,
-        "transparentBackground": True,
+        "transparent": True,
     },
     "presentation": {
         "fontSize": 12,
         "darkmode": True,
-        "transparentBackground": True,
+        "transparent": True,
     },
+}
+
+# DEPRECATED (remove at v3.0): old parameter names accepted as aliases, with a warning.
+_DEPRECATED_ALIASES: dict[str, str] = {
+    "transparentBackground": "transparent",  # renamed in v2.1
 }
 
 _BUILTIN_DEFAULTS: dict[str, Any] = {
@@ -74,7 +79,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "strokeCap": "round",
     "ticks": True,
     "tickSize": 3,
-    "transparentBackground": False,
+    "transparent": False,
     "viewFill": None,
     "xAxis": True,
     "xDomain": True,
@@ -124,6 +129,27 @@ def _config_paths() -> list[Path]:
     return paths
 
 
+def _apply_deprecated_aliases(params: dict[str, Any], source: str) -> dict[str, Any]:
+    """Map deprecated parameter names to their replacements, warning once per use.
+
+    Returns a new dict with old keys renamed. When both the old and new name are
+    present, the new name wins (the old key is dropped).
+    """
+    import warnings
+
+    out = dict(params)
+    for old, new in _DEPRECATED_ALIASES.items():
+        if old in out:
+            warnings.warn(
+                f"{old!r} ({source}) is deprecated and will be removed in v3.0; use {new!r}.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            val = out.pop(old)
+            out.setdefault(new, val)
+    return out
+
+
 def _load_style_overrides(style: str | None) -> dict[str, Any]:
     """
     Build the final override dict for theme().
@@ -143,6 +169,7 @@ def _load_style_overrides(style: str | None) -> dict[str, Any]:
 
         for section in ("default", style):
             if section and section in config:
+                config[section] = _apply_deprecated_aliases(config[section], f"[{section}] in {path}")
                 unknown = set(config[section]) - set(_BUILTIN_DEFAULTS)
                 if unknown:
                     raise ValueError(f"Unknown theme parameter(s) in [{section}] of {path}: {sorted(unknown)}")
@@ -192,6 +219,7 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     overrides. See the README for the config file format and search path.
     Named styles in the config file are selected with ``style=``.
     """
+    kwargs = _apply_deprecated_aliases(kwargs, "theme() keyword argument")
     unknown = set(kwargs) - set(_BUILTIN_DEFAULTS)
     if unknown:
         raise TypeError(f"theme() got unexpected keyword argument(s): {sorted(unknown)}")
@@ -217,8 +245,10 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
         p["cornerRadius"] = min(p["chartWidth"], p["chartHeight"]) / 100
     if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
         p["boxplotOutliers"] = p["markSize"] / 10
-    if p["chartFill"] is None and not p["darkmode"]:
-        p["chartFill"] = "white"
+    # chartFill=None means "auto" (white in light mode, black in dark mode) and is resolved
+    # at config-build time in _dysonsphere_theme(), NOT here - save() toggles darkmode per
+    # background variant without re-running theme(), so the fill must follow darkmode live
+    # (the same pattern as every other darkmode-aware colour).
     # Offset the axis line and legend from the plot by 1.5x the tick length — enough separation
     # to read as an intentional (Prism-style) detached axis, not a rendering gap. Resolved once
     # here (not inline at each use) so the axis config, legend config, and save()'s grid-span fix
@@ -270,7 +300,12 @@ def _dysonsphere_theme() -> dict[str, Any]:
     category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
     return {
-        "background": (None if opts["transparentBackground"] else opts["chartFill"]),  # background of the entire chart
+        # background of the entire chart; chartFill=None -> auto (darkmode-aware)
+        "background": (
+            None
+            if opts["transparent"]
+            else (opts["chartFill"] if opts["chartFill"] is not None else ("black" if opts["darkmode"] else "white"))
+        ),
         "config": {
             "arc": {
                 "fill": opts["markFill"],

@@ -5,17 +5,14 @@ Usage (from project root):
     uv run python scripts/build/build_text_example.py
 """
 
-import tempfile
 from pathlib import Path
 from typing import Any
 
 import altair as alt
 import numpy as np
 import polars as pl
-import vl_convert as vlc
 
 import dysonsphere as ds
-from dysonsphere.export import _render_fixed_svg
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -63,9 +60,5 @@ multi = {
 annotated = ds.add_multilabel(chart, categories=GROUPS, groups=multi, style="plusminus", categoryLabel=True)
 
 out_png = ROOT / "docs" / "text_example.png"
-with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
-    tmp_path = tmp.name
-svg_content = _render_fixed_svg(annotated, tmp_path)
-Path(tmp_path).unlink()
-out_png.write_bytes(vlc.svg_to_png(svg_content, ppi=1200))
+ds.save(annotated, str(out_png.with_suffix("")), format="png", background="light", transparent=False)
 print(f"saved {out_png}")
