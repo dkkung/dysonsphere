@@ -732,10 +732,20 @@ def add_labels(
             text_x = ex = lx
             ey = ly - hh if dy <= 0 else ly + hh
         if connector:
+            # Leave a small gap at each end so the line points at the marker and the label rather
+            # than piercing the dot / touching the glyphs. Clamp for very short connectors so the
+            # segment can't invert or disappear.
+            gap = 2.0
+            seg = math.hypot(ex - ax, ey - ay)
+            if seg > 2 * gap + 1:
+                ux, uy = (ex - ax) / seg, (ey - ay) / seg
+                sx, sy, tx, ty = ax + ux * gap, ay + uy * gap, ex - ux * gap, ey - uy * gap
+            else:
+                sx, sy, tx, ty = ax, ay, ex, ey
             layers.append(
                 alt.Chart(_internal_data([{}]))
                 .mark_rule(**rule_kwargs)
-                .encode(x=alt.value(ax), y=alt.value(ay), x2=alt.value(ex), y2=alt.value(ey))
+                .encode(x=alt.value(sx), y=alt.value(sy), x2=alt.value(tx), y2=alt.value(ty))
             )
         layers.append(
             alt.Chart(_internal_data([{}]))
