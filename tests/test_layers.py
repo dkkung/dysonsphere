@@ -34,11 +34,12 @@ class TestAddLabels:
         assert isinstance(add_labels(df, "x", "y", "g"), alt.LayerChart)
 
     def test_layer_count_with_leaders(self, df):
-        # one leader + one text layer per label
-        assert len(add_labels(df, "x", "y", "g").to_dict()["layer"]) == 6
+        # 1 invisible scale-pin layer + (connector + text) per label
+        assert len(add_labels(df, "x", "y", "g").to_dict()["layer"]) == 1 + 3 * 2
 
     def test_no_connector(self, df):
-        assert len(add_labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 3
+        # 1 pin layer + 1 text per label
+        assert len(add_labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 1 + 3
 
     def _connector_stroke_dashes(self, chart):
         return [lyr["mark"]["strokeDash"] for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rule"]
@@ -59,6 +60,20 @@ class TestAddLabels:
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
         assert set(_text_values(add_labels(df, "x", "y", "g").to_dict())) == {"a", "b", "c"}
+
+    def test_labels_selects_subset(self, df):
+        # labels= draws only the chosen rows
+        assert set(_text_values(add_labels(df, "x", "y", "g", labels=["a", "c"]).to_dict())) == {"a", "c"}
+
+    def test_domain_spans_full_df_when_labeling_subset(self, df):
+        # even labeling one point, the pinned scale must span the full df (no axis clipping)
+        spec = add_labels(df, "x", "y", "g", labels=["a"]).to_dict()
+        domains = [
+            lyr["encoding"]["x"]["scale"]["domain"]
+            for lyr in spec["layer"]
+            if lyr.get("encoding", {}).get("x", {}).get("scale")
+        ]
+        assert domains == [[1.0, 3.0]]  # full extent, not the single labeled point's
 
     def test_fontsize_defaults_to_secondary(self, df):
         theme(fontSize=9)  # -> secondaryFontSize 8

@@ -581,6 +581,7 @@ def add_labels(
     yCol: str,
     labelCol: str,
     *,
+    labels: list | None = None,
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
@@ -596,22 +597,31 @@ def add_labels(
     requested label is shown (never dropped); in an impossibly dense region labels settle at their
     least-overlapping positions. Returns a layer to compose onto the base chart with ``+``.
 
-    Because label placement is a pixel-space problem solved before Vega renders, the leader lines
-    align with the points ONLY if the base chart's x/y scales are pinned to match: pass the same
-    ``xDomain`` / ``yDomain`` here and set them on the base chart with ``alt.Scale(domain=...,
-    nice=False, zero=False)``. When omitted they default to the data extent of ``xCol`` / ``yCol``.
+    Label placement is a pixel-space problem solved before Vega renders, so the connectors align
+    with the points only if the shared scale matches. ``add_labels`` handles that itself: an
+    invisible mark pins the x/y scale to the data extent (``nice=False``, ``zero=False``), so you do
+    NOT need to touch the base chart's scale - just compose ``base + ds.add_labels(df, ...)``. (This
+    tightens the axes to the data extent, which is required for alignment.)
 
     Parameters
     ----------
     df:
-        Points to label (polars or pandas). One label per row.
+        The plotted data (polars or pandas) - pass the same frame as the base chart. The axis
+        domain is inferred from its full extent, so the connectors line up without you pinning the
+        base scale (an invisible mark pins it; see below).
     xCol, yCol:
         Quantitative coordinate columns (must match the base chart's x / y encodings).
     labelCol:
         Column holding the label text.
+    labels:
+        Which rows to label. ``None`` (default) labels every row; a list labels only the rows whose
+        ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``). The domain still spans the
+        full ``df``, so labeling a subset does not clip the axes.
     xDomain, yDomain:
-        ``(min, max)`` data domains, matching the base chart's pinned scales. Default: the
-        ``xCol`` / ``yCol`` extent.
+        ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``).
+        Default: the full ``df`` extent. Pass explicitly only for **derived positions** - when the
+        label coordinates are not rows of the plotted data (e.g. cluster centroids), give the plotted
+        data's extent so the axes span it.
     fontSize:
         Label font size. ``None`` -> the theme's ``secondaryFontSize``.
     color:
@@ -630,10 +640,17 @@ def add_labels(
     from .utils import _repel_labels, ensure_polars
 
     data = ensure_polars(df)
+    # Domain spans the FULL df (so labeling a subset via labels= never clips the axes); the label
+    # positions come from the selected rows. labels=None labels every row; a list selects the rows
+    # whose labelCol value is in it.
+    all_x = [float(v) for v in data[xCol].to_list()]
+    all_y = [float(v) for v in data[yCol].to_list()]
+    if labels is not None:
+        data = data.filter(pl.col(labelCol).is_in(labels))
     xs = [float(v) for v in data[xCol].to_list()]
     ys = [float(v) for v in data[yCol].to_list()]
-    labels = [str(v) for v in data[labelCol].to_list()]
-    n = len(labels)
+    label_texts = [str(v) for v in data[labelCol].to_list()]
+    n = len(label_texts)
 
     width, height = _opt("chartWidth"), _opt("chartHeight")
     fs = fontSize if fontSize is not None else _opt("secondaryFontSize")
@@ -658,8 +675,8 @@ def add_labels(
     if n == 0:
         return cast(alt.LayerChart, alt.layer(alt.Chart(_internal_data([{}])).mark_point(opacity=0)))
 
-    x0, x1 = xDomain if xDomain is not None else (min(xs), max(xs))
-    y0, y1 = yDomain if yDomain is not None else (min(ys), max(ys))
+    x0, x1 = xDomain if xDomain is not None else (min(all_x), max(all_x))
+    y0, y1 = yDomain if yDomain is not None else (min(all_y), max(all_y))
     xspan = x1 - x0 or 1.0
     yspan = y1 - y0 or 1.0
 
@@ -668,11 +685,25 @@ def add_labels(
         return ((x - x0) / xspan * width, height - (y - y0) / yspan * height)
 
     anchors = [to_px(x, y) for x, y in zip(xs, ys)]
-    sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in labels]  # rough text-box estimate
+    sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in label_texts]  # rough text-box estimate
     label_pos = _repel_labels(anchors, sizes, width=width, height=height)
 
-    layers: list[alt.Chart] = []
-    for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, labels):
+    # Self-pin: force the shared x/y scale to the assumed domain (nice=False, zero=False) via an
+    # invisible mark, so the connectors align with the points WITHOUT the caller pinning the base
+    # chart's scale. It uses the SAME fields as the base (so one shared axis, titles intact) on a
+    # tagged 1-row internal frame (filtered by read); the domain is explicit, so the row values
+    # don't matter. NOTE the domain is the label df's extent (or an explicit xDomain/yDomain) - when
+    # labeling a SUBSET of a larger scatter, pass xDomain/yDomain covering the full data or the axes
+    # will clip to the labeled points.
+    layers: list[alt.Chart] = [
+        alt.Chart(_internal_data([{xCol: x0, yCol: y0}]))
+        .mark_point(opacity=0)
+        .encode(
+            x=alt.X(f"{xCol}:Q", scale=alt.Scale(domain=[x0, x1], nice=False, zero=False)),
+            y=alt.Y(f"{yCol}:Q", scale=alt.Scale(domain=[y0, y1], nice=False, zero=False)),
+        )
+    ]
+    for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, label_texts):
         hw, hh = w / 2, h / 2
         dx, dy = ax - lx, ay - ly  # label centre -> point
         # Attach the connector on the box side facing the point (aspect-aware: which edge a straight
