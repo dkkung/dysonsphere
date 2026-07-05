@@ -9,6 +9,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'dysonsphere',
+			favicon: '/favicon.svg',
 			logo: { src: './src/assets/dysonsphere_logo.svg', replacesTitle: false },
 			components: { SiteTitle: './src/components/SiteTitle.astro' },
 			description:

@@ -2,6 +2,7 @@
 """Generate the dysonsphere logo family.
 
   - dysonsphere_logo.svg                              : the mark alone (no text)
+  - dysonsphere_favicon.svg                           : the mark cropped tight for a tab icon
   - dysonsphere_logo_portrait_with_text.svg           : mark + wordmark as live <text> (Graphik Light)
   - dysonsphere_logo_portrait_with_text_outlined.svg  : mark + wordmark outlined to <path> paths
                                                         (font-independent; renders anywhere)
@@ -108,6 +109,17 @@ def doc(body: list[str]) -> str:
     return "\n".join([head, *STAR, *POLYS, *body, "</svg>"]) + "\n"
 
 
+def favicon_doc() -> str:
+    # A tab-icon variant: the mark cropped tight around the sphere (centre CX,CY, radius R) so it
+    # fills the tiny canvas. The corona's soft outer edge falls outside the square and is dropped,
+    # which reads cleaner at 16-32 px than a fuzzy halo.
+    pad = 6
+    side = 2 * (R + pad)
+    head = (f'<svg xmlns="http://www.w3.org/2000/svg" '
+            f'viewBox="{CX - R - pad} {CY - R - pad} {side} {side}" fill="none">')
+    return "\n".join([head, *STAR, *POLYS, "</svg>"]) + "\n"
+
+
 def live_text() -> list[str]:
     return [
         f'  <text x="{CENTER_X:.4f}" y="{BASELINE}" text-anchor="middle" font-family="{FONT}" '
@@ -157,7 +169,9 @@ def outlined_text() -> list[str]:
 
 (HERE / "dysonsphere_logo.svg").write_text(doc([]))
 (HERE / "dysonsphere_logo_portrait_with_text.svg").write_text(doc(live_text()))
-print(f"wrote dysonsphere_logo.svg (mark) + _portrait_with_text.svg  (wordmark centered at x={CENTER_X:.4f})")
+(HERE / "dysonsphere_favicon.svg").write_text(favicon_doc())
+print(f"wrote dysonsphere_logo.svg (mark) + _portrait_with_text.svg + dysonsphere_favicon.svg "
+      f"(wordmark centered at x={CENTER_X:.4f})")
 try:
     (HERE / "dysonsphere_logo_portrait_with_text_outlined.svg").write_text(doc(outlined_text()))
     print("wrote dysonsphere_logo_portrait_with_text_outlined.svg (glyphs -> paths)")
