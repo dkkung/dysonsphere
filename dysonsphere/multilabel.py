@@ -29,6 +29,7 @@ def _multilabel_layer(
     rowHeight: int | float | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
+    labelMap: dict | None = None,
     categoryLabelAngle: int = -45,
     categoryLabelHeight: int | None = None,
     span: dict[str | None, list[str]] | list[dict[str | None, list[str]]] | None = None,
@@ -133,6 +134,10 @@ def _multilabel_layer(
         ``fontSize``, ``categoryLabelAngle``, and the longest category name when ``None``
         (default): ``ceil(fontSize × 0.6 × max_len × |sin(angle)| + fontSize ×
         |cos(angle)|)``.
+    labelMap:
+        ``{raw_value: label}`` mapping applied to the category-label row (plain lookup;
+        the data and band positions keep the raw values). List labels are space-joined
+        here - use the mark constructors' ``labelMap`` for true multi-line axis labels.
     span:
         Dict mapping span label → list of categories, or a list of such
         single-entry dicts (one per span). The span extends from the lowest
@@ -269,10 +274,18 @@ def _multilabel_layer(
     label_y = 0.0
     label_y_offset = 0.0
     extra = 0.0
+
+    # Display names for the category-label row: labelMap lookup, raw value fallback.
+    # Multi-line list labels are space-joined here (mark_text rows are single-line);
+    # the axis-label path in the mark constructors renders them as true multi-line.
+    def _display(cat: str) -> str:
+        label = (labelMap or {}).get(cat, cat)
+        return " ".join(label) if isinstance(label, list) else str(label)
+
     if categoryLabel:
         if categoryLabelPosition not in ("top", "bottom"):
             raise ValueError(f"categoryLabelPosition={categoryLabelPosition!r} is invalid. Use 'top' or 'bottom'.")
-        max_len = max(len(cat) for cat in categories)
+        max_len = max(len(_display(cat)) for cat in categories)
         angle_rad = abs(math.radians(categoryLabelAngle))
         tight_height = fontSize * 0.6 * max_len * math.sin(angle_rad) + fontSize * math.cos(angle_rad)
         if categoryLabelHeight is None:
@@ -530,7 +543,7 @@ def _multilabel_layer(
             layers.extend([negative, positive])
 
     if categoryLabel and not defer_cat_label:
-        label_df = pl.DataFrame({"__category": categories})
+        label_df = pl.DataFrame({"__category": categories, "__display": [_display(c) for c in categories]})
         layers.append(
             alt.Chart(_internal_data(label_df))
             .mark_text(
@@ -539,7 +552,8 @@ def _multilabel_layer(
                 align="center" if categoryLabelAngle % 360 == 0 else "right",
                 baseline="middle",
             )
-            .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__category:N"))
+            # __category stays raw (it is the band-scale position); __display is the text
+            .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__display:N"))
         )
 
     if span:
@@ -643,7 +657,7 @@ def _multilabel_layer(
     if defer_cat_label:
         label_y = chart_h + label_y_offset + extra
         chart_h += categoryLabelHeight or 0
-        label_df = pl.DataFrame({"__category": categories})
+        label_df = pl.DataFrame({"__category": categories, "__display": [_display(c) for c in categories]})
         layers.append(
             alt.Chart(_internal_data(label_df))
             .mark_text(
@@ -652,7 +666,8 @@ def _multilabel_layer(
                 align="center" if categoryLabelAngle % 360 == 0 else "right",
                 baseline="middle",
             )
-            .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__category:N"))
+            # __category stays raw (it is the band-scale position); __display is the text
+            .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__display:N"))
         )
 
     return cast(

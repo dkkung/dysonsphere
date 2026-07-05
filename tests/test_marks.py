@@ -167,3 +167,36 @@ class TestMarkStrip:
                 categories=CATEGORIES,
                 scatter="invalid",
             )
+
+
+class TestLabelMap:
+    def test_strip_x_axis_gets_label_expr(self, group_df):
+        chart = mark_strip(group_df, "group", "value", CATEGORIES, labelMap={"A": "Alpha"})
+        spec = chart.to_dict()
+        expr = spec["layer"][0]["encoding"]["x"]["axis"]["labelExpr"]
+        assert "datum.value == 'A' ? 'Alpha'" in expr and expr.endswith("datum.value")
+
+    def test_violin_boxplot_axis_gets_label_expr(self, group_df):
+        chart = mark_violin(group_df, "group", "value", CATEGORIES, labelMap={"A": ["Alpha", "(n=5)"]})
+        spec = chart.to_dict()
+        expr = spec["layer"][1]["encoding"]["x"]["axis"]["labelExpr"]
+        assert "? ['Alpha', '(n=5)']" in expr  # multi-line label
+
+    def test_label_map_combines_with_angle(self, group_df):
+        chart = mark_strip(group_df, "group", "value", CATEGORIES, labelMap={"A": "Alpha"}, xLabelAngle=-45)
+        axis = chart.to_dict()["layer"][0]["encoding"]["x"]["axis"]
+        assert axis["labelAngle"] == 315 and "labelExpr" in axis
+
+    def test_no_label_map_no_label_expr(self, group_df):
+        chart = mark_strip(group_df, "group", "value", CATEGORIES)
+        axis = chart.to_dict()["layer"][0]["encoding"]["x"].get("axis", {})
+        assert "labelExpr" not in (axis or {})
+
+    def test_strip_spec_is_deterministic(self, group_df):
+        # group_by(maintain_order=True) in the errorbar summary: identical inputs must
+        # produce identical specs (stable inlined datasets -> stable vegaliteChecksum)
+        import json
+
+        a = json.dumps(mark_strip(group_df, "group", "value", CATEGORIES).to_dict(), sort_keys=True)
+        b = json.dumps(mark_strip(group_df, "group", "value", CATEGORIES).to_dict(), sort_keys=True)
+        assert a == b
