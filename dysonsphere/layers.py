@@ -572,6 +572,178 @@ def add_text(
     return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
 
+# Auto-placed point labels (force-repel)
+
+
+def add_labels(
+    df: "pl.DataFrame | Any",
+    xCol: str,
+    yCol: str,
+    labelCol: str,
+    *,
+    labels: int | list | None = None,
+    xDomain: tuple[float, float] | None = None,
+    yDomain: tuple[float, float] | None = None,
+    fontSize: float | None = None,
+    color: str | None = None,
+    connector: bool = True,
+    connectorColor: str | None = None,
+    connectorStrokeDash: bool | list[int] = False,
+) -> alt.LayerChart:
+    """Auto-place non-overlapping text labels for a set of points, with connector lines.
+
+    Force-directed placement (deterministic - reproducible figures) nudges each label off its
+    point and away from the others, drawing a thin leader line from each point to its label. Every
+    requested label is shown (never dropped); in an impossibly dense region labels settle at their
+    least-overlapping positions. Returns a layer to compose onto the base chart with ``+``.
+
+    Label placement is a pixel-space problem solved before Vega renders, so the connectors align
+    with the points only if the shared scale matches. ``add_labels`` handles that itself: an
+    invisible mark pins the x/y scale to the data extent (``nice=False``, ``zero=False``), so you do
+    NOT need to touch the base chart's scale - just compose ``base + ds.add_labels(df, ...)``. (This
+    tightens the axes to the data extent, which is required for alignment.)
+
+    Parameters
+    ----------
+    df:
+        The plotted data (polars or pandas) - pass the same frame as the base chart. The axis
+        domain is inferred from its full extent, so the connectors line up without you pinning the
+        base scale (an invisible mark pins it; see below).
+    xCol, yCol:
+        Quantitative coordinate columns (must match the base chart's x / y encodings).
+    labelCol:
+        Column holding the label text.
+    labels:
+        Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n`
+        rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **list**
+        labels only the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``).
+        Pass the full plotted ``df`` and let ``labels`` do the selecting - the domain is inferred
+        from all of ``df``, so selecting a subset never clips the axes.
+    xDomain, yDomain:
+        ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``).
+        Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``** (so filtering ``df`` just
+        moves the axes with it - always inferred). Pass explicitly only when you want the axes to
+        span a range the passed ``df`` does not cover - i.e. the base chart plots more than you hand
+        ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose
+        extent is tighter than the scatter).
+    fontSize:
+        Label font size. ``None`` -> the theme's ``secondaryFontSize``.
+    color:
+        Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware
+        black/white).
+    connector:
+        Whether to draw the line connecting each point to its label (default ``True``).
+    connectorColor:
+        Connector line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware).
+        Connectors otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke,
+        opaque).
+    connectorStrokeDash:
+        Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth``
+        pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
+    """
+    from .utils import _repel_labels, _sample_spread, ensure_polars
+
+    data = ensure_polars(df)
+    # Domain spans the FULL df (so labeling a subset via labels= never clips the axes); the label
+    # positions come from the selected rows. labels=None labels every row; an int auto-selects that
+    # many evenly spread across the plot (unbiased, no cherry-picking); a list selects the rows whose
+    # labelCol value is in it.
+    all_x = [float(v) for v in data[xCol].to_list()]
+    all_y = [float(v) for v in data[yCol].to_list()]
+    if isinstance(labels, bool):  # bool is an int subclass - reject before the int branch
+        raise ValueError("labels must be None, an int, or a list of values - not a bool")
+    if isinstance(labels, int):
+        data = data[_sample_spread(all_x, all_y, labels)]
+    elif labels is not None:
+        data = data.filter(pl.col(labelCol).is_in(labels))
+    xs = [float(v) for v in data[xCol].to_list()]
+    ys = [float(v) for v in data[yCol].to_list()]
+    label_texts = [str(v) for v in data[labelCol].to_list()]
+    n = len(label_texts)
+
+    width, height = _opt("chartWidth"), _opt("chartHeight")
+    fs = fontSize if fontSize is not None else _opt("secondaryFontSize")
+    # Text and connectors INHERIT the theme's mark_text / mark_rule config (darkmode-aware color,
+    # rounded caps, axisWidth stroke, opaque) - resolved per render, so they track darkmode without
+    # a callable. We only force the connector dash solid (never the theme's dashedRule) and apply an
+    # explicit color when the caller passes one. (align is set per-label below, by side.)
+    text_kwargs: dict = {"fontSize": fs, "baseline": "middle"}
+    if color is not None:
+        text_kwargs["color"] = color
+    # connectorStrokeDash: False -> solid ([0, 0]); True -> the theme's dashedWidth; a list -> as given.
+    if connectorStrokeDash is True:
+        dash = _opt("dashedWidth")
+    elif connectorStrokeDash is False:
+        dash = [0, 0]
+    else:
+        dash = connectorStrokeDash
+    rule_kwargs: dict = {"strokeDash": dash}
+    if connectorColor is not None:
+        rule_kwargs["color"] = connectorColor
+
+    if n == 0:
+        return cast(alt.LayerChart, alt.layer(alt.Chart(_internal_data([{}])).mark_point(opacity=0)))
+
+    x0, x1 = xDomain if xDomain is not None else (min(all_x), max(all_x))
+    y0, y1 = yDomain if yDomain is not None else (min(all_y), max(all_y))
+    xspan = x1 - x0 or 1.0
+    yspan = y1 - y0 or 1.0
+
+    def to_px(x: float, y: float) -> tuple[float, float]:
+        # Match Vega's linear map with a pinned domain: x -> [0, width], y inverted -> [height, 0].
+        return ((x - x0) / xspan * width, height - (y - y0) / yspan * height)
+
+    anchors = [to_px(x, y) for x, y in zip(xs, ys)]
+    sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in label_texts]  # rough text-box estimate
+    label_pos = _repel_labels(anchors, sizes, width=width, height=height)
+
+    # Self-pin: force the shared x/y scale to the assumed domain (nice=False, zero=False) via an
+    # invisible mark, so the connectors align with the points WITHOUT the caller pinning the base
+    # chart's scale. It uses the SAME fields as the base (so one shared axis, titles intact) on a
+    # tagged 1-row internal frame (filtered by read); the domain is explicit, so the row values
+    # don't matter. NOTE the domain is the label df's extent (or an explicit xDomain/yDomain) - when
+    # labeling a SUBSET of a larger scatter, pass xDomain/yDomain covering the full data or the axes
+    # will clip to the labeled points.
+    layers: list[alt.Chart] = [
+        alt.Chart(_internal_data([{xCol: x0, yCol: y0}]))
+        .mark_point(opacity=0)
+        .encode(
+            x=alt.X(f"{xCol}:Q", scale=alt.Scale(domain=[x0, x1], nice=False, zero=False)),
+            y=alt.Y(f"{yCol}:Q", scale=alt.Scale(domain=[y0, y1], nice=False, zero=False)),
+        )
+    ]
+    for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, label_texts):
+        hw, hh = w / 2, h / 2
+        dx, dy = ax - lx, ay - ly  # label centre -> point
+        # Attach the connector on the box side facing the point (aspect-aware: which edge a straight
+        # line to the point would cross). A left/right edge -> justify the text AWAY from the point,
+        # anchored at that edge, so it reads as flowing out of the connector and edits grow outward.
+        # A top/bottom edge (near-vertical connector, e.g. a label directly above its point) ->
+        # CENTRE-justify, connector to the middle of that edge - so the connector stays vertical and
+        # a center-justified edit keeps it aligned. The connector endpoint coincides with the text
+        # anchor either way.
+        if hw > 0 and hh > 0 and abs(dx) / hw >= abs(dy) / hh:
+            align = "left" if dx <= 0 else "right"
+            text_x = ex = lx - hw if dx <= 0 else lx + hw
+            ey = ly
+        else:
+            align = "center"
+            text_x = ex = lx
+            ey = ly - hh if dy <= 0 else ly + hh
+        if connector:
+            layers.append(
+                alt.Chart(_internal_data([{}]))
+                .mark_rule(**rule_kwargs)
+                .encode(x=alt.value(ax), y=alt.value(ay), x2=alt.value(ex), y2=alt.value(ey))
+            )
+        layers.append(
+            alt.Chart(_internal_data([{}]))
+            .mark_text(align=align, **text_kwargs)
+            .encode(x=alt.value(text_x), y=alt.value(ly), text=alt.value(text))
+        )
+    return cast(alt.LayerChart, alt.layer(*layers))
+
+
 # Background shading
 
 

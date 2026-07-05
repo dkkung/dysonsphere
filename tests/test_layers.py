@@ -2,8 +2,131 @@ import altair as alt
 import polars as pl
 import pytest
 
-from dysonsphere.layers import _rule_mark_kwargs, add_rule, add_shade, add_text
+from dysonsphere.layers import _rule_mark_kwargs, add_labels, add_rule, add_shade, add_text
 from dysonsphere.theme import theme
+
+
+def _text_values(spec):
+    """All text-mark strings in a chart spec (add_labels encodes text via alt.value)."""
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            t = node.get("encoding", {}).get("text")
+            if isinstance(t, dict) and "value" in t:
+                found.append(t["value"])
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(spec)
+    return found
+
+
+class TestAddLabels:
+    @pytest.fixture
+    def df(self):
+        return pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "g": ["a", "b", "c"]})
+
+    def test_returns_layerchart(self, df):
+        assert isinstance(add_labels(df, "x", "y", "g"), alt.LayerChart)
+
+    def test_layer_count_with_leaders(self, df):
+        # 1 invisible scale-pin layer + (connector + text) per label
+        assert len(add_labels(df, "x", "y", "g").to_dict()["layer"]) == 1 + 3 * 2
+
+    def test_no_connector(self, df):
+        # 1 pin layer + 1 text per label
+        assert len(add_labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 1 + 3
+
+    def _connector_stroke_dashes(self, chart):
+        return [lyr["mark"]["strokeDash"] for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rule"]
+
+    def test_connector_stroke_dash_default_solid(self, df):
+        dashes = self._connector_stroke_dashes(add_labels(df, "x", "y", "g"))
+        assert dashes and all(d == [0, 0] for d in dashes)
+
+    def test_connector_stroke_dash_true_uses_theme(self, df):
+        # default_theme fixture sets dashedWidth=[2, 2]
+        dashes = self._connector_stroke_dashes(add_labels(df, "x", "y", "g", connectorStrokeDash=True))
+        assert all(d == [2, 2] for d in dashes)
+
+    def test_connector_stroke_dash_list_passthrough(self, df):
+        dashes = self._connector_stroke_dashes(add_labels(df, "x", "y", "g", connectorStrokeDash=[4, 2]))
+        assert all(d == [4, 2] for d in dashes)
+
+    def test_all_labels_shown(self, df):
+        # force-show: every requested label appears (never dropped)
+        assert set(_text_values(add_labels(df, "x", "y", "g").to_dict())) == {"a", "b", "c"}
+
+    def test_labels_selects_subset(self, df):
+        # labels= draws only the chosen rows
+        assert set(_text_values(add_labels(df, "x", "y", "g", labels=["a", "c"]).to_dict())) == {"a", "c"}
+
+    def test_labels_int_auto_selects_n(self, df):
+        # labels=int auto-picks that many (even-spread), no curation
+        assert len(_text_values(add_labels(df, "x", "y", "g", labels=2).to_dict())) == 2
+
+    def test_labels_int_deterministic(self, df):
+        a = _text_values(add_labels(df, "x", "y", "g", labels=2).to_dict())
+        b = _text_values(add_labels(df, "x", "y", "g", labels=2).to_dict())
+        assert a == b
+
+    def test_labels_rejects_bool(self, df):
+        with pytest.raises(ValueError, match="not a bool"):
+            add_labels(df, "x", "y", "g", labels=True)
+
+    def test_domain_spans_full_df_when_labeling_subset(self, df):
+        # even labeling one point, the pinned scale must span the full df (no axis clipping)
+        spec = add_labels(df, "x", "y", "g", labels=["a"]).to_dict()
+        domains = [
+            lyr["encoding"]["x"]["scale"]["domain"]
+            for lyr in spec["layer"]
+            if lyr.get("encoding", {}).get("x", {}).get("scale")
+        ]
+        assert domains == [[1.0, 3.0]]  # full extent, not the single labeled point's
+
+    def test_fontsize_defaults_to_secondary(self, df):
+        theme(fontSize=9)  # -> secondaryFontSize 8
+        spec = add_labels(df, "x", "y", "g").to_dict()
+        sizes = {lyr["mark"]["fontSize"] for lyr in spec["layer"] if lyr["mark"]["type"] == "text"}
+        assert sizes == {8}
+
+    def test_preserves_base_axis_titles(self, df):
+        # add_labels positions by pixels (alt.value), so it must not touch the base axis titles.
+        import re
+
+        import vl_convert as vlc
+
+        base = (
+            alt.Chart(df)
+            .mark_point()
+            .encode(
+                x=alt.X("x:Q", title="XT", scale=alt.Scale(domain=[1, 3], nice=False, zero=False)),
+                y=alt.Y("y:Q", title="YT", scale=alt.Scale(domain=[1, 3], nice=False, zero=False)),
+            )
+        )
+        svg = vlc.vegalite_to_svg(
+            (base + add_labels(df, "x", "y", "g", xDomain=(1.0, 3.0), yDomain=(1.0, 3.0))).to_dict()
+        )
+
+        def rendered(t):
+            return bool(re.search(r"<text[^>]*>[^<]*" + re.escape(t) + r"[^<]*</text>", svg))
+
+        assert rendered("XT")
+        assert rendered("YT")
+
+    def test_read_filters_sidecars(self, tmp_path, df):
+        import dysonsphere as ds
+
+        ds.theme()
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        out = tmp_path / "c"
+        ds.save(lambda: base + add_labels(df, "x", "y", "g"), str(out), format="json")
+        frame = ds.read(str(out) + ".json", what="data")
+        assert set(frame.columns) == {"x", "y", "g"}  # only the user's frame
 
 
 @pytest.fixture(autouse=True)

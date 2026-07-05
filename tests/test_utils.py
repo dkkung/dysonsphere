@@ -1,7 +1,58 @@
+import math
+
 import polars as pl
 import pytest
 
-from dysonsphere.utils import band_geometry, count_n, ensure_polars, frame_checksum
+from dysonsphere.utils import _repel_labels, _sample_spread, band_geometry, count_n, ensure_polars, frame_checksum
+
+
+class TestSampleSpread:
+    def test_returns_n_indices(self):
+        assert len(_sample_spread([float(i) for i in range(10)], [0.0] * 10, 3)) == 3
+
+    def test_n_ge_len_returns_all(self):
+        assert sorted(_sample_spread([1.0, 2.0, 3.0], [1.0, 2.0, 3.0], 5)) == [0, 1, 2]
+
+    def test_n_le_zero_empty(self):
+        assert _sample_spread([1.0, 2.0], [1.0, 2.0], 0) == []
+
+    def test_deterministic(self):
+        xs = [float(i) for i in range(20)]
+        ys = [float((i * 7) % 20) for i in range(20)]
+        assert _sample_spread(xs, ys, 5) == _sample_spread(xs, ys, 5)
+
+    def test_spread_reaches_extremes(self):
+        # an even spread over a line must include both ends
+        idx = _sample_spread([float(i) for i in range(10)], [0.0] * 10, 3)
+        assert 0 in idx and 9 in idx
+
+
+class TestRepelLabels:
+    def test_empty(self):
+        assert _repel_labels([], [], width=100, height=100) == []
+
+    def test_one_position_per_anchor(self):
+        out = _repel_labels([(10.0, 10.0), (20.0, 20.0), (30.0, 30.0)], [(8.0, 4.0)] * 3, width=100, height=100)
+        assert len(out) == 3
+
+    def test_deterministic(self):
+        anchors, sizes = [(50.0, 50.0)] * 5, [(10.0, 5.0)] * 5
+        assert _repel_labels(anchors, sizes, width=100, height=100) == _repel_labels(
+            anchors, sizes, width=100, height=100
+        )
+
+    def test_separates_coincident_anchors(self):
+        # 5 labels stacked on one point must fan out (force-show, never dropped).
+        out = _repel_labels([(150.0, 150.0)] * 5, [(12.0, 6.0)] * 5, width=300, height=300)
+        dists = [math.dist(out[i], out[j]) for i in range(5) for j in range(i + 1, 5)]
+        assert min(dists) > 1.0  # none coincide
+        assert max(dists) > 12.0  # spread beyond a single label width
+
+    def test_stays_in_panel(self):
+        out = _repel_labels([(0.0, 0.0), (100.0, 100.0)], [(20.0, 10.0)] * 2, width=100, height=100)
+        for x, y in out:
+            assert 0 <= x <= 100
+            assert 0 <= y <= 100
 
 
 @pytest.fixture
