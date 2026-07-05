@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 from typing import Any, Final, cast
 
 import altair as alt
 import numpy as np
 import polars as pl
 
+from .labels import label_expr
 from .theme import _opt
 from .transforms import add_beeswarm, add_jitter
 from .utils import _internal_data, band_geometry, ensure_polars
@@ -14,6 +16,78 @@ class _UnsetType:
 
 
 _UNSET: Final[_UnsetType] = _UnsetType()
+
+
+@dataclass
+class _MarkScaffold:
+    """Shared chart chrome for the custom mark constructors (composition, NOT a base class).
+
+    Owns everything every ``mark_*`` function repeats - dataframe coercion, the ``_UNSET``
+    title sentinel resolution, the x-axis (label angle + ``labelMap`` -> ``labelExpr``),
+    the x/y/color encodings with category sorting and palette handling - so a new shared
+    parameter lands here once and every mark inherits it. The marks stay plain functions
+    returning Altair objects (the composition algebra belongs to Altair); their bodies
+    hold only the per-mark geometry and layers.
+    """
+
+    df: pl.DataFrame
+    xCol: str
+    yCol: str
+    categories: list[str]
+    palette: str | list[str] | None = None
+    legend: bool = False
+    xLabelAngle: float | None = None
+    labelMap: dict[Any, str | list[str]] | None = None
+    xTitle: str | None | _UnsetType = _UNSET
+    yTitle: str | None | _UnsetType = _UNSET
+
+    def __post_init__(self) -> None:
+        self.df = ensure_polars(self.df)
+        if self.xLabelAngle is None:
+            self.xLabelAngle = _opt("xLabelAngle")
+        self.x_title: str | None = self.xCol if isinstance(self.xTitle, _UnsetType) else self.xTitle
+        self.y_title: str | None = self.yCol if isinstance(self.yTitle, _UnsetType) else self.yTitle
+
+    def x_axis(self) -> alt.Axis:
+        """The x-axis: label rotation (align derived from the angle's sign) + label mapping."""
+        kwargs: dict[str, Any] = {}
+        angle = cast(float, self.xLabelAngle)
+        if angle != 0:
+            kwargs["labelAngle"] = angle % 360
+            kwargs["labelAlign"] = "right" if angle < 0 else "left"
+        if self.labelMap:
+            kwargs["labelExpr"] = label_expr(self.labelMap)
+        return alt.Axis(**kwargs)
+
+    def x(self) -> alt.X:
+        return alt.X(f"{self.xCol}:N", sort=self.categories, title=self.x_title, axis=self.x_axis())
+
+    def y(self, field: str | None = None) -> alt.Y:
+        return alt.Y(field if field is not None else f"{self.yCol}:Q", title=self.y_title)
+
+    def color(
+        self,
+        field: str | None = None,
+        title: str | None | _UnsetType = _UNSET,
+        symbolType: str | None = None,
+    ) -> alt.Color:
+        """Category colour encoding: palette resolution + legend flag + category sort.
+
+        ``field`` defaults to the x column; ``title`` defaults to the x column when the
+        legend is shown; ``symbolType`` picks the legend symbol.
+        """
+        if isinstance(title, _UnsetType):
+            title = self.xCol if self.legend else None
+        legend_kwargs: dict[str, Any] = {"symbolType": symbolType} if symbolType else {}
+        pal = self.palette
+        scale = {} if pal is None else {"scale": alt.Scale(range=pal if isinstance(pal, list) else [pal])}
+        return alt.Color(
+            field if field is not None else f"{self.xCol}:N",
+            sort=self.categories,
+            title=title,
+            legend=alt.Legend(**legend_kwargs) if self.legend else None,
+            **scale,
+        )
 
 
 def mark_violin(
@@ -110,7 +184,18 @@ def mark_violin(
     """
     from scipy.stats import gaussian_kde
 
-    df = ensure_polars(df)
+    s = _MarkScaffold(
+        df,
+        xCol,
+        yCol,
+        categories,
+        palette=palette,
+        legend=legend,
+        xLabelAngle=xLabelAngle,
+        xTitle=xTitle,
+        yTitle=yTitle,
+    )
+    df = s.df
     if fillOpacity is None:
         fillOpacity = _opt("markFillOpacity")
     if strokeWidth is None:
@@ -157,16 +242,6 @@ def mark_violin(
             )
 
     violin_df = pl.DataFrame(violin_rows)
-    _y_title: str | None = yCol if isinstance(yTitle, _UnsetType) else yTitle
-    _x_title: str | None = xCol if isinstance(xTitle, _UnsetType) else xTitle
-
-    if xLabelAngle is None:
-        xLabelAngle = _opt("xLabelAngle")
-    if xLabelAngle != 0:
-        align = "right" if xLabelAngle < 0 else "left"
-        x_axis = alt.Axis(labelAngle=xLabelAngle % 360, labelAlign=align)
-    else:
-        x_axis = alt.Axis()
 
     mark_kwargs = {
         "filled": True,
@@ -182,19 +257,9 @@ def mark_violin(
         .mark_line(**mark_kwargs)
         .encode(
             x=alt.X("__x:Q", scale=alt.Scale(domain=[0, chart_width]), axis=None),
-            y=alt.Y("__y:Q", title=_y_title),
+            y=s.y("__y:Q"),
             order=alt.Order("__order:Q"),
-            color=alt.Color(
-                "__group:N",
-                sort=categories,
-                title=None,
-                legend=alt.Legend(symbolType="circle") if legend else None,
-                **(
-                    {"scale": alt.Scale(range=palette if isinstance(palette, list) else [palette])}
-                    if palette is not None
-                    else {}
-                ),
-            ),
+            color=s.color(field="__group:N", title=None, symbolType="circle"),
         )
     )
 
@@ -208,8 +273,8 @@ def mark_violin(
             **({"size": boxplotSize} if boxplotSize is not None else {}),
         )
         .encode(
-            x=alt.X(f"{xCol}:N", sort=categories, title=_x_title, axis=x_axis),
-            y=alt.Y(f"{yCol}:Q", title=_y_title),
+            x=s.x(),
+            y=s.y(),
         )
     )
 
@@ -289,9 +354,18 @@ def mark_strip(
         # beeswarm variant
         chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
     """
-    df = ensure_polars(df)
-    _y_title: str | None = yCol if isinstance(yTitle, _UnsetType) else yTitle
-    _x_title: str | None = xCol if isinstance(xTitle, _UnsetType) else xTitle
+    s = _MarkScaffold(
+        df,
+        xCol,
+        yCol,
+        categories,
+        palette=palette,
+        legend=legend,
+        xLabelAngle=xLabelAngle,
+        xTitle=xTitle,
+        yTitle=yTitle,
+    )
+    df = s.df
     if markSize is None:
         markSize = _opt("markSize")
     if markOpacity is None:
@@ -317,15 +391,7 @@ def mark_strip(
         range=[band_center - max_offset, band_center + max_offset],
     )
 
-    if xLabelAngle is None:
-        xLabelAngle = _opt("xLabelAngle")
-    if xLabelAngle != 0:
-        align = "right" if xLabelAngle < 0 else "left"
-        x_axis = alt.Axis(labelAngle=xLabelAngle % 360, labelAlign=align)
-    else:
-        x_axis = alt.Axis()
-
-    x = alt.X(f"{xCol}:N", sort=categories, title=_x_title, axis=x_axis)
+    x = s.x()
 
     points = (
         alt.Chart(df)
@@ -341,15 +407,9 @@ def mark_strip(
         )
         .encode(
             x=x,
-            y=alt.Y(f"{yCol}:Q", title=_y_title),
+            y=s.y(),
             xOffset=alt.XOffset(f"{offset_col}:Q", scale=offset_scale),
-            color=alt.Color(
-                f"{xCol}:N",
-                sort=categories,
-                title=xCol if legend else None,
-                legend=alt.Legend() if legend else None,
-                **({"scale": alt.Scale(range=palette)} if palette is not None else {}),
-            ),
+            color=s.color(),
         )
     )
 
@@ -363,7 +423,7 @@ def mark_strip(
         )
         .encode(
             x=x,
-            y=alt.Y(f"{yCol}:Q", title=_y_title),
+            y=s.y(),
         )
     )
 
@@ -384,7 +444,7 @@ def mark_strip(
         .mark_errorbar()
         .encode(
             x=x,
-            y=alt.Y("__mean:Q", title=_y_title),
+            y=s.y("__mean:Q"),
             yError=alt.YError("__error:Q"),
         )
     )
