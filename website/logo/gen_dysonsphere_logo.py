@@ -7,9 +7,10 @@
                                                         (font-independent; renders anywhere)
 
 The mark is a sphere of flat panels shaded across the MID of blues2 (a single dual-mode logo: no
-near-white to vanish on light, no near-black to vanish on dark), with a bright star glowing inside
-the shell (through the panel gaps), transparent background. The wordmark
-is two-tone (dyson / sphere), Graphik Light, centered on the panel group's exact horizontal center.
+near-white to vanish on light, no near-black to vanish on dark), each facet outlined with a thin
+mid-blue stroke, with a bright star glowing inside the shell (through the panel gaps), transparent
+background. The wordmark is two-tone (dyson / sphere), Graphik Light, centered on the panel group's
+exact horizontal center.
 
 Run:  uv run --no-project --with fonttools python website/logo/gen_dysonsphere_logo.py
 (fonttools + Graphik installed are needed only for the outlined variant; the other two always build.)
@@ -73,9 +74,10 @@ ys = [y for _, pts, _ in panels for _, y in pts]
 CENTER_X = (min(xs) + max(xs)) / 2
 CENTER_Y = (min(ys) + max(ys)) / 2
 
-# The star inside the shell: a bright radial-gradient sphere (white-hot -> light yellow -> pink ->
+# The star inside the shell: a bright radial-gradient sphere (white-hot -> warm gold -> soft cyan ->
 # turquoise) smaller than the shell, glowing out through the panel gaps, plus a turquoise corona.
-# Centered on the panel bbox. Vivid on dark; a soft inner luminosity on light.
+# Centered (cx/cy 50%) on the panel bbox, which coincides with the sphere centre. Vivid on dark; a
+# soft inner luminosity on light.
 STAR = [
     "  <defs>",
     '    <radialGradient id="corona" cx="50%" cy="50%" r="50%">',
@@ -83,17 +85,21 @@ STAR = [
     '      <stop offset="0.72" stop-color="#45e0cf" stop-opacity="0.35"/>',
     '      <stop offset="1" stop-color="#45e0cf" stop-opacity="0"/>',
     "    </radialGradient>",
-    '    <radialGradient id="starcore" cx="50%" cy="42%" r="60%">',
+    '    <radialGradient id="starcore" cx="50%" cy="50%" r="60%">',
     '      <stop offset="0" stop-color="#ffffff"/>',
-    '      <stop offset="0.24" stop-color="#fff0a0"/>',
-    '      <stop offset="0.55" stop-color="#ff9ed0"/>',
+    '      <stop offset="0.28" stop-color="#ffe6a3"/>',
+    '      <stop offset="0.6" stop-color="#8fe6df"/>',
     '      <stop offset="1" stop-color="#45e0cf"/>',
     "    </radialGradient>",
     "  </defs>",
     f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 1.15:.1f}" fill="url(#corona)"/>',
     f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 0.72:.1f}" fill="url(#starcore)"/>',
 ]
-POLYS = [f'  <polygon points="{" ".join(f"{x:.2f},{y:.2f}" for x, y in pts)}" fill="{f}"/>'
+# Panel stroke: a thin mid-blue outline on every facet. Mid-range so it reads on both light and
+# dark (dual-mode, like the fills); it firms up the faceting without competing with the star glow.
+PSTROKE, PWIDTH = "#64a7dc", 0.5
+POLYS = [f'  <polygon points="{" ".join(f"{x:.2f},{y:.2f}" for x, y in pts)}" fill="{f}" '
+         f'stroke="{PSTROKE}" stroke-width="{PWIDTH}" stroke-linejoin="round"/>'
          for _, pts, f in panels]
 
 
