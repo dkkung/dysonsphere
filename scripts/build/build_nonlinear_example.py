@@ -20,7 +20,7 @@ import polars as pl
 import vl_convert as vlc
 
 import dysonsphere as ds
-from dysonsphere.export import _fix_log_minor_ticks
+from dysonsphere.export import _render_fixed_svg
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -138,10 +138,7 @@ chart = alt.hconcat(left, right)
 out_png = ROOT / "docs" / "nonlinear_example.png"
 with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
     tmp_path = tmp.name
-chart.save(tmp_path)
-_fix_log_minor_ticks(tmp_path)
-with open(tmp_path, encoding="utf-8") as f:
-    svg_content = f.read()
+svg_content = _render_fixed_svg(chart, tmp_path)
 Path(tmp_path).unlink()
 out_png.write_bytes(vlc.svg_to_png(svg_content, ppi=1200))
 print(f"saved {out_png}")
