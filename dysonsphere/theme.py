@@ -482,9 +482,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 # Small default: mark_circle is primarily used to layer raw points over
                 # boxplots/violins/strips, where small dots read best.
                 "size": opts["markSize"] / 20,
-                "stroke": "black" if opts["darkmode"] else opts["markStroke"],
-                "strokeOpacity": opts["markStrokeOpacity"],
-                "strokeWidth": opts["markStrokeWidth"],
+                # No outline: at this dot size a stroke swamps the fill. Explicit None
+                # (not omitted) so nothing is inherited from other mark configs.
+                "stroke": None,
             },
             "errorband": {
                 "band": {
