@@ -138,17 +138,21 @@ def volcano(
         layers.append(ds.add_rule(fcThreshold, axis="x"))
         layers.append(ds.add_rule(-math.log10(pThreshold), axis="y"))
 
+    chart: ext.AltairChart = alt.layer(*layers)
     if label is not None:
-        layers.append(_label_layer(data, label, log2fcCol, geneCol))
+        # add_labels returns a LayerChart; compose with + (it also self-pins the x/y scale).
+        chart = chart + _label_layer(data, label, log2fcCol, geneCol)
+    return chart
 
-    return alt.layer(*layers)
 
+def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: str, geneCol: str | None):
+    """Select which genes to label (significance-aware) and delegate placement to ``ds.add_labels``.
 
-def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: str, geneCol: str | None) -> alt.Chart:
-    """Build the gene-label text layer over the selected points.
-
-    The selected subset is a dysonsphere-GENERATED sidecar, so it is tagged via
-    ``ext.internal_data`` - that keeps ``ds.read(what="data")`` returning only the user's frame.
+    The volcano picks the genes itself - top-N by combined score, all significant, or an explicit
+    list - because that ranking is domain-specific (``add_labels``'s own ``labels=n`` is spatial
+    even-spread, which isn't what a volcano wants). It then hands the chosen names to ``add_labels``
+    as ``labels=[...]`` on the FULL frame, so the force-repel placement, connectors, and scale
+    self-pinning all come for free.
     """
     if geneCol is None:
         raise ValueError("volcano(label=...) requires geneCol to name the label column")
@@ -166,9 +170,5 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
     else:
         chosen = data.filter(pl.col(geneCol).is_in(label))
 
-    chosen = chosen.select([log2fcCol, _NEGLOG_COL, geneCol])
-    return (
-        alt.Chart(ext.internal_data(chosen))
-        .mark_text(fontSize=ext.opt("secondaryFontSize"), dy=-5, baseline="bottom")
-        .encode(x=alt.X(f"{log2fcCol}:Q"), y=alt.Y(f"{_NEGLOG_COL}:Q"), text=f"{geneCol}:N")
-    )
+    names = [str(v) for v in chosen[geneCol].to_list()]
+    return ds.add_labels(data, log2fcCol, _NEGLOG_COL, geneCol, labels=names)

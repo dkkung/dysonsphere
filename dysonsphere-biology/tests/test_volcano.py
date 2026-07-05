@@ -72,9 +72,8 @@ def test_pandas_input():
 
 def test_label_top_n_count():
     chart = ds.biology.volcano(_df(), geneCol="gene", label=2)
-    labels = [rows for rows in chart.to_dict()["datasets"].values() if rows and "gene" in rows[0] and len(rows) <= 3]
-    # the label sidecar holds exactly 2 rows (top-2 significant by combined score)
-    assert any(len(rows) == 2 for rows in labels)
+    # top-2 significant by combined score -> 2 gene labels (placed by add_labels)
+    assert len(_label_texts(chart)) == 2
 
 
 def test_label_list_selects_named_genes():
@@ -132,9 +131,19 @@ def test_read_filters_generated_label_sidecar(tmp_path):
 
 
 def _label_texts(chart):
-    """Gene names carried by the label sidecar (the small dataset with a gene column)."""
+    """Gene-label strings placed by add_labels (each encoded via alt.value)."""
     out = []
-    for rows in chart.to_dict()["datasets"].values():
-        if rows and "gene" in rows[0] and "significance" not in rows[0]:
-            out.extend(r["gene"] for r in rows)
+
+    def walk(node):
+        if isinstance(node, dict):
+            t = node.get("encoding", {}).get("text")
+            if isinstance(t, dict) and "value" in t:
+                out.append(t["value"])
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(chart.to_dict())
     return out
