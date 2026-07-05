@@ -105,7 +105,7 @@ class TestCategorical:
     def test_named_palette_matches_function(self):
         assert colors["categorical"] == categorical(1)
 
-    @pytest.mark.parametrize("members,length", [(1, 12), (2, 8), (3, 12), (4, 16)])
+    @pytest.mark.parametrize("members,length", [(1, 12), (2, 8), (3, 12), (4, 16), (5, 20), (6, 24), (10, 40)])
     def test_lengths(self, members, length):
         assert len(categorical(members)) == length
 
@@ -122,12 +122,36 @@ class TestCategorical:
     def test_every_color_derived_from_base_hues(self):
         # Nothing is generated de novo - every color lives in one of the four base hues.
         pool = {hx for h in self.HUES for hx in colors[h]}
-        for members in (1, 2, 3, 4):
+        for members in (1, 2, 3, 4, 5, 8, 10):
             assert set(categorical(members)) <= pool
 
-    @pytest.mark.parametrize("bad", [0, 5, -1, 100])
-    def test_out_of_range_raises(self, bad):
-        with pytest.raises(ValueError, match="members must be between 1 and 4"):
+    @pytest.mark.parametrize("members", [2, 3, 4])
+    def test_classic_tier_stops_preserved(self, members):
+        # members<=4 keep the exact (1, 4, 7, 10)[:members] tier stops - byte-identical
+        # to prior versions and consistent with the flat palette's tiers.
+        expected = [colors[h][s] for h in self.HUES for s in (1, 4, 7, 10)[:members]]
+        assert categorical(members) == expected
+
+    def test_five_members_spread_evenly(self):
+        # beyond 4, stops spread evenly across the usable ramp [1, 10]
+        expected = [colors[h][s] for h in self.HUES for s in (1, 3, 6, 8, 10)]
+        assert categorical(5) == expected
+
+    def test_stops_strictly_increasing_within_hue(self):
+        # each hue block must climb monotonically in lightness stops (no duplicates)
+        for members in range(2, 11):
+            block = categorical(members)[:members]  # first hue block (blues)
+            indices = [colors["blues"].index(c) for c in block]
+            assert indices == sorted(set(indices)), f"members={members}: {indices}"
+
+    def test_ten_is_the_cap(self):
+        assert len(categorical(10)) == 40
+        with pytest.raises(ValueError, match="distinct lightness stops"):
+            categorical(11)
+
+    @pytest.mark.parametrize("bad", [0, -1])
+    def test_below_one_raises(self, bad):
+        with pytest.raises(ValueError, match="at least 1"):
             categorical(bad)
 
 

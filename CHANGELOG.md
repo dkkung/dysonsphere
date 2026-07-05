@@ -19,6 +19,7 @@
 
 ### Changes
 
+- **`categorical(members=)` accepts up to 10 members** (was capped at 4). `members<=4` keep the exact classic tier stops (unchanged output); `5`-`10` spread the lightness stops evenly across the usable ramp, shrinking within-hue contrast with each extra member - documented, with a pointer to sequential per-group slices for ordinal series. Raises above 10, where distinct stops run out.
 - **`mark_circle` dots have no outline.** The theme's circle config no longer applies `markStroke` - at the small overlay-dot default size a stroke swamps the fill. Set `stroke` per chart to restore one. `mark_strip`/beeswarm points are unaffected: they now pin the house outline explicitly instead of inheriting it from the circle config.
 - **Theme options read through one accessor.** Modules used to read theme options as `alt.theme.options.get(key, hardcoded)` with the default re-hardcoded at ~60 call sites (several already stale). A single internal accessor now falls back to the derived built-in defaults, so a helper called before `ds.theme()` sees the same values a fresh `ds.theme()` would set, and defaults can no longer drift per call site.
 - **Band-axis pixel math consolidated into `band_geometry()`.** The band-scale step/centre/edge formulas were hand-rolled at six sites (violin centres, strip offset scale, all three `add_shade` modes, the p-value bracket midpoint, multilabel spans), each re-deriving the padding arithmetic. One tested helper in `utils` now provides all three scale variants (offset / band / point); positions are unchanged.
