@@ -1,3 +1,6 @@
+# ext is the extension-author primitive surface: exposed as the namespaced `ds.ext` (its
+# contents are deliberately NOT star-imported into the top namespace).
+from . import ext  # noqa: E402, F401
 from .discovery import *  # noqa: F403
 from .export import *  # noqa: F403
 from .labels import *  # noqa: F403
