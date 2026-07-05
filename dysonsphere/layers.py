@@ -733,11 +733,12 @@ def add_labels(
             ey = ly - hh if dy <= 0 else ly + hh
         if connector:
             # Small gap at each end so the line points at the marker/label rather than piercing the
-            # dot or touching the glyphs. Scaled down for short connectors (so even the tiny vertical
-            # ones get a gap) and capped at 1px; 2*g < seg always, so a visible segment remains.
+            # dot or touching the glyphs. Capped at markSize/10 (= 1px at the default markSize, and
+            # scales with the marks) and scaled down for short connectors so even the tiny vertical
+            # ones get a gap; 2*g < seg always, so a visible segment remains.
             seg = math.hypot(ex - ax, ey - ay)
             if seg > 0:
-                g = min(1.0, seg * 0.25)
+                g = min(_opt("markSize") / 10, seg * 0.25)
                 ux, uy = (ex - ax) / seg, (ey - ay) / seg
                 sx, sy, tx, ty = ax + ux * g, ay + uy * g, ex - ux * g, ey - uy * g
             else:
