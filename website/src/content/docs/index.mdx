@@ -44,24 +44,25 @@ pip install dysonsphere
 		cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 		origins = ["USA", "Europe", "Japan"]
 
-		chart = ds.mark_strip(
-		    cars, "Origin", "Miles_per_Gallon", origins,
-		    yTitle="Miles per gallon",
-		) + ds.add_comparisons(
-		    cars, "Origin", "Miles_per_Gallon",
-		    [("USA", "Europe"), ("USA", "Japan")],
-		    test="anova", categories=origins,
+		chart = (
+		    alt.Chart(cars)
+		    .mark_boxplot()
+		    .encode(
+		        x=alt.X("Origin:N", sort=origins, title="Origin"),
+		        y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon"),
+		        color=alt.Color("Origin:N", sort=origins, legend=None),
+		    )
 		)
 		```
 	</div>
 	<div class="landing__demo-chart">
-		<Chart name="comparisons" alt="Fuel economy by origin with ANOVA and pairwise significance brackets" />
-		<p class="landing__demo-caption">
-			Live chart - hover for the export menu. One <code>theme()</code> call, one composable
-			annotation layer; the ANOVA, post-hoc tests, and effect sizes ride along in the export's
-			metadata.
-		</p>
+		<Chart name="home_demo" alt="Boxplot of fuel economy by car origin, colored per origin" />
 	</div>
+	<p class="landing__demo-caption">
+		Live chart - hover for the export menu. One <code>theme()</code> call and plain Altair inherits
+		the grey boxes, single-stroke median, rounded whisker caps, and perceptually uniform palette -
+		no per-mark styling.
+	</p>
 </section>
 
 <section class="landing__features">
