@@ -3,16 +3,14 @@ import math
 import re
 import textwrap
 import xml.etree.ElementTree as ET
-from pathlib import Path
 
 import altair as alt
 import polars as pl
 import pytest
 
 from dysonsphere.export import (
-    _fix_log_minor_ticks,
+    _extend_grid_span,
     _fix_superscript_labels,
-    _fix_tick_alignment,
     _flip_ticks_inward,
     _layer_axes_to_front,
     _simplify_svg,
@@ -27,69 +25,6 @@ def _write(tmp_path, name, content):
     p = tmp_path / name
     p.write_text(content, encoding="utf-8")
     return str(p)
-
-
-def _tick_xs(path):
-    """Collect x-axis tick translate-x values from a test SVG."""
-    root = ET.parse(path).getroot()
-    xs = []
-
-    def collect(el):
-        for child in el:
-            if child.get("class", "") == "mark-rule role-axis-tick":
-                for line in child:
-                    m = re.match(r"translate\(([\d.]+),", line.get("transform", ""))
-                    if m:
-                        xs.append(float(m.group(1)))
-            else:
-                collect(child)
-
-    collect(root)
-    return xs
-
-
-def _y_minor_positions(path, minor_size):
-    """Y-axis minor tick y values, identified by x2 == -minor_size."""
-    root = ET.parse(path).getroot()
-    ys = []
-    for line in root.iter(f"{{{NS}}}line"):
-        m = re.match(r"translate\(0,([\d.]+)\)$", line.get("transform", ""))
-        if m and line.get("x2") == f"-{minor_size}":
-            ys.append(float(m.group(1)))
-    return sorted(ys)
-
-
-def _x_minor_positions(path, minor_size):
-    """X-axis minor tick x values, identified by y2 == minor_size."""
-    root = ET.parse(path).getroot()
-    xs = []
-    for line in root.iter(f"{{{NS}}}line"):
-        m = re.match(r"translate\(([\d.]+),0\)$", line.get("transform", ""))
-        if m and line.get("y2") == str(minor_size):
-            xs.append(float(m.group(1)))
-    return sorted(xs)
-
-
-def _y_tick_svg(major_ys, minor_ys, major_size=5, minor_size=3):
-    lines = [f'  <line transform="translate(0,{y})" x1="0" y1="0" x2="-{major_size}" y2="0"/>' for y in major_ys]
-    lines += [f'  <line transform="translate(0,{y})" x1="0" y1="0" x2="-{minor_size}" y2="0"/>' for y in minor_ys]
-    return f'<svg xmlns="{NS}">\n' + "\n".join(lines) + "\n</svg>"
-
-
-def _x_tick_svg(major_xs, minor_xs, major_size=5, minor_size=3):
-    lines = [f'  <line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="{major_size}"/>' for x in major_xs]
-    lines += [f'  <line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="{minor_size}"/>' for x in minor_xs]
-    return f'<svg xmlns="{NS}">\n' + "\n".join(lines) + "\n</svg>"
-
-
-_TICK_SVG = (
-    f'<svg xmlns="{NS}">'
-    '<g class="mark-rule role-axis-tick">'
-    '<line transform="translate({x0},0)" x1="0" y1="0" x2="0" y2="-3"/>'
-    '<line transform="translate({x1},0)" x1="0" y1="0" x2="0" y2="-3"/>'
-    '<line transform="translate({x2},0)" x1="0" y1="0" x2="0" y2="-3"/>'
-    "</g></svg>"
-)
 
 
 @pytest.fixture(autouse=True)
@@ -395,235 +330,81 @@ class TestShow:
             show(simple_chart)
 
 
-class TestFixTickAlignment:
-    def test_point_scale_corrected(self, tmp_path):
-        # 3 categories, W=200, point scale: step=W/n, position=round(step*(0.5+i))
-        step = 200 / 3
-        path = _write(tmp_path, "t.svg", _TICK_SVG.format(x0=33, x1=100, x2=167))
-        _fix_tick_alignment(path, band_padding=0.1, chart_width=200)
-        xs = _tick_xs(path)
-        assert xs == pytest.approx([step * 0.5, step * 1.5, step * 2.5], abs=0.001)
+# ── exact tick positions ─────────────────────────────────────────────────────
 
-    def test_band_inner_scale_corrected(self, tmp_path):
-        # paddingInner=paddingOuter=band_padding, W=200: step=W/(n+bp)
-        step = 200 / (3 + 0.1)
-        x0, x1, x2 = int(step * 0.55), int(step * 1.55), int(step * 2.55)
-        path = _write(tmp_path, "t.svg", _TICK_SVG.format(x0=x0, x1=x1, x2=x2))
-        _fix_tick_alignment(path, band_padding=0.1, chart_width=200)
-        xs = _tick_xs(path)
-        assert xs == pytest.approx([step * 0.55, step * 1.55, step * 2.55], abs=0.001)
 
-    def test_xoffset_scale_corrected(self, tmp_path):
-        # paddingInner=0, paddingOuter=band_padding, W=200: step=W/(n+2*bp)
-        step = 200 / (3 + 2 * 0.1)  # 62.5
-        x0, x1, x2 = int(step * 0.6), int(step * 1.6), int(step * 2.6)
-        path = _write(tmp_path, "t.svg", _TICK_SVG.format(x0=x0, x1=x1, x2=x2))
-        _fix_tick_alignment(path, band_padding=0.1, chart_width=200)
-        xs = _tick_xs(path)
-        assert xs == pytest.approx([step * 0.6, step * 1.6, step * 2.6], abs=0.001)
+class TestExactTickPositions:
+    """Ticks land exactly on their marks at render time - no SVG position fixing.
 
-    def test_no_match_leaves_file_unchanged(self, tmp_path):
-        # Positions that don't match any formula → early return, file untouched
-        content = _TICK_SVG.format(x0=25, x1=75, x2=125)
-        path = _write(tmp_path, "t.svg", content)
-        _fix_tick_alignment(path, band_padding=0.1, chart_width=200)
-        assert Path(path).read_text() == content
+    The theme renders with Vega's ``tickRound: false`` (config.axis) and ``tickOffset: 0``
+    (config.axisBand), so tick and grid positions are the exact fractional scale positions
+    on every axis type (band, linear, log/power minors) and in every panel. These tests
+    guard that config by asserting tick == mark equality in real rendered output.
+    """
 
-    def test_ambiguous_no_box_marks_returns_unfixed(self, tmp_path):
-        # With W=100, n=6, band_padding=0.1, Case 0 and Case pi floor to the same
-        # integers. Without box marks to disambiguate, ticks are left unchanged.
-        bp = 0.1
-        W = 100
-        n = 6
-        step0 = W / (n + 2 * bp)
-        step_pi = W / (n + bp)
-        ints0 = [int(step0 * (bp + i + 0.5)) for i in range(n)]
-        ints_pi = [int(step_pi * (i + 0.5 + bp / 2)) for i in range(n)]
-        assert ints0 == ints_pi, "precondition: both cases must floor to same ints for this test"
-
-        lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="-3"/>' for x in ints0)
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{lines}</g></svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, band_padding=bp, chart_width=W)
-        xs = _tick_xs(path)
-        # No box marks → can't resolve; ticks stay at integer positions
-        assert xs == pytest.approx([float(x) for x in ints0], abs=0.001)
-
-    def test_box_anchors_snap_to_case0(self, tmp_path):
-        # Box marks (a rect path "M x,y h w …") are read as exact anchors: ticks snap to the box
-        # centres even when Case 0 and Case pi floor to the same integers — no formula guessing.
-        bp = 0.1
-        W = 100
-        n = 6
-        step0 = W / (n + 2 * bp)
-        ints = [int(step0 * (bp + i + 0.5)) for i in range(n)]  # both formulas floor to these
-
-        lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="-3"/>' for x in ints)
-        # Box marks at Case 0 centres, in real Vega rect-path form: M(centre-3),y h6 v5 h-6 Z.
-        box_marks = "".join(
-            f'<path aria-roledescription="box" d="M{step0 * (bp + i + 0.5) - 3},10h6v5h-6Z"/>' for i in range(n)
+    def test_boxplot_ticks_on_box_centres(self, tmp_path):
+        df = pl.DataFrame({"g": ["A", "B", "C"] * 10, "v": [float(i % 7) + 1 for i in range(30)]})
+        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q")
+        save(chart, str(tmp_path / "b"), format="svg", background="light")
+        svg = (tmp_path / "b.svg").read_text(encoding="utf-8")
+        # x-axis tick lines carry their length in y2 (= the theme tickSize, 3)
+        ticks = sorted(
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3"', svg)
         )
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{lines}</g>{box_marks}</svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, band_padding=bp, chart_width=W)
-        xs = _tick_xs(path)
-        expected = [round(step0 * (bp + i + 0.5), 4) for i in range(n)]
-        assert xs == pytest.approx(expected, abs=0.001)
-
-    def test_box_anchors_snap_to_case_pi(self, tmp_path):
-        # Same, with the boxes at Case pi centres (violin/boxplot band positioning).
-        bp = 0.1
-        W = 100
-        n = 6
-        step_pi = W / (n + bp)
-        ints = [int(step_pi * (i + 0.5 + bp / 2)) for i in range(n)]
-
-        lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="-3"/>' for x in ints)
-        box_marks = "".join(
-            f'<path aria-roledescription="box" d="M{step_pi * (i + 0.5 + bp / 2) - 3},10h6v5h-6Z"/>' for i in range(n)
+        boxes = sorted(
+            float(x) + float(w) / 2
+            for x, w in re.findall(r'aria-roledescription="box"[^>]*d="M([-\d.]+),[-\d.]+h([-\d.]+)', svg)
         )
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{lines}</g>{box_marks}</svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, band_padding=bp, chart_width=W)
-        xs = _tick_xs(path)
-        expected = [round(step_pi * (i + 0.5 + bp / 2), 4) for i in range(n)]
-        assert xs == pytest.approx(expected, abs=0.001)
+        assert len(ticks) == 3 and len(boxes) == 3
+        assert ticks == pytest.approx(boxes, abs=1e-6)  # exact, not merely within a pixel
 
-    def test_grid_lines_x_corrected(self, tmp_path):
-        # Grid lines use translate(x,-chartHeight) not translate(x,0); both must be fixed.
-        step = 200 / (3 + 0.1)
-        x0, x1, x2 = int(step * 0.55), int(step * 1.55), int(step * 2.55)
-        lines = "".join(f'<line transform="translate({x},-100)" x1="0" y1="0" x2="0" y2="100"/>' for x in [x0, x1, x2])
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-grid">{lines}</g></svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, band_padding=0.1, chart_width=200)
-        root = ET.parse(path).getroot()
-        xs = sorted(
-            float(m.group(1))
-            for line in root.iter(f"{{{NS}}}line")
-            if (m := re.match(r"translate\(([\d.]+),", line.get("transform", "")))
-        )
-        expected = [round(step * (0.55 + i), 4) for i in range(3)]
-        assert xs == pytest.approx(expected, abs=0.001)
-
-    def test_grid_lines_y_span_extended_by_axis_offset(self, tmp_path):
-        # axis_offset extends grid line y-span upward to eliminate the top-border gap.
-        step = 200 / (3 + 0.1)
-        x0, x1, x2 = int(step * 0.55), int(step * 1.55), int(step * 2.55)
-        lines = "".join(f'<line transform="translate({x},-100)" x1="0" y1="0" x2="0" y2="100"/>' for x in [x0, x1, x2])
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-grid">{lines}</g></svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, band_padding=0.1, chart_width=200, axis_offset=3)
-        root = ET.parse(path).getroot()
-        ty_vals, y2_vals = [], []
-        for line in root.iter(f"{{{NS}}}line"):
-            m = re.match(r"translate\([\d.]+,([-\d.]+)\)", line.get("transform", ""))
-            if m:
-                ty_vals.append(float(m.group(1)))
-                y2_vals.append(float(line.get("y2", "0")))
-        assert all(t == pytest.approx(-103.0, abs=0.001) for t in ty_vals)
-        assert all(y == pytest.approx(103.0, abs=0.001) for y in y2_vals)
-
-    def test_rect_heatmap_x_snaps_to_bin_edges(self, tmp_path):
-        # Binned/linear (heatmap) x-axis: ticks sit on rect bin edges, not band
-        # centers. 9 bins over W=100 give non-integral edges (100/9); Vega rounds the
-        # tick transforms to ints, so the fix must pull them back onto the rect edges.
-        W = 100.0
-        nb = 9
-        edges = [round(i * W / nb, 6) for i in range(nb + 1)]
-        rects = "".join(
-            f'<path aria-roledescription="rect mark" '
-            f'd="M{edges[i]},0h{edges[i + 1] - edges[i]}v10h-{edges[i + 1] - edges[i]}Z"/>'
-            for i in range(nb)
-        )
-        tick_lines = "".join(f'<line transform="translate({round(e)},0)" x1="0" y1="0" x2="0" y2="3"/>' for e in edges)
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{tick_lines}</g>{rects}</svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, band_padding=0.1, chart_width=W)
-        assert sorted(_tick_xs(path)) == pytest.approx(edges, abs=0.001)
-
-    def test_rect_heatmap_y_snaps_to_bin_edges(self, tmp_path):
-        # Binned/linear (heatmap) y-axis: same fix, on the vertical ticks (translate(0,y)).
-        H = 100.0
-        nb = 9
-        edges = [round(i * H / nb, 6) for i in range(nb + 1)]
-        rects = "".join(
-            f'<path aria-roledescription="rect mark" d="M0,{edges[i]}h10v{edges[i + 1] - edges[i]}h-10Z"/>'
-            for i in range(nb)
-        )
-        tick_lines = "".join(f'<line transform="translate(0,{round(e)})" x1="0" y1="0" x2="-3" y2="0"/>' for e in edges)
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{tick_lines}</g>{rects}</svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, band_padding=0.1, chart_width=H)
-        root = ET.parse(path).getroot()
+    def test_linear_axis_ticks_at_exact_scale_positions(self, tmp_path):
+        # A [0, 7] domain over 100px puts ticks at fractional positions (100/7 apart);
+        # with tickRound=False they must not be integer-rounded.
+        df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [0.0, 3.5, 7.0]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y=alt.Y("y:Q", scale=alt.Scale(domain=[0, 7])))
+        save(chart, str(tmp_path / "l"), format="svg", background="light")
+        svg = (tmp_path / "l.svg").read_text(encoding="utf-8")
         ys = sorted(
-            float(m.group(2))
-            for line in root.iter(f"{{{NS}}}line")
-            if (m := re.match(r"translate\(([-\d.]+),([-\d.]+)\)", line.get("transform", "")))
-            and line.get("x2") == "-3"
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(0,([\d.]+)\)"[^/]*x2="-3"', svg)
         )
-        assert ys == pytest.approx(edges, abs=0.001)
+        assert len(ys) >= 3, "no y-axis ticks found"
+        # Vega picks the tick count; whatever it picks, each tick must sit on the exact
+        # (fractional) scale position of an integer data value - not an integer pixel.
+        exact = [100 - v / 7 * 100 for v in range(8)]
+        for y in ys:
+            assert min(abs(y - e) for e in exact) < 1e-6, f"tick {y} integer-rounded off the scale position"
 
-    def test_rect_present_but_band_ticks_use_band_fix(self, tmp_path):
-        # Gate: a nominal band chart carrying rect marks (e.g. an add_shade layer over
-        # a boxplot) has ticks at band centers, > 1px from any rect edge, so the rect
-        # branch must NOT hijack it — the Case pi band fix applies as usual.
-        bp = 0.1
-        W = 200.0
-        n = 3
-        step_pi = W / (n + bp)
-        # Shade rects tiling band boundaries (far from the band centers).
-        redges = [round(i * step_pi, 4) for i in range(n + 1)]
-        rects = "".join(
-            f'<path aria-roledescription="rect mark" '
-            f'd="M{redges[i]},0h{redges[i + 1] - redges[i]}v10h-{redges[i + 1] - redges[i]}Z"/>'
-            for i in range(n)
+    def test_log_minor_ticks_exact(self, tmp_path):
+        from dysonsphere.nonlinear import add_log_ticks
+
+        df = pl.DataFrame({"x": [1.0, 10.0, 100.0], "y": [1.0, 2.0, 3.0]})
+        base = (
+            alt.Chart(df)
+            .mark_point()
+            .encode(
+                # decade-only major ticks, as in the add_log_ticks demos
+                x=alt.X("x:Q", scale=alt.Scale(type="log"), axis=alt.Axis(values=[1, 10, 100])),
+                y="y:Q",
+            )
         )
-        ints = [int(step_pi * (i + 0.5 + bp / 2)) for i in range(n)]
-        tick_lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="-3"/>' for x in ints)
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{tick_lines}</g>{rects}</svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, band_padding=bp, chart_width=W)
-        expected = [round(step_pi * (i + 0.5 + bp / 2), 4) for i in range(n)]
-        assert sorted(_tick_xs(path)) == pytest.approx(expected, abs=0.001)
-
-    def test_bar_anchors_snap(self, tmp_path):
-        # Bar centres (a rect path "M x,y h w …") are read as anchors; ticks snap to them.
-        W, n, bp = 100, 5, 0.1
-        centers = [round(W / (n + bp) * (i + 0.5 + bp / 2), 4) for i in range(n)]
-        ints = [int(c) for c in centers]
-        lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="3"/>' for x in ints)
-        bars = "".join(f'<path aria-roledescription="bar" d="M{c - 5},50h10v20h-10Z"/>' for c in centers)
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{lines}</g>{bars}</svg>'
-        path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, chart_width=W)
-        assert _tick_xs(path) == pytest.approx(centers, abs=0.001)
-
-    def test_panels_resolve_independently(self, tmp_path):
-        # Two panels at different global x-offsets, each with its own box anchors and (crucially)
-        # different local centres. A tick in one panel must snap to *its* box, not the other's —
-        # the global-coordinate scoping that makes mixed hconcat/vconcat work.
-        def panel(cx, ints, centers):
-            lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="3"/>' for x in ints)
-            boxes = "".join(f'<path aria-roledescription="box" d="M{c - 3},10h6v5h-6Z"/>' for c in centers)
-            return f'<g transform="translate({cx},0)"><g class="mark-rule role-axis-tick">{lines}</g>{boxes}</g>'
-
-        a = panel(0, [9, 25], [9.677, 25.806])  # Case 0 (strip)
-        b = panel(200, [9, 25], [9.016, 25.41])  # Case pi (violin)
-        path = _write(tmp_path, "t.svg", f'<svg xmlns="{NS}">{a}{b}</svg>')
-        _fix_tick_alignment(path, chart_width=100)
-        root = ET.parse(path).getroot()
-        xs = sorted(
-            round(float(m.group(1)), 3)
-            for ln in root.iter(f"{{{NS}}}line")
-            if (m := re.match(r"translate\(([-\d.]+),", ln.get("transform", "")))
+        chart = add_log_ticks(base, df, field="x", axis="x")
+        save(chart, str(tmp_path / "lg"), format="svg", background="light")
+        svg = (tmp_path / "lg.svg").read_text(encoding="utf-8")
+        # minor ticks are half the theme tickSize (1.5); majors are 3
+        minors = sorted(
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="1.5"', svg)
         )
-        # Each panel kept its own local centres — not cross-contaminated.
-        assert xs == pytest.approx([9.016, 9.677, 25.41, 25.806], abs=0.001)
+        majors = sorted(
+            {float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3"', svg)}
+        )
+        assert len(majors) >= 2 and minors
+        expected = sorted(lo + math.log10(mv) * (hi - lo) for lo, hi in zip(majors, majors[1:]) for mv in range(2, 10))
+        assert minors == pytest.approx(expected, abs=1e-6)
 
-    def test_strip_violin_hconcat_end_to_end(self, tmp_path):
-        # Capstone: real Vega output. Strip (Case 0) beside violin (Case pi) in one hconcat —
-        # every tick must land on a box centre in its own panel.
+    def test_strip_violin_hconcat_ticks_exact(self, tmp_path):
+        # Capstone: strip (Case 0 band positions) beside violin (Case pi) in one hconcat -
+        # every tick must land exactly on a box centre in its own panel.
         import numpy as np
 
         import dysonsphere as ds
@@ -647,88 +428,52 @@ class TestFixTickAlignment:
                 if ch.get("aria-roledescription") == "box":
                     m = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", ch.get("d", ""))
                     if m:
-                        boxes.append(round(ccx + float(m.group(1)) + float(m.group(2)) / 2, 2))
+                        boxes.append(ccx + float(m.group(1)) + float(m.group(2)) / 2)
                 y2 = ch.get("y2")
                 if ch.tag == f"{{{NS}}}line" and ch.get("x2") == "0" and y2 and 0 < abs(float(y2)) < 20:
                     if re.match(r"translate\(([-\d.]+),", ch.get("transform", "")):
-                        ticks.append(round(ccx, 2))
+                        ticks.append(ccx)
                 walk(ch, ccx)
 
         walk(root, 0.0)
         assert boxes and ticks
         for t in ticks:
-            assert min(abs(b - t) for b in boxes) < 0.1, f"tick {t} not on any box centre"
+            assert min(abs(b - t) for b in boxes) < 1e-6, f"tick {t} not exactly on a box centre"
 
-    def test_box_anchor_reads_rounded_l_format(self, tmp_path):
-        # Rounded boxes (cornerRadius) render as "M x1,y L x2,y a…", not "M x,y h w". The reader
-        # must handle both formats, else ticks fall to the fallback — and at the ambiguous n=6
-        # case (Case 0 and Case pi floor to the same ints) the fallback bails, leaving the tick
-        # at Vega's floored integer while the box sits at a fractional position.
-        bp, W, n = 0.1, 100, 6
-        step_pi = W / (n + bp)
-        centers = [step_pi * (i + 0.5 + bp / 2) for i in range(n)]
-        ints = [int(c) for c in centers]
-        lines = "".join(f'<line transform="translate({x},0)" x1="0" y1="0" x2="0" y2="-3"/>' for x in ints)
-        # L-format (rounded) box: top edge is "M(centre-3),y L(centre+3),y" then a corner arc.
-        boxes = "".join(
-            f'<path aria-roledescription="box" d="M{c - 3},10L{c + 3},10a1,1 0 0 1 1,1Z"/>' for c in centers
-        )
-        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-tick">{lines}</g>{boxes}</svg>'
+
+# ── _extend_grid_span() ──────────────────────────────────────────────────────
+
+
+class TestExtendGridSpan:
+    def test_grid_lines_y_span_extended_by_axis_offset(self, tmp_path):
+        # axis_offset stretches vertical grid lines at both ends: the translate keeps the
+        # bottom on the axis, the y2 restores the span up to the top border.
+        lines = "".join(f'<line transform="translate({x},-100)" x1="0" y1="0" x2="0" y2="100"/>' for x in [10, 50, 90])
+        svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-grid">{lines}</g></svg>'
         path = _write(tmp_path, "t.svg", svg)
-        _fix_tick_alignment(path, band_padding=bp, chart_width=W)
-        assert sorted(_tick_xs(path)) == pytest.approx([round(c, 4) for c in centers], abs=0.001)
+        _extend_grid_span(path, 3)
+        root = ET.parse(path).getroot()
+        ty_vals, y2_vals = [], []
+        for line in root.iter(f"{{{NS}}}line"):
+            m = re.match(r"translate\([\d.]+,([-\d.]+)\)", line.get("transform", ""))
+            if m:
+                ty_vals.append(float(m.group(1)))
+                y2_vals.append(float(line.get("y2", "0")))
+        assert all(t == pytest.approx(-103.0, abs=0.001) for t in ty_vals)
+        assert all(y == pytest.approx(103.0, abs=0.001) for y in y2_vals)
 
-
-# ── _fix_log_minor_ticks() ───────────────────────────────────────────────────
-
-
-class TestFixLogMinorTicks:
-    def test_y_log10_corrected(self, tmp_path):
-        # 1 decade: major at y=0 (value=10) and y=100 (value=1), span=100
-        # m=2 → integer 70, exact 69.897;  m=5 → integer 30, exact 30.103
-        minor_ints = [5, 10, 22, 30, 40, 52, 70]
-        path = _write(tmp_path, "t.svg", _y_tick_svg([0, 100], minor_ints))
-        _fix_log_minor_ticks(path)
-        ys = _y_minor_positions(path, minor_size=3)
-        m2 = [y for y in ys if abs(y - 69.897) < 1.0]
-        assert len(m2) == 1
-        assert m2[0] == pytest.approx(100 - math.log10(2) * 100, abs=0.01)
-        m5 = [y for y in ys if abs(y - 30.103) < 1.0]
-        assert len(m5) == 1
-        assert m5[0] == pytest.approx(100 - math.log10(5) * 100, abs=0.01)
-
-    def test_y_uniform_corrected(self, tmp_path):
-        # Power-scale: major at y=0 and y=97 (non-divisible span), 4 equal-space minors
-        # Exact: k/5*97 for k=1..4 → 19.4, 38.8, 58.2, 77.6; ints → 19, 39, 58, 78
-        path = _write(tmp_path, "t.svg", _y_tick_svg([0, 97], [19, 39, 58, 78]))
-        _fix_log_minor_ticks(path)
-        ys = _y_minor_positions(path, minor_size=3)
-        assert sorted(ys) == pytest.approx([97 * k / 5 for k in range(1, 5)], abs=0.01)
-
-    def test_y_single_tick_size_no_change(self, tmp_path):
-        # Only one tick size → no minor ticks identified → file not rewritten
-        content = _y_tick_svg([0, 100], [])
-        path = _write(tmp_path, "t.svg", content)
-        _fix_log_minor_ticks(path)
-        assert Path(path).read_text() == content
-
-    def test_x_log10_corrected(self, tmp_path):
-        # 1 decade: major at x=0 and x=100, minor at integer-rounded log positions
-        # m=2 → integer 30, exact 30.103;  m=5 → integer 70, exact 69.897
-        minor_ints = [30, 48, 60, 70, 78, 85, 90, 95]
-        path = _write(tmp_path, "t.svg", _x_tick_svg([0, 100], minor_ints))
-        _fix_log_minor_ticks(path)
-        xs = _x_minor_positions(path, minor_size=3)
-        m2 = [x for x in xs if abs(x - 30.103) < 1.0]
-        assert len(m2) == 1
-        assert m2[0] == pytest.approx(math.log10(2) * 100, abs=0.01)
-
-    def test_x_uniform_corrected(self, tmp_path):
-        # Power-scale x-axis: major at x=0 and x=97, 4 equal-space minors
-        path = _write(tmp_path, "t.svg", _x_tick_svg([0, 97], [19, 39, 58, 78]))
-        _fix_log_minor_ticks(path)
-        xs = _x_minor_positions(path, minor_size=3)
-        assert sorted(xs) == pytest.approx([97 * k / 5 for k in range(1, 5)], abs=0.01)
+    def test_horizontal_grid_lines_untouched(self, tmp_path):
+        # y-axis grid lines (horizontal: x2 > 0, y2 = 0) are not extended.
+        svg = (
+            f'<svg xmlns="{NS}"><g class="mark-rule role-axis-grid">'
+            '<line transform="translate(0,40)" x1="0" y1="0" x2="100" y2="0"/>'
+            "</g></svg>"
+        )
+        path = _write(tmp_path, "t.svg", svg)
+        _extend_grid_span(path, 3)
+        line = next(ET.parse(path).getroot().iter(f"{{{NS}}}line"))
+        assert line.get("transform") == "translate(0,40)"
+        assert line.get("y2") == "0"
 
 
 # ── _flip_ticks_inward() ─────────────────────────────────────────────────────

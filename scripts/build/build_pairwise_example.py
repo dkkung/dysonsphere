@@ -18,7 +18,7 @@ import polars as pl
 import vl_convert as vlc
 
 import dysonsphere as ds
-from dysonsphere.export import _fix_superscript_labels, _fix_tick_alignment
+from dysonsphere.export import _render_fixed_svg
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -131,15 +131,7 @@ chart = alt.hconcat(left, scientific, right, third)
 out_png = ROOT / "docs" / "pairwise_example.png"
 with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
     tmp_path = tmp.name
-chart.save(tmp_path)
-_fix_tick_alignment(
-    tmp_path,
-    band_padding=alt.theme.options.get("bandPadding", 0.1),
-    chart_width=alt.theme.options.get("chartWidth", 100),
-)
-_fix_superscript_labels(tmp_path)
-with open(tmp_path, encoding="utf-8") as f:
-    svg_content = f.read()
+svg_content = _render_fixed_svg(chart, tmp_path)
 Path(tmp_path).unlink()
 out_png.write_bytes(vlc.svg_to_png(svg_content, ppi=1200))
 print(f"saved {out_png}")

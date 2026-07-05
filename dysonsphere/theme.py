@@ -309,6 +309,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
                 "tickColor": "white" if opts["darkmode"] else "black",
+                # Vega rounds tick/grid positions to integers for on-screen crispness, which
+                # drifts them off the (fractional) mark positions at high DPI. tickRound=False
+                # keeps ticks on the exact scale positions - the same family of fix as the
+                # hardcoded "translate": 0 below (Vega's 0.5px crisp-pixel offset).
+                "tickRound": False,
                 "tickSize": opts["tickSize"],
                 "tickWidth": opts["axisWidth"],
                 "titleColor": "white" if opts["darkmode"] else "black",
@@ -348,6 +353,12 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "labels": opts["xLabels"],
                 "ticks": opts["xAxis"] and opts["xTicks"] and opts["ticks"],
                 "translate": 0,
+            },
+            # Band-scale axes place ticks 0.5px off the band centre by default (Vega's
+            # tickOffset, resolved via the scale-type-specific axisBand config, not
+            # config.axis). Zeroing it puts ticks exactly on band centres.
+            "axisBand": {
+                "tickOffset": 0,
             },
             "bar": {
                 "fill": opts["markFill"],

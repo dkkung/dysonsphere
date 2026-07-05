@@ -491,7 +491,7 @@ class TestReadLoad:
         assert len(txts) == 1 and txts[0].read_text(encoding="utf-8").startswith("Statistics")
 
 
-# ── _fix_tick_alignment() ─────────────────────────────────────────────────────
+# ── PNG metadata helpers ──────────────────────────────────────────────────────
 
 
 def _make_minimal_png() -> bytes:
