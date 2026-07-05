@@ -621,9 +621,11 @@ def add_labels(
         from all of ``df``, so selecting a subset never clips the axes.
     xDomain, yDomain:
         ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``).
-        Default: the full ``df`` extent. Pass explicitly only for **derived positions** - when the
-        label coordinates are not rows of the plotted data (e.g. cluster centroids), give the plotted
-        data's extent so the axes span it.
+        Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``** (so filtering ``df`` just
+        moves the axes with it - always inferred). Pass explicitly only when you want the axes to
+        span a range the passed ``df`` does not cover - i.e. the base chart plots more than you hand
+        ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose
+        extent is tighter than the scatter).
     fontSize:
         Label font size. ``None`` -> the theme's ``secondaryFontSize``.
     color:
