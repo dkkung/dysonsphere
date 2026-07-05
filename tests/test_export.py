@@ -330,6 +330,39 @@ class TestShow:
             show(simple_chart)
 
 
+# ── save() transparency ──────────────────────────────────────────────────────
+
+
+class TestSaveTransparency:
+    def test_svg_transparent_by_default(self, simple_chart, tmp_path):
+        save(simple_chart, str(tmp_path / "t"), format="svg", background="light")
+        svg = (tmp_path / "t.svg").read_text(encoding="utf-8")
+        assert 'fill="white" />' not in svg.split("<metadata")[0]  # no full-size background rect
+        assert not re.search(r'<rect width="\d+" height="\d+" fill=', svg)
+
+    def test_transparent_false_fills_white_in_light(self, simple_chart, tmp_path):
+        save(simple_chart, str(tmp_path / "w"), format="svg", background="light", transparent=False)
+        svg = (tmp_path / "w.svg").read_text(encoding="utf-8")
+        assert re.search(r'<rect width="\d+" height="\d+" fill="white"', svg)
+
+    def test_transparent_false_fills_black_in_dark(self, simple_chart, tmp_path):
+        save(simple_chart, str(tmp_path / "b"), format="svg", background="dark", transparent=False)
+        svg = (tmp_path / "b.svg").read_text(encoding="utf-8")
+        assert re.search(r'<rect width="\d+" height="\d+" fill="black"', svg)
+
+    def test_json_keeps_logical_background(self, simple_chart, tmp_path):
+        # the JSON records the chart's logical background (theme transparent=False default
+        # -> chartFill), regardless of the render-time transparent= param
+        save(simple_chart, str(tmp_path / "j"), format="json", background="light", transparent=False)
+        spec = json.loads((tmp_path / "j.json").read_text(encoding="utf-8"))
+        assert spec.get("background") == "white"
+
+    def test_theme_option_restored_after_save(self, simple_chart, tmp_path):
+        theme(transparent=True)
+        save(simple_chart, str(tmp_path / "r"), format="svg", background="light", transparent=False)
+        assert alt.theme.options["transparent"] is True
+
+
 # ── exact tick positions ─────────────────────────────────────────────────────
 
 

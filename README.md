@@ -112,7 +112,7 @@ ds.theme(   # custom configuration
 | `axisOffset` | `tickSize × 1.5` | Distance between axis line and data area |
 | `axisWidth` | `0.25` | Stroke width of axes, ticks, and rules |
 | `bandPadding` | `0.1` | Inner and outer padding for ordinal bands |
-| `chartFill` | `"white"` | Background fill of the entire chart |
+| `chartFill` | `None` | Background fill of the entire chart (`None` = auto: white in light mode, black in dark mode) |
 | `chartHeight` | `100` | Default chart height in pixels |
 | `chartWidth` | `100` | Default chart width in pixels |
 | `closed` | auto | Draw a border around the plot area. Auto-enabled when `viewFill` is set or `inwardTicks=True` |
@@ -149,7 +149,7 @@ ds.theme(   # custom configuration
 | `strokeCap` | `"round"` | Stroke end cap: `"butt"`, `"round"`, or `"square"` |
 | `ticks` | `True` | Show axis ticks |
 | `tickSize` | `3` | Tick length in pixels |
-| `transparentBackground` | `False` | Transparent chart background (overrides `chartFill`) |
+| `transparent` | `False` | Transparent chart background (overrides `chartFill`) |
 | `viewFill` | `None` | Fill color of the plot area only. Setting this auto-enables `closed` |
 | `xAxis` | `True` | Toggle for the x-axis — disabling hides the axis domain and axis ticks, but not axis labels |
 | `xDomain` | `True` | Show the x-axis domain line (overridden to `False` when `xAxis=False`) |
@@ -200,12 +200,12 @@ chartWidth = 900
 chartHeight = 900
 darkmode = true
 fontSize = 18
-transparentBackground = true
+transparent = true
 
 [presentation]
 fontSize = 12
 darkmode = true
-transparentBackground = true
+transparent = true
 
 # Custom styles - add your own style sections below
 
@@ -395,16 +395,17 @@ ds.save(chart, "plots/myplot")
 
 **Always use `ds.save()` instead of `chart.save()`.** `ds.save()` is a wrapper around Altair's built-in save that runs several post-processing steps essential for correct rendering in dysonsphere-themed charts:
 
-- **Tick alignment** — Vega floors axis tick positions to integers for screen rendering; at 1200 PPI this becomes a visible gap between ticks and their marks. `ds.save()` corrects tick transforms to exact float positions.
-- **Minor tick correction** — corrects sub-pixel rounding on log-scale and power-scale minor ticks so spacing is visually uniform at high DPI.
+- **Superscript typesetting** — fixes misaligned Unicode superscripts in scientific/power notation labels (e.g. p-values like 10⁻¹⁴).
+- **Grid span** — extends grid lines across the small gap left by the detached axis (`axisOffset`), so they reach the top chart border.
 - **Inward ticks** — when `inwardTicks=True`, flips axis ticks (major, minor, and secondary) to point into the plot; Altair/Vega-Lite can't render inward ticks natively.
 - **Axis layering** — moves axis elements to the front so they render above chart marks (relevant for `viewFill`-filled charts).
 - **SVG simplification** — flattens Vega's redundant `<g>` wrappers for cleaner Illustrator imports.
 - **Light/dark variants** — renders both background modes in a single call by toggling `darkmode` in the active theme.
+- **Transparent background** — exports render with a transparent background by default so figures composite onto any page or slide; pass `transparent=False` for an opaque background (the theme's `chartFill` — white in light mode, black in dark).
 
-Calling `chart.save()` directly skips all of the above and will produce misaligned ticks and incorrect minor tick spacing in dysonsphere charts.
+(Tick positions need no post-processing: the theme itself disables Vega's integer tick rounding, so ticks land exactly on their marks in every output, including plain `chart.save()` and notebook previews.)
 
-> **Notebook preview is approximate.** Displaying an Altair chart inline (in a notebook or IDE) renders it through Vega-Lite's own renderer, which does **not** run these post-processing steps — so the preview is not publication-accurate. Ticks aren't pixel-aligned, log/superscript labels aren't typeset, and (most visibly) with `inwardTicks=True` the ticks still point **outward** in the preview. For an accurate inline preview, use **`ds.show(chart)`** — it runs the same pipeline as `ds.save()` and returns an `IPython.display.SVG`, so the preview matches the saved figure (no file written). Requires IPython.
+> **Notebook preview is approximate.** Displaying an Altair chart inline (in a notebook or IDE) renders it through Vega-Lite's own renderer, which does **not** run these post-processing steps — superscript labels aren't typeset and (most visibly) with `inwardTicks=True` the ticks still point **outward** in the preview. For an accurate inline preview, use **`ds.show(chart)`** — it runs the same pipeline as `ds.save()` and returns an `IPython.display.SVG`, so the preview matches the saved figure (no file written). Requires IPython.
 >
 > ```python
 > ds.show(chart)   # accurate inline preview in a notebook (last expression in a cell)
@@ -420,6 +421,7 @@ ds.save(chart, "myplot", format="png")                # myplot.png only
 ds.save(chart, "myplot", format=["svg", "png", "json"])
 ds.save(chart, "myplot", background=["light", "dark"])  # myplot_light.* + myplot_dark.*
 ds.save(chart, "myplot", ppi=600)                     # lower PPI for faster PNG exports
+ds.save(chart, "myplot", transparent=False)           # opaque background (chartFill) instead of transparent
 ds.save(chart, "myplot", description="Figure 1")      # your own description, in SVG <desc>, PNG iTXt, and the JSON spec
 ds.save(chart, "myplot", saveMetadata=False)          # suppress the structured metadata block
 ds.save(chart, "myplot", maxRows=20000)               # allow bigger data (default cap 5000)

@@ -51,7 +51,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     The remaining post-processors are shared by :func:`save` and :func:`show` so the pipeline
     stays identical: grid-span extension (the axisOffset top-border gap), inward-tick flip
     (when ``inwardTicks``), axis layering, ``<g>`` simplification, and superscript-label
-    typesetting. The caller sets up the theme (e.g. ``transparentBackground``) and owns the
+    typesetting. The caller sets up the theme (e.g. ``transparent``) and owns the
     file's lifecycle.
     """
     base_obj.save(svg_path)  # marker names are in the object but never render into SVG
@@ -80,6 +80,7 @@ def save(
     embedReport: bool = True,
     format: str | list[str] | None = None,
     background: str | list[str] | None = None,
+    transparent: bool = True,
     maxRows: int = 5000,
     overrideMaxRows: bool = False,
 ) -> None:
@@ -139,6 +140,13 @@ def save(
         Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles
         ``darkmode``), as a single string or a list. ``None`` (default) uses the theme
         option ``saveBackground`` (``"light"``). An empty list or unknown value raises.
+    transparent:
+        Whether the rendered SVG/PNG have a transparent background. ``True`` (default):
+        exported figures composite onto any page or slide. ``False``: the background is
+        filled with the theme's ``chartFill`` (white in light mode, black in dark mode,
+        unless set explicitly) - for outputs viewed on their own, e.g. images embedded in
+        a README. Applies to the SVG/PNG render only; the JSON and HTML keep the chart's
+        logical background (the theme option ``transparent``).
     maxRows:
         Row cap for the data inlined into the output (default ``5000``, matching Altair).
         Every format renders via ``chart.to_dict()``, which inlines the data, and the JSON
@@ -230,7 +238,7 @@ def save(
 
     _want_render = "svg" in _formats or "png" in _formats
     original_darkmode = alt.theme.options.get("darkmode", False)
-    original_transparent = alt.theme.options.get("transparentBackground", False)
+    original_transparent = alt.theme.options.get("transparent", False)
     # Cap the rows inlined for this save (every format renders via to_dict(), which enforces
     # it; overrideMaxRows lifts it) — restored on the way out via the ExitStack.  Over the cap,
     # Altair raises MaxRowsError, which we catch and re-raise with a clearer message.
@@ -244,8 +252,8 @@ def save(
         for bg in _backgrounds:
             alt.theme.options["darkmode"] = bg == "dark"
             # The spec is captured at the chart's logical transparency (for the JSON + the
-            # checksum); the SVG/PNG re-render below with transparentBackground on.
-            alt.theme.options["transparentBackground"] = original_transparent
+            # checksum); the SVG/PNG re-render below at the `transparent` param's value.
+            alt.theme.options["transparent"] = original_transparent
             base_obj = _resolve_base()
             spec = base_obj.to_dict()
             _hashes = metadata._scan_marker_hashes(spec) if saveMetadata else set()
@@ -284,7 +292,7 @@ def save(
                 Path(_path(bg, "html")).write_text(vlc.vegalite_to_html(hspec, bundle=True), encoding="utf-8")
 
             if _want_render:
-                alt.theme.options["transparentBackground"] = True
+                alt.theme.options["transparent"] = transparent
                 svg_path = _path(bg, "svg")
                 svg_content = _render_fixed_svg(base_obj, svg_path)
                 # Inject the metadata channels + user <desc> after the opening <svg> tag.  A
@@ -309,7 +317,7 @@ def save(
     finally:
         _cap_stack.close()
         alt.theme.options["darkmode"] = original_darkmode
-        alt.theme.options["transparentBackground"] = original_transparent
+        alt.theme.options["transparent"] = original_transparent
 
 
 def show(chart: _AltairChart | Callable[[], _AltairChart]):
@@ -336,13 +344,13 @@ def show(chart: _AltairChart | Callable[[], _AltairChart]):
         ) from e
 
     base_obj = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
-    _prev_transp = alt.theme.options.get("transparentBackground")
-    alt.theme.options["transparentBackground"] = True
+    _prev_transp = alt.theme.options.get("transparent")
+    alt.theme.options["transparent"] = True
     try:
         with tempfile.TemporaryDirectory() as d:
             svg = _render_fixed_svg(base_obj, str(Path(d) / "preview.svg"))
     finally:
-        alt.theme.options["transparentBackground"] = _prev_transp
+        alt.theme.options["transparent"] = _prev_transp
     return SVG(svg)
 
 

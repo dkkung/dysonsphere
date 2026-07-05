@@ -10,14 +10,12 @@ Usage (from project root):
     uv run python scripts/build/build_correlation_example.py
 """
 
-import tempfile
 from pathlib import Path
 from typing import Any
 
 import altair as alt
 import numpy as np
 import polars as pl
-import vl_convert as vlc
 
 import dysonsphere as ds
 
@@ -69,11 +67,5 @@ right = (
 chart = alt.hconcat(left, middle, right)
 
 out_png = ROOT / "docs" / "correlation_example.png"
-with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
-    tmp_path = tmp.name
-chart.save(tmp_path)
-with open(tmp_path, encoding="utf-8") as f:
-    svg_content = f.read()
-Path(tmp_path).unlink()
-out_png.write_bytes(vlc.svg_to_png(svg_content, ppi=1200))
+ds.save(chart, str(out_png.with_suffix("")), format="png", background="light", transparent=False)
 print(f"saved {out_png}")
