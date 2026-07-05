@@ -732,14 +732,14 @@ def add_labels(
             text_x = ex = lx
             ey = ly - hh if dy <= 0 else ly + hh
         if connector:
-            # Leave a small gap at each end so the line points at the marker and the label rather
-            # than piercing the dot / touching the glyphs. Clamp for very short connectors so the
-            # segment can't invert or disappear.
-            gap = 2.0
+            # Small gap at each end so the line points at the marker/label rather than piercing the
+            # dot or touching the glyphs. Scaled down for short connectors (so even the tiny vertical
+            # ones get a gap) and capped at 1px; 2*g < seg always, so a visible segment remains.
             seg = math.hypot(ex - ax, ey - ay)
-            if seg > 2 * gap + 1:
+            if seg > 0:
+                g = min(1.0, seg * 0.25)
                 ux, uy = (ex - ax) / seg, (ey - ay) / seg
-                sx, sy, tx, ty = ax + ux * gap, ay + uy * gap, ex - ux * gap, ey - uy * gap
+                sx, sy, tx, ty = ax + ux * g, ay + uy * g, ex - ux * g, ey - uy * g
             else:
                 sx, sy, tx, ty = ax, ay, ex, ey
             layers.append(
