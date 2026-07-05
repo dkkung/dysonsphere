@@ -25,7 +25,11 @@ df = ds.add_beeswarm(df, yCol="v", groupBy=["g"])
 x = alt.X("g:N", sort=GROUPS, title=None)
 y = alt.Y("v:Q", title=None, scale=alt.Scale(domain=[0, 1000]))
 
-box = alt.Chart(df).mark_boxplot().encode(x=x, y=y)
+box = (
+    alt.Chart(df)
+    .mark_boxplot()
+    .encode(x=x, y=y, color=alt.Color("g:N", scale=alt.Scale(range=ds.categorical(members=1))))
+)
 pts = alt.Chart(df).mark_circle().encode(x=x, y=y, xOffset=alt.XOffset("beeswarm_x:Q"))
 
 means = df.group_by("g").agg(pl.col("v").mean().alias("m"))

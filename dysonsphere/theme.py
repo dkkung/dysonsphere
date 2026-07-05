@@ -20,16 +20,13 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
         "fontSize": 18,
         "transparent": True,
     },
-    "presentation": {
-        "fontSize": 12,
-        "darkmode": True,
-        "transparent": True,
-    },
 }
 
-# DEPRECATED (remove at v3.0): old parameter names accepted as aliases, with a warning.
+# DEPRECATED (remove at v3.0): dev-only aliases for renamed parameters - the old names
+# last shipped in v2.0.0 and the rename lands as a v3.0.0 breaking change, so the alias
+# never ships in a release (the release step-0 sweep deletes it).
 _DEPRECATED_ALIASES: dict[str, str] = {
-    "transparentBackground": "transparent",  # renamed in v2.1
+    "transparentBackground": "transparent",  # renamed in v3.0
 }
 
 _BUILTIN_DEFAULTS: dict[str, Any] = {

@@ -335,7 +335,7 @@ class TestCreateConfig:
         content = (tmp_path / "dysonsphere.toml").read_text()
         assert "[nih]" not in content
         assert "[notebook]" in content
-        assert "[presentation]" in content
+        assert "[presentation]" not in content  # removed as a built-in preset in v3.0
         assert "[my_style]" in content
 
     def test_does_not_overwrite(self, tmp_path):
