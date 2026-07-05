@@ -123,7 +123,16 @@ def _repel_labels(
     pos[:, 1] -= half[:, 1] + 2.0  # start just above each anchor (y grows downward)
     pos[:, 0] += np.arange(n) * 1e-3  # deterministic tie-break for coincident anchors
 
-    k_spring, k_label, k_point, point_r = 0.015, 0.4, 0.35, 3.0
+    # k_spring pulls each label back toward its point (higher -> shorter connectors); k_label/k_point
+    # clear label-label and label-point overlaps; k_seg keeps labels off other connectors.
+    k_spring, k_label, k_point, point_r, k_seg = 0.05, 0.4, 0.35, 3.0, 0.5
+    # longer-range density escape: a label deep in a cluster feels the AABB pushes cancel (points on
+    # all sides), so it never leaves. A soft 1/dist push from every point within `dens_r` gives a net
+    # vector toward the sparse side, so the label drifts out to open space (then the spring/label
+    # forces settle it). Radius scales with the panel; strength kept LOW so it only biases direction -
+    # too high and labels overshoot far from their points (comically long connectors).
+    dens_r = 0.25 * min(width, height)
+    k_dens = 2.0
     for _ in range(iterations):
         disp = np.zeros_like(pos)
         for i in range(n):
@@ -150,6 +159,30 @@ def _repel_labels(
                 norm = np.linalg.norm(dd, axis=1)
                 norm[norm == 0] = 1e-9
                 disp[i] += (dd / norm[:, None] * pen[:, None]).sum(axis=0) * k_point
+            # density-gradient escape (see dens_r/k_dens above): net 1/dist push from nearby points
+            dn = np.linalg.norm(d, axis=1)
+            near = (dn > 1e-9) & (dn < dens_r)
+            if near.any():
+                dd = d[near]
+                dnn = dn[near]
+                disp[i] += (dd / (dnn[:, None] ** 2)).sum(axis=0) * k_dens
+            # label i <-> other labels' connector segments (anchor a[j] -> label pos[j]): if a
+            # connector line passes through label i's box, push i off it so leaders don't run through
+            # other labels. Treat the closest point on the segment like an obstacle.
+            for j in range(n):
+                if j == i:
+                    continue
+                seg = pos[j] - a[j]
+                seg_len2 = float(seg @ seg)
+                if seg_len2 < 1e-9:
+                    continue
+                t = min(1.0, max(0.0, float((pos[i] - a[j]) @ seg) / seg_len2))
+                d2 = pos[i] - (a[j] + t * seg)  # label centre - closest point on segment j
+                sx_ov, sy_ov = half[i, 0] - abs(d2[0]), half[i, 1] - abs(d2[1])
+                if sx_ov > 0 and sy_ov > 0:  # the line crosses i's box
+                    dist = float(np.linalg.norm(d2))
+                    push_dir = d2 / dist if dist > 1e-9 else np.array([0.0, -1.0])
+                    disp[i] += push_dir * min(sx_ov, sy_ov) * k_seg
         disp += (a - pos) * k_spring  # weak spring back toward anchor
         pos += disp
         pos[:, 0] = np.clip(pos[:, 0], half[:, 0], width - half[:, 0])

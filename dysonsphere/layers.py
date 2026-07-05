@@ -590,6 +590,7 @@ def add_labels(
     connectorColor: str | None = None,
     connectorStrokeDash: bool | list[int] = False,
     connectorGap: float | None = None,
+    alwaysShowConnectors: bool = False,
 ) -> alt.LayerChart:
     """Auto-place non-overlapping text labels for a set of points, with connector lines.
 
@@ -643,10 +644,15 @@ def add_labels(
         pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
     connectorGap:
         Pixel gap left at each end of the connector so it points at the marker / label rather than
-        touching them. ``None`` (default) -> ``markSize/10`` (1px at the default theme, scales with
-        the marks); ``0`` -> no gap; a float -> that many pixels. Increase it for large or thickly
-        stroked markers (the gap can't measure the marker itself - the base chart isn't visible
-        here). Automatically shrinks for very short connectors so the gaps don't consume the line.
+        touching them. ``None`` (default) -> the theme's ``mark_point`` edge radius
+        (``sqrt(markSize/2/pi) + markStrokeWidth``), which clears the default point mark (and the
+        smaller ``mark_circle``) automatically; ``0`` -> no gap; a float -> that many pixels
+        (set this for unusually large or heavily stroked markers, which the gap can't measure since
+        the base chart isn't visible here). Automatically shrinks for very short connectors.
+    alwaysShowConnectors:
+        By default (``False``) a connector is omitted when it would be too short to be worth drawing -
+        the label ended up adjacent to its own point (segment shorter than the label font size), so the
+        stub is just noise and the label alone is unambiguous. ``True`` draws every connector.
     """
     from .utils import _repel_labels, _sample_spread, ensure_polars
 
@@ -740,22 +746,32 @@ def add_labels(
             ey = ly - hh if dy <= 0 else ly + hh
         if connector:
             # Small gap at each end so the line points at the marker/label rather than piercing the
-            # dot or touching the glyphs. connectorGap (px) defaults to markSize/10 (1px at the
-            # default markSize, scales with the marks); the seg*0.25 term only shrinks it for SHORT
-            # connectors so the two end gaps never eat the whole line - NOT a grow-with-length effect.
-            gap_cap = connectorGap if connectorGap is not None else _opt("markSize") / 10
-            seg = math.hypot(ex - ax, ey - ay)
-            if seg > 0 and gap_cap > 0:
-                g = min(gap_cap, seg * 0.25)
-                ux, uy = (ex - ax) / seg, (ey - ay) / seg
-                sx, sy, tx, ty = ax + ux * g, ay + uy * g, ex - ux * g, ey - uy * g
-            else:
-                sx, sy, tx, ty = ax, ay, ex, ey
-            layers.append(
-                alt.Chart(_internal_data([{}]))
-                .mark_rule(**rule_kwargs)
-                .encode(x=alt.value(sx), y=alt.value(sy), x2=alt.value(tx), y2=alt.value(ty))
+            # dot or touching the glyphs. connectorGap (px) defaults to the theme's mark_point EDGE
+            # radius - sqrt(config.point.size/pi) = sqrt((markSize/2)/pi) plus the marker stroke - so
+            # it clears the default point mark (and the smaller mark_circle) without the caller sizing
+            # it; the seg*0.25 term only shrinks it for SHORT connectors so the gaps never eat the line.
+            gap_cap = (
+                connectorGap
+                if connectorGap is not None
+                else math.sqrt(_opt("markSize") / (2 * math.pi)) + _opt("markStrokeWidth")
             )
+            seg = math.hypot(ex - ax, ey - ay)  # point -> label box edge (the connector length)
+            # Skip a connector too short to be worth drawing: when the label ends up adjacent to its
+            # own point the stub is just noise overlapping the marker/glyphs, and the label alone is
+            # unambiguous. Threshold = the label font size (~4x the end gap, so a visible line always
+            # remains for kept connectors). alwaysShowConnectors forces every connector drawn.
+            if alwaysShowConnectors or seg >= fs:
+                if seg > 0 and gap_cap > 0:
+                    g = min(gap_cap, seg * 0.25)
+                    ux, uy = (ex - ax) / seg, (ey - ay) / seg
+                    sx, sy, tx, ty = ax + ux * g, ay + uy * g, ex - ux * g, ey - uy * g
+                else:
+                    sx, sy, tx, ty = ax, ay, ex, ey
+                layers.append(
+                    alt.Chart(_internal_data([{}]))
+                    .mark_rule(**rule_kwargs)
+                    .encode(x=alt.value(sx), y=alt.value(sy), x2=alt.value(tx), y2=alt.value(ty))
+                )
         layers.append(
             alt.Chart(_internal_data([{}]))
             .mark_text(align=align, **text_kwargs)

@@ -1107,6 +1107,42 @@ The `x` and `y` parameters accept three forms: a `float`/`int` for quantitative 
 
 **Faceting note.** Like `add_rule` / `add_shade`, a text annotation carries its own data by default and can't be faceted. Pass `data=` (the same frame as the base) to switch to datum mode so `(base + add_text(..., data=df)).facet(...)` works.
 
+#### Point labels
+
+`add_labels()` attaches non-overlapping text labels with connector lines to a set of points — the auto-placed, no-overlap labeling that Altair itself lacks. Compose it with the base chart using `+`.
+
+```python
+# Auto-select 8 evenly-spread points and label them
+chart = base + ds.add_labels(df, "x", "y", "name", labels=8)
+
+# Label specific rows by their label-column value
+chart = base + ds.add_labels(df, "x", "y", "name", labels=["P16", "P104"])
+
+# Label every row
+chart = base + ds.add_labels(df, "x", "y", "name")
+```
+
+Placement is a deterministic force simulation (no RNG, so figures are reproducible): each label repels the other labels, every plotted point, and other labels' connector lines, with a longer-range push out of dense clusters and a spring back toward its own point. Labels settle in open space with connectors leading back to their points; a connector is dropped when the label ends up adjacent to its point (`alwaysShowConnectors=True` forces them all). `add_labels` pins the shared scale itself, so `base + ds.add_labels(...)` just works — no manual `alt.Scale` needed.
+
+![point labels example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/labels_example.png)
+
+| Parameter | Default | Description |
+|---|---|---|
+| `df` | required | The full plotted DataFrame (polars or pandas) |
+| `xCol` / `yCol` | required | Quantitative x / y columns (the same fields as the base chart) |
+| `labelCol` | required | Column holding the label text |
+| `labels` | `None` | Which rows to label: `None` = all; an `int n` = auto-select `n` points spread evenly across the plot; a list of `labelCol` values = those rows |
+| `xDomain` / `yDomain` | `None` | Axis domain; `None` infers from the full `df` extent (override only for derived positions not in `df`, e.g. cluster centroids) |
+| `fontSize` | `None` | Label font size; `None` inherits the theme's `secondaryFontSize` |
+| `color` | `None` | Label text color; `None` inherits from theme (darkmode-aware) |
+| `connector` | `True` | Draw the connector line from each point to its label |
+| `connectorColor` | `None` | Connector color; `None` inherits the theme's rule color |
+| `connectorStrokeDash` | `False` | Connector dash: `False` solid, `True` the theme's `dashedWidth`, or a list pattern |
+| `connectorGap` | `None` | Pixel gap at each connector end; `None` sizes it to the theme's point-mark radius so it clears the dot |
+| `alwaysShowConnectors` | `False` | Draw every connector, including the short ones dropped by default when a label sits on its point |
+
+Returns an `alt.LayerChart`.
+
 ### Non-linear axes
 
 `add_log_ticks()` and `add_pow_ticks()` add unlabeled minor ticks to log- and power-scaled axes respectively. Both wrap your chart in a layer with an invisible second axis — your chart's data, scale domain, and axis labels are unaffected. Both work with `alt.Chart`, `alt.LayerChart`, and any chart type composable with `alt.layer()`, including `hconcat` and `vconcat` layouts.

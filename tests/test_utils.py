@@ -37,6 +37,25 @@ class TestRepelLabelsObstacles:
         shifted = _repel_labels(anchor, size, width=300, height=300, obstacles=obs)[0]
         assert math.dist(base, shifted) > 1.0  # the extra points moved the label
 
+    def test_labels_avoid_each_others_connectors(self):
+        # two labels with nearby points: repel must keep each label off the OTHER's connector line
+        anchors = [(150.0, 150.0), (156.0, 150.0)]
+        sizes = [(30.0, 8.0), (30.0, 8.0)]
+        pos = _repel_labels(anchors, sizes, width=400, height=400)
+        hw, hh = 30 / 2 + 2, 8 / 2 + 2  # box half-size incl. padding
+
+        def connector_crosses_box(anchor, label, box_center):
+            ax, ay = anchor
+            lx, ly = label
+            vx, vy = lx - ax, ly - ay
+            L2 = vx * vx + vy * vy
+            t = 0.0 if L2 == 0 else min(1.0, max(0.0, ((box_center[0] - ax) * vx + (box_center[1] - ay) * vy) / L2))
+            cx, cy = ax + t * vx, ay + t * vy
+            return abs(box_center[0] - cx) < hw and abs(box_center[1] - cy) < hh
+
+        assert not connector_crosses_box(anchors[0], pos[0], pos[1])
+        assert not connector_crosses_box(anchors[1], pos[1], pos[0])
+
 
 class TestRepelLabels:
     def test_empty(self):
