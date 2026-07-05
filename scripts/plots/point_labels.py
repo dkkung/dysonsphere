@@ -6,7 +6,7 @@ labels them with non-overlapping text + connector lines. No scale pinning needed
 pins the axes to the data extent itself.
 
 Usage (from project root):
-    uv run python scripts/plots/labels.py
+    uv run python scripts/plots/point_labels.py
 """
 
 import altair as alt
@@ -29,5 +29,5 @@ points = alt.Chart(df).mark_circle().encode(x=alt.X("x:Q", title="log2 fold chan
 # Label 12 evenly-spread points - no list to curate, no alt.Scale to pin.
 chart = points + ds.add_labels(df, "x", "y", "gene", labels=12)
 
-ds.save(chart, "labels")
-print("saved labels")
+ds.save(chart, "point_labels")
+print("saved point_labels")
