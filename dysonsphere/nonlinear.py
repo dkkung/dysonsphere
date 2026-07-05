@@ -2,6 +2,7 @@ import math
 
 import altair as alt
 
+from .theme import _opt
 from .utils import ensure_polars
 
 # ---------------------------------------------------------------------------
@@ -272,7 +273,7 @@ def add_log_ticks(
         raise ValueError(f"axis must be 'x', 'y', or 'both', got {axis!r}")
 
     if minorTickSize is None:
-        minorTickSize = alt.theme.options.get("tickSize", 3) / 2
+        minorTickSize = _opt("tickSize") / 2
 
     df = ensure_polars(df)
 
@@ -477,7 +478,7 @@ def add_pow_ticks(
         raise ValueError("exponent must be non-zero.")
 
     if minorTickSize is None:
-        minorTickSize = alt.theme.options.get("tickSize", 3) / 2
+        minorTickSize = _opt("tickSize") / 2
 
     df = ensure_polars(df)
 

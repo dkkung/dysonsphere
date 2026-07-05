@@ -4,7 +4,8 @@ from typing import Any, cast
 import altair as alt
 import polars as pl
 
-from .utils import _internal_data
+from .theme import _opt
+from .utils import _internal_data, band_geometry
 
 # Reference lines
 
@@ -23,7 +24,7 @@ def _rule_mark_kwargs(
     if strokeDash is False:
         kwargs["strokeDash"] = [0, 0]
     elif strokeDash is True:
-        kwargs["strokeDash"] = alt.theme.options.get("dashedWidth", [2, 2])
+        kwargs["strokeDash"] = _opt("dashedWidth")
     elif isinstance(strokeDash, list):
         kwargs["strokeDash"] = strokeDash
     return kwargs
@@ -52,7 +53,7 @@ def _rule_label_geometry(
             raise ValueError(f"labelAlign must be 'left', 'center', or 'right' for axis='y', got {la!r}")
         if lp not in ("top", "bottom"):
             raise ValueError(f"labelPosition must be 'top' or 'bottom' for axis='y', got {lp!r}")
-        chart_width = alt.theme.options.get("chartWidth", 100)
+        chart_width = _opt("chartWidth")
         perp_ch, perp_val = "x", {"left": 0, "center": chart_width / 2, "right": chart_width}[la]
         align, dx = la, labelOffsetX
         dy = (-3 if lp == "top" else 3) + labelOffsetY
@@ -64,7 +65,7 @@ def _rule_label_geometry(
             raise ValueError(f"labelAlign must be 'top', 'center', or 'bottom' for axis='x', got {la!r}")
         if lp not in ("left", "right"):
             raise ValueError(f"labelPosition must be 'left' or 'right' for axis='x', got {lp!r}")
-        chart_height = alt.theme.options.get("chartHeight", 100)
+        chart_height = _opt("chartHeight")
         perp_val, baseline = {
             "top": (0, "top"),
             "center": (chart_height / 2, "middle"),
@@ -223,7 +224,7 @@ def add_rule(
 
     vals = [float(v) for v in (value if isinstance(value, list) else [value])]
     mark_kwargs = _rule_mark_kwargs(color, strokeWidth, strokeDash, opacity)
-    fs = fontSize if fontSize is not None else alt.theme.options.get("fontSize", 7)
+    fs = fontSize if fontSize is not None else _opt("fontSize")
 
     labels: list[str] | None = None
     if label is not None:
@@ -451,14 +452,14 @@ def add_text(
     # Resolve position — fills x/y/align/baseline only where not already provided
     if position is not None:
         p = _TEXT_PRESETS[position]
-        cw = alt.theme.options.get("chartWidth", 100)
-        ch = alt.theme.options.get("chartHeight", 100)
+        cw = _opt("chartWidth")
+        ch = _opt("chartHeight")
         # Auto-inset when text would touch the border or flush axis line.
         # Triggers when the plot has a closed box (closed=True) or the axis
         # sits flush with the plot edge (axisOffset=0). Center positions
         # (x_frac=0.5, y_frac=0.5) are unaffected.
-        _closed = alt.theme.options.get("closed", False)
-        _axis_offset = alt.theme.options.get("axisOffset", None)
+        _closed = _opt("closed")
+        _axis_offset = _opt("axisOffset")
         _pad = 1 if (_closed or _axis_offset == 0) else 0
         if x is None:
             x_px = p["x_frac"] * cw
@@ -696,7 +697,7 @@ def add_shade(
     """
     from .palettes import colors as _colors
 
-    darkmode = alt.theme.options.get("darkmode", False)
+    darkmode = _opt("darkmode")
     if darkmode:
         palette = _colors["greys"][-nShades:]
     else:
@@ -705,11 +706,9 @@ def add_shade(
         palette = palette[:nShades]
 
     n_colors = len(palette)
-    resolved_dash = alt.theme.options.get("dashedWidth", [2, 2]) if strokeDash is True else strokeDash
-    resolved_stroke_width = (
-        (strokeWidth if strokeWidth is not None else alt.theme.options.get("axisWidth", 0.25)) if stroke else 0
-    )
-    axis_stroke_color = "white" if alt.theme.options.get("darkmode", False) else "black"
+    resolved_dash = _opt("dashedWidth") if strokeDash is True else strokeDash
+    resolved_stroke_width = (strokeWidth if strokeWidth is not None else _opt("axisWidth")) if stroke else 0
+    axis_stroke_color = "white" if _opt("darkmode") else "black"
     mark_kwargs: dict = {
         "opacity": opacity,
         "stroke": axis_stroke_color if stroke else None,
@@ -765,31 +764,30 @@ def add_shade(
             # Nested tuples: ((x_start, x_end), (y_start, y_end)).
             # Each half is resolved independently — string → pixel value via
             # band scale; numeric → Q field that shares the main chart's scale.
-            band_padding = alt.theme.options.get("bandPadding", 0.1)
-            chart_width = alt.theme.options.get("chartWidth", 100)
-            chart_height = alt.theme.options.get("chartHeight", 100)
+            chart_width = _opt("chartWidth")
+            chart_height = _opt("chartHeight")
             n = len(categories) if categories else 0
             cat_index = {cat: i for i, cat in enumerate(categories)} if categories else {}
-            x_step = chart_width / (n + 2 * band_padding) if n else None
-            y_step = chart_height / (n + 2 * band_padding) if n else None
+            x_geo = band_geometry(n, chart_width) if n else None
+            y_geo = band_geometry(n, chart_height) if n else None
             if flush is None:
-                flush = alt.theme.options.get("closed", False)
+                flush = _opt("closed")
 
-            def _half(ch: str, start, end, step, span) -> tuple:
+            def _half(ch: str, start, end, geo, span) -> tuple:
                 # A string range → pixel span via the band scale; a numeric range → data span.
                 if isinstance(start, str):
                     if categories is None:
                         raise ValueError(f"categories is required when positions contains string {ch}-ranges.")
                     si, ei = cat_index[start], cat_index[end]
-                    lo = 0 if (flush and si == 0) else step * (band_padding + si)
-                    hi = span if (flush and ei == n - 1) else step * (band_padding + ei + 1)
+                    lo = 0 if (flush and si == 0) else geo.starts[si]
+                    hi = span if (flush and ei == n - 1) else geo.ends[ei]
                     return ("px", lo, hi)
                 return ("q", start, end)
 
             for k, (x_range, y_range) in enumerate(positions):
                 color = palette[k % n_colors]
-                x_spec = _half("x", x_range[0], x_range[1], x_step, chart_width)
-                y_spec = _half("y", y_range[0], y_range[1], y_step, chart_height)
+                x_spec = _half("x", x_range[0], x_range[1], x_geo, chart_width)
+                y_spec = _half("y", y_range[0], y_range[1], y_geo, chart_height)
                 layers.append(_shade_rect(color, x=x_spec, y=y_spec))
 
         elif len(positions) > 0 and isinstance(positions[0][0], str):
@@ -798,21 +796,18 @@ def add_shade(
             # shade layer does not participate in scale merging.
             if categories is None:
                 raise ValueError("categories is required when positions contains string tuples.")
-            band_padding = alt.theme.options.get("bandPadding", 0.1)
             n = len(categories)
-            span = (
-                alt.theme.options.get("chartHeight", 100) if axis == "y" else alt.theme.options.get("chartWidth", 100)
-            )
-            step = span / (n + 2 * band_padding)
+            span = _opt("chartHeight") if axis == "y" else _opt("chartWidth")
+            geo = band_geometry(n, span)
             cat_index = {cat: i for i, cat in enumerate(categories)}
 
             if flush is None:
-                flush = alt.theme.options.get("closed", False)
+                flush = _opt("closed")
 
             for k, (start, end) in enumerate(positions):
                 si, ei = cat_index[start], cat_index[end]
-                lo = 0 if (flush and si == 0) else step * (band_padding + si)
-                hi = span if (flush and ei == n - 1) else step * (band_padding + ei + 1)
+                lo = 0 if (flush and si == 0) else geo.starts[si]
+                hi = span if (flush and ei == n - 1) else geo.ends[ei]
                 color = palette[k % n_colors]
                 spec = ("px", lo, hi)
                 layers.append(_shade_rect(color, **({"y": spec} if axis == "y" else {"x": spec})))
@@ -836,13 +831,11 @@ def add_shade(
     n = len(categories)
     color_map = [palette[(i // repeat) % n_colors] for i in range(n)]
 
-    band_padding = alt.theme.options.get("bandPadding", 0.1)
-    chart_width = alt.theme.options.get("chartWidth", 100)
-    # step = range/(n + 2*bandPadding); band i spans [step*(bp+i), step*(bp+i+1)].
-    step = chart_width / (n + 2 * band_padding)
+    chart_width = _opt("chartWidth")
+    geo = band_geometry(n, chart_width)
 
     if flush is None:
-        flush = alt.theme.options.get("closed", False)
+        flush = _opt("closed")
 
     # Merge consecutive same-color categories so there is no coincident edge
     # between two rects of the same fill — that edge would show as a faint seam
@@ -853,8 +846,8 @@ def add_shade(
         j = i
         while j < n and color_map[j] == color_map[i]:
             j += 1
-        left = 0 if (flush and i == 0) else step * (band_padding + i)
-        right = chart_width if (flush and j == n) else step * (band_padding + j)
+        left = 0 if (flush and i == 0) else geo.starts[i]
+        right = chart_width if (flush and j == n) else geo.ends[j - 1]
         run_layers.append(
             alt.Chart(_internal_data(dummy_df))
             .mark_rect(**mark_kwargs, color=color_map[i])
@@ -979,11 +972,11 @@ def _pvalue_layer(
 
     # --- resolve theme-linked defaults ---
     if chartWidth is None:
-        chartWidth = alt.theme.options.get("chartWidth", 100)
+        chartWidth = _opt("chartWidth")
     if strokeWidth is None:
-        strokeWidth = alt.theme.options.get("axisWidth", 0.5)
+        strokeWidth = _opt("axisWidth")
     if fontSize is None:
-        fontSize = alt.theme.options.get("fontSize", 7)
+        fontSize = _opt("fontSize")
 
     # --- categories and text x position ---
     if categories is None:
@@ -994,7 +987,7 @@ def _pvalue_layer(
     g1_idx = categories.index(group1)
     g2_idx = categories.index(group2)
 
-    stroke_cap = alt.theme.options.get("strokeCap", "round")
+    stroke_cap = _opt("strokeCap")
     _rule_kwargs = {
         "strokeWidth": strokeWidth,
         "strokeDash": [0, 0],
@@ -1021,15 +1014,10 @@ def _pvalue_layer(
         )
     )
 
-    # Band center formula for xOffset charts (paddingInner=0 forced by xOffset,
-    # paddingOuter = bandPadding from theme):
-    #   step = chartWidth / (n + 2*bandPadding)
-    #   center_i = step * (bandPadding + i + 0.5)
-    # Verified against SVG tick positions.
-    band_padding = alt.theme.options.get("bandPadding", 0.1)
-    n = len(categories)
-    step = chartWidth / (n + 2 * band_padding)
-    x_mid_px = step * (2 * band_padding + g1_idx + g2_idx + 1) / 2
+    # Bracket label sits midway between the two bands' centres (xOffset charts lower to
+    # the offset band-scale variant - see utils.band_geometry).
+    geo = band_geometry(len(categories), chartWidth)
+    x_mid_px = (geo.centers[g1_idx] + geo.centers[g2_idx]) / 2
     text = (
         alt.Chart(_internal_data([{"y": y, "label": label}]))
         .mark_text(
@@ -1409,7 +1397,7 @@ def add_comparisons(
     # tukey_hsd carries its own correction; explicit p-values aren't corrected by us.
     effective_correction = None if (method is None or method == "tukey_hsd") else correction
     # sigFigs: per-call overrides the theme default (3); governs on-plot label precision.
-    effective_sigfigs = sigFigs if sigFigs is not None else alt.theme.options.get("sigFigs", 3)
+    effective_sigfigs = sigFigs if sigFigs is not None else _opt("sigFigs")
 
     # Resolve notation: a scalar applies everywhere; a dict is per-pair for the brackets
     # (order-insensitive keys, unlisted → plain) plus an optional "test" string key for the
@@ -1449,7 +1437,7 @@ def add_comparisons(
                 position=resolved_pos,
                 offsetX=testLabelOffsetX,
                 offsetY=testLabelOffsetY,
-                fontSize=fontSize if fontSize is not None else alt.theme.options.get("fontSize", 7),
+                fontSize=fontSize if fontSize is not None else _opt("fontSize"),
             )
         )
 
@@ -1503,14 +1491,14 @@ def add_comparisons(
         annotated_groups_for_pad = list({g for pair in pairs for g in pair})
         y_vals = df.filter(pl.col(xCol).is_in(annotated_groups_for_pad))[yCol]
         y_range = cast(float, y_vals.cast(pl.Float64).max() or 0.0) - cast(float, y_vals.cast(pl.Float64).min() or 0.0)
-        chart_height = alt.theme.options.get("chartHeight", 100)
+        chart_height = _opt("chartHeight")
         if yPad is None:
             # Use the larger (bracket) gap if any pair is a bracket, so ticks clear the data.
             yPad = (10.0 if "bracket" in pair_styles else 8.0) * y_range / chart_height
         # Bracket end-tick height matches the theme's tickSize (px → data units). Always
         # positive, so it no longer flips sign with a negative yStep (reverse brackets).
         if tickHeight is None:
-            tickHeight = alt.theme.options.get("tickSize", 3) * y_range / chart_height if chart_height else 0.0
+            tickHeight = _opt("tickSize") * y_range / chart_height if chart_height else 0.0
 
         if yPositions is not None:
             final_y = list(yPositions)
@@ -1771,7 +1759,7 @@ def add_correlation(
         if strokeDash is False:
             mark_kwargs["strokeDash"] = [0, 0]
         elif strokeDash is True:
-            mark_kwargs["strokeDash"] = alt.theme.options.get("dashedWidth", [2, 2])
+            mark_kwargs["strokeDash"] = _opt("dashedWidth")
         elif isinstance(strokeDash, list):
             mark_kwargs["strokeDash"] = strokeDash
         if opacity is not None:
@@ -1796,7 +1784,7 @@ def add_correlation(
                 coefficient=coefficient,
                 includePvalue=includePvalue,
                 includeEquation=includeEquation,
-                sigFigs=sigFigs if sigFigs is not None else alt.theme.options.get("sigFigs", 3),
+                sigFigs=sigFigs if sigFigs is not None else _opt("sigFigs"),
                 notation=notation,
             )
         )
@@ -1806,7 +1794,7 @@ def add_correlation(
                 position=position,
                 offsetX=offsetX,
                 offsetY=offsetY,
-                fontSize=fontSize if fontSize is not None else alt.theme.options.get("fontSize", 7),
+                fontSize=fontSize if fontSize is not None else _opt("fontSize"),
             )
         )
 

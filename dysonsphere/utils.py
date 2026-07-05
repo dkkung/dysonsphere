@@ -1,8 +1,89 @@
 import hashlib
 import json
-from typing import Any
+from typing import Any, NamedTuple
 
 import polars as pl
+
+from .theme import _opt
+
+
+class BandGeometry(NamedTuple):
+    """Pixel geometry of an n-category band axis - see :func:`band_geometry`."""
+
+    step: float
+    centers: tuple[float, ...]
+    starts: tuple[float, ...]
+    ends: tuple[float, ...]
+
+
+def band_geometry(
+    n: int,
+    span: float | None = None,
+    *,
+    scale: str = "offset",
+    bandPadding: float | None = None,
+) -> BandGeometry:
+    """
+    Compute the pixel geometry of an ``n``-category band axis - the single source of
+    truth for dysonsphere's band-position math (violin centres, shade rects, bracket
+    midpoints, multilabel spans).
+
+    Vega-Lite lowers a nominal axis to a D3 band scale whose step size depends on the
+    padding configuration, which differs by mark type. ``scale`` picks the variant:
+
+    - ``"offset"`` (default) - ``paddingInner=0``, ``paddingOuter=bandPadding``: what an
+      ``xOffset`` encoding (``mark_circle``/``mark_strip``) or an ``add_shade`` rect sees.
+      ``step = span / (n + 2*bandPadding)``; band ``i`` spans
+      ``[step*(bandPadding+i), step*(bandPadding+i+1)]``.
+    - ``"band"`` - ``paddingInner=paddingOuter=bandPadding``: what ``mark_boxplot``
+      (and so ``mark_violin``'s embedded boxplot) sees.
+      ``step = span / (n + bandPadding)``; centre ``i`` is ``step*(0.5+bandPadding/2+i)``.
+    - ``"point"`` - a point scale: ``step = span / n``; centre ``i`` is ``step*(0.5+i)``
+      (``starts``/``ends`` equal ``centers``).
+
+    Parameters
+    ----------
+    n:
+        Number of categories.
+    span:
+        Pixel extent of the axis. ``None`` (default) reads ``chartWidth`` from the
+        active theme (pass ``chartHeight`` explicitly for a y-axis).
+    scale:
+        ``"offset"``, ``"band"``, or ``"point"`` (see above).
+    bandPadding:
+        Band padding fraction. ``None`` (default) reads the active theme.
+
+    Returns
+    -------
+    BandGeometry
+        A named tuple ``(step, centers, starts, ends)``, each position list in
+        category-index order.
+    """
+
+    if n < 1:
+        raise ValueError(f"n must be >= 1, got {n}")
+    if span is None:
+        span = _opt("chartWidth")
+    if bandPadding is None:
+        bandPadding = _opt("bandPadding")
+    bp = bandPadding
+    if scale == "offset":
+        step = span / (n + 2 * bp)
+        centers = tuple(step * (bp + i + 0.5) for i in range(n))
+        starts = tuple(step * (bp + i) for i in range(n))
+        ends = tuple(step * (bp + i + 1) for i in range(n))
+    elif scale == "band":
+        step = span / (n + bp)
+        centers = tuple(step * (0.5 + bp / 2 + i) for i in range(n))
+        starts = tuple(step * (bp + i) for i in range(n))
+        ends = tuple(step * (bp + i) + step * (1 - bp) for i in range(n))
+    elif scale == "point":
+        step = span / n
+        centers = tuple(step * (0.5 + i) for i in range(n))
+        starts = ends = centers
+    else:
+        raise ValueError(f"scale must be 'offset', 'band', or 'point', got {scale!r}")
+    return BandGeometry(step, centers, starts, ends)
 
 
 def count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]:
