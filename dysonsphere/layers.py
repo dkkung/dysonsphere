@@ -587,6 +587,7 @@ def add_labels(
     color: str | None = None,
     connector: bool = True,
     connectorColor: str | None = None,
+    connectorDash: bool | list[int] = False,
 ) -> alt.LayerChart:
     """Auto-place non-overlapping text labels for a set of points, with connector lines.
 
@@ -621,7 +622,10 @@ def add_labels(
     connectorColor:
         Connector line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware).
         Connectors otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke,
-        opaque) but are always solid, never the theme's ``dashedRule``.
+        opaque).
+    connectorDash:
+        Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth``
+        pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
     """
     from .utils import _repel_labels, ensure_polars
 
@@ -640,7 +644,14 @@ def add_labels(
     text_kwargs: dict = {"fontSize": fs, "baseline": "middle"}
     if color is not None:
         text_kwargs["color"] = color
-    rule_kwargs: dict = {"strokeDash": [0, 0]}
+    # connectorDash: False -> solid ([0, 0]); True -> the theme's dashedWidth; a list -> as given.
+    if connectorDash is True:
+        dash = _opt("dashedWidth")
+    elif connectorDash is False:
+        dash = [0, 0]
+    else:
+        dash = connectorDash
+    rule_kwargs: dict = {"strokeDash": dash}
     if connectorColor is not None:
         rule_kwargs["color"] = connectorColor
 
