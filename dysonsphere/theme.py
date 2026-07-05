@@ -22,9 +22,9 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
     },
 }
 
-# DEPRECATED (remove at v4.0): old parameter names accepted as aliases, with a warning.
-# Kept through v3.x deliberately: the alias is what keeps load() of pre-rename exported
-# JSONs working (their baked theme replays the old key through theme()).
+# DEPRECATED (remove at v3.0): dev-only aliases for renamed parameters - the old names
+# last shipped in v2.0.0 and the rename lands as a v3.0.0 breaking change, so the alias
+# never ships in a release (the release step-0 sweep deletes it).
 _DEPRECATED_ALIASES: dict[str, str] = {
     "transparentBackground": "transparent",  # renamed in v3.0
 }
@@ -138,7 +138,7 @@ def _apply_deprecated_aliases(params: dict[str, Any], source: str) -> dict[str, 
     for old, new in _DEPRECATED_ALIASES.items():
         if old in out:
             warnings.warn(
-                f"{old!r} ({source}) is deprecated and will be removed in v4.0; use {new!r}.",
+                f"{old!r} ({source}) is deprecated and will be removed in v3.0; use {new!r}.",
                 DeprecationWarning,
                 stacklevel=3,
             )
