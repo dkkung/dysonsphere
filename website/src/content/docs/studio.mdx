@@ -1,6 +1,21 @@
 ---
 title: Chart Studio
-description: Placeholder.
+description: Plot your own data with dysonsphere theming - no install - and copy the Python that makes it.
 ---
 
-Coming up next.
+import Studio from '../../components/Studio.astro';
+
+Upload your own data (CSV, TSV, or JSON), choose what to plot, tune the theme, and get a live
+dysonsphere chart plus the exact Python that reproduces it. Everything runs in your browser via the
+same WebAssembly runtime as the [playground](/playground/) - your data never leaves the page.
+
+The controls render instantly; the chart appears once the Python runtime finishes loading (a few
+seconds on first visit, then cached). Start from the bundled sample, or drop in a file of your own.
+
+<Studio />
+
+:::note
+Copy the Python and it runs unchanged in your notebook - it reads your file with
+`pl.read_csv(...)`. For richer charts (statistical brackets, condition tables, reference lines),
+paste it into the [playground](/playground/) and keep composing with `+`.
+:::
