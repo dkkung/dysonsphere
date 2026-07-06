@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changes
+
+- **`mark_violin` docstring parses cleanly.** The "safe in `alt.hconcat()`" note sat between the Parameters and Examples sections, so numpy-style docstring parsers (griffe, the docs-site API generator) misread its prose as three phantom parameters. Moved into the function description; no behavior or signature change.
+
 ## [3.0.0] - 2026-07-06
 
 ### Breaking changes
