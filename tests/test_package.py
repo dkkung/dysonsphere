@@ -14,6 +14,7 @@ import dysonsphere as ds
 # the package namespace, so attribute access would hand back the wrong object.
 _MODULE_NAMES = [
     "annotations",
+    "discovery",
     "export",
     "inference",
     "labels",
@@ -49,3 +50,13 @@ class TestPackageNamespace:
         # the exact names that leaked before v3.0
         for leaked in ("alt", "np", "pl", "math", "json", "os", "sys", "re", "Path", "Any", "cast", "field"):
             assert leaked not in ds.__all__, f"ds.__all__ leaks {leaked!r}"
+
+    def test_ext_surface_is_namespaced_only(self):
+        # dysonsphere.ext (the extension-author primitive surface) is bound as ds.ext but its
+        # contents stay OFF the top namespace - `ext` is deliberately absent from _MODULE_NAMES
+        # above because it is not star-imported (its __all__ must not join ds.__all__).
+        from dysonsphere import ext
+
+        assert callable(ext.opt) and callable(ext.internal_data)
+        for name in ext.__all__:
+            assert name not in ds.__all__, f"ext.{name} leaked onto the top namespace"
