@@ -7,6 +7,10 @@ import altair as alt
 
 from .palettes import colors
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["theme", "create_config"]
+
 # Snapshot of the original palette catalogue at import time — restored on each
 # theme() call so custom palettes from config files don't accumulate or bleed
 # across theme resets.

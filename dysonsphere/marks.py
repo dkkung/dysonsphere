@@ -11,6 +11,10 @@ from .theme import _opt
 from .transforms import add_beeswarm, add_jitter
 from .utils import _internal_data, band_geometry, ensure_polars
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["mark_violin", "mark_strip"]
+
 
 class _UnsetType:
     pass

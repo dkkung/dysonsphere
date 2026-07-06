@@ -21,6 +21,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["clear_stats"]
+
 # Omnibus tests ("are *any* of the groups different?").
 _OMNIBUS_TESTS = {"anova", "kruskal", "friedman", "alexandergovern"}
 

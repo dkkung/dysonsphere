@@ -3,7 +3,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from dysonsphere.layers import (
+from dysonsphere.inference import (
     _correlation_label,
     _format_asterisks,
     _format_pvalue,
@@ -741,7 +741,7 @@ class TestReportPValues:
 
         import polars as pl
 
-        from dysonsphere.layers import add_comparisons
+        from dysonsphere.inference import add_comparisons
         from dysonsphere.theme import theme
 
         theme(chartWidth=200, chartHeight=200)
