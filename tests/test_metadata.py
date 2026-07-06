@@ -20,7 +20,7 @@ _PROV_ORDER = [
     "exportIdentifier",
     "dataChecksum",
 ]
-_ENV_ORDER = ["os", "python", "altair", "dysonsphere", "numpy", "scipy", "polars"]
+_ENV_ORDER = ["os", "python", "altair", "vl_convert", "dysonsphere", "numpy", "scipy", "polars"]
 
 
 @pytest.fixture(autouse=True)
@@ -210,8 +210,9 @@ class TestSaveUsermeta:
         import platform
 
         deps = self._usermeta(tmp_path)["dysonsphere"]["provenance"]["environment"]
-        assert list(deps) == _ENV_ORDER  # os first, then the version group, in order
+        assert list(deps) == _ENV_ORDER  # os first, then the toolchain, in order
         assert deps["os"] == platform.platform()
+        assert deps["vl_convert"] == importlib.metadata.version("vl-convert-python")  # renderer (now a project dep)
         assert deps["numpy"] == importlib.metadata.version("numpy")
         assert deps["scipy"] == importlib.metadata.version("scipy")
         assert deps["polars"] == importlib.metadata.version("polars")
