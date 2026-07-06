@@ -1,0 +1,569 @@
+---
+// Chart Studio: an interactive plotter. Upload a CSV/TSV/JSON (or use the bundled sample),
+// pick encodings + a chart type, tune the theme, and see a live dysonsphere chart plus the
+// exact Python that produces it. The UI is instant TypeScript; the chart is rendered by the
+// shared Pyodide runtime (src/lib/runtime.ts), which boots in the background.
+import palettes from '../generated/palettes.json';
+
+const paletteNames = palettes.map((p) => p.name);
+// name -> colors, for the live swatch preview under the palette input.
+const paletteColors = Object.fromEntries(palettes.map((p) => [p.name, p.colors]));
+---
+
+<div id="studio" class="st">
+	<div class="st__controls">
+		<section class="st__group">
+			<h3>Data</h3>
+			<label class="st__file">
+				<input id="st-file" type="file" accept=".csv,.tsv,.json,.txt" />
+				<span>Upload CSV / TSV / JSON</span>
+			</label>
+			<button id="st-sample" class="st__link" type="button">or load the sample dataset</button>
+			<p id="st-data-info" class="st__muted"></p>
+		</section>
+
+		<section class="st__group">
+			<h3>Chart</h3>
+			<label>Type
+				<select id="st-type">
+					<option value="point">Scatter</option>
+					<option value="bar">Bar</option>
+					<option value="line">Line</option>
+					<option value="strip">Strip</option>
+					<option value="violin">Violin</option>
+					<option value="boxplot">Boxplot</option>
+				</select>
+			</label>
+			<label>X <select id="st-x"></select></label>
+			<label class="st__inline" id="st-xtype-wrap">Type
+				<select id="st-xtype">
+					<option value="N">Nominal</option>
+					<option value="Q">Quantitative</option>
+					<option value="T">Temporal</option>
+				</select>
+			</label>
+			<label>Y <select id="st-y"></select></label>
+			<label>Color <select id="st-color"><option value="">(none)</option></select></label>
+			<label id="st-transform-wrap">Transform
+				<select id="st-transform">
+					<option value="">None</option>
+					<option value="jitter">Jitter</option>
+					<option value="beeswarm">Beeswarm</option>
+				</select>
+			</label>
+		</section>
+
+		<section class="st__group">
+			<h3>Theme</h3>
+			<label>Palette
+				<input id="st-palette" list="st-palette-list" placeholder="(default)" />
+				<datalist id="st-palette-list">
+					{paletteNames.map((n) => <option value={n} />)}
+				</datalist>
+				<span id="st-palette-preview" class="st__swatch" aria-hidden="true"></span>
+			</label>
+			<div class="st__dims">
+				<label>Width <input id="st-w" type="number" min="40" max="600" step="10" value="100" /></label>
+				<label>Height <input id="st-h" type="number" min="40" max="600" step="10" value="100" /></label>
+			</div>
+			<label>Axis offset <input id="st-axisoffset" type="number" min="0" max="20" step="0.5" placeholder="auto" /></label>
+			<label>X label angle <input id="st-xangle" type="number" min="-90" max="90" step="15" value="0" /></label>
+			<div class="st__toggles">
+				<label class="st__check"><input id="st-closed" type="checkbox" /> Closed frame</label>
+				<label class="st__check"><input id="st-grid" type="checkbox" /> Grid lines</label>
+				<label class="st__check"><input id="st-corner" type="checkbox" /> Rounded marks</label>
+			</div>
+		</section>
+	</div>
+
+	<div class="st__output">
+		<div class="st__panel">
+			<div class="st__label">
+				Chart <span id="st-status" class="st__status">Loading runtime…</span>
+			</div>
+			<div id="st-chart" class="st__chart"></div>
+		</div>
+		<div class="st__panel">
+			<div class="st__label">
+				Python
+				<span class="st__label-actions">
+					<a id="st-playground" class="st__copy" href="#">Open in playground</a>
+					<button id="st-copy" class="st__copy" type="button">Copy</button>
+				</span>
+			</div>
+			<pre class="st__code"><code id="st-code"></code></pre>
+		</div>
+	</div>
+</div>
+
+<script>
+	import vegaEmbed from 'vega-embed';
+	import { getRuntime, onRuntimeStatus, type DsRuntime } from '../lib/runtime';
+	import palettes from '../generated/palettes.json';
+
+	const PALETTE_COLORS: Record<string, string[]> = Object.fromEntries(
+		palettes.map((p) => [p.name, p.colors]),
+	);
+
+	// A small self-contained sample: made-up dose/response with a categorical treatment.
+	const SAMPLE = `treatment,dose,response,replicate
+control,0,4.1,1
+control,0,3.6,2
+control,0,4.4,3
+low,10,11.2,1
+low,10,9.8,2
+low,10,12.5,3
+high,100,24.6,1
+high,100,27.1,2
+high,100,22.9,3`;
+
+	interface Column {
+		name: string;
+		dtype: string;
+		kind: 'quantitative' | 'temporal' | 'nominal';
+	}
+
+	const isDark = () => document.documentElement.dataset.theme === 'dark';
+	const q = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
+	const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+
+	function initStudio() {
+		const root = document.getElementById('studio');
+		if (!root || root.dataset.booted) return;
+		root.dataset.booted = '1';
+
+		const statusEl = el('st-status');
+		const chartEl = el('st-chart');
+		const codeEl = el('st-code');
+		const dataInfo = el('st-data-info');
+
+		let runtime: DsRuntime | null = null;
+		let columns: Column[] = [];
+		let tableName = 'data';
+		let displayName = 'data.csv';
+
+		const setStatus = (msg: string, kind = '') => {
+			statusEl.textContent = msg;
+			statusEl.dataset.kind = kind;
+		};
+
+		function colByKind(kind: Column['kind']): Column | undefined {
+			return columns.find((c) => c.kind === kind);
+		}
+
+		function fillSelect(id: string, includeNone = false, onlyKind?: Column['kind']) {
+			const sel = el<HTMLSelectElement>(id);
+			const prev = sel.value;
+			// Filter to a kind when asked, but fall back to all columns if none match (e.g. a
+			// dataset with no numeric column would otherwise leave Y empty).
+			let cols = onlyKind ? columns.filter((c) => c.kind === onlyKind) : columns;
+			if (!cols.length) cols = columns;
+			sel.innerHTML = includeNone ? '<option value="">(none)</option>' : '';
+			for (const c of cols) {
+				const opt = document.createElement('option');
+				opt.value = c.name;
+				opt.textContent = `${c.name}  ·  ${c.kind[0].toUpperCase()}`;
+				sel.appendChild(opt);
+			}
+			if (prev && cols.some((c) => c.name === prev)) sel.value = prev;
+		}
+
+		// Pick sensible defaults after a new table loads.
+		function seedEncodings() {
+			const cat = colByKind('nominal');
+			const quant = columns.filter((c) => c.kind === 'quantitative');
+			const temporal = colByKind('temporal');
+			el<HTMLSelectElement>('st-x').value = (cat ?? temporal ?? quant[0] ?? columns[0]).name;
+			el<HTMLSelectElement>('st-y').value = (quant[0] ?? columns[columns.length - 1]).name;
+			el<HTMLSelectElement>('st-color').value = '';
+			syncXType();
+		}
+
+		function syncXType() {
+			const xName = el<HTMLSelectElement>('st-x').value;
+			const col = columns.find((c) => c.name === xName);
+			if (!col) return;
+			const map = { nominal: 'N', quantitative: 'Q', temporal: 'T' } as const;
+			el<HTMLSelectElement>('st-xtype').value = map[col.kind];
+		}
+
+		// Which controls are relevant for the current chart type.
+		function syncVisibility() {
+			const type = el<HTMLSelectElement>('st-type').value;
+			const usesCat = type === 'strip' || type === 'violin';
+			const showTransform = type === 'point';
+			el('st-xtype-wrap').style.display = usesCat ? 'none' : '';
+			el('st-transform-wrap').style.display = showTransform ? '' : 'none';
+		}
+
+		function buildCode(forDisplay: boolean): string {
+			const type = el<HTMLSelectElement>('st-type').value;
+			const x = el<HTMLSelectElement>('st-x').value;
+			const y = el<HTMLSelectElement>('st-y').value;
+			const color = el<HTMLSelectElement>('st-color').value;
+			const xtype = el<HTMLSelectElement>('st-xtype').value;
+			const transform = el<HTMLSelectElement>('st-transform').value;
+
+			// theme args
+			const t: string[] = [];
+			const pal = el<HTMLInputElement>('st-palette').value.trim();
+			if (pal) t.push(`palette=${q(pal)}`);
+			const w = +el<HTMLInputElement>('st-w').value;
+			const h = +el<HTMLInputElement>('st-h').value;
+			if (w !== 100) t.push(`chartWidth=${w}`);
+			if (h !== 100) t.push(`chartHeight=${h}`);
+			const axisOffset = el<HTMLInputElement>('st-axisoffset').value.trim();
+			if (axisOffset !== '') t.push(`axisOffset=${+axisOffset}`);
+			const xangle = +el<HTMLInputElement>('st-xangle').value;
+			if (xangle !== 0) t.push(`xLabelAngle=${xangle}`);
+			if (el<HTMLInputElement>('st-closed').checked) t.push('closed=True');
+			if (el<HTMLInputElement>('st-grid').checked) t.push('grid=True');
+			if (el<HTMLInputElement>('st-corner').checked) t.push('cornerRadius=True');
+
+			const dataLine = forDisplay
+				? `df = pl.read_csv(${q(displayName)})`
+				: `df = __tables__[${q(tableName)}]`;
+
+			const head = [
+				'import polars as pl',
+				'import altair as alt',
+				'import dysonsphere as ds',
+				'',
+				`ds.theme(${t.join(', ')})`,
+				'',
+				dataLine,
+			];
+
+			let body: string[];
+			if (type === 'strip' || type === 'violin') {
+				const fn = type === 'strip' ? 'mark_strip' : 'mark_violin';
+				body = [
+					`categories = df[${q(x)}].unique(maintain_order=True).to_list()`,
+					`chart = ds.${fn}(df, ${q(x)}, ${q(y)}, categories, yTitle=${q(y)})`,
+				];
+			} else if (type === 'point' && transform) {
+				const fn = transform === 'jitter' ? 'add_jitter' : 'add_beeswarm';
+				const off = transform === 'jitter' ? 'jitter_x' : 'beeswarm_x';
+				const call =
+					transform === 'jitter'
+						? `df = ds.add_jitter(df)`
+						: `df = ds.add_beeswarm(df, ${q(y)}, groupBy=[${q(x)}])`;
+				body = [
+					call,
+					`chart = (`,
+					`    alt.Chart(df)`,
+					`    .mark_circle()`,
+					`    .encode(`,
+					`        x=alt.X("${x}:N", title=None),`,
+					`        y=alt.Y("${y}:Q"),`,
+					`        xOffset=alt.XOffset("${off}:Q", scale=None),`,
+					`    )`,
+					`)`,
+				];
+			} else {
+				const marks: Record<string, string> = {
+					point: 'mark_point',
+					bar: 'mark_bar',
+					line: 'mark_line',
+					boxplot: 'mark_boxplot',
+				};
+				const yt = type === 'bar' ? `mean(${y})` : y;
+				const enc = [
+					`        x=alt.X("${x}:${xtype}"${type === 'bar' ? ', sort="-y"' : ''}),`,
+					`        y=alt.Y("${yt}:Q"),`,
+				];
+				if (color) enc.push(`        color=alt.Color("${color}:N", legend=None),`);
+				body = [
+					`chart = (`,
+					`    alt.Chart(df)`,
+					`    .${marks[type]}()`,
+					`    .encode(`,
+					...enc,
+					`    )`,
+					`)`,
+				];
+			}
+			return [...head, '', ...body].join('\n');
+		}
+
+		const BASE = import.meta.env.BASE_URL;
+		function syncPalettePreview() {
+			const name = el<HTMLInputElement>('st-palette').value.trim();
+			const colors = PALETTE_COLORS[name];
+			const preview = el('st-palette-preview');
+			preview.innerHTML = '';
+			if (!colors) return;
+			for (const c of colors) {
+				const stop = document.createElement('span');
+				stop.style.background = c;
+				preview.appendChild(stop);
+			}
+		}
+		function syncPlaygroundLink(displayCode: string) {
+			// base64 of UTF-8, matching the playground's #code= decoder.
+			const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(displayCode)));
+			el<HTMLAnchorElement>('st-playground').href = `${BASE}playground/#code=${encodeURIComponent(b64)}`;
+		}
+
+		let renderTimer: number | undefined;
+		async function render() {
+			const displayCode = buildCode(true);
+			codeEl.textContent = displayCode;
+			syncPalettePreview();
+			syncPlaygroundLink(displayCode);
+			if (!runtime || !columns.length) return;
+			setStatus('Rendering…');
+			try {
+				const spec = JSON.parse(runtime.runChart(buildCode(false), isDark()));
+				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
+				setStatus('', 'ok');
+			} catch (e) {
+				setStatus('Error - see console.', 'err');
+				console.error(e);
+			}
+		}
+		function scheduleRender() {
+			window.clearTimeout(renderTimer);
+			renderTimer = window.setTimeout(render, 120);
+		}
+
+		async function loadTable(text: string, name: string, format: 'csv' | 'tsv' | 'json') {
+			if (!runtime) return;
+			displayName = name;
+			tableName = 'data';
+			try {
+				const info = JSON.parse(runtime.loadTable(tableName, text, format));
+				columns = info.columns;
+				dataInfo.textContent = `${displayName} · ${info.rows} rows · ${columns.length} columns`;
+				fillSelect('st-x');
+				fillSelect('st-y', false, 'quantitative'); // Y is always the measured value
+				fillSelect('st-color', true);
+				seedEncodings();
+				syncVisibility();
+				render();
+			} catch (e) {
+				dataInfo.textContent = 'Could not parse that file.';
+				console.error(e);
+			}
+		}
+
+		// Wire controls.
+		root.querySelectorAll('select, input').forEach((node) => {
+			node.addEventListener('change', () => {
+				if ((node as HTMLElement).id === 'st-x') syncXType();
+				if ((node as HTMLElement).id === 'st-type') syncVisibility();
+				scheduleRender();
+			});
+			node.addEventListener('input', scheduleRender);
+		});
+
+		el('st-file').addEventListener('change', (ev) => {
+			const file = (ev.target as HTMLInputElement).files?.[0];
+			if (!file) return;
+			const ext = file.name.split('.').pop()?.toLowerCase();
+			const format = ext === 'json' ? 'json' : ext === 'tsv' ? 'tsv' : 'csv';
+			file.text().then((text) => loadTable(text, file.name, format as 'csv' | 'tsv' | 'json'));
+		});
+		el('st-sample').addEventListener('click', () => loadTable(SAMPLE, 'sample.csv', 'csv'));
+		el('st-copy').addEventListener('click', () => {
+			navigator.clipboard?.writeText(codeEl.textContent ?? '');
+			const b = el('st-copy');
+			b.textContent = 'Copied!';
+			setTimeout(() => (b.textContent = 'Copy'), 900);
+		});
+		new MutationObserver(() => scheduleRender()).observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ['data-theme'],
+		});
+
+		// Show the sample immediately (code + eventually the chart), boot the runtime in the bg.
+		render();
+		onRuntimeStatus((msg) => {
+			if (!runtime) setStatus(msg);
+		});
+		getRuntime()
+			.then((rt) => {
+				runtime = rt;
+				loadTable(SAMPLE, 'sample.csv', 'csv');
+			})
+			.catch((e) => {
+				setStatus('Boot failed - see console.', 'err');
+				console.error(e);
+			});
+	}
+
+	initStudio();
+	document.addEventListener('astro:page-load', initStudio);
+</script>
+
+<style>
+	.st {
+		display: grid;
+		grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
+		gap: 1.5rem;
+		margin-top: 1.5rem;
+		align-items: start;
+	}
+	@media (max-width: 950px) {
+		.st {
+			grid-template-columns: 1fr;
+		}
+	}
+	.st__group {
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.65rem;
+		padding: 0.9rem 1rem 1.1rem;
+		margin-bottom: 1rem;
+	}
+	.st__group h3 {
+		margin: 0 0 0.7rem;
+		font-size: 0.72rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+	}
+	.st__group label {
+		display: block;
+		font-size: 0.8rem;
+		color: var(--sl-color-gray-2);
+		margin-bottom: 0.6rem;
+	}
+	.st__group select,
+	.st__group input:not([type='checkbox']):not([type='file']) {
+		display: block;
+		width: 100%;
+		margin-top: 0.25rem;
+		padding: 0.35rem 0.5rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		background: var(--sl-color-bg);
+		color: var(--sl-color-text);
+		font-size: 0.82rem;
+	}
+	.st__dims {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.6rem;
+	}
+	.st__toggles {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		margin-top: 0.2rem;
+	}
+	.st__check {
+		display: flex !important;
+		align-items: center;
+		gap: 0.45rem;
+		margin: 0 !important;
+	}
+	.st__check input {
+		width: auto;
+	}
+	.st__file {
+		display: block;
+		cursor: pointer;
+	}
+	.st__file input {
+		font-size: 0.75rem;
+		width: 100%;
+	}
+	.st__file span {
+		display: none;
+	}
+	.st__link {
+		background: none;
+		border: 0;
+		padding: 0;
+		margin-top: 0.5rem;
+		color: var(--sl-color-text-accent);
+		font-size: 0.78rem;
+		cursor: pointer;
+		text-decoration: underline;
+	}
+	.st__muted {
+		font-size: 0.75rem;
+		color: var(--sl-color-gray-3);
+		margin: 0.6rem 0 0;
+	}
+	.st__swatch {
+		display: flex;
+		height: 0.75rem;
+		margin-top: 0.35rem;
+		border-radius: 0.25rem;
+		overflow: hidden;
+	}
+	.st__swatch:empty {
+		display: none;
+	}
+	.st__swatch span {
+		flex: 1;
+	}
+	.st__label-actions {
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+	}
+	a.st__copy {
+		text-decoration: none;
+		display: inline-block;
+	}
+	.st__output {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+	.st__panel {
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.65rem;
+		overflow: hidden;
+	}
+	.st__label {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.72rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+		border-bottom: 1px solid var(--sl-color-gray-5);
+	}
+	.st__status {
+		font-weight: 400;
+		letter-spacing: 0;
+		text-transform: none;
+	}
+	.st__status[data-kind='err'] {
+		color: var(--sl-color-red, #b23b3b);
+	}
+	.st__chart {
+		padding: 1rem;
+		min-height: 18rem;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		overflow: auto;
+	}
+	.st__copy {
+		background: var(--sl-color-gray-6);
+		border: 1px solid var(--sl-color-hairline);
+		border-radius: 0.4rem;
+		color: var(--sl-color-gray-2);
+		font-size: 0.7rem;
+		letter-spacing: 0;
+		text-transform: none;
+		padding: 0.2rem 0.6rem;
+		cursor: pointer;
+	}
+	.st__code {
+		margin: 0;
+		padding: 1rem;
+		overflow: auto;
+		font-size: 0.78rem;
+		line-height: 1.5;
+		background: var(--sl-color-bg);
+	}
+</style>

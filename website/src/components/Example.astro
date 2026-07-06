@@ -1,0 +1,62 @@
+---
+// One registry example: the VERBATIM source of website/examples/<name>.py as the code block,
+// the live chart rendered from its generated specs, and an "Open in playground" deep link.
+// Because the shown code IS the file the generator executed, snippet and chart cannot drift.
+import { Code } from '@astrojs/starlight/components';
+import Chart from './Chart.astro';
+
+interface Props {
+	name: string;
+	alt?: string;
+	/** Hide the code block (chart only) - for gallery-style pages. */
+	chartOnly?: boolean;
+}
+const { name, alt, chartOnly = false } = Astro.props;
+
+const sources = import.meta.glob('../../examples/*.py', {
+	query: '?raw',
+	import: 'default',
+	eager: true,
+}) as Record<string, string>;
+
+const source = sources[`../../examples/${name}.py`];
+if (!source) throw new Error(`No example source: website/examples/${name}.py`);
+const code = source.trimEnd();
+
+// Deep link: /playground/#code=<base64 utf-8>. Decoded by the playground on load.
+const playgroundHref = `${import.meta.env.BASE_URL}playground/#code=${encodeURIComponent(
+	Buffer.from(code, 'utf-8').toString('base64'),
+)}`;
+---
+
+<div class="example">
+	{!chartOnly && <Code lang="python" code={code} />}
+	<div class="example__row">
+		<Chart name={name} alt={alt ?? `dysonsphere example: ${name}`} />
+	</div>
+	<div class="example__actions">
+		<a href={playgroundHref}>Open in playground &rarr;</a>
+	</div>
+</div>
+
+<style>
+	.example {
+		margin: 1.5rem 0 2.5rem;
+	}
+	.example__row {
+		display: flex;
+		justify-content: center;
+	}
+	.example__actions {
+		display: flex;
+		justify-content: flex-end;
+	}
+	.example__actions a {
+		font-size: 0.8rem;
+		color: var(--sl-color-gray-3);
+		text-decoration: none;
+	}
+	.example__actions a:hover {
+		color: var(--sl-color-text-accent);
+	}
+</style>

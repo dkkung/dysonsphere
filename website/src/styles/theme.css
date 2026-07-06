@@ -1,0 +1,279 @@
+/* dysonsphere site skin - "neutral pro".
+   Near-monochrome chrome so the charts carry the color. Every neutral surface/text tone is a stop
+   from dysonsphere.colors["greys"] (a pure-neutral Oklab ramp); the only chromatic accent is a
+   steel blue derived from colors["blues2"] desaturated ~50% (see git history for the recipe), used
+   for links and focus only. The logo keeps its own color - it is the product mark. */
+
+/* ---------------------------------------------------------------- typography */
+
+:root {
+  --sl-font: 'Inter Variable', var(--sl-font-system);
+  --sl-font-mono: 'JetBrains Mono Variable', var(--sl-font-system-mono);
+}
+
+/* ------------------------------------------------------------------- colors */
+
+/* Dark theme (Starlight's default scope). Semantic ramp: white = strongest text,
+   gray-1..6 = light -> dark, black = page background. */
+:root {
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f1f1f1; /* greys[0]  - headings/strong   */
+  --sl-color-gray-2: #c6c6c6; /* greys[2]  - body text         */
+  --sl-color-gray-3: #9d9d9d; /* greys[4]  - secondary text    */
+  --sl-color-gray-4: #636363; /* greys[7]  - muted             */
+  --sl-color-gray-5: #2f2f2f; /* greys[10] - hairlines         */
+  --sl-color-gray-6: #1a1a1b; /* raised surfaces               */
+  --sl-color-black: #0b0b0c; /* page background               */
+
+  /* Steel accent (blues2 desaturated): links, active nav, focus. */
+  --sl-color-accent-low: #242e35;
+  --sl-color-accent: #536b9b;
+  --sl-color-accent-high: #c2d3dd;
+}
+
+/* Light theme: the same ramp, inverted (white = near-black text, black = white bg). */
+:root[data-theme='light'] {
+  --sl-color-white: #1f1f1f; /* greys[11] - headings/strong   */
+  --sl-color-gray-1: #2f2f2f; /* greys[10]                     */
+  --sl-color-gray-2: #404040; /* greys[9]  - body text         */
+  --sl-color-gray-3: #636363; /* greys[7]  - secondary text    */
+  --sl-color-gray-4: #898989; /* greys[5]  - muted             */
+  --sl-color-gray-5: #e4e4e4; /* hairlines                     */
+  --sl-color-gray-6: #f4f4f4; /* raised surfaces (greys[0]-ish)*/
+  --sl-color-gray-7: #fafafa; /* sidebar background            */
+  --sl-color-black: #ffffff; /* page background               */
+
+  --sl-color-accent-low: #dce0e8;
+  --sl-color-accent: #536b9b;
+  --sl-color-accent-high: #33425f;
+}
+
+/* ------------------------------------------------------------------- chrome */
+
+/* Translucent, blurred header over content (border via Starlight's hairline). */
+:root {
+  --sl-color-bg-nav: color-mix(in srgb, var(--sl-color-bg) 72%, transparent);
+}
+header.header {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--sl-color-hairline);
+}
+
+/* Headings: tighter, quietly confident. */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4,
+h1[data-page-title] {
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+
+/* Center the search bar in the header. Starlight lays the header out as a flex row (logo,
+   search, right-group) with space-between, so the search only lands near the middle. Above the
+   desktop breakpoint, make it a 1fr / auto / 1fr grid so the search sits dead center regardless
+   of how wide the logo or the right-group are. (`div.header` is the Header component's grid; the
+   outer `<header>` also carries `.header`, so the `div.` qualifier picks the inner one.) Mobile
+   keeps Starlight's default flow - the right-group is hidden there. */
+@media (min-width: 50rem) {
+  div.header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+  }
+  div.header > .title-wrapper {
+    justify-self: start;
+  }
+  div.header > .right-group {
+    justify-self: end;
+  }
+  /* Give the search a consistent, bar-like width once it's centered. */
+  div.header site-search button[data-open-modal] {
+    min-width: 16rem;
+  }
+}
+
+/* Body links: steel accent with a real underline (pro docs convention). */
+.sl-markdown-content a:not(:where(.not-content *)) {
+  color: var(--sl-color-text-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 0.2em;
+  transition: text-decoration-color 0.15s ease;
+}
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+  text-decoration-color: currentColor;
+}
+
+/* Sidebar: smaller type; group labels as small caps; current page = neutral pill (not accent). */
+nav.sidebar .sidebar-content {
+  font-size: var(--sl-text-sm);
+}
+nav.sidebar .sidebar-content .group-label .large {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sl-color-gray-3);
+}
+nav.sidebar .sidebar-content a {
+  color: var(--sl-color-gray-3);
+}
+nav.sidebar .sidebar-content a:hover {
+  color: var(--sl-color-white);
+}
+nav.sidebar .sidebar-content a[aria-current='page'],
+nav.sidebar .sidebar-content a[aria-current='page']:hover {
+  background-color: var(--sl-color-gray-6);
+  color: var(--sl-color-white);
+  font-weight: 550;
+}
+
+/* Inline code: quiet chip. */
+.sl-markdown-content code:not(:where(.not-content *, pre *)) {
+  background: var(--sl-color-gray-6);
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.3rem;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+
+/* Tables: hairlines only. */
+.sl-markdown-content table:not(:where(.not-content *)) {
+  border-collapse: collapse;
+}
+.sl-markdown-content th:not(:where(.not-content *)),
+.sl-markdown-content td:not(:where(.not-content *)) {
+  border: 0;
+  border-bottom: 1px solid var(--sl-color-hairline);
+}
+.sl-markdown-content th:not(:where(.not-content *)) {
+  color: var(--sl-color-gray-3);
+  font-weight: 550;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Hero / link buttons: primary = solid ink (black on light, white on dark) - the ramp inversion
+   makes one rule serve both themes. */
+.sl-link-button.primary {
+  background: var(--sl-color-white);
+  color: var(--sl-color-black);
+  border: 1px solid var(--sl-color-white);
+  border-radius: 0.55rem;
+  font-weight: 550;
+  transition: opacity 0.15s ease;
+}
+.sl-link-button.primary:hover {
+  opacity: 0.85;
+}
+.sl-link-button.minimal {
+  border-radius: 0.55rem;
+}
+
+/* Cards: hairline borders on flat ground, gentle hover. */
+.card {
+  border-radius: 0.75rem;
+  border-color: var(--sl-color-hairline);
+  background: transparent;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.card:hover {
+  background: var(--sl-color-gray-6);
+}
+.card .title {
+  font-size: 1rem;
+}
+.card .icon {
+  color: var(--sl-color-gray-3);
+}
+
+/* ------------------------------------------------------------------- charts */
+
+/* dysonsphere charts are authored at the library's publication defaults (100x100 px, small
+   fonts/marks), which is tiny on the web. Scale the whole render up uniformly with `zoom` so
+   every proportion is preserved and the theme defaults are untouched. Tune the one value below.
+   (The chart's vega-embed export menu still exports the true, unscaled 100x100 spec.) */
+:root {
+  --ds-chart-zoom: 3;
+}
+/* vega-embed renders the chart SVG into a `.chart-wrapper` div, with its export menu as a
+   sibling. Zoom only the wrapper so the chart scales but the menu stays normal size. */
+.vega-embed .chart-wrapper {
+  zoom: var(--ds-chart-zoom);
+}
+
+/* Reveal the chart's export menu only on hover/focus (or while open), not at rest.
+   !important because vega-embed injects its own summary styles at runtime. */
+.vega-embed summary {
+  opacity: 0 !important;
+  transition: opacity 0.15s ease;
+}
+.vega-embed:hover summary,
+.vega-embed:focus-within summary,
+.vega-embed details[open] summary {
+  opacity: 1 !important;
+}
+
+/* ------------------------------------------------------------------ landing */
+
+.landing {
+  display: flex;
+  flex-direction: column;
+  gap: 3.5rem;
+  margin-top: 2.5rem;
+}
+/* Center the install one-liner and keep it compact. */
+.landing__install {
+  max-width: 24rem;
+  margin-inline: auto;
+  width: 100%;
+}
+/* Code left, live chart right (vertically centered against each other); the caption spans the
+   full width below both. Stacks on small screens. */
+.landing__demo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  column-gap: 2.5rem;
+  row-gap: 1.5rem;
+  align-items: center;
+}
+@media (max-width: 900px) {
+  .landing__demo {
+    grid-template-columns: 1fr;
+  }
+}
+.landing__demo-code {
+  min-width: 0;
+}
+.landing__demo-chart {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* This hero chart is a wide composite (6 groups + condition table); dial the zoom back from the
+     site-wide default so it fits the column without horizontal scroll. */
+  --ds-chart-zoom: 2.3;
+  overflow: auto;
+}
+.landing__demo-caption {
+  grid-column: 1 / -1;
+  justify-self: center;
+  font-size: 0.85rem;
+  color: var(--sl-color-gray-3);
+  text-align: center;
+  max-width: 40rem;
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------- logo */
+
+/* Header logo. Starlight scales the logo down to the nav height by default, which is tiny for our
+   compact lockup - enlarge it (and let the header grow to fit). Tune the one height value. */
+a.site-title img {
+  height: 3rem;
+  width: auto;
+}

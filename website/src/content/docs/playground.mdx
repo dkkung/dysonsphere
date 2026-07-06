@@ -1,0 +1,13 @@
+---
+title: Playground
+description: Run dysonsphere in your browser via WebAssembly - edit the code and see the chart update live.
+template: splash
+---
+
+import Playground from '../../components/Playground.astro';
+
+Edit the Python and hit **Run**. dysonsphere runs entirely in your browser via Pyodide
+(WebAssembly) - no install, no server. The first load fetches the runtime and packages (tens of
+MB); after that, runs are instant.
+
+<Playground />

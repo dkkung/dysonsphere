@@ -1,0 +1,158 @@
+---
+// Live palette browser: renders every dysonsphere palette as a swatch strip, filterable by name
+// and kind. Pure client-side (data baked from src/generated/palettes.json at build time) - no
+// Pyodide. Click a swatch strip to copy its name.
+import palettes from '../generated/palettes.json';
+---
+
+<div class="pal">
+	<div class="pal__controls">
+		<input id="pal-search" type="search" placeholder="Filter palettes…" aria-label="Filter palettes" />
+		<div class="pal__kinds" role="group" aria-label="Palette kind">
+			<button data-kind="all" class="is-active">All</button>
+			<button data-kind="sequential">Sequential</button>
+			<button data-kind="diverging">Diverging</button>
+			<button data-kind="qualitative">Qualitative</button>
+		</div>
+	</div>
+	<p id="pal-count" class="pal__count"></p>
+	<div id="pal-grid" class="pal__grid">
+		{
+			palettes.map((p) => (
+				<button class="pal__item" data-name={p.name} data-kind={p.kind} title={`Copy "${p.name}"`}>
+					<span class="pal__strip">
+						{p.colors.map((c) => (
+							<span class="pal__stop" style={`background:${c}`} />
+						))}
+					</span>
+					<span class="pal__name">{p.name}</span>
+				</button>
+			))
+		}
+	</div>
+</div>
+
+<script>
+	function initPalettes() {
+		const grid = document.getElementById('pal-grid');
+		if (!grid || grid.dataset.wired) return;
+		grid.dataset.wired = '1';
+
+		const search = document.getElementById('pal-search') as HTMLInputElement;
+		const countEl = document.getElementById('pal-count') as HTMLElement;
+		const kindBtns = Array.from(document.querySelectorAll<HTMLButtonElement>('.pal__kinds button'));
+		const items = Array.from(grid.querySelectorAll<HTMLElement>('.pal__item'));
+		let kind = 'all';
+
+		const apply = () => {
+			const q = search.value.trim().toLowerCase();
+			let shown = 0;
+			for (const el of items) {
+				const okKind = kind === 'all' || el.dataset.kind === kind;
+				const okName = !q || (el.dataset.name ?? '').includes(q);
+				const show = okKind && okName;
+				el.style.display = show ? '' : 'none';
+				if (show) shown++;
+			}
+			countEl.textContent = `${shown} palette${shown === 1 ? '' : 's'}`;
+		};
+
+		search.addEventListener('input', apply);
+		for (const btn of kindBtns) {
+			btn.addEventListener('click', () => {
+				kind = btn.dataset.kind ?? 'all';
+				kindBtns.forEach((b) => b.classList.toggle('is-active', b === btn));
+				apply();
+			});
+		}
+		for (const el of items) {
+			el.addEventListener('click', () => {
+				const name = el.dataset.name ?? '';
+				navigator.clipboard?.writeText(name);
+				const label = el.querySelector('.pal__name') as HTMLElement;
+				const prev = label.textContent;
+				label.textContent = 'copied!';
+				setTimeout(() => (label.textContent = prev), 900);
+			});
+		}
+		apply();
+	}
+
+	initPalettes();
+	document.addEventListener('astro:page-load', initPalettes);
+</script>
+
+<style>
+	.pal__controls {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		align-items: center;
+		margin: 1rem 0 0.25rem;
+	}
+	#pal-search {
+		flex: 1 1 12rem;
+		padding: 0.4rem 0.7rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.5rem;
+		background: var(--sl-color-bg);
+		color: var(--sl-color-text);
+		font-size: 0.85rem;
+	}
+	.pal__kinds {
+		display: flex;
+		gap: 0.25rem;
+	}
+	.pal__kinds button {
+		padding: 0.35rem 0.7rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.5rem;
+		background: transparent;
+		color: var(--sl-color-gray-3);
+		font-size: 0.78rem;
+		cursor: pointer;
+	}
+	.pal__kinds button.is-active {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		border-color: var(--sl-color-gray-4);
+	}
+	.pal__count {
+		font-size: 0.75rem;
+		color: var(--sl-color-gray-3);
+		margin: 0.25rem 0 0.75rem;
+	}
+	.pal__grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+		gap: 0.6rem;
+	}
+	.pal__item {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		cursor: pointer;
+		text-align: left;
+	}
+	.pal__strip {
+		display: flex;
+		height: 1.4rem;
+		border-radius: 0.35rem;
+		overflow: hidden;
+		border: 1px solid var(--sl-color-hairline);
+	}
+	.pal__stop {
+		flex: 1;
+	}
+	.pal__name {
+		font-family: var(--sl-font-mono);
+		font-size: 0.72rem;
+		color: var(--sl-color-gray-3);
+	}
+	.pal__item:hover .pal__name {
+		color: var(--sl-color-text-accent);
+	}
+</style>
