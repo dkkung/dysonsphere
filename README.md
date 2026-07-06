@@ -1147,7 +1147,7 @@ Returns an `alt.LayerChart`.
 
 `add_log_ticks()` and `add_pow_ticks()` add unlabeled minor ticks to log- and power-scaled axes respectively. Both wrap your chart in a layer with an invisible second axis — your chart's data, scale domain, and axis labels are unaffected. Both work with `alt.Chart`, `alt.LayerChart`, and any chart type composable with `alt.layer()`, including `hconcat` and `vconcat` layouts.
 
-> **Note:** Always use `ds.save()` rather than `chart.save()`. `ds.save()` runs an SVG post-processing step that corrects the sub-pixel rounding Vega applies to tick transforms, ensuring consistent minor tick spacing at high DPI.
+> **Note:** Minor tick positions are exact in any renderer (the theme disables Vega's integer tick rounding at the source), but still prefer `ds.save()` over `chart.save()` — it applies the remaining SVG corrections (grid span, superscript label typesetting) and embeds the provenance metadata.
 
 ![Nonlinear scale example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/nonlinear_example.png)
 

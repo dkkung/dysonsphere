@@ -2,7 +2,7 @@ import altair as alt
 import polars as pl
 import pytest
 
-from dysonsphere.layers import _rule_mark_kwargs, add_labels, add_rule, add_shade, add_text
+from dysonsphere.annotations import _rule_mark_kwargs, add_labels, add_rule, add_shade, add_text
 from dysonsphere.theme import theme
 
 
