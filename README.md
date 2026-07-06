@@ -1122,7 +1122,7 @@ chart = base + ds.add_labels(df, "x", "y", "name", labels=["P16", "P104"])
 chart = base + ds.add_labels(df, "x", "y", "name")
 ```
 
-Placement is a deterministic force simulation (no RNG, so figures are reproducible): each label repels the other labels, every plotted point, and other labels' connector lines, with a longer-range push out of dense clusters and a spring back toward its own point. Labels settle in open space with connectors leading back to their points; a connector is dropped when the label ends up adjacent to its point (`alwaysShowConnectors=True` forces them all). `add_labels` pins the shared scale itself, so `base + ds.add_labels(...)` just works — no manual `alt.Scale` needed.
+Placement is deterministic (no RNG, so figures are reproducible): each label takes the nearest open spot around its point that clears every plotted marker and the other labels, then a swap pass minimizes total connector length (which also removes crossing leaders). Connectors sit a uniform distance off their dots and labels; a connector is dropped when the label ends up adjacent to its point (`alwaysShowConnectors=True` forces them all). `add_labels` pins the shared scale itself — to the data extent rounded outward to nice tick bounds — so `base + ds.add_labels(...)` just works, with no manual `alt.Scale` needed and no extra marks in the exported SVG.
 
 ![point labels example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/labels_example.png)
 
@@ -1132,13 +1132,13 @@ Placement is a deterministic force simulation (no RNG, so figures are reproducib
 | `xCol` / `yCol` | required | Quantitative x / y columns (the same fields as the base chart) |
 | `labelCol` | required | Column holding the label text |
 | `labels` | `None` | Which rows to label: `None` = all; an `int n` = auto-select `n` points spread evenly across the plot; a list of `labelCol` values = those rows |
-| `xDomain` / `yDomain` | `None` | Axis domain; `None` infers from the full `df` extent (override only for derived positions not in `df`, e.g. cluster centroids) |
-| `fontSize` | `None` | Label font size; `None` inherits the theme's `secondaryFontSize` |
+| `xDomain` / `yDomain` | `None` | Axis domain; `None` infers from the full `df` extent rounded outward to nice tick bounds (override — used exactly, no rounding — only for derived positions not in `df`, e.g. cluster centroids) |
+| `fontSize` | `None` | Label font size; `None` inherits the theme's `fontSize` |
 | `color` | `None` | Label text color; `None` inherits from theme (darkmode-aware) |
 | `connector` | `True` | Draw the connector line from each point to its label |
 | `connectorColor` | `None` | Connector color; `None` inherits the theme's rule color |
 | `connectorStrokeDash` | `False` | Connector dash: `False` solid, `True` the theme's `dashedWidth`, or a list pattern |
-| `connectorGap` | `None` | Pixel gap at each connector end; `None` sizes it to the theme's point-mark radius so it clears the dot |
+| `connectorGap` | `None` | Pixel gap at the marker end of the connector; `None` sizes it to the theme's point-mark radius plus a sliver of daylight so it clears the dot (the text end keeps just the daylight) |
 | `alwaysShowConnectors` | `False` | Draw every connector, including the short ones dropped by default when a label sits on its point |
 
 Returns an `alt.LayerChart`.

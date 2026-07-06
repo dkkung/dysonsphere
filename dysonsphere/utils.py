@@ -266,6 +266,32 @@ def _sample_spread(xs: list[float], ys: list[float], n: int) -> list[int]:
     return chosen
 
 
+def _nice_domain(lo: float, hi: float, count: int = 10) -> tuple[float, float]:
+    """Round ``(lo, hi)`` outward to nice tick-increment multiples - d3's ``nice()`` algorithm.
+
+    Used by ``add_labels`` to pin the shared scale to nice bounds instead of the raw data extent,
+    so the pinned axes read like Vega's own ``nice: true`` (whose rounding this replicates: the
+    d3-scale 1/2/5/10 tick increment at ``count`` ~ticks, applied twice so the widened domain can
+    settle on a coarser step). Exactness vs Vega does not matter - the caller FORCES the returned
+    domain, so whatever this computes is what renders. Degenerate spans return unchanged.
+    """
+    import math
+
+    if not (hi > lo):
+        return lo, hi
+    for _ in range(2):
+        step = (hi - lo) / count
+        power = 10.0 ** math.floor(math.log10(step))
+        err = step / power
+        # d3's tickIncrement thresholds: sqrt(50), sqrt(10), sqrt(2)
+        step = power * (10 if err >= math.sqrt(50) else 5 if err >= math.sqrt(10) else 2 if err >= math.sqrt(2) else 1)
+        lo2, hi2 = math.floor(lo / step) * step, math.ceil(hi / step) * step
+        if (lo2, hi2) == (lo, hi):
+            break
+        lo, hi = lo2, hi2
+    return lo, hi
+
+
 def count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]:
     """
     Count the number of rows in ``df`` belonging to each category.
