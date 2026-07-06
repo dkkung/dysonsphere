@@ -12,7 +12,7 @@ from typing import Callable, Union, cast
 
 import altair as alt
 
-from . import metadata
+from . import discovery, metadata
 from .theme import _opt
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
@@ -267,6 +267,7 @@ def save(
             spec = base_obj.to_dict()
             _hashes = metadata._scan_marker_hashes(spec) if saveMetadata else set()
             _records = _select_reports(_hashes)
+            _exts = discovery._used_extensions(spec) if saveMetadata else {}  # extensions that made it
             metadata._strip_markers(spec)  # markers are internal — never in the written output
             _usermeta = _usermeta_json = _report_sections = None
             if saveMetadata:
@@ -277,6 +278,7 @@ def save(
                     timestamp=timestamp,
                     checksum=metadata._spec_checksum(spec),
                     data_checksum=metadata._data_checksum(spec),
+                    extensions=_exts,
                     description=description,
                 )
 

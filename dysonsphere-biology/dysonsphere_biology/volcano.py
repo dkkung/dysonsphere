@@ -155,7 +155,8 @@ def volcano(
     if label is not None:
         # add_labels returns a LayerChart; compose with + (it also self-pins the x/y scale).
         chart = chart + _label_layer(data, label, log2fcCol, geneCol)
-    return chart
+    # Tag the chart so ds.save() records dysonsphere-biology's version in the figure's provenance.
+    return ext.tag_extension(chart, "biology")
 
 
 def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: str, geneCol: str | None):
