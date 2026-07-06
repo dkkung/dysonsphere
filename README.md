@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/logo.svg" width="190" alt="dysonsphere" />
 </p>
 
-`dysonsphere` is an [`altair`](https://altair-viz.github.io/) utility library for publication-ready scientific figures, offering:
+`dysonsphere` is an [`altair`](https://altair-viz.github.io/) utility library for publication-ready scientific figures in Python, offering:
 - An attractive, cohesive, and sensible default configuration with a single invocation of `ds.theme()`.
 - Perceptually uniform palettes, including those from popular data visualization libraries.
 - Shareable styles through a simple `dysonsphere.toml` config file - tune the theme once and reuse it across projects.
@@ -17,7 +17,8 @@
 - Self-documenting exports for reproducible figures:
     - One `ds.save()` writes corrected SVG, print-ready PNG, interactive HTML, and Vega-Lite JSON - in both light and dark variants.
     - Every file embeds its provenance: environment versions and sha256 checksums identifying both the **Vega-Lite spec and the underlying data**.
-    - `ds.read()` recovers the statistics report, metadata, or even the original data from a saved figure; `ds.load()` rebuilds the chart from its JSON.
+        - `ds.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
+        - `ds.load()` rebuilds the chart from its JSON.
 
 `dysonsphere` is extensible with field-specific utilities, allowing domain toolkits (e.g. molecular biology, astronomy) to plug into the same theme, palettes, and export pipeline as separately installed packages.
 
@@ -27,7 +28,10 @@
 # with pip
 pip install dysonsphere
 
-# with uv
+# with pip through uv
+uv pip install dysonsphere
+
+# add to uv as a dependency
 uv add dysonsphere
 ```
 
