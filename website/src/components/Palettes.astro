@@ -5,7 +5,9 @@
 import palettes from '../generated/palettes.json';
 ---
 
-<div class="pal">
+{/* not-content: opt out of Starlight's sibling-margin content styling, which would push every
+    grid item except the first down by a margin-top (the "first swatch rides high" bug). */}
+<div class="pal not-content">
 	<div class="pal__controls">
 		<input id="pal-search" type="search" placeholder="Filter palettes…" aria-label="Filter palettes" />
 		<div class="pal__kinds" role="group" aria-label="Palette kind">
@@ -131,6 +133,7 @@ import palettes from '../generated/palettes.json';
 		display: flex;
 		flex-direction: column;
 		gap: 0.3rem;
+		margin: 0; /* belt-and-suspenders: grid rows must align even if content styling leaks in */
 		padding: 0;
 		border: 0;
 		background: transparent;

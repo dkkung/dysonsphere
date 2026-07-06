@@ -42,7 +42,10 @@ export default defineConfig({
 			title: 'dysonsphere',
 			favicon: '/favicon.svg',
 			logo: { src: './src/assets/dysonsphere_logo.svg', replacesTitle: false },
-			components: { SiteTitle: './src/components/SiteTitle.astro' },
+			components: {
+				SiteTitle: './src/components/SiteTitle.astro',
+				Sidebar: './src/components/Sidebar.astro',
+			},
 			description:
 				'An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/dkkung/dysonsphere' }],
@@ -83,7 +86,7 @@ export default defineConfig({
 					],
 				},
 				{
-					label: 'Reference',
+					label: 'Documentation',
 					items: [{ autogenerate: { directory: 'reference' } }],
 				},
 			],

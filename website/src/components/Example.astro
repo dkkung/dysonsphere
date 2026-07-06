@@ -43,9 +43,18 @@ const playgroundHref = `${import.meta.env.BASE_URL}playground/#code=${encodeURIC
 	.example {
 		margin: 1.5rem 0 2.5rem;
 	}
+	/* The chart sits flush with the code cell above it: left-aligned to the same content edge
+	   and with a tightened vertical gap, so code and figure read as one unit. */
 	.example__row {
 		display: flex;
-		justify-content: center;
+		justify-content: flex-start;
+	}
+	.example__row :global(.ds-chart) {
+		margin: 0.6rem 0 0;
+	}
+	.example__row :global(.ds-chart__view) {
+		justify-content: flex-start;
+		padding: 0;
 	}
 	.example__actions {
 		display: flex;
