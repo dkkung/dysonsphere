@@ -79,12 +79,11 @@ class TestAddLabels:
     def _n_connectors(self, chart):
         return sum(1 for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rule")
 
-    def test_short_connectors_skipped_by_default(self):
-        # a lone point: the label settles adjacent to it -> connector too short to draw, so it's
-        # skipped by default, but alwaysShowConnectors forces it
-        one = pl.DataFrame({"x": [1.0], "y": [1.0], "g": ["a"]})
-        assert self._n_connectors(add_labels(one, "x", "y", "g")) == 0
-        assert self._n_connectors(add_labels(one, "x", "y", "g", alwaysShowConnectors=True)) == 1
+    def test_short_connectors_skipped_by_default(self, df):
+        # the skip threshold is 2*connectorGap (font-independent): a huge gap makes every connector a
+        # "stub" that gets dropped by default, while alwaysShowConnectors forces one per label
+        assert self._n_connectors(add_labels(df, "x", "y", "g", connectorGap=1000)) == 0
+        assert self._n_connectors(add_labels(df, "x", "y", "g", connectorGap=1000, alwaysShowConnectors=True)) == 3
 
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
@@ -117,11 +116,11 @@ class TestAddLabels:
         ]
         assert domains == [[1.0, 3.0]]  # full extent, not the single labeled point's
 
-    def test_fontsize_defaults_to_secondary(self, df):
-        theme(fontSize=9)  # -> secondaryFontSize 8
+    def test_fontsize_defaults_to_primary(self, df):
+        theme(fontSize=9)  # labels use the primary fontSize
         spec = add_labels(df, "x", "y", "g").to_dict()
         sizes = {lyr["mark"]["fontSize"] for lyr in spec["layer"] if lyr["mark"]["type"] == "text"}
-        assert sizes == {8}
+        assert sizes == {9}
 
     def test_preserves_base_axis_titles(self, df):
         # add_labels positions by pixels (alt.value), so it must not touch the base axis titles.
