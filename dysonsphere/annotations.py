@@ -64,7 +64,13 @@ def _rule_label_geometry(
         if lp not in ("top", "bottom"):
             raise ValueError(f"labelPosition must be 'top' or 'bottom' for axis='y', got {lp!r}")
         chart_width = _opt("chartWidth")
-        perp_ch, perp_val = "x", {"left": 0, "center": chart_width / 2, "right": chart_width}[la]
+        # A closed plot's spine sits flush at the content edge, so a left/right-anchored label
+        # hugs the border; inset it by axisOffset to match the gap an open plot gets for free
+        # from its detached axis, so opened and closed look the same. (Center is far from either
+        # edge, so it is left alone.)
+        edge_inset = _opt("axisOffset") if _opt("closed") else 0
+        perp_ch = "x"
+        perp_val = {"left": edge_inset, "center": chart_width / 2, "right": chart_width - edge_inset}[la]
         align, dx = la, labelOffsetX
         dy = (-3 if lp == "top" else 3) + labelOffsetY
         baseline = "bottom" if lp == "top" else "top"
@@ -76,10 +82,13 @@ def _rule_label_geometry(
         if lp not in ("left", "right"):
             raise ValueError(f"labelPosition must be 'left' or 'right' for axis='x', got {lp!r}")
         chart_height = _opt("chartHeight")
+        # See the axis="y" branch: inset a top/bottom-anchored label off the flush closed spine
+        # by axisOffset so opened and closed match.
+        edge_inset = _opt("axisOffset") if _opt("closed") else 0
         perp_val, baseline = {
-            "top": (0, "top"),
+            "top": (edge_inset, "top"),
             "center": (chart_height / 2, "middle"),
-            "bottom": (chart_height, "bottom"),
+            "bottom": (chart_height - edge_inset, "bottom"),
         }[la]
         perp_ch = "y"
         align = "left" if lp == "right" else "right"

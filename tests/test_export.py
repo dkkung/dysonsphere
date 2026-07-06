@@ -9,7 +9,7 @@ import polars as pl
 import pytest
 
 from dysonsphere.export import (
-    _extend_grid_span,
+    _align_grid_to_content,
     _fix_superscript_labels,
     _flip_ticks_inward,
     _layer_axes_to_front,
@@ -474,37 +474,37 @@ class TestExactTickPositions:
             assert min(abs(b - t) for b in boxes) < 1e-6, f"tick {t} not exactly on a box centre"
 
 
-# ── _extend_grid_span() ──────────────────────────────────────────────────────
+# ── _align_grid_to_content() ─────────────────────────────────────────────────
 
 
-class TestExtendGridSpan:
-    def test_grid_lines_y_span_extended_by_axis_offset(self, tmp_path):
-        # axis_offset stretches vertical grid lines at both ends: the translate keeps the
-        # bottom on the axis, the y2 restores the span up to the top border.
+class TestAlignGridToContent:
+    def test_vertical_grid_lines_shifted_up_by_axis_offset(self, tmp_path):
+        # A vertical grid line (x-axis group, offset down) shifts UP by axis_offset (translate
+        # only, span unchanged), so its top lands on the highest tick and its bottom lifts off
+        # the detached x-axis onto the lowest tick - spanning the plot content, not the axis gap.
         lines = "".join(f'<line transform="translate({x},-100)" x1="0" y1="0" x2="0" y2="100"/>' for x in [10, 50, 90])
         svg = f'<svg xmlns="{NS}"><g class="mark-rule role-axis-grid">{lines}</g></svg>'
         root = ET.fromstring(svg)
-        _extend_grid_span(root, 3)
-        ty_vals, y2_vals = [], []
+        _align_grid_to_content(root, 3)
         for line in root.iter(f"{{{NS}}}line"):
-            m = re.match(r"translate\([\d.]+,([-\d.]+)\)", line.get("transform", ""))
-            if m:
-                ty_vals.append(float(m.group(1)))
-                y2_vals.append(float(line.get("y2", "0")))
-        assert all(t == pytest.approx(-103.0, abs=0.001) for t in ty_vals)
-        assert all(y == pytest.approx(103.0, abs=0.001) for y in y2_vals)
+            m = re.match(r"translate\(([\d.]+),(-?[\d.]+)\)", line.get("transform", ""))
+            assert m and float(m.group(2)) == pytest.approx(-103.0, abs=0.001)  # up by axis_offset
+            assert float(line.get("y2", "0")) == pytest.approx(100.0, abs=0.001)  # span unchanged
 
-    def test_horizontal_grid_lines_untouched(self, tmp_path):
-        # y-axis grid lines (horizontal: x2 > 0, y2 = 0) are not extended.
+    def test_horizontal_grid_lines_shifted_right_by_axis_offset(self, tmp_path):
+        # A horizontal grid line (y-axis group, offset left) shifts RIGHT by axis_offset (translate
+        # only, span unchanged), so it floats off the detached y-axis and reaches the content's
+        # right edge - the mirror of the vertical case, so both grid directions span the content.
         svg = (
             f'<svg xmlns="{NS}"><g class="mark-rule role-axis-grid">'
             '<line transform="translate(0,40)" x1="0" y1="0" x2="100" y2="0"/>'
             "</g></svg>"
         )
         root = ET.fromstring(svg)
-        _extend_grid_span(root, 3)
+        _align_grid_to_content(root, 3)
         line = next(root.iter(f"{{{NS}}}line"))
-        assert line.get("transform") == "translate(0,40)"
+        assert line.get("transform") == "translate(3.0,40.0)"  # right by axis_offset
+        assert line.get("x2") == "100"  # span unchanged
         assert line.get("y2") == "0"
 
 
