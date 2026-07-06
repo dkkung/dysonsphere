@@ -3,7 +3,7 @@ import polars as pl
 import pytest
 
 from dysonsphere.theme import theme
-from dysonsphere.transforms import add_beeswarm, add_jitter, beeswarm_offsets
+from dysonsphere.transforms import _beeswarm_offsets, add_beeswarm, add_jitter
 
 
 @pytest.fixture(autouse=True)
@@ -24,23 +24,23 @@ def group_df():
 
 class TestBeeswarmOffsets:
     def test_empty_input(self):
-        result = beeswarm_offsets(np.array([]))
+        result = _beeswarm_offsets(np.array([]))
         assert len(result) == 0
 
     def test_single_point_zero_offset(self):
-        result = beeswarm_offsets(np.array([5.0]))
+        result = _beeswarm_offsets(np.array([5.0]))
         assert result[0] == pytest.approx(0.0)
 
     def test_output_length_matches_input(self):
         vals = np.linspace(0, 10, 30)
-        result = beeswarm_offsets(vals, spread=3.0)
+        result = _beeswarm_offsets(vals, spread=3.0)
         assert len(result) == len(vals)
 
     def test_no_overlaps(self):
         rng = np.random.default_rng(42)
         y = rng.uniform(0, 100, 40)
         spread = 4.0
-        x = beeswarm_offsets(y, heightPx=200, spread=spread)
+        x = _beeswarm_offsets(y, heightPx=200, spread=spread)
         y_px = (y - y.min()) / max(y.max() - y.min(), 1e-9) * 200
         for i in range(len(y)):
             for j in range(i + 1, len(y)):
@@ -52,7 +52,7 @@ class TestBeeswarmOffsets:
     def test_identical_y_values_spread_out(self):
         y = np.array([5.0, 5.0, 5.0, 5.0])
         spread = 2.0
-        x = beeswarm_offsets(y, heightPx=100, spread=spread)
+        x = _beeswarm_offsets(y, heightPx=100, spread=spread)
         assert len(set(x)) > 1
 
 

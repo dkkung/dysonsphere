@@ -7,6 +7,10 @@ import polars as pl
 from .theme import _opt
 from .utils import _internal_data, band_geometry, count_n
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["add_multilabel"]
+
 
 def _multilabel_layer(
     groups: dict[str, list],

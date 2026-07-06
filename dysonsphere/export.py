@@ -15,6 +15,10 @@ import altair as alt
 from . import metadata
 from .theme import _opt
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["save", "show", "load"]
+
 _AltairChart = Union[
     alt.Chart,
     alt.LayerChart,

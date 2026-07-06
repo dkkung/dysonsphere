@@ -1,0 +1,51 @@
+---
+title: Marks & transforms
+description: Composite marks (strip, violin) and the data transforms that back them.
+---
+
+import Example from '../../../components/Example.astro';
+
+dysonsphere's composite marks return native Altair layers, so you compose them with `+` and keep
+Altair's full API.
+
+## Strip plot
+
+`mark_strip()` draws a categorical scatter with a median tick and optional mean error bars. Points
+are jittered by default.
+
+<Example name="strip" alt="Strip plot of miles per gallon by car origin" />
+
+Set `scatter="beeswarm"` to pack points with collision avoidance instead of random jitter:
+
+<Example name="strip_beeswarm" alt="Beeswarm strip plot of miles per gallon by car origin" />
+
+Overlay mean error bars with `errorbars=True`; `errorbarExtent` chooses `"sem"` (default) or
+`"sd"`:
+
+<Example name="strip_errorbars" alt="Strip plot with mean and standard-deviation error bars" />
+
+## Violin plot
+
+`mark_violin()` pairs a kernel-density silhouette with an embedded boxplot. The silhouette and the
+box are styled independently:
+
+<Example name="violin" alt="Violin plot of horsepower by car origin" />
+
+<Example name="violin_styled" alt="Styled violin plot with a custom palette and white median" />
+
+## Boxplot
+
+Plain Altair marks inherit the theme too. `mark_boxplot()` gets grey boxes, a single-stroke median,
+and rounded whisker caps out of the box; `boxplotOutliers=False` hides outlier points.
+
+<Example name="boxplot" alt="Boxplot of miles per gallon by car origin" />
+
+## Transforms
+
+The jitter and beeswarm offsets are also available as standalone transforms that add a column to
+your DataFrame, which you then feed to Altair's `xOffset` encoding - handy when you want the offset
+on your own custom mark.
+
+<Example name="jitter" alt="Jittered scatter using add_jitter" />
+
+<Example name="beeswarm" alt="Beeswarm scatter using add_beeswarm" />

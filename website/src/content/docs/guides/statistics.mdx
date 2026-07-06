@@ -1,0 +1,62 @@
+---
+title: Statistical annotations
+description: Significance brackets and correlation readouts, with reports baked into exports.
+---
+
+import Example from '../../../components/Example.astro';
+
+`add_comparisons()` and `add_correlation()` compute statistics with scipy and draw them as layers.
+Every call also builds a structured report - descriptives, exact p-values, and effect sizes - that
+`save()` embeds in the export metadata, so a figure carries its own analysis. Pass `report=True` to
+print it, or `save=True` to write a text file.
+
+## Group comparisons
+
+`add_comparisons()` classifies `test=` into **pairwise** (`mannwhitneyu`, `ttest_ind`, `ttest_rel`,
+`wilcoxon`, `tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`, `alexandergovern`). Here an
+ANOVA with a corner label plus two pairwise brackets:
+
+<Example name="comparisons" alt="Fuel economy by origin with an ANOVA label and pairwise brackets" />
+
+### Pairwise tests and corrections
+
+Give a list of pairs; brackets stack automatically. `correction=` applies Holm or Bonferroni
+multiple-comparison adjustment.
+
+<Example name="comparisons_pairwise" alt="Three pairwise Mann-Whitney brackets with Holm correction" />
+
+### Label styles
+
+`labelStyle="asterisks"` renders `*` / `**` / `***` / `ns`; `bracketStyle="line"` drops the end
+ticks.
+
+<Example name="comparisons_asterisks" alt="Pairwise comparison with asterisk labels and line brackets" />
+
+### Number notation
+
+`notation=` controls the p-value format (`"scientific"`, `"e"`, `"power"`), and `sigFigs=` sets the
+precision.
+
+<Example name="comparisons_notation" alt="Comparison bracket with scientific-notation p-value" />
+
+Both `bracketStyle` and `notation` also accept a **dict** for per-pair control (keys are pairs,
+matched regardless of order); `notation` additionally takes a `"test"` key for the omnibus label:
+
+<Example name="comparisons_perpair" alt="Two brackets with different per-pair styles and notation" />
+
+### Omnibus with post-hoc
+
+For an omnibus test, the corner label reports the omnibus result and the brackets are filled by the
+matching post-hoc (Kruskal-Wallis → Dunn here). `omnibusVerbose=True` adds the statistic, degrees of
+freedom, and effect size.
+
+<Example name="comparisons_kruskal" alt="Kruskal-Wallis omnibus label with Dunn post-hoc brackets" />
+
+## Correlation
+
+`add_correlation()` adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
+scatter. `verbose=True` shows the full readout; rank methods report the coefficient only.
+
+<Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
+
+<Example name="correlation_spearman" alt="Weight versus miles per gallon, Spearman coefficient" />
