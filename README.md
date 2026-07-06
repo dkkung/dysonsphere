@@ -29,7 +29,7 @@
 # with pip
 pip install dysonsphere
 
-# with pip through uv
+# with uv
 uv pip install dysonsphere
 
 # add as a project dependency
