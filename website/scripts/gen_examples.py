@@ -2,15 +2,15 @@
 """Execute every example under website/examples/ and write light + dark Vega-Lite specs.
 
 The example registry: each ``website/examples/<name>.py`` is a complete, copy-runnable snippet
-that defines a variable named ``chart`` (the same contract as the playground). This script executes
-each file twice - once with ``darkmode=False`` and once with ``darkmode=True``, both with
-``transparentBackground=True`` - and writes ``website/public/charts/<name>-light.json`` /
+that defines a variable named ``chart`` (the same contract as the studio's code editor). This
+script executes each file twice - once with ``darkmode=False`` and once with ``darkmode=True``,
+both with ``transparent=True`` - and writes ``website/public/charts/<name>-light.json`` /
 ``<name>-dark.json`` for the Chart/Example components to render live.
 
 The SAME source file is imported raw (vite ``?raw``) by ``Example.astro`` as the shown snippet, so
 the displayed code and the rendered chart can never drift apart.
 
-The site render args (``darkmode`` / ``transparentBackground``) are injected by monkeypatching
+The site render args (``darkmode`` / ``transparent``) are injected by monkeypatching
 ``ds.theme`` during exec - they never appear in the snippet, which stays exactly what a user
 would write.
 
@@ -44,7 +44,7 @@ def build(path: Path, dark: bool) -> dict:
     @functools.wraps(_real_theme)
     def patched_theme(*args, **kwargs):
         kwargs["darkmode"] = dark
-        kwargs["transparentBackground"] = True
+        kwargs["transparent"] = True
         return _real_theme(*args, **kwargs)
 
     # Baseline in case the snippet never calls ds.theme(); the patch covers it when it does.

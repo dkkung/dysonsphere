@@ -26,11 +26,19 @@ the continuous heatmap is restyled:
 
 ## Style presets
 
-Two presets ship built in - `"notebook"` and `"presentation"` - selected with `style=`. A
-`dysonsphere.toml` config file can customise them or add your own named styles; `ds.create_config()`
-scaffolds one.
+Named presets are selected with `style=`. One ships built in - `"notebook"`, a big-screen
+exploration look (900 x 900 px, 18 pt type, dark, transparent) for working inline in a notebook
+before you produce the print-scale figure:
 
-<Example name="style_presentation" alt="Bar chart with the presentation style preset" />
+```python
+ds.theme(style="notebook")           # explore at screen scale
+ds.theme()                           # back to publication defaults
+```
+
+A `dysonsphere.toml` config file can customise the preset or add your own named styles -
+`ds.theme(style="poster")` picks up a `[poster]` section from your config. See the
+[configuration guide](/guides/configuration/) for the full file format, search paths, and merge
+order; `ds.create_config()` scaffolds a starter file.
 
 ## Frame and grid
 
