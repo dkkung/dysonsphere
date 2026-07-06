@@ -2,7 +2,7 @@
 title: "Nonlinear axes"
 description: "Minor ticks and typeset labels for log and power axes."
 sidebar:
-  order: 6
+  order: 8
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -10,7 +10,7 @@ sidebar:
 ## `log_label_expr`
 
 ```python
-log_label_expr(base: int = 10, notation: str = 'power')
+log_label_expr(base: int = 10, notation: str = 'power') -> str
 ```
 
 Return a Vega ``labelExpr`` string for base-N log-scale axis labels.
@@ -76,7 +76,24 @@ Pass the return value directly to ``alt.Axis(labelExpr=...)``.
 ## `add_log_ticks`
 
 ```python
-add_log_ticks(chart: alt.Chart | alt.LayerChart, df, field: str | None = None, *, axis: str = 'y', base: int = 10, nMinor: int = 1, expMin: int | None = None, expMax: int | None = None, xField: str | None = None, yField: str | None = None, xExpMin: int | None = None, xExpMax: int | None = None, yExpMin: int | None = None, yExpMax: int | None = None, minorTickSize: float | None = None)
+add_log_ticks(
+    chart: alt.Chart | alt.LayerChart,
+    df,
+    field: str | None = None,
+    *,
+    axis: str = 'y',
+    base: int = 10,
+    nMinor: int = 1,
+    expMin: int | None = None,
+    expMax: int | None = None,
+    xField: str | None = None,
+    yField: str | None = None,
+    xExpMin: int | None = None,
+    xExpMax: int | None = None,
+    yExpMin: int | None = None,
+    yExpMax: int | None = None,
+    minorTickSize: float | None = None,
+) -> alt.LayerChart
 ```
 
 Add unlabeled minor ticks to a log-scale axis.
@@ -95,10 +112,11 @@ composable with ``alt.layer()``. Also works correctly in ``hconcat``
 and ``vconcat`` layouts.
 
 .. note::
-    Use ``ds.save()`` rather than ``chart.save()`` — ``ds.save()``
-    runs an SVG post-processing step that corrects the sub-pixel
-    rounding Vega applies to tick positions, ensuring consistent
-    minor tick spacing at high DPI.
+    Minor tick positions are exact at render time (the theme config
+    disables Vega's integer tick rounding), so they are correct in
+    any renderer. Still prefer ``ds.save()`` over ``chart.save()``
+    for the other SVG corrections (grid span, superscript labels)
+    and the embedded metadata.
 
 **Parameters**
 
@@ -141,7 +159,21 @@ and ``vconcat`` layouts.
 ## `add_pow_ticks`
 
 ```python
-add_pow_ticks(chart: alt.Chart | alt.LayerChart, df, field: str | None = None, *, axis: str = 'y', exponent: float = 0.5, majorValues: list[float] | None = None, nMinor: int = 4, minorTickSize: float | None = None, xField: str | None = None, yField: str | None = None, xMajorValues: list[float] | None = None, yMajorValues: list[float] | None = None)
+add_pow_ticks(
+    chart: alt.Chart | alt.LayerChart,
+    df,
+    field: str | None = None,
+    *,
+    axis: str = 'y',
+    exponent: float = 0.5,
+    majorValues: list[float] | None = None,
+    nMinor: int = 4,
+    minorTickSize: float | None = None,
+    xField: str | None = None,
+    yField: str | None = None,
+    xMajorValues: list[float] | None = None,
+    yMajorValues: list[float] | None = None,
+) -> alt.LayerChart
 ```
 
 Add unlabeled minor ticks to a power- or sqrt-scale axis.
@@ -170,10 +202,11 @@ composable with ``alt.layer()``. Also works correctly in ``hconcat``
 and ``vconcat`` layouts.
 
 .. note::
-    Use ``ds.save()`` rather than ``chart.save()`` — ``ds.save()``
-    runs an SVG post-processing step that corrects the sub-pixel
-    rounding Vega applies to tick positions, ensuring consistent
-    minor tick spacing at high DPI.
+    Minor tick positions are exact at render time (the theme config
+    disables Vega's integer tick rounding), so they are correct in
+    any renderer. Still prefer ``ds.save()`` over ``chart.save()``
+    for the other SVG corrections (grid span, superscript labels)
+    and the embedded metadata.
 
 **Parameters**
 

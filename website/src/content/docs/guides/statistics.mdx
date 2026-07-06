@@ -59,4 +59,13 @@ scatter. `verbose=True` shows the full readout; rank methods report the coeffici
 
 <Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
 
+The readout is composed from independent parts, so you can show exactly what you want:
+`coefficient="both"` gives r and r², `includePvalue=True` adds P, `includeEquation=True` adds the
+fit line's equation (the default is a bare `r = …`):
+
+<Example name="correlation_both" alt="Scatter with an r, r-squared, and p-value readout" />
+
+Rank correlations (`method="spearman"` / `"kendall"`) report only the coefficient (ρ / τ) and its
+p-value - no fit line, since a straight line is not their model:
+
 <Example name="correlation_spearman" alt="Weight versus miles per gallon, Spearman coefficient" />

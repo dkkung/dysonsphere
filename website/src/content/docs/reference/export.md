@@ -2,7 +2,7 @@
 title: "Saving & loading"
 description: "Export charts to files and rebuild them from the Vega-Lite JSON."
 sidebar:
-  order: 8
+  order: 10
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -10,7 +10,19 @@ sidebar:
 ## `save`
 
 ```python
-save(chart: _AltairChart | Callable[[], _AltairChart], filename: str, ppi: int = 1200, description: str | None = None, saveMetadata: bool = True, embedReport: bool = True, format: str | list[str] | None = None, background: str | list[str] | None = None, maxRows: int = 5000, overrideMaxRows: bool = False)
+save(
+    chart: _AltairChart | Callable[[], _AltairChart],
+    filename: str,
+    ppi: int = 1200,
+    description: str | None = None,
+    saveMetadata: bool = True,
+    embedReport: bool = True,
+    format: str | list[str] | None = None,
+    background: str | list[str] | None = None,
+    transparent: bool = True,
+    maxRows: int = 5000,
+    overrideMaxRows: bool = False,
+) -> None
 ```
 
 Save a chart in one or more formats and background variants.
@@ -34,8 +46,9 @@ Each background toggles ``darkmode`` for its render, restoring the original afte
 - **`filename`** (`str`) - Extensionless path for the output files (e.g. ``"myplot"`` or ``"plots/myplot"``). A bare name saves to the current working directory, matching Altair's default behaviour.
 - **`ppi`** (`int`) - Pixel density for PNG output.
 - **`description`** (`str | None`) - Optional, purely your own text. Stored verbatim (nothing appended) in the Vega-Lite JSON spec's ``description`` field, the SVG ``<desc>`` element, and the PNG ``iTXt Description`` chunk. Independent of ``saveMetadata``.
-- **`format`** (`str | list[str] | None`) - Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled in), as a single string or a list. ``None`` (default) uses the theme option ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises. ``"html"`` is the **interactive / approximate** tier: it renders live in the browser via Vega, so it is fully themed and carries the metadata block, but it does NOT get dysonsphere's static SVG post-processors (pixel-perfect tick alignment, superscript typesetting). In particular ``inwardTicks`` is deliberately **not** applied to HTML: the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label spacing), so it renders inconsistently and is left off. Use ``"svg"``/``"png"`` for the publication-accurate static figure.
+- **`format`** (`str | list[str] | None`) - Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled in), as a single string or a list. ``None`` (default) uses the theme option ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises. ``"html"`` is the **interactive** tier: it renders live in the browser via Vega, so it is fully themed, carries the metadata block, and gets exact tick positions (that fix lives in the theme config), but it does NOT get dysonsphere's static SVG post-processors (superscript typesetting, Illustrator-friendly flattening). In particular ``inwardTicks`` is deliberately **not** applied to HTML: the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label spacing), so it renders inconsistently and is left off. Use ``"svg"``/``"png"`` for the publication-accurate static figure.
 - **`background`** (`str | list[str] | None`) - Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles ``darkmode``), as a single string or a list. ``None`` (default) uses the theme option ``saveBackground`` (``"light"``). An empty list or unknown value raises.
+- **`transparent`** (`bool`) - Whether the rendered SVG/PNG have a transparent background. ``True`` (default): exported figures composite onto any page or slide. ``False``: the background is filled with the theme's ``chartFill`` (white in light mode, black in dark mode, unless set explicitly) - for outputs viewed on their own, e.g. images embedded in a README. Applies to the SVG/PNG render only; the JSON and HTML keep the chart's logical background (the theme option ``transparent``).
 - **`maxRows`** (`int`) - Row cap for the data inlined into the output (default ``5000``, matching Altair). Every format renders via ``chart.to_dict()``, which inlines the data, and the JSON embeds it for :func:`read` — so data over this many rows would make the files huge and is **blocked with a clear error**. Raise it to allow larger data.
 - **`overrideMaxRows`** (`bool`) - If ``True``, removes the row cap entirely for this save (inlines all rows, however many). The deliberate opt-in for large data.
 - **`saveMetadata`** (`bool`) - If ``True`` (default), embeds a **structured JSON** metadata block — ``{"provenance": {...}, "statistics": [...]}`` — in every output format so each is self-contained and machine-readable: - ``provenance`` — generation facts as fields: ``user``, ``script``, ``timestamp`` (ISO-8601), ``python``, ``altair``, ``dysonsphere``. In Jupyter, ``script`` is ``"<jupyter-notebook>"``; ``user`` falls back to ``"unknown_user"``. - ``statistics`` — the structured records queued by ``add_comparisons`` (groups, omnibus result, comparisons with exact p-values and effect sizes); omitted when there are none. It lands in the **Vega-Lite JSON** under ``usermeta.dysonsphere`` (merged into any ``usermeta`` already on the chart), the **SVG** ``<metadata id="dysonsphere">`` element (CDATA), and the **PNG** ``iTXt dysonsphere`` chunk. ``saveMetadata=False`` suppresses the structured block entirely; your ``description`` (if any) is still written.
@@ -69,8 +82,8 @@ Render *chart* through the full ``ds.save()`` pipeline and return it for accurat
 inline display in a notebook.
 
 Altair's own inline renderer (used when you just display a chart) does NOT run
-dysonsphere's SVG post-processors, so its preview is approximate - ticks aren't
-pixel-aligned, log/superscript labels aren't typeset, and with ``inwardTicks=True`` the
+dysonsphere's SVG post-processors, so its preview is approximate - superscript labels
+aren't typeset, the axisOffset grid gap remains, and with ``inwardTicks=True`` the
 ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
 :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
 the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
@@ -83,7 +96,12 @@ once). Requires IPython (present in any notebook); otherwise raises ``ImportErro
 ## `load`
 
 ```python
-load(path: str, *, raw: bool = False, applyTheme: bool = True)
+load(
+    path: str,
+    *,
+    raw: bool = False,
+    applyTheme: bool = True,
+) -> '_AltairChart | dict'
 ```
 
 Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).

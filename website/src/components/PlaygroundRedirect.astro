@@ -1,0 +1,12 @@
+---
+// Client-side redirect from the retired /playground/ page to Chart Studio. A JS redirect (not a
+// meta refresh or static redirect) so #code= deep links survive - the hash never reaches the
+// server, only the browser can forward it. Lives in an .astro component because MDX mangles
+// inline <script> bodies.
+---
+
+<script is:inline>
+	location.replace(
+		location.pathname.replace(/playground\/?$/, 'studio/') + location.search + location.hash,
+	);
+</script>

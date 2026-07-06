@@ -6,17 +6,25 @@ dissolved 2026-07-06).
 
 ## Layout
 
-- `src/content/docs/` - pages: `index.mdx` (home), `guides/*` (getting-started, theming, palettes,
-  marks, annotations, statistics, nonlinear, saving), `gallery.mdx`, `playground.mdx`, `studio.mdx`
-  (Chart Studio), `reference/*` (generated API).
+- `src/content/docs/` - pages: `index.mdx` (home; uses the DEFAULT docs template, not `splash`, so
+  the sidebar shows on the landing page too), `guides/*` (getting-started, theming, **configuration**
+  [the dysonsphere.toml reference], palettes, marks, annotations, statistics, nonlinear, saving),
+  `extensions/*` (index/overview, biology, authoring), `gallery.mdx`, `studio.mdx` (Chart Studio),
+  `playground.mdx` (a thin **redirect stub** to `/studio/`, kept for old `#code=` deep links),
+  `reference/*` (generated API).
 - `src/components/` - `Chart.astro` (live vega-embed chart from a named spec, light/dark reactive),
   `Example.astro` (registry example: verbatim `examples/<name>.py` source as the code block + its
-  live chart + "Open in playground" deep link), `Playground.astro` (CodeMirror editor over the
-  shared runtime), `Studio.astro` (interactive plotter), `Palettes.astro` (client-side swatch
-  browser from generated JSON), `SiteTitle.astro` (two-toned header wordmark).
+  live chart + "Open in studio" deep link), `Studio.astro` (the **two-mode Chart Studio**: an
+  interactive builder AND an embedded CodeMirror editor - the old Playground was absorbed into it),
+  `PlaygroundRedirect.astro` (client-side `/playground/`→`/studio/` redirect preserving `#code=`),
+  `Sidebar.astro` (Starlight Sidebar override adding a desktop collapse toggle), `Palettes.astro`
+  (client-side swatch browser from generated JSON), `SiteTitle.astro` (two-toned header wordmark).
 - `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
-  `onRuntimeStatus()`). Both the playground and Chart Studio consume it, so the runtime boots once
-  and is reused. Exposes `runChart(code, dark)` and `loadTable(name, text, format)`.
+  `onRuntimeStatus()`). Exposes `runChart(code, dark)` and `loadTable(name, text, format)`.
+  `runChart` injects `darkmode`/`transparent` by **monkeypatching `ds.theme` during exec** (same
+  technique as `gen_examples.py`), so the site render args apply wherever the snippet calls
+  `theme()` and never appear in shown code. `loadTable` also **writes the upload into Pyodide's
+  virtual FS under its real filename**, so the emitted `pl.read_csv("file.csv")` runs verbatim.
 - `src/styles/theme.css` - the neutral-pro skin (greys ramp for chrome, desaturated blues2 accent),
   landing layout, chart zoom, hover-only export menu.
 - `src/generated/` - build inputs generated from the library (`palettes.json`).
@@ -48,16 +56,25 @@ dissolved 2026-07-06).
 
 - **Example registry.** Every guide chart is a file in `examples/`; `Example.astro` shows that file
   verbatim (vite `?raw`) AND renders the spec `gen_examples.py` produced from executing it, so shown
-  code and chart cannot drift. Each example must define `chart` (playground contract). To add one:
-  drop `examples/<name>.py`, run `gen_examples.py`, reference `<Example name="<name>" />`. The
-  generator monkeypatches `ds.theme` to inject `darkmode`/`transparentBackground` - keep those out
-  of the snippet.
+  code and chart cannot drift. Each example must define `chart` (the studio-editor contract). To add
+  one: drop `examples/<name>.py`, run `gen_examples.py`, reference `<Example name="<name>" />`. The
+  generator monkeypatches `ds.theme` to inject `darkmode`/`transparent` - keep those out of the
+  snippet. **xOffset gotcha:** for beeswarm/jitter, encode `alt.XOffset("beeswarm_x:Q")` WITHOUT
+  `scale=None` - the default (band) scale centers the swarm on its tick; `scale=None` shifts it
+  left (was the visible x-axis misalignment on the site).
+- **The volcano example** (`examples/volcano.py`) calls `ds.biology.volcano`, which needs the
+  `dysonsphere-biology` workspace member installed (it is, in the uv venv) - `gen_examples.py`
+  builds its spec fine. Its committed spec renders in the gallery/biology page like any other; only
+  LIVE studio execution of biology code needs `dysonsphere-biology` on PyPI (not yet published).
 - **Shared runtime.** Don't boot Pyodide directly; call `getRuntime()` from `src/lib/runtime.ts`.
-  It's a singleton, so playground + studio share one boot. The Python bootstrap lives in
+  It's a singleton, so both studio modes share one boot. The Python bootstrap lives in
   `PY_BOOTSTRAP`; site render args are applied there, never in shown code.
-- **Chart Studio codegen.** `Studio.astro` builds two versions of each snippet: a *display* one
-  (`pl.read_csv("file.csv")`, copy-runnable) and an *exec* one (`df = __tables__["data"]`, run via
-  the runtime). Uploaded data lives in `_studio_tables`; the shown code never references it.
+- **Chart Studio codegen.** `Studio.astro` has two modes over one chart panel: a **builder** whose
+  emitted snippet reads the upload with `pl.read_csv("file.csv")` (copy-runnable AND executed
+  verbatim, since the upload is in the runtime's virtual FS under that name), and a **code editor**
+  (the absorbed playground) seeded from the builder via "Edit as code". The builder can layer
+  statistics (`add_comparisons`/`add_correlation`), a condition table (`add_multilabel`), and
+  annotations (`add_rule`/`add_shade`).
 - **Chart size.** Charts are authored at dysonsphere's publication defaults (100x100 px, small
   fonts/marks); scale them for the web with CSS `zoom` on `.vega-embed .chart-wrapper` (tune
   `--ds-chart-zoom` in theme.css). Do NOT zoom `.vega-embed` (that scales the export menu too) or
@@ -65,14 +82,20 @@ dissolved 2026-07-06).
   a sibling `<details>`.
 - **Export menu** is hover/focus-only (opacity in theme.css, `!important` since vega-embed injects
   its own styles at runtime). The menu still exports the true, unscaled 100x100 spec.
-- **Dark mode.** Each chart ships light + dark specs (`darkmode=False/True`, `transparentBackground=True`);
+- **Dark mode.** Each chart ships light + dark specs (`darkmode=False/True`, `transparent=True`);
   `Chart.astro` swaps on the site theme toggle (MutationObserver on `data-theme`) and renders with
-  vega-embed `background:'transparent'` so the page provides contrast (no card background).
-- **Playground** builds its spec at runtime, so it injects `alt.theme.options["darkmode"]` /
-  `["transparentBackground"]` just before `to_dict()` to match the site theme - kept OUT of the
-  user's shown snippet.
+  vega-embed `background:'transparent'` so the page provides contrast (no card background). The
+  **Studio** re-renders on the same toggle (both builder and code modes), so its live chart inverts
+  ink too - the previously-broken darkmode.
+- **v3 theme-option rename.** The chart's logical-transparency flag is `transparent` (v3.0.0);
+  the old `transparentBackground` was removed. `runtime.ts` and `gen_examples.py` set `transparent`.
 - **Keep render args out of shown code.** darkmode/transparent/zoom are website concerns; only the
   chart-building code appears in snippets, so they stay copy-runnable.
+- **Wide surfaces / persistent sidebar.** The landing page and the Studio widen the content column
+  via `.main-pane:has(.landing/.st) { --sl-content-width }` in theme.css. The sidebar shows on
+  EVERY page (landing uses the default docs template, not `splash`) and has a desktop collapse
+  toggle (`Sidebar.astro` + `[data-ds-sidebar='collapsed']` in theme.css, persisted in
+  localStorage).
 - **Pages that embed a chart must be `.mdx`** (to `import Chart`). Generated API pages are `.md`,
   NOT `.mdx` - docstrings contain `{}`/`<>` that MDX parses as JSX and chokes on.
 - **Quote frontmatter** `title`/`description` values - a colon in the text breaks the YAML parser.
@@ -131,21 +154,31 @@ background to check them on light/dark. Do this in `/tmp` and delete the scratch
 ## Status (living)
 
 Done: neutral-pro skin (greys-ramp chrome, desaturated blues2 accent, Inter/JetBrains Mono);
-redesigned landing (code+live-chart hero, feature cards); the example registry (`examples/*.py` +
-`Example.astro` + snippet-executing `gen_examples.py`, ~34 examples) with per-example "Open in
-playground" deep links; the shared Pyodide runtime (`src/lib/runtime.ts`); full guide set
-(getting-started, theming, palettes w/ live swatch browser, marks & transforms, annotations,
-statistics, nonlinear, saving & reading); Chart Studio (upload data → live chart + emitted Python);
-griffe API reference; the logo (unchanged), wired into header + homepage.
+redesigned landing (beeswarm + condition-table hero, no legend; feature cards; **sidebar shows on
+the landing page** via the default docs template); the example registry (`examples/*.py` +
+`Example.astro` + snippet-executing `gen_examples.py`, ~44 examples) with per-example "Open in
+studio" deep links; the shared Pyodide runtime; full guide set (getting-started, theming,
+**configuration [dysonsphere.toml]**, palettes w/ live swatch browser, marks & transforms,
+annotations [incl. `add_labels`], statistics, nonlinear, saving & reading [with a real
+embedded-metadata prose example]); **extensions section** (overview + biology [volcano] +
+authoring); the **two-mode Chart Studio** (builder w/ statistics + condition table + annotations,
+AND an embedded code editor - the Playground was absorbed; `/playground/` redirects); griffe API
+reference (v3 modules, multi-line signatures for wide APIs, ext/discovery/volcano pages);
+persistent collapsible sidebar; "References" renamed "Documentation".
 
-Deploy wiring DONE (2026-07-06): pages.yml builds the site (Node-only - generated artifacts are
-committed, generators still run locally, CI regeneration remains a TODO) and deploys
-`website/dist` to the project Pages URL, replacing the old `docs/` gallery artifact; goes live
-when the `website` branch merges to main. The playground/Studio install dysonsphere from PyPI at
-runtime - after any library release with API changes, regenerate examples/specs so shown code
-matches the published package.
+Rework done 2026-07-06 (this pass): regenerated all artifacts against v3.0.0; fixed the x-axis
+tick/xOffset misalignment (dropped `scale=None`); fixed the correlation examples' `_x` axis-title
+leak (explicit base title); Studio darkmode re-render + cursor-alignment fix (fonts.ready
+remeasure); Ember swatch alignment (`not-content`); larger flush inline charts (zoom 3.5). All
+verified in a real headless-chromium sweep (charts render on every new page, darkmode inverts the
+hero ink, sidebar+toggle on landing, deep-link redirect preserves `#code=`).
 
-TODO: molecular-biology gallery (synthetic gene-expression / dose-response / qPCR datasets - user
-wants this next; note the library already ships `nucleotides`/`proteins` palettes); CI runs of the
-three generators. Browser-only checks still pending user confirmation: Studio upload/render,
-runtime shared-boot, playground deep links, light/dark on every new chart.
+Deploy wiring: pages.yml builds Node-only (generated artifacts committed) and deploys
+`website/dist` to Pages when `website` merges to main. Studio installs dysonsphere from PyPI at
+runtime - after any library release with API changes, regenerate examples/specs.
+
+TODO: molecular-biology gallery (synthetic gene-expression / dose-response / qPCR datasets); CI
+runs of the three generators; publish `dysonsphere-biology` to PyPI so LIVE studio execution of
+`ds.biology.*` works (its committed specs already render). NOTE: a parallel `release-v3.1.0`
+reorders `save()` provenance and adds an OS/vl-convert field - after it merges, refresh the
+hardcoded metadata JSON in `guides/saving.mdx` (currently accurate for v3.0.0).

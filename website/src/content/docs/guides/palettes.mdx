@@ -21,9 +21,17 @@ finer control. Feed the result into any Altair `scale=alt.Scale(range=...)`:
 ## Qualitative categories
 
 `ds.categorical(members=n)` returns the CVD-robust qualitative palette (blue / pink / yellow /
-green) sized to your group count:
+green) sized to your group count. The default (`members=1`) is a **flat, tier-major** palette -
+adjacent categories differ in hue, for unrelated groups:
 
 <Example name="palette_categorical" alt="Strip plot colored with the categorical palette" />
+
+For **paired data** (a treatment measured pre/post, two timepoints per condition), pass
+`members=2..10`: the palette becomes **hue-major**, so each consecutive block of `members`
+categories is one hue climbing in lightness. Sort the members adjacent and each group reads as a
+family:
+
+<Example name="palette_grouped" alt="Paired pre/post bars, each drug a single hue climbing in lightness" />
 
 ## Browser
 

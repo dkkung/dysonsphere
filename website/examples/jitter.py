@@ -15,6 +15,6 @@ chart = (
     .encode(
         x=alt.X("Origin:N", title=None),
         y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon"),
-        xOffset=alt.XOffset("jitter_x:Q", scale=None),
+        xOffset=alt.XOffset("jitter_x:Q"),
     )
 )

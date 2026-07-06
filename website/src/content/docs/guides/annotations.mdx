@@ -18,6 +18,11 @@ fixed values, with optional labels. `strokeDash=None` inherits the theme's dashe
 
 <Example name="rule_vertical" alt="Scatter plot with a dashed vertical reference line" />
 
+Pass a list of values (and a matching list of labels) for several lines in one call.
+`labelPosition` chooses which side of the line the label sits on; `labelAlign`, where along it:
+
+<Example name="rule_labeled" alt="Scatter plot with three labeled horizontal reference lines" />
+
 ## Text
 
 `add_text()` places annotations at data coordinates (numbers share the quantitative scale, strings
@@ -33,6 +38,21 @@ x-axis categories; in **positions mode** it shades explicit coordinate ranges.
 <Example name="shade_bands" alt="Bar chart with alternating band shading" />
 
 <Example name="shade_range" alt="Strip plot with a shaded y-range" />
+
+With `axis="both"` and a nested `((x0, x1), (y0, y1))` tuple, it shades a 2D region - an
+intersection rectangle spanning both axes:
+
+<Example name="shade_region" alt="Scatter plot with a shaded 2D region" />
+
+## Point labels
+
+`add_labels()` auto-places non-overlapping text labels with connector lines for a set of points -
+volcano gene labels, rank-order labels, cluster labels. Placement is deterministic (no RNG, so
+figures are reproducible): each label takes the nearest clear spot, and a thin leader line runs
+from each point to its label. Pass the full plotted `df` and let `labels=` select which points to
+name - an integer picks that many spread evenly across the plot, a list names specific rows.
+
+<Example name="labels" alt="Scatter plot with eight auto-placed, connector-linked point labels" />
 
 ## Condition tables
 

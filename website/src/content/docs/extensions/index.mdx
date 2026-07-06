@@ -1,0 +1,70 @@
+---
+title: Extensions
+description: Optional domain packages that add first-class dysonsphere charts - discovery, installation, and the ds.biology namespace.
+sidebar:
+  order: 0
+---
+
+Domain-specific charts live in **extension packages** - separately released distributions that
+plug into dysonsphere without bloating the core. Install one and its charts appear under a
+namespace on `ds`:
+
+```sh
+pip install dysonsphere-biology
+```
+
+```python
+import dysonsphere as ds
+
+ds.biology.volcano(df, geneCol="gene", label=8)
+```
+
+The first extension is [`dysonsphere-biology`](/extensions/biology/) (volcano plots today, more
+genomics charts coming). If you want to build your own, see
+[writing an extension](/extensions/authoring/).
+
+## Why separate packages
+
+Extensions carry heavy, domain-specific dependencies - a biology package may pull in pyBigWig,
+pysam, or bioframe. Bundling those into core would force every user to install a genome-file
+stack they'll never touch. So each extension is its **own distribution** with its own release
+cadence and its own optional dependencies (lazy-imported, with a clear error if missing). Core
+stays small; you install only the domains you work in.
+
+This is a deliberate architecture (internally "Option D"): not extras
+(`dysonsphere[biology]` would couple release cycles and bloat one wheel), not a namespace
+package (which would force core into `dysonsphere.core.*`). Each extension ships a top-level
+package you *can* import directly (`import dysonsphere_biology`), and registers itself under an
+entry-point group so `ds.biology.*` resolves ergonomically.
+
+## Discovering what's installed
+
+```python
+import dysonsphere as ds
+
+ds.extensions()            # -> ['biology']  (sorted names of installed extensions)
+
+vol = ds.load_extension("biology")   # import one by name
+vol.volcano(df, ...)
+
+ds.biology.volcano(df, ...)          # or reach it as an attribute (resolved + cached)
+```
+
+- **`ds.extensions()`** lists the names of every installed extension (each package that
+  registered under the `dysonsphere.extensions` entry-point group).
+- **`ds.load_extension(name)`** imports one by name, raising an `ImportError` that names the
+  installed set if it isn't there.
+- **`ds.<name>`** (e.g. `ds.biology`) resolves the extension lazily on first attribute access
+  and caches it. A missing extension raises the usual `AttributeError`.
+
+All three are the same mechanism - a package `__getattr__` plus entry-point discovery - so an
+extension only has to be `pip install`ed to light up; nothing in core needs editing.
+
+## Extensions build on public surfaces only
+
+Extension charts are first-class: their generated helper data is filtered correctly by
+`ds.read(what="data")`, and their styling tracks the active theme and darkmode. They achieve
+that through **`dysonsphere.ext`** - a small, stable, versioned surface of the core primitives an
+extension needs, so extensions never reach into `_`-private internals. That contract is what
+makes an extension chart behave exactly like a built-in one; the [authoring
+guide](/extensions/authoring/) walks through it.

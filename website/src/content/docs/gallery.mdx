@@ -6,10 +6,10 @@ description: Live, interactive charts built with dysonsphere on the standard veg
 import Example from '../../components/Example.astro';
 
 Every chart below is **live and interactive** - hover for tooltips, use the actions menu
-(top-right) to export SVG, PNG, or the Vega-Lite JSON, and follow **Open in playground** to edit the
+(top-right) to export SVG, PNG, or the Vega-Lite JSON, and follow **Open in studio** to edit the
 code. All are built with dysonsphere on the standard
-[vega-datasets](https://github.com/vega/vega-datasets). A dedicated molecular-biology gallery is on
-the way.
+[vega-datasets](https://github.com/vega/vega-datasets), except the volcano, which comes from the
+[biology extension](/extensions/biology/).
 
 ## Distributions
 
@@ -27,11 +27,13 @@ the way.
 
 <Example name="heatmap_palette" alt="2D histogram heatmap with the lagoon palette" chartOnly />
 
-<Example name="corner_radius" alt="Bar chart with rounded bar tips" chartOnly />
+<Example name="palette_grouped" alt="Paired pre/post bars colored by the grouped categorical palette" chartOnly />
 
 ## Annotation
 
 <Example name="shade_bands" alt="Bar chart with alternating band shading" chartOnly />
+
+<Example name="labels" alt="Scatter with auto-placed, connector-linked point labels" chartOnly />
 
 <Example name="multilabel_sample_size" alt="Strip plot with sample size and category-label rows" chartOnly />
 
@@ -40,3 +42,7 @@ the way.
 <Example name="log" alt="Log-scale line chart of stock prices with minor ticks" chartOnly />
 
 <Example name="nonlinear_pow" alt="Square-root axis scatter with evenly spaced minor ticks" chartOnly />
+
+## Extensions
+
+<Example name="volcano" alt="Volcano plot of differential expression with labeled top genes" chartOnly />

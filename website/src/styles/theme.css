@@ -130,6 +130,18 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   font-weight: 550;
 }
 
+/* Collapsible sidebar (toggle in src/components/Sidebar.astro). Zeroing the width var is enough
+   to reflow everything - Starlight derives the content inset and header grid from it; the pane
+   itself is hidden with visibility (not display) so the fixed toggle inside can un-hide itself. */
+@media (min-width: 50rem) {
+  [data-ds-sidebar='collapsed'] {
+    --sl-sidebar-width: 0rem;
+  }
+  [data-ds-sidebar='collapsed'] #starlight__sidebar {
+    visibility: hidden;
+  }
+}
+
 /* Inline code: quiet chip. */
 .sl-markdown-content code:not(:where(.not-content *, pre *)) {
   background: var(--sl-color-gray-6);
@@ -199,7 +211,7 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
    every proportion is preserved and the theme defaults are untouched. Tune the one value below.
    (The chart's vega-embed export menu still exports the true, unscaled 100x100 spec.) */
 :root {
-  --ds-chart-zoom: 3;
+  --ds-chart-zoom: 3.5;
 }
 /* vega-embed renders the chart SVG into a `.chart-wrapper` div, with its export menu as a
    sibling. Zoom only the wrapper so the chart scales but the menu stays normal size. */
@@ -220,6 +232,14 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
 }
 
 /* ------------------------------------------------------------------ landing */
+
+/* Wide surfaces: the landing demo and the Chart Studio want more than the reading-measure
+   content column. Starlight derives every content panel's max-width from this variable, so
+   widening it on the pane that contains these components is enough. */
+.main-pane:has(.landing),
+.main-pane:has(.st) {
+  --sl-content-width: 72rem;
+}
 
 .landing {
   display: flex;

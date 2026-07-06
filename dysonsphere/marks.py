@@ -121,6 +121,11 @@ def mark_violin(
     Returns a ``LayerChart`` that can be saved directly or composed with other
     layers (e.g. ``ds.add_comparisons``).
 
+    The returned ``LayerChart`` is safe to place in ``alt.hconcat()`` alongside
+    ``mark_strip()`` or any other chart - the violin uses absolute ``x:Q``
+    coordinates internally rather than ``xOffset``, so Vega-Lite's xOffset
+    scale resolution never squishes the violin shape.
+
     Parameters
     ----------
     df:
@@ -164,11 +169,6 @@ def mark_violin(
         Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
     xTitle:
         X-axis title. Defaults to ``xCol``. Pass ``None`` to suppress.
-
-    The returned ``LayerChart`` is safe to place in ``alt.hconcat()`` alongside
-    ``mark_strip()`` or any other chart — the violin uses absolute ``x:Q``
-    coordinates internally rather than ``xOffset``, so Vega-Lite's xOffset
-    scale resolution never squishes the violin shape.
 
     Examples
     --------

@@ -6,9 +6,12 @@
 //
 // The Python side exposes two entry points:
 //   _run_chart(code, dark)      - exec a user snippet that defines `chart`, return the spec JSON.
-//   _load_table(name, text)     - parse uploaded CSV/TSV/JSON text into a named polars DataFrame,
-//                                 return its column schema as JSON (used by Chart Studio).
-// Site render args (darkmode / transparentBackground) are applied just before serializing,
+//   _load_table(name, text)     - write an uploaded CSV/TSV/JSON into the runtime's virtual
+//                                 filesystem under its real filename AND parse it, returning the
+//                                 column schema as JSON (used by Chart Studio). Because the file
+//                                 exists in the FS, the emitted `pl.read_csv("file.csv")` snippet
+//                                 runs verbatim - shown code and executed code are the same.
+// Site render args (darkmode / transparent) are applied just before serializing,
 // never shown in user code.
 
 const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v314.0.2/full/';
@@ -52,19 +55,41 @@ _studio_tables = {}
 def _run_chart(code, dark):
     # __tables__ gives Chart Studio's internal snippets access to uploaded data; the code the
     # user SEES reads their file from disk instead (pl.read_csv(...)), which is the honest form.
-    ns = {"__tables__": _studio_tables}
-    exec(code, ns)
+    #
+    # Match the site theme: invert ink for dark and draw transparent so the page provides
+    # contrast. Injected by monkeypatching ds.theme during exec (the same technique as
+    # scripts/gen_examples.py) so the args apply no matter where the snippet calls theme() -
+    # never part of the user's shown code.
+    import functools
+    import dysonsphere as ds
+    real_theme = ds.theme
+
+    @functools.wraps(real_theme)
+    def patched_theme(*args, **kwargs):
+        kwargs["darkmode"] = dark
+        kwargs["transparent"] = True
+        return real_theme(*args, **kwargs)
+
+    patched_theme()  # baseline, in case the snippet never calls ds.theme()
+    ds.theme = patched_theme
+    try:
+        ns = {"__tables__": _studio_tables}
+        exec(code, ns)
+    finally:
+        ds.theme = real_theme
     ch = ns.get("chart")
     if ch is None:
         raise RuntimeError("Define a variable named 'chart' (a dysonsphere/Altair chart).")
-    # Match the site theme: invert ink for dark and draw transparent so the page provides
-    # contrast. Applied just before serializing - never part of the user's snippet.
-    alt.theme.options["darkmode"] = dark
-    alt.theme.options["transparentBackground"] = True
-    return json.dumps(ch.to_dict())
+    spec = ch.to_dict()
+    ds.clear_stats()  # statistics records are per-run; never leak across renders
+    return json.dumps(spec)
 
 def _load_table(name, text, format):
     import io
+    from pathlib import Path
+    # The file lands in the virtual FS under its real name, so the emitted
+    # pl.read_csv(name) / pl.read_json(name) line runs exactly as shown.
+    Path(name).write_text(text, encoding="utf-8")
     if format == "json":
         df = pl.read_json(text.encode())
     else:
@@ -73,7 +98,8 @@ def _load_table(name, text, format):
     schema = [
         {"name": c, "dtype": str(t), "kind": (
             "quantitative" if t.is_numeric() else
-            "temporal" if t.is_temporal() else "nominal")}
+            "temporal" if t.is_temporal() else "nominal"),
+         "nUnique": df[c].n_unique()}
         for c, t in df.schema.items()
     ]
     return json.dumps({"rows": df.height, "columns": schema})

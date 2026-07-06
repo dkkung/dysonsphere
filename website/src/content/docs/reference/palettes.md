@@ -10,7 +10,7 @@ sidebar:
 ## `categorical`
 
 ```python
-categorical(members: int = 1)
+categorical(members: int = 1) -> list[str]
 ```
 
 Qualitative color palette built from four base hues (blue, pink, yellow, green).
@@ -21,7 +21,7 @@ regenerates this palette automatically.
 
 **Parameters**
 
-- **`members`** (`int`) - Colors per associated group, ``1``-``4``. - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major** (cycle the four hues at the light tier, then mid, then dark) so adjacent categories differ in hue. Returns 12 colors. This is the palette wired to ``config.range.category``. - ``2``/``3``/``4``: a **grouped** palette for paired data (``A1``/``A2`` …), ordered **hue-major** - each consecutive block of ``members`` categories is one hue climbing through ``members`` lightness levels. Returns ``4 * members`` colors. Sort your categories so a group's members are adjacent, then pass this as the color scale range.
+- **`members`** (`int`) - Colors per associated group. - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major** (cycle the four hues at the light tier, then mid, then dark) so adjacent categories differ in hue. Returns 12 colors. This is the palette wired to ``config.range.category``. - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered **hue-major** - each consecutive block of ``members`` categories is one hue climbing through ``members`` lightness levels. Returns ``4 * members`` colors. Sort your categories so a group's members are adjacent, then pass this as the color scale range. Up to ``4`` members the lightness stops are the classic tier stops (``1, 4, 7, 10`` - three ramp steps apart, matching the flat palette's tiers); beyond ``4`` the stops spread evenly across the usable ramp (``1``-``10``), which **shrinks the within-hue contrast** with every extra member - fine at normal mark sizes for ``5``-``6``, increasingly ambiguous past that, and capped at ``10`` where distinct stops run out. If your "members" are actually ordinal (a dose series, timepoints), a sequential slice per group - ``palette("blues", n=5)`` - usually communicates that better than a categorical palette pretending they're unordered.
 
 **Examples**
 
@@ -41,7 +41,14 @@ Paired data, members adjacent within each group::
 ## `palette`
 
 ```python
-palette(name: str, n: int | None = None, start: int = 0, end: int | None = None, step: int = 1, reverse: bool = False)
+palette(
+    name: str,
+    n: int | None = None,
+    start: int = 0,
+    end: int | None = None,
+    step: int = 1,
+    reverse: bool = False,
+) -> list[str]
 ```
 
 Sample colors from a named palette with control over start, stop, and spacing.
@@ -86,7 +93,11 @@ Four evenly-spaced colors, reversed:
 ## `export_swatches`
 
 ```python
-export_swatches(directory: str | Path | None = None, palettes: list[str] | None = None, name: str = 'dysonsphere')
+export_swatches(
+    directory: str | Path | None = None,
+    palettes: list[str] | None = None,
+    name: str = 'dysonsphere',
+) -> None
 ```
 
 Write a JSX script and an ASE swatch library for Adobe Illustrator to *directory*

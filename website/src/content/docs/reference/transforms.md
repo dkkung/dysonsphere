@@ -2,66 +2,27 @@
 title: "Transforms"
 description: "Data transforms for jittered and beeswarm x-offsets."
 sidebar:
-  order: 7
+  order: 9
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
 
-## `beeswarm_offsets`
-
-```python
-beeswarm_offsets(yVals, heightPx: int | None = None, spread: float | None = None)
-```
-
-Compute x offsets (pixels) for a beeswarm plot using collision avoidance.
-
-**Parameters**
-
-- **`yVals`** - Array of y values for one group.
-- **`heightPx`** (`int | None`) - Chart height in pixels. Should match ``.properties(height=...)``.
-- **`spread`** (`float | None`) - Collision radius in pixels. Points are placed so no two centres are closer than ``2 * spread``. Defaults to 2.0.
-- **`step`** - x step size (px) between candidate positions. Defaults to ``spread`` so the candidate grid aligns with the point diameter.
-
-**Returns**
-
-- `numpy.ndarray` - x offsets in pixels, one per input value, in the same order.
-
-**Examples**
-
-```python
-Compute offsets per group with Polars then plot in Altair::
-
-    df = (
-        df
-        .with_row_index("__idx")
-        .group_by(["group", "time"])
-        .map_groups(lambda g: g.with_columns(
-            pl.Series("beeswarm_x", ds.beeswarm_offsets(
-                g["value"].to_numpy(),
-                heightPx=200,
-                spread=2.0,
-            ))
-        ))
-        .sort("__idx")
-        .drop("__idx")
-    )
-
-    alt.Chart(df).mark_circle().encode(
-        x=alt.X("time:O"),
-        y=alt.Y("value:Q"),
-        xOffset=alt.XOffset("beeswarm_x:Q"),
-    )
-```
-
 ## `add_beeswarm`
 
 ```python
-add_beeswarm(df: pl.DataFrame | Any, yCol: str, groupBy: list[str], heightPx: int | None = None, spread: float | None = None, outCol: str = 'beeswarm_x')
+add_beeswarm(
+    df: pl.DataFrame | Any,
+    yCol: str,
+    groupBy: list[str],
+    heightPx: int | None = None,
+    spread: float | None = None,
+    outCol: str = 'beeswarm_x',
+) -> pl.DataFrame
 ```
 
 Add a beeswarm x-offset column to a Polars DataFrame, computed per group.
 
-A convenience wrapper around :func:`beeswarm_offsets` that handles the
+A convenience wrapper around :func:`_beeswarm_offsets` that handles the
 ``with_row_index`` / ``map_groups`` / ``sort`` / ``drop`` pattern.
 
 ``spread`` is the collision radius in pixels — set it to roughly half the
@@ -98,7 +59,12 @@ width of the beeswarm grows with n.
 ## `add_jitter`
 
 ```python
-add_jitter(df: pl.DataFrame | Any, spread: float | None = None, outCol: str = 'jitter_x', seed: int | None = 20220701)
+add_jitter(
+    df: pl.DataFrame | Any,
+    spread: float | None = None,
+    outCol: str = 'jitter_x',
+    seed: int | None = 20220701,
+) -> pl.DataFrame
 ```
 
 Add a column of random Gaussian x-offsets to a Polars DataFrame.

@@ -1,13 +1,20 @@
 ---
 title: Chart Studio
-description: Plot your own data with dysonsphere theming - no install - and copy the Python that makes it.
+description: Plot your own data with dysonsphere theming - no install - and edit the Python that makes it, live in your browser.
+tableOfContents: false
 ---
 
 import Studio from '../../components/Studio.astro';
 
-Upload your own data (CSV, TSV, or JSON), choose what to plot, tune the theme, and get a live
-dysonsphere chart plus the exact Python that reproduces it. Everything runs in your browser via the
-same WebAssembly runtime as the [playground](/playground/) - your data never leaves the page.
+Upload your own data (CSV, TSV, or JSON), choose what to plot, layer on statistics, condition
+tables, and annotations, tune the theme - and get a live dysonsphere chart plus the exact Python
+that reproduces it. Everything runs in your browser via WebAssembly (Pyodide); **your data never
+leaves the page**.
+
+When the builder's controls run out, press **Edit as code**: the generated snippet opens in a
+live editor where you can keep composing with the full library - the same runtime executes
+whatever you write, and your uploaded file stays available under its own filename. Every example
+in the guides has an *Open in studio* link that lands here too.
 
 The controls render instantly; the chart appears once the Python runtime finishes loading (a few
 seconds on first visit, then cached). Start from the bundled sample, or drop in a file of your own.
@@ -15,7 +22,8 @@ seconds on first visit, then cached). Start from the bundled sample, or drop in 
 <Studio />
 
 :::note
-Copy the Python and it runs unchanged in your notebook - it reads your file with
-`pl.read_csv(...)`. For richer charts (statistical brackets, condition tables, reference lines),
-paste it into the [playground](/playground/) and keep composing with `+`.
+The copied Python runs unchanged in your notebook - it reads your file with `pl.read_csv(...)`,
+computes statistics with scipy, and draws everything through Altair. See the
+[statistical annotations guide](/guides/statistics/) for what the tests report, and
+[saving & reading](/guides/saving/) for exporting figures with embedded provenance.
 :::

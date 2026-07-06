@@ -1,0 +1,247 @@
+---
+title: "Configuration: dysonsphere.toml"
+description: "Persistent theme configuration - config file locations, merge order, named styles, custom palettes, and the full key reference."
+---
+
+Everything `ds.theme()` accepts as a keyword can also live in a **`dysonsphere.toml`** config
+file, so a project (or your whole machine) keeps its look without repeating arguments in every
+notebook. This page is the complete reference for the file: where it lives, how values merge,
+named styles, custom palettes, and every valid key.
+
+## Scaffold one
+
+```python
+import dysonsphere as ds
+
+ds.create_config()              # writes ./dysonsphere.toml
+ds.create_config(persist=True)  # writes to your user config dir instead
+```
+
+`create_config()` writes a commented template with the built-in style presets at their defaults
+and an empty custom-style placeholder; it never overwrites an existing file. `persist=True`
+targets the platform user config directory - `~/.config/dysonsphere/` on macOS and Linux
+(respecting `$XDG_CONFIG_HOME`), `%APPDATA%/dysonsphere/` on Windows - so it applies across all
+your projects.
+
+The scaffold looks like this:
+
+```toml
+# dysonsphere.toml
+# Theme configuration for dysonsphere.
+# Load a style with ds.theme(style="name").
+
+[default]
+
+[notebook]
+chartWidth = 900
+chartHeight = 900
+darkmode = true
+fontSize = 18
+transparent = true
+
+[my_style]  # Rename to your desired style name
+
+[palettes]
+# my_palette = ["#DFE9F7", "#C6D9F1", "#ADC8EC", ...]
+```
+
+## Where config files live
+
+`ds.theme()` looks for config files in two places, in ascending priority:
+
+1. **User-wide:** `$XDG_CONFIG_HOME/dysonsphere/dysonsphere.toml` (default
+   `~/.config/dysonsphere/dysonsphere.toml`; `%APPDATA%\dysonsphere\dysonsphere.toml` on
+   Windows) - your personal defaults, applied everywhere.
+2. **Project:** the first `dysonsphere.toml` found by walking **up from the current working
+   directory** to the filesystem root - the same discovery rule as `.git`. Keep it next to your
+   `pyproject.toml` and every notebook or script inside the project sees it.
+
+When both exist, the project file's values win over the user-wide file's, key by key.
+
+## Merge order
+
+Values are merged in ascending priority - later sources override earlier ones, **key by key**:
+
+1. dysonsphere's built-in defaults
+2. `[default]` from the config file(s)
+3. the built-in preset named by `style=` (e.g. `notebook`)
+4. the `[style]` section of the same name from the config file(s)
+5. explicit `ds.theme(...)` keyword arguments
+
+So a call decides last, a named style beats `[default]`, and the config file beats the built-ins.
+A worked example:
+
+```toml
+[default]
+palette = "greens"
+fontSize = 8
+
+[poster]
+chartWidth = 300
+chartHeight = 220
+fontSize = 14
+```
+
+```python
+ds.theme()                          # greens palette, 8 pt type
+ds.theme(style="poster")            # greens palette, 14 pt type, 300 x 220
+ds.theme(style="poster", fontSize=16)  # ... but 16 pt - the kwarg wins
+```
+
+Only the keys present in a section are applied; everything else keeps its default. Calling
+`ds.theme()` again re-reads the config files and replaces the active theme entirely.
+
+## Named styles
+
+Any table in the file other than `[default]` and `[palettes]` is a **style**, selected with
+`ds.theme(style="name")`. Styles are how you keep several looks on tap - a print figure, a
+poster, a slide deck:
+
+```toml
+[print]
+chartWidth = 100        # publication scale (the default)
+chartHeight = 100
+
+[slides]
+chartWidth = 260
+chartHeight = 180
+fontSize = 12
+markSize = 25
+```
+
+The built-in `"notebook"` preset works with no config file at all; a `[notebook]` section in your
+config customises it (your keys override the preset's, per the merge order). Asking for a style
+that is neither built-in nor in any config file raises a `ValueError` naming it.
+
+## Custom palettes
+
+The `[palettes]` table registers custom palettes alongside the built-in catalogue - each value a
+non-empty list of hex strings. They become available everywhere a palette name works:
+`ds.palette("brand")`, `ds.theme(palette="brand")`, or any per-type key
+(`heatmapPalette = "brand"`).
+
+```toml
+[palettes]
+brand = ["#0B3954", "#1B5F7E", "#2E86AB", "#63A8C7", "#A8CFE0", "#E8F1F5"]
+```
+
+Sequential dysonsphere palettes carry 12 stops and diverging ones 13 (a neutral midpoint), but
+custom palettes may be any length. Two notes:
+
+- Custom palettes are re-registered on each `ds.theme()` call and vanish cleanly when the config
+  file does - `ds.colors` is restored to the built-in catalogue first.
+- Overriding a built-in base hue (say `blues`) does **not** ripple into the derived
+  `categorical` palette, which is fixed at import time. Override `categorical` itself - or set
+  `categoryPalette` - to recolor categories.
+
+## Validation
+
+The file is checked eagerly on every `ds.theme()` call: an unknown key in any section raises a
+`ValueError` immediately, naming the key. Typos never silently do nothing.
+
+## Key reference
+
+Every key below is valid in `[default]`, in any style section, and as a `ds.theme()` keyword.
+
+### Canvas & mode
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `chartWidth` | `100` | Plot area width in px (publication scale; scale up for screens) |
+| `chartHeight` | `100` | Plot area height in px |
+| `darkmode` | `false` | Invert ink (axes, text, medians) to white for dark backgrounds |
+| `transparent` | `false` | No chart background fill (notebook/web embedding) |
+| `chartFill` | auto | Chart background when not transparent; auto = white, black in darkmode |
+| `viewFill` | unset | Plot-area (data rect) fill; setting it implies a closed frame |
+
+### Typography
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `font` | Helvetica Neue | Font family for all chart text |
+| `fontSize` | `7` | Primary size (axis titles, labels, annotations) in pt |
+| `secondaryFontSize` | derived | Auxiliary tier, `fontSize - 1` (floored at `smallestFontSize`) |
+| `smallestFontSize` | `5` | Floor for the secondary tier; `true` shrinks the whole plot to the floor |
+| `fontStyle` | `normal` | CSS font style (`italic`, ...) |
+| `fontWeight` | `400` | CSS font weight |
+
+### Axes & frame
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `axisOffset` | `tickSize * 1.5` | Detached-axis gap in px (Prism style); `0` reattaches |
+| `axisWidth` | `0.25` | Stroke width of axis lines, ticks, and grid |
+| `closed` | auto | Draw all four spines (a boxed frame); auto = on with `inwardTicks`/`viewFill` |
+| `inwardTicks` | `false` | Point ticks into the plot (physics style); implies `closed` |
+| `ticks` | `true` | Master tick visibility |
+| `tickSize` | `3` | Tick length in px |
+| `xAxis` / `yAxis` | `true` | Hide an axis's domain line and ticks (labels stay) |
+| `xDomain` / `yDomain` | `true` | Domain line visibility per axis |
+| `xTicks` / `yTicks` | `true` | Tick visibility per axis |
+| `xLabels` / `yLabels` | `true` | Label visibility per axis (independent of `xAxis`/`yAxis`) |
+| `xLabelAngle` / `yLabelAngle` | `0` | Label rotation in degrees; alignment derived from the sign |
+
+### Grid
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `grid` | `false` | Draw grid lines |
+| `gridColor` | light grey | Grid line color |
+| `dashedGrid` | `false` | Dash the grid (uses `dashedWidth`) |
+
+### Marks
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `markSize` | derived | Master mark size; most mark-type sizes derive from it |
+| `markFill` | light grey | Default fill (boxplot boxes via the bar config, bars, ...) |
+| `markFillOpacity` | `1` | Fill opacity |
+| `markStroke` | `black` | Mark outline color |
+| `markStrokeOpacity` | `1` | Outline opacity |
+| `markStrokeWidth` | `axisWidth` | Outline width; error bar and boxplot strokes derive from it |
+| `markMedianFill` | `black` | Boxplot median bar fill |
+| `markMedianStroke` | `black` | Boxplot median outline color (when a stroke is enabled) |
+| `boxplotOutliers` | `false` | Show boxplot outlier glyphs; `true` sizes them from `markSize` |
+| `cornerRadius` | `false` | Round bar tips/rects/arcs; `true` derives px from chart size |
+| `strokeCap` | `round` | Line cap for axis/tick/grid/rule strokes |
+| `bandPadding` | `0.1` | Band-scale padding (category spacing) |
+
+### Dashes
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `dashedRule` | `true` | Dash `mark_rule` (reference lines) |
+| `dashedLine` | `false` | Dash `mark_line` |
+| `dashedWidth` | `[2, 2]` | The dash pattern used wherever dashing is on |
+
+### Legend
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `legend` | `true` | Master legend visibility |
+| `legendOffset` | `tickSize * 1.5` | Gap between legend and plot |
+| `legendStroke` | `false` | Outline legend symbols at `axisWidth` |
+
+### Color
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `palette` | categorical | Master palette: name or list; overrides every per-type key |
+| `categoryPalette` | derived | Categorical (nominal) scale range |
+| `divergingPalette` | built-in | Diverging scale scheme |
+| `heatmapPalette` | built-in | Heatmap scale scheme |
+| `ordinalPalette` | `greys` | Ordinal scale scheme |
+| `rampPalette` | built-in | Sequential ramp scheme |
+
+### Statistics & saving
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `sigFigs` | `3` | Significant figures for on-plot statistical labels |
+| `saveFormat` | `["svg", "json"]` | Default `ds.save()` formats |
+| `saveBackground` | `"light"` | Default `ds.save()` background variant(s) (`light`, `dark`, or both) |
+
+:::tip
+`dashedWidth`, `axisOffset`, `secondaryFontSize`, and `markSize` show as *derived* because their
+defaults are computed from other keys at `theme()` time - set them explicitly to pin a value.
+:::

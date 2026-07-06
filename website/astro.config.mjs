@@ -42,7 +42,10 @@ export default defineConfig({
 			title: 'dysonsphere',
 			favicon: '/favicon.svg',
 			logo: { src: './src/assets/dysonsphere_logo.svg', replacesTitle: false },
-			components: { SiteTitle: './src/components/SiteTitle.astro' },
+			components: {
+				SiteTitle: './src/components/SiteTitle.astro',
+				Sidebar: './src/components/Sidebar.astro',
+			},
 			description:
 				'An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/dkkung/dysonsphere' }],
@@ -66,6 +69,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Getting started', slug: 'guides/getting-started' },
 						{ label: 'Theming', slug: 'guides/theming' },
+						{ label: 'Configuration (dysonsphere.toml)', slug: 'guides/configuration' },
 						{ label: 'Palettes', slug: 'guides/palettes' },
 						{ label: 'Marks & transforms', slug: 'guides/marks' },
 						{ label: 'Annotations', slug: 'guides/annotations' },
@@ -75,15 +79,22 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Extensions',
+					items: [
+						{ label: 'Overview', slug: 'extensions' },
+						{ label: 'biology', slug: 'extensions/biology' },
+						{ label: 'Writing an extension', slug: 'extensions/authoring' },
+					],
+				},
+				{
 					label: 'Interactive',
 					items: [
 						{ label: 'Gallery', slug: 'gallery' },
-						{ label: 'Playground', slug: 'playground' },
 						{ label: 'Chart Studio', slug: 'studio' },
 					],
 				},
 				{
-					label: 'Reference',
+					label: 'Documentation',
 					items: [{ autogenerate: { directory: 'reference' } }],
 				},
 			],
