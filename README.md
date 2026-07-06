@@ -15,7 +15,7 @@
     - Correlations with fit lines.
 - Multilabels that allow for rich annotations of categorical labels, *e.g.* multi-condition axes and sample sizes.
 - Self-documenting exports for reproducible figures:
-    - One `ds.save()` writes corrected SVG, print-ready PNG, interactive HTML, and Vega-Lite JSON in light and dark variants, each file embedding its provenance: environment versions and sha256 checksums identifying both the **Vega-Lite spec and the underlying data**.
+    - `ds.save()` writes a corrected SVG, print-ready PNG, interactive HTML, and/or Vega-Lite JSON, while also embedding the output file with its provenance: environment versions and sha256 checksums identifying both the **Vega-Lite spec and the underlying data**.
     - `ds.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
     - `ds.load()` rebuilds the chart from its JSON.
 
@@ -30,7 +30,7 @@ pip install dysonsphere
 # with pip through uv
 uv pip install dysonsphere
 
-# add to uv as a dependency
+# add as a project dependency
 uv add dysonsphere
 ```
 
