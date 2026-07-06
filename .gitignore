@@ -57,6 +57,7 @@ pipenv
 *.html
 !docs/*.png
 !docs/*.html
+!docs/logo.svg
 
 # Astro docs site (website/): keep its source JSON (package.json, tsconfig, etc.) and SVG/PNG
 # assets (favicon, logos) despite the repo-wide *.json/*.svg/*.png ignores above. node_modules/dist
