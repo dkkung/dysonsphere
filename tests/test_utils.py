@@ -3,7 +3,37 @@ import math
 import polars as pl
 import pytest
 
-from dysonsphere.utils import _repel_labels, _sample_spread, band_geometry, count_n, ensure_polars, frame_checksum
+from dysonsphere.utils import (
+    _nice_domain,
+    _repel_labels,
+    _sample_spread,
+    band_geometry,
+    count_n,
+    ensure_polars,
+    frame_checksum,
+)
+
+
+class TestNiceDomain:
+    def test_rounds_outward_to_tick_multiples(self):
+        assert _nice_domain(1.13, 3.42) == (1.0, 3.6)
+        assert _nice_domain(4.2, 8.9) == (4.0, 9.0)
+
+    def test_already_nice_unchanged(self):
+        assert _nice_domain(1.0, 3.0) == (1.0, 3.0)
+        assert _nice_domain(0.0, 10.0) == (0.0, 10.0)
+
+    def test_never_shrinks(self):
+        lo, hi = _nice_domain(-2.37, 5.81)
+        assert lo <= -2.37 and hi >= 5.81
+
+    def test_negative_span(self):
+        assert _nice_domain(-8.9, -4.2) == (-9.0, -4.0)
+
+    def test_degenerate_span_unchanged(self):
+        # zero-width (or inverted) extents pass through - the caller's `span or 1.0` handles them
+        assert _nice_domain(5.0, 5.0) == (5.0, 5.0)
+        assert _nice_domain(0.0, 0.0) == (0.0, 0.0)
 
 
 class TestSampleSpread:

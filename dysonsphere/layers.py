@@ -600,17 +600,18 @@ def add_labels(
     least-overlapping positions. Returns a layer to compose onto the base chart with ``+``.
 
     Label placement is a pixel-space problem solved before Vega renders, so the connectors align
-    with the points only if the shared scale matches. ``add_labels`` handles that itself: an
-    invisible mark pins the x/y scale to the data extent (``nice=False``, ``zero=False``), so you do
-    NOT need to touch the base chart's scale - just compose ``base + ds.add_labels(df, ...)``. (This
-    tightens the axes to the data extent, which is required for alignment.)
+    with the points only if the shared scale matches. ``add_labels`` handles that itself: the label
+    layers pin the x/y scale to the data extent rounded outward to nice tick bounds (``nice=False``,
+    ``zero=False``, explicit nice domain), so you do NOT need to touch the base chart's scale - just
+    compose ``base + ds.add_labels(df, ...)``. (This retightens the axes around the data - with
+    round bounds, but without Vega's default ``zero`` - which is required for alignment.)
 
     Parameters
     ----------
     df:
         The plotted data (polars or pandas) - pass the same frame as the base chart. The axis
         domain is inferred from its full extent, so the connectors line up without you pinning the
-        base scale (an invisible mark pins it; see below).
+        base scale (the label layers pin it themselves; see below).
     xCol, yCol:
         Quantitative coordinate columns (must match the base chart's x / y encodings).
     labelCol:
@@ -623,11 +624,13 @@ def add_labels(
         from all of ``df``, so selecting a subset never clips the axes.
     xDomain, yDomain:
         ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``).
-        Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``** (so filtering ``df`` just
-        moves the axes with it - always inferred). Pass explicitly only when you want the axes to
-        span a range the passed ``df`` does not cover - i.e. the base chart plots more than you hand
-        ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose
-        extent is tighter than the scatter).
+        Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``, rounded outward to nice
+        tick bounds** (d3-style nice, so the axes end on round numbers; filtering ``df`` just moves
+        the axes with it - always inferred). An explicit value is used exactly as given (no
+        rounding). Pass explicitly only when you want the axes to span a range the passed ``df``
+        does not cover - i.e. the base chart plots more than you hand ``add_labels`` (a deliberate
+        subset, or **derived positions** like cluster centroids whose extent is tighter than the
+        scatter).
     fontSize:
         Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
     color:
@@ -643,19 +646,27 @@ def add_labels(
         Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth``
         pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
     connectorGap:
-        Pixel gap left at each end of the connector so it points at the marker / label rather than
-        touching them. ``None`` (default) -> the theme's ``mark_point`` edge radius
-        (``sqrt(markSize/2/pi) + markStrokeWidth``), which clears the default point mark (and the
-        smaller ``mark_circle``) automatically; ``0`` -> no gap; a float -> that many pixels
-        (set this for unusually large or heavily stroked markers, which the gap can't measure since
-        the base chart isn't visible here). Automatically shrinks for very short connectors.
+        Pixel gap left at the MARKER end of the connector so it points at the dot rather than
+        piercing it. ``None`` (default) -> the theme's ``mark_point`` edge radius plus two
+        connector stroke widths of whitespace
+        (``sqrt(markSize/2/pi) + markStrokeWidth + 2*axisWidth``), which clears the default point
+        mark (and the smaller ``mark_circle``) with a visible sliver of daylight at any theme
+        scale; ``0`` -> no marker gap; a float -> that many pixels (set this for unusually large
+        or heavily stroked markers, which the gap can't measure since the base chart isn't visible
+        here). The TEXT end always keeps just the whitespace term (``2*axisWidth`` - there is no
+        marker to clear there, so a symmetric gap would open a hole between line and label). Both
+        gaps are uniform - they never shrink, so every drawn connector sits the same distance off
+        its dot and its label; a connector too short to keep the full gaps is dropped instead (see
+        ``alwaysShowConnectors``).
     alwaysShowConnectors:
-        By default (``False``) a connector is omitted only when it is a true on-mark stub - shorter
-        than twice the end gap (``connectorGap``), i.e. no visible line could remain - so the stub is
-        just noise and the adjacent label is unambiguous. This threshold is font-independent (tied to
-        the marker gap), so changing the label font never drops real leaders. ``True`` draws every one.
+        By default (``False``) a connector is omitted when the full end gaps would leave less than
+        four connector stroke widths of visible line (length < ``connectorGap + 6*axisWidth``,
+        i.e. < 1 px of line at the default theme) - the stub is just noise and the adjacent label
+        is unambiguous. This threshold is font-independent (tied to the marker gap), so changing
+        the label font never drops real leaders. ``True`` draws every one (sub-threshold stubs
+        shrink their gaps to fit).
     """
-    from .utils import _repel_labels, _sample_spread, ensure_polars
+    from .utils import _nice_domain, _repel_labels, _sample_spread, ensure_polars
 
     data = ensure_polars(df)
     # Domain spans the FULL df (so labeling a subset via labels= never clips the axes); the label
@@ -698,8 +709,13 @@ def add_labels(
     if n == 0:
         return cast(alt.LayerChart, alt.layer(alt.Chart(_internal_data([{}])).mark_point(opacity=0)))
 
-    x0, x1 = xDomain if xDomain is not None else (min(all_x), max(all_x))
-    y0, y1 = yDomain if yDomain is not None else (min(all_y), max(all_y))
+    # Default domain: the full df's extent rounded OUTWARD to nice tick multiples (d3's nice(), via
+    # _nice_domain) - so the pinned axes read like Vega's own nice:true (round bounds, edge markers
+    # clear of the border) even though the scale spec says nice=False (the bounds ARE nice; pinning
+    # makes our rounding self-fulfilling, no need to match Vega bit-for-bit). An explicit
+    # xDomain/yDomain is used exactly as given (no nicing - the caller asked for those bounds).
+    x0, x1 = xDomain if xDomain is not None else _nice_domain(min(all_x), max(all_x))
+    y0, y1 = yDomain if yDomain is not None else _nice_domain(min(all_y), max(all_y))
     xspan = x1 - x0 or 1.0
     yspan = y1 - y0 or 1.0
 
@@ -707,26 +723,40 @@ def add_labels(
         # Match Vega's linear map with a pinned domain: x -> [0, width], y inverted -> [height, 0].
         return ((x - x0) / xspan * width, height - (y - y0) / yspan * height)
 
+    def px_to_x(px: float) -> float:
+        return x0 + px / width * xspan
+
+    def px_to_y(py: float) -> float:
+        return y0 + (height - py) / height * yspan
+
     anchors = [to_px(x, y) for x, y in zip(xs, ys)]
     obstacles = [to_px(x, y) for x, y in zip(all_x, all_y)]  # ALL plotted points, so labels avoid them
     sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in label_texts]  # rough text-box estimate
     label_pos = _repel_labels(anchors, sizes, width=width, height=height, obstacles=obstacles)
 
-    # Self-pin: force the shared x/y scale to the assumed domain (nice=False, zero=False) via an
-    # invisible mark, so the connectors align with the points WITHOUT the caller pinning the base
-    # chart's scale. It uses the SAME fields as the base (so one shared axis, titles intact) on a
-    # tagged 1-row internal frame (filtered by read); the domain is explicit, so the row values
-    # don't matter. NOTE the domain is the label df's extent (or an explicit xDomain/yDomain) - when
-    # labeling a SUBSET of a larger scatter, pass xDomain/yDomain covering the full data or the axes
-    # will clip to the labeled points.
-    layers: list[alt.Chart] = [
-        alt.Chart(_internal_data([{xCol: x0, yCol: y0}]))
-        .mark_point(opacity=0)
-        .encode(
-            x=alt.X(f"{xCol}:Q", scale=alt.Scale(domain=[x0, x1], nice=False, zero=False)),
-            y=alt.Y(f"{yCol}:Q", scale=alt.Scale(domain=[y0, y1], nice=False, zero=False)),
-        )
-    ]
+    # Self-pin: the FIRST label layer carries the scale pin (domain=..., nice=False, zero=False) on
+    # its datum encodings, forcing the shared x/y scale to the assumed domain so the connectors
+    # align with the points WITHOUT the caller pinning the base chart's scale - and without any
+    # invisible sidecar mark (the pin rides on real label marks, so nothing extra lands in the SVG).
+    # All label geometry is emitted in DATA coordinates via alt.datum (the exact inverse of the
+    # pinned pixel map): a datum contributes no axis title and does not extend the scale domain, so
+    # the base chart's axes survive intact and the explicit pin is the only domain influence. NOTE
+    # the domain is the label df's (niced) extent or an explicit xDomain/yDomain - when labeling a
+    # SUBSET of a larger scatter, pass xDomain/yDomain covering the full data or the axes will clip
+    # to the labeled points.
+    x_scale = alt.Scale(domain=[x0, x1], nice=False, zero=False)
+    y_scale = alt.Scale(domain=[y0, y1], nice=False, zero=False)
+    pinned = False
+
+    def datum_xy(px: float, py: float) -> dict:
+        # x/y datum encodings for a pixel position; the first call attaches the scale pin.
+        nonlocal pinned
+        if pinned:
+            return {"x": alt.XDatum(px_to_x(px)), "y": alt.YDatum(px_to_y(py))}
+        pinned = True
+        return {"x": alt.XDatum(px_to_x(px), scale=x_scale), "y": alt.YDatum(px_to_y(py), scale=y_scale)}
+
+    layers: list[alt.Chart] = []
     for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, label_texts):
         hw, hh = w / 2, h / 2
         dx, dy = ax - lx, ay - ly  # label centre -> point
@@ -748,35 +778,62 @@ def add_labels(
         if connector:
             # Small gap at each end so the line points at the marker/label rather than piercing the
             # dot or touching the glyphs. connectorGap (px) defaults to the theme's mark_point EDGE
-            # radius - sqrt(config.point.size/pi) = sqrt((markSize/2)/pi) plus the marker stroke - so
-            # it clears the default point mark (and the smaller mark_circle) without the caller sizing
-            # it; the seg*0.25 term only shrinks it for SHORT connectors so the gaps never eat the line.
+            # radius - sqrt(config.point.size/pi) = sqrt((markSize/2)/pi) plus the marker stroke -
+            # ASYMMETRIC end gaps, same daylight at both ends. Marker end: the mark_point edge
+            # radius (sqrt(config.point.size/pi) = sqrt((markSize/2)/pi)) + the marker stroke
+            # + 2*axisWidth of whitespace. Text end: just the 2*axisWidth whitespace - there is no
+            # marker to clear there, so a symmetric gap read as a hole between line and label.
+            # Every term scales with its visual referent: marker radius (markSize, itself
+            # chart-dimension-derived), marker stroke (markStrokeWidth), and daylight sized against
+            # the connector's OWN stroke (the connector inherits the theme mark_rule config, drawn
+            # at axisWidth). No fixed px constants. TWO axisWidths of daylight, not one: the rule's
+            # round cap paints axisWidth/2 beyond each endpoint (and the marker stroke
+            # markStrokeWidth/2 beyond its radius), so one axisWidth left only ~0.25px of true
+            # painted daylight at the default theme - sub-device-pixel in PNG exports, visible or
+            # not depending on the connector's angle (nonuniform-LOOKING gaps from uniform
+            # geometry, verified 2026-07-05). Two leaves ~0.5px painted daylight.
+            daylight = 2.0 * _opt("axisWidth")
             gap_cap = (
                 connectorGap
                 if connectorGap is not None
-                else math.sqrt(_opt("markSize") / (2 * math.pi)) + _opt("markStrokeWidth")
+                else math.sqrt(_opt("markSize") / (2 * math.pi)) + _opt("markStrokeWidth") + daylight
             )
             seg = math.hypot(ex - ax, ey - ay)  # point -> label box edge (the connector length)
-            # Skip a connector only when it is a true on-mark stub - shorter than the two end gaps
-            # combined (`2*gap_cap`), i.e. no visible line could remain. This is deliberately lenient
-            # and FONT-INDEPENDENT (tied to the marker gap, not fontSize) so changing the label font
-            # never silently drops real leaders. alwaysShowConnectors forces every connector drawn.
-            if alwaysShowConnectors or seg >= 2.0 * gap_cap:
-                if seg > 0 and gap_cap > 0:
-                    g = min(gap_cap, seg * 0.25)
+            # The gaps are UNIFORM - they never shrink, so every drawn connector sits the same
+            # visible distance off its dot and its label. (The old min(gap_cap, seg*0.25) shrink
+            # let short connectors - the nearest-clear-spot norm - start INSIDE the marker:
+            # nonuniform touching-vs-gapped dots across one chart.) A connector whose full gaps
+            # would leave less than 4 connector-stroke-widths of visible line (1px at the default
+            # theme) is dropped instead: the stub is noise and the adjacent label is unambiguous.
+            # All thresholds are FONT-INDEPENDENT (tied to marker/stroke geometry, not fontSize) so
+            # changing the label font never silently drops real leaders. alwaysShowConnectors
+            # forces every connector; forced sub-threshold stubs fall back to proportionally
+            # shrunken gaps so some line remains.
+            if seg >= gap_cap + daylight + 4.0 * _opt("axisWidth"):
+                g_mark: float | None = gap_cap
+                g_text = daylight
+            elif alwaysShowConnectors:
+                g_mark = min(gap_cap, seg * 0.25)
+                g_text = min(daylight, seg * 0.25)
+            else:
+                g_mark = None
+                g_text = 0.0
+            if g_mark is not None:
+                if seg > 0:
                     ux, uy = (ex - ax) / seg, (ey - ay) / seg
-                    sx, sy, tx, ty = ax + ux * g, ay + uy * g, ex - ux * g, ey - uy * g
+                    sx, sy = ax + ux * g_mark, ay + uy * g_mark
+                    tx, ty = ex - ux * g_text, ey - uy * g_text
                 else:
                     sx, sy, tx, ty = ax, ay, ex, ey
                 layers.append(
                     alt.Chart(_internal_data([{}]))
                     .mark_rule(**rule_kwargs)
-                    .encode(x=alt.value(sx), y=alt.value(sy), x2=alt.value(tx), y2=alt.value(ty))
+                    .encode(**datum_xy(sx, sy), x2=alt.X2Datum(px_to_x(tx)), y2=alt.Y2Datum(px_to_y(ty)))
                 )
         layers.append(
             alt.Chart(_internal_data([{}]))
             .mark_text(align=align, **text_kwargs)
-            .encode(x=alt.value(text_x), y=alt.value(ly), text=alt.value(text))
+            .encode(**datum_xy(text_x, ly), text=alt.value(text))
         )
     return cast(alt.LayerChart, alt.layer(*layers))
 
