@@ -17,7 +17,7 @@
     - Correlations with fit lines.
 - Multilabels that allow for rich annotations of categorical labels, *e.g.* multi-condition axes and sample sizes.
 - Self-documenting exports for reproducible figures:
-    - `ds.save()` writes a corrected SVG, print-ready PNG, interactive HTML, and/or Vega-Lite JSON, while also embedding the output file with its provenance: environment versions and sha256 checksums identifying both the **Vega-Lite spec and the underlying data**.
+    - `ds.save()` writes a corrected SVG, print-ready PNG, interactive HTML, and/or Vega-Lite JSON, while also embedding the output file with its provenance: environment versions and sha256 checksums fingerprint both the Vega-Lite spec and the underlying data.
     - `ds.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
     - `ds.load()` rebuilds the chart from its JSON.
 
@@ -43,6 +43,7 @@ Dependencies:
 - `numpy`>=1.26.0
 - `polars[pyarrow]`>=1.19.0
 - `scipy`>=1.11.0
+- `vl-convert-python`>=1.7.0
 
 ## Quick start
 
@@ -70,4 +71,4 @@ ds.save(chart, "myplot") # writes myplot.svg + myplot.json
 
 ## Documentation
 
-Documentation, examples, palettes, and the chart gallery: **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**
+Documentation, examples, palettes, and an interactive chart studio at **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**
