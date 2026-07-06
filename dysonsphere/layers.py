@@ -629,7 +629,7 @@ def add_labels(
         ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose
         extent is tighter than the scatter).
     fontSize:
-        Label font size. ``None`` -> the theme's ``secondaryFontSize``.
+        Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
     color:
         Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware
         black/white).
@@ -650,9 +650,10 @@ def add_labels(
         (set this for unusually large or heavily stroked markers, which the gap can't measure since
         the base chart isn't visible here). Automatically shrinks for very short connectors.
     alwaysShowConnectors:
-        By default (``False``) a connector is omitted when it would be too short to be worth drawing -
-        the label ended up adjacent to its own point (segment shorter than the label font size), so the
-        stub is just noise and the label alone is unambiguous. ``True`` draws every connector.
+        By default (``False``) a connector is omitted only when it is a true on-mark stub - shorter
+        than twice the end gap (``connectorGap``), i.e. no visible line could remain - so the stub is
+        just noise and the adjacent label is unambiguous. This threshold is font-independent (tied to
+        the marker gap), so changing the label font never drops real leaders. ``True`` draws every one.
     """
     from .utils import _repel_labels, _sample_spread, ensure_polars
 
@@ -675,7 +676,7 @@ def add_labels(
     n = len(label_texts)
 
     width, height = _opt("chartWidth"), _opt("chartHeight")
-    fs = fontSize if fontSize is not None else _opt("secondaryFontSize")
+    fs = fontSize if fontSize is not None else _opt("fontSize")
     # Text and connectors INHERIT the theme's mark_text / mark_rule config (darkmode-aware color,
     # rounded caps, axisWidth stroke, opaque) - resolved per render, so they track darkmode without
     # a callable. We only force the connector dash solid (never the theme's dashedRule) and apply an
@@ -756,11 +757,11 @@ def add_labels(
                 else math.sqrt(_opt("markSize") / (2 * math.pi)) + _opt("markStrokeWidth")
             )
             seg = math.hypot(ex - ax, ey - ay)  # point -> label box edge (the connector length)
-            # Skip a connector too short to be worth drawing: when the label ends up adjacent to its
-            # own point the stub is just noise overlapping the marker/glyphs, and the label alone is
-            # unambiguous. Threshold = the label font size (~4x the end gap, so a visible line always
-            # remains for kept connectors). alwaysShowConnectors forces every connector drawn.
-            if alwaysShowConnectors or seg >= fs:
+            # Skip a connector only when it is a true on-mark stub - shorter than the two end gaps
+            # combined (`2*gap_cap`), i.e. no visible line could remain. This is deliberately lenient
+            # and FONT-INDEPENDENT (tied to the marker gap, not fontSize) so changing the label font
+            # never silently drops real leaders. alwaysShowConnectors forces every connector drawn.
+            if alwaysShowConnectors or seg >= 2.0 * gap_cap:
                 if seg > 0 and gap_cap > 0:
                     g = min(gap_cap, seg * 0.25)
                     ux, uy = (ex - ax) / seg, (ey - ay) / seg

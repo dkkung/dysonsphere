@@ -95,21 +95,28 @@ def _repel_labels(
     obstacles: "list[tuple[float, float]] | None" = None,
     iterations: int = 300,
 ) -> list[tuple[float, float]]:
-    """Force-directed, non-overlapping label placement (deterministic) - the engine behind
-    :func:`add_labels`.
+    """Nearest-clear-spot label placement (deterministic) - the engine behind :func:`add_labels`.
 
     ``anchors`` are the pixel positions of the points being labelled and ``sizes`` each label's
-    ``(width, height)`` box in pixels (pixel origin top-left, y growing downward, matching a
-    rendered SVG). ``obstacles`` are the pixel positions of ALL plotted points to avoid covering
-    (default: just the ``anchors``); passing every point - not only the labelled ones - is what
-    keeps labels off the background markers AND breaks them out of a boring straight-up column (a
-    label near a dense region is pushed toward the emptier side). Returns one label-CENTRE pixel
-    position per anchor. Each label box repels the other labels (pushed apart along its axis of
-    least penetration) and every obstacle it overlaps (net push toward open space), a weak spring
-    pulls it back toward its anchor, and it is clamped inside the ``width`` x ``height`` panel;
-    iterated to a relaxed layout. Fully deterministic (no RNG - a tiny index-based offset breaks
-    exact ties), so the same inputs always give the same figure. **Never drops a label**
-    (force-show): in an impossibly dense region labels settle at their least-overlapping positions.
+    ``(width, height)`` box in pixels (origin top-left, y growing downward, matching a rendered SVG).
+    ``obstacles`` are the pixel positions of ALL plotted points to avoid covering (default: just the
+    ``anchors``). Returns one label-CENTRE pixel position per anchor.
+
+    Each label is placed at the position of **minimal displacement** from its point (so the connector
+    is as short as possible) whose box still clears the markers and the already-placed labels - found
+    by a ring search stepping outward from the point that, at each radius, tries candidate angles in
+    OUTWARD order (mark - data centroid) as a **soft directionality tiebreak** (left mark -> left
+    label), never forcing a longer connector. Labels are placed in order of local sparsity, so the
+    easy isolated ones lock in their short connectors first and the crowded ones search among what
+    remains. A final **2-opt pass** then swaps which label owns which slot whenever that lowers the
+    total cost (connector length + marker/label-overlap penalties + a small inward penalty ``w_dir``
+    that keeps the soft outward lean): by the uncrossing lemma, minimizing length removes crossing
+    leaders for free. Connector length is therefore **dynamic**: tiny where there is open space beside
+    the point, longer only where the point is genuinely buried. Fully deterministic (no RNG). **Never
+    drops a label** (force-show): if nothing fully clears within the panel, the label takes its
+    least-overlapping candidate (label-label overlap is weighted far above marker overlap). Directionality
+    is deliberately SOFT (a tiebreak/bias, not a hard outward rule) so it stays general beyond volcano-
+    shaped data. ``iterations`` is unused (kept for call compatibility).
     """
     import numpy as np
 
@@ -119,75 +126,113 @@ def _repel_labels(
     a = np.array(anchors, dtype=float)
     obs = np.array(obstacles if obstacles is not None else anchors, dtype=float)
     half = np.array(sizes, dtype=float) / 2.0 + 2.0  # +2px padding so boxes gap, not just touch
-    pos = a.copy()
-    pos[:, 1] -= half[:, 1] + 2.0  # start just above each anchor (y grows downward)
-    pos[:, 0] += np.arange(n) * 1e-3  # deterministic tie-break for coincident anchors
+    point_r = 3.0  # marker clearance radius (a label box within this of a marker "covers" it)
+    centroid = obs.mean(axis=0)  # data centre; a SOFT outward bias (below) leans labels away from it
+    w_dir = 10.0  # (left mark -> left label, right mark -> right) as a tiebreak, never forcing length.
 
-    # k_spring pulls each label back toward its point (higher -> shorter connectors); k_label/k_point
-    # clear label-label and label-point overlaps; k_seg keeps labels off other connectors.
-    k_spring, k_label, k_point, point_r, k_seg = 0.05, 0.4, 0.35, 3.0, 0.5
-    # longer-range density escape: a label deep in a cluster feels the AABB pushes cancel (points on
-    # all sides), so it never leaves. A soft 1/dist push from every point within `dens_r` gives a net
-    # vector toward the sparse side, so the label drifts out to open space (then the spring/label
-    # forces settle it). Radius scales with the panel; strength kept LOW so it only biases direction -
-    # too high and labels overshoot far from their points (comically long connectors).
-    dens_r = 0.25 * min(width, height)
-    k_dens = 2.0
-    for _ in range(iterations):
-        disp = np.zeros_like(pos)
+    # Placement order: sparsest anchors first (few nearby markers -> short connectors lock in early),
+    # so the crowded ones search among what is left. Deterministic (stable argsort, no RNG).
+    near_r = 0.3 * min(width, height)
+    local = np.array([int((np.hypot(obs[:, 0] - a[i, 0], obs[:, 1] - a[i, 1]) < near_r).sum()) for i in range(n)])
+    order = list(np.argsort(local, kind="stable"))
+
+    # Ring search: radii step outward in pixels; at each radius try 24 angles, ordered per label so
+    # the OUTWARD side (toward the margins) is tried first. First zero-cost (fully clear) candidate wins.
+    radii = np.arange(0.0, 0.6 * float(np.hypot(width, height)), 2.0)
+    base_ang = np.linspace(0.0, 2.0 * np.pi, 24, endpoint=False)
+
+    result: list[tuple[float, float]] = [(0.0, 0.0)] * n
+    placed: list[tuple[float, float, float, float]] = []  # (cx, cy, hw, hh) of already-placed labels
+
+    for idx in order:
+        ax, ay = float(a[idx, 0]), float(a[idx, 1])
+        hw, hh = float(half[idx, 0]), float(half[idx, 1])
+        # Preferred direction: OUTWARD from the data centroid (a left mark faces left, a right mark
+        # right), so labels lean toward the margins. For a mark near the centroid (no clear outward
+        # side) fall back to "away from the distance-weighted local crowd". SOFT tiebreak only - the
+        # label still takes the NEAREST clear spot below; outward just orders the angles tried.
+        v = a[idx] - centroid
+        if np.hypot(v[0], v[1]) < 0.05 * min(width, height):
+            d = a[idx] - obs
+            dist = np.hypot(d[:, 0], d[:, 1])
+            m = (dist > 1e-9) & (dist < near_r)
+            v = (d[m] * (1.0 / dist[m] ** 2)[:, None]).sum(axis=0) if m.any() else np.array([0.0, -1.0])
+        open_ang = float(np.arctan2(v[1], v[0])) if np.hypot(v[0], v[1]) > 1e-9 else -np.pi / 2.0
+        diff = np.abs((base_ang - open_ang + np.pi) % (2.0 * np.pi) - np.pi)
+        angs = base_ang[np.argsort(diff, kind="stable")]
+
+        chosen: tuple[float, float] | None = None
+        best: tuple[float, float] | None = None
+        best_cost = None
+        for r in radii:
+            for ang in angs:
+                cx = ax + r * float(np.cos(ang))
+                cy = ay + r * float(np.sin(ang))
+                if cx - hw < 0 or cx + hw > width or cy - hh < 0 or cy + hh > height:
+                    continue
+                markers = int(((np.abs(obs[:, 0] - cx) < hw + point_r) & (np.abs(obs[:, 1] - cy) < hh + point_r)).sum())
+                labels_hit = sum(
+                    1 for (px, py, phw, phh) in placed if abs(px - cx) < hw + phw and abs(py - cy) < hh + phh
+                )
+                cost = markers + labels_hit * 1000  # a label-label overlap is far worse than a marker
+                if cost == 0:
+                    chosen = (cx, cy)
+                    break
+                if best_cost is None or cost < best_cost:
+                    best_cost = cost
+                    best = (cx, cy)
+            if chosen is not None:
+                break
+        c = chosen if chosen is not None else (best if best is not None else (ax, ay))
+        result[idx] = c
+        placed.append((c[0], c[1], hw, hh))
+
+    # 2-opt assignment refinement. The greedy fixes a good CENTRE per label, but a label can end up
+    # owning a slot that makes its leader long or cross another label's. Swapping which label owns
+    # which slot, whenever that lowers the total cost, shortens leaders and - by the uncrossing lemma
+    # (swapping the far ends of two crossing segments always shortens the pair) - removes crossings,
+    # while the overlap penalties stop a swap that would collide boxes. n is small (top-N labels), so
+    # a full-cost recompute per candidate swap is cheap.
+    def _config_cost(assign: list[tuple[float, float]]) -> float:
+        total = 0.0
+        for k in range(n):
+            cx, cy = assign[k]
+            hw_k, hh_k = float(half[k, 0]), float(half[k, 1])
+            total += float(np.hypot(cx - a[k, 0], cy - a[k, 1]))  # connector length
+            total += 50.0 * int(
+                ((np.abs(obs[:, 0] - cx) < hw_k + point_r) & (np.abs(obs[:, 1] - cy) < hh_k + point_r)).sum()
+            )
+            # soft outward preference: penalise a label sitting INWARD of its mark (toward the
+            # centroid), biasing the 2-opt to keep left marks left / right marks right.
+            ox, oy = float(a[k, 0] - centroid[0]), float(a[k, 1] - centroid[1])
+            onrm = float(np.hypot(ox, oy))
+            if onrm > 1e-9:
+                inward = -((cx - a[k, 0]) * ox + (cy - a[k, 1]) * oy) / onrm
+                if inward > 0.0:
+                    total += w_dir * inward
+        for p in range(n):
+            for q in range(p + 1, n):
+                (cx1, cy1), (cx2, cy2) = assign[p], assign[q]
+                if abs(cx1 - cx2) < half[p, 0] + half[q, 0] and abs(cy1 - cy2) < half[p, 1] + half[q, 1]:
+                    total += 5000.0  # label-label overlap: effectively forbidden
+        return total
+
+    for _ in range(20):
+        improved = False
+        base = _config_cost(result)
         for i in range(n):
-            for j in range(i + 1, n):  # label <-> label box repulsion
-                d = pos[i] - pos[j]
-                overlap = (half[i] + half[j]) - np.abs(d)
-                if overlap[0] > 0 and overlap[1] > 0:
-                    # push apart along whichever axis is least overlapping (smaller move)
-                    if overlap[0] <= overlap[1]:
-                        push = np.array([overlap[0] * (1.0 if d[0] >= 0 else -1.0), 0.0])
-                    else:
-                        push = np.array([0.0, overlap[1] * (1.0 if d[1] >= 0 else -1.0)])
-                    disp[i] += push * k_label
-                    disp[j] -= push * k_label
-            # label <-> obstacle repulsion (all plotted points): net push away from every point the
-            # label box covers, so it clears the markers and drifts toward open space.
-            d = pos[i] - obs
-            ox = (half[i, 0] + point_r) - np.abs(d[:, 0])
-            oy = (half[i, 1] + point_r) - np.abs(d[:, 1])
-            hit = (ox > 0) & (oy > 0)
-            if hit.any():
-                dd = d[hit]
-                pen = np.minimum(ox[hit], oy[hit])
-                norm = np.linalg.norm(dd, axis=1)
-                norm[norm == 0] = 1e-9
-                disp[i] += (dd / norm[:, None] * pen[:, None]).sum(axis=0) * k_point
-            # density-gradient escape (see dens_r/k_dens above): net 1/dist push from nearby points
-            dn = np.linalg.norm(d, axis=1)
-            near = (dn > 1e-9) & (dn < dens_r)
-            if near.any():
-                dd = d[near]
-                dnn = dn[near]
-                disp[i] += (dd / (dnn[:, None] ** 2)).sum(axis=0) * k_dens
-            # label i <-> other labels' connector segments (anchor a[j] -> label pos[j]): if a
-            # connector line passes through label i's box, push i off it so leaders don't run through
-            # other labels. Treat the closest point on the segment like an obstacle.
-            for j in range(n):
-                if j == i:
-                    continue
-                seg = pos[j] - a[j]
-                seg_len2 = float(seg @ seg)
-                if seg_len2 < 1e-9:
-                    continue
-                t = min(1.0, max(0.0, float((pos[i] - a[j]) @ seg) / seg_len2))
-                d2 = pos[i] - (a[j] + t * seg)  # label centre - closest point on segment j
-                sx_ov, sy_ov = half[i, 0] - abs(d2[0]), half[i, 1] - abs(d2[1])
-                if sx_ov > 0 and sy_ov > 0:  # the line crosses i's box
-                    dist = float(np.linalg.norm(d2))
-                    push_dir = d2 / dist if dist > 1e-9 else np.array([0.0, -1.0])
-                    disp[i] += push_dir * min(sx_ov, sy_ov) * k_seg
-        disp += (a - pos) * k_spring  # weak spring back toward anchor
-        pos += disp
-        pos[:, 0] = np.clip(pos[:, 0], half[:, 0], width - half[:, 0])
-        pos[:, 1] = np.clip(pos[:, 1], half[:, 1], height - half[:, 1])
-    return [(float(p[0]), float(p[1])) for p in pos]
+            for j in range(i + 1, n):
+                result[i], result[j] = result[j], result[i]
+                new = _config_cost(result)
+                if new < base - 1e-6:
+                    base = new
+                    improved = True
+                else:
+                    result[i], result[j] = result[j], result[i]  # revert
+        if not improved:
+            break
+
+    return [(float(cx), float(cy)) for cx, cy in result]
 
 
 def _sample_spread(xs: list[float], ys: list[float], n: int) -> list[int]:
