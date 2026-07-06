@@ -12,13 +12,13 @@ from dysonsphere.metadata import _inject_png_metadata
 from dysonsphere.theme import theme
 
 _PROV_ORDER = [
-    "dataChecksum",
-    "vegaliteChecksum",
-    "exportIdentifier",
     "user",
     "script",
     "timestamp",
     "environment",
+    "vegaliteChecksum",
+    "exportIdentifier",
+    "dataChecksum",
 ]
 _ENV_ORDER = ["os", "python", "altair", "dysonsphere", "numpy", "scipy", "polars"]
 
