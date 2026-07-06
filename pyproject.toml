@@ -32,7 +32,18 @@ dev = [
     "ruff>=0.15.17",
     "ty>=0.0.0",
     "vl-convert-python>=1.7.0",
+    # In-repo extension, installed editable to dogfood the extension surface end-to-end
+    # (entry-point discovery -> ds.biology.volcano). Dev-only; not a runtime dep of core.
+    "dysonsphere-biology",
 ]
+
+# uv workspace: dysonsphere-biology is a sibling package in this repo. It depends on the local
+# editable `dysonsphere` (workspace = true in its pyproject), splittable to its own repo later.
+[tool.uv.workspace]
+members = ["dysonsphere-biology"]
+
+[tool.uv.sources]
+dysonsphere-biology = { workspace = true }
 
 [project.urls]
 Repository = "https://github.com/dkkung/dysonsphere"

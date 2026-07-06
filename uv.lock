@@ -13,6 +13,12 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+members = [
+    "dysonsphere",
+    "dysonsphere-biology",
+]
+
 [[package]]
 name = "altair"
 version = "6.2.1"
@@ -115,6 +121,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "duckdb" },
+    { name = "dysonsphere-biology" },
     { name = "ipython" },
     { name = "pandas" },
     { name = "pytest" },
@@ -134,12 +141,32 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "duckdb", specifier = ">=1.0.0" },
+    { name = "dysonsphere-biology", editable = "dysonsphere-biology" },
     { name = "ipython", specifier = ">=8.0.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pytest", specifier = ">=9.0.0" },
     { name = "ruff", specifier = ">=0.15.17" },
     { name = "ty", specifier = ">=0.0.0" },
     { name = "vl-convert-python", specifier = ">=1.7.0" },
+]
+
+[[package]]
+name = "dysonsphere-biology"
+version = "0.1.0"
+source = { editable = "dysonsphere-biology" }
+dependencies = [
+    { name = "altair" },
+    { name = "dysonsphere" },
+    { name = "numpy" },
+    { name = "polars", extra = ["pyarrow"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "altair", specifier = ">=5.5.0" },
+    { name = "dysonsphere", editable = "." },
+    { name = "numpy", specifier = ">=1.26.0" },
+    { name = "polars", extras = ["pyarrow"], specifier = ">=1.19.0" },
 ]
 
 [[package]]
