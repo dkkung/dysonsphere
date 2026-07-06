@@ -210,12 +210,28 @@ class TestSaveUsermeta:
         import platform
 
         deps = self._usermeta(tmp_path)["dysonsphere"]["provenance"]["environment"]
+        # Exact match also guards that a pure-core figure has NO `extensions` key (added only when used).
         assert list(deps) == _ENV_ORDER  # os first, then the toolchain, in order
         assert deps["os"] == platform.platform()
         assert deps["vl_convert"] == importlib.metadata.version("vl-convert-python")  # renderer (now a project dep)
         assert deps["numpy"] == importlib.metadata.version("numpy")
         assert deps["scipy"] == importlib.metadata.version("scipy")
         assert deps["polars"] == importlib.metadata.version("polars")
+
+    def test_provenance_records_used_extensions(self, simple_chart, tmp_path, monkeypatch):
+        # An extension that PRODUCED the figure (tagged via ext.tag_extension) is recorded in
+        # environment["dysonsphere-extensions"] with its version, grouped directly after dysonsphere.
+        import types
+
+        from dysonsphere import discovery, ext
+
+        fake = types.SimpleNamespace(dist=types.SimpleNamespace(version="9.9.9"))
+        monkeypatch.setattr(discovery, "_extension_entry_points", lambda: {"biology": fake})
+        save(ext.tag_extension(simple_chart, "biology"), str(tmp_path / "out"), background=["light"])
+        deps = self._usermeta(tmp_path)["dysonsphere"]["provenance"]["environment"]
+        assert deps["dysonsphere-extensions"] == {"biology": "9.9.9"}
+        keys = list(deps)
+        assert keys[keys.index("dysonsphere") + 1] == "dysonsphere-extensions"  # sits under dysonsphere
 
     def test_theme_baked_as_ds_theme_args(self, stats_chart, tmp_path):
         import dysonsphere as ds

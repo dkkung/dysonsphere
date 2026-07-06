@@ -12,6 +12,7 @@ import polars as pl
 
 import dysonsphere as ds
 from dysonsphere import ext
+from dysonsphere.discovery import _tag_extension
 from dysonsphere.export import _AltairChart
 from dysonsphere.theme import _opt
 from dysonsphere.utils import _INTERNAL_COL, _internal_data
@@ -22,12 +23,13 @@ def test_reexports_are_the_internal_objects():
     assert ext.opt is _opt
     assert ext.internal_data is _internal_data
     assert ext.AltairChart is _AltairChart
+    assert ext.tag_extension is _tag_extension
 
 
 def test_all_is_minimal():
-    # Guard the "minimal first" decision: the surface stays exactly this set until a consumer
-    # justifies growing it (see ext.py module docstring).
-    assert set(ext.__all__) == {"AltairChart", "internal_data", "opt"}
+    # Guard the surface: it grows only when a consumer justifies it (see ext.py docstring).
+    # tag_extension was added for the volcano's provenance self-tagging.
+    assert set(ext.__all__) == {"AltairChart", "internal_data", "opt", "tag_extension"}
 
 
 def test_ext_namespaced_not_polluting_top_namespace():

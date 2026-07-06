@@ -43,12 +43,22 @@ Surface:
   data variable). Core's facet-safe annotations take a ``data=`` param and build on a shared
   base instead; that helper (``_datum_base``) is not yet part of this public surface - ask if
   your extension needs faceting.
+
+- **``tag_extension(chart, name)``** - tag a chart your extension built so ``ds.save()`` records
+  your extension's version in the figure's provenance (``environment["dysonsphere-extensions"]``,
+  grouped right under ``dysonsphere``). Call it once on the chart you return:
+  ``return ext.tag_extension(chart, "biology")``. The tag is a durable
+  view-name marker that survives ``+``/layer/concat and is stripped from the written spec, so it
+  only affects provenance - never the rendered output. ``name`` is your extension's registered
+  entry-point name (the ``ds.<name>`` alias); its version is looked up from the installed
+  distribution. Only extensions that actually produced a figure are recorded (not merely installed).
 """
 
 from __future__ import annotations
 
+from .discovery import _tag_extension as tag_extension
 from .export import _AltairChart as AltairChart
 from .theme import _opt as opt
 from .utils import _internal_data as internal_data
 
-__all__ = ["AltairChart", "internal_data", "opt"]
+__all__ = ["AltairChart", "internal_data", "opt", "tag_extension"]

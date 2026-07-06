@@ -132,6 +132,17 @@ def test_read_filters_generated_label_sidecar(tmp_path):
     assert {"gene", "log2fc", "pvalue", "neglog10p", "significance"} <= set(frame.columns)
 
 
+def test_provenance_records_biology_extension(tmp_path):
+    # End-to-end via the REAL entry point: a saved volcano records dysonsphere-biology's version in
+    # provenance (ext.tag_extension self-tagging -> save() scans it -> environment[dysonsphere-extensions]).
+    import importlib.metadata
+
+    out = tmp_path / "volcano"
+    ds.save(lambda: ds.biology.volcano(_df()), str(out), format="json")
+    env = ds.read(str(out) + ".json", what="metadata")["provenance"]["environment"]
+    assert env["dysonsphere-extensions"] == {"biology": importlib.metadata.version("dysonsphere-biology")}
+
+
 def _label_texts(chart):
     """Gene-label strings placed by add_labels (each encoded via alt.value)."""
     out = []
