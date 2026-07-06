@@ -18,12 +18,7 @@ chartWidth = 900
 chartHeight = 900
 darkmode = true
 fontSize = 18
-transparentBackground = true
-
-[presentation]
-fontSize = 12
-darkmode = true
-transparentBackground = true
+transparent = true
 
 # Custom styles - add your own style sections below
 

@@ -1,4 +1,5 @@
 from .export import *  # noqa: F403
+from .labels import *  # noqa: F403
 from .layers import *  # noqa: F403
 from .marks import *  # noqa: F403
 from .metadata import *  # noqa: F403

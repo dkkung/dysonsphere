@@ -4,6 +4,7 @@ import json
 import re
 import tempfile
 import uuid
+import xml.etree.ElementTree as ET
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Callable, Union, cast
 import altair as alt
 
 from . import metadata
+from .theme import _opt
 
 _AltairChart = Union[
     alt.Chart,
@@ -21,6 +23,11 @@ _AltairChart = Union[
     alt.HConcatChart,
     alt.ConcatChart,
 ]
+
+_SVG_NS = "http://www.w3.org/2000/svg"
+# Registered once so ET serializes SVG without ns0: prefixes, from any fixer or test.
+ET.register_namespace("", _SVG_NS)
+ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 
 _VALID_FORMATS = ("svg", "png", "json", "html")
 _VALID_BACKGROUNDS = ("light", "dark")
@@ -44,28 +51,31 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     """Render an Altair object to SVG at *svg_path*, run every dysonsphere SVG post-processor,
     and return the corrected SVG string.
 
-    Shared by :func:`save` and :func:`show` so the fixer pipeline stays identical: tick
-    alignment, log/power minor-tick correction, inward-tick flip (when ``inwardTicks``), axis
-    layering, ``<g>`` simplification, and superscript-label typesetting. The caller sets up the
-    theme (e.g. ``transparentBackground``) and owns the file's lifecycle.
+    Tick and grid POSITIONS need no post-processing: the theme renders with Vega's
+    ``tickRound: false`` (``config.axis``) and ``tickOffset: 0`` (``config.axisBand``), so
+    every tick lands on the exact fractional scale position - i.e. exactly on its mark - at
+    render time, on every axis type (band, linear, log/power minors) and in every panel.
+    The remaining post-processors are shared by :func:`save` and :func:`show` so the pipeline
+    stays identical: grid-span extension (the axisOffset top-border gap), inward-tick flip
+    (when ``inwardTicks``), axis layering, ``<g>`` simplification, and superscript-label
+    typesetting. The SVG is parsed once here and each fixer mutates the shared ElementTree;
+    the corrected tree is serialized once at the end (a single parse/write round trip, not
+    one per fixer). The caller sets up the theme (e.g. ``transparent``) and owns the file's
+    lifecycle.
     """
     base_obj.save(svg_path)  # marker names are in the object but never render into SVG
-    _fix_tick_alignment(
-        svg_path,
-        band_padding=alt.theme.options.get("bandPadding", 0.1),
-        chart_width=alt.theme.options.get("chartWidth", 100),
-        axis_offset=0
-        if alt.theme.options.get("closed")
-        else (alt.theme.options.get("axisOffset") or alt.theme.options.get("tickSize", 3)),
-    )
-    _fix_log_minor_ticks(svg_path)
-    if alt.theme.options.get("inwardTicks"):
-        _flip_ticks_inward(svg_path)
-    _layer_axes_to_front(svg_path)
-    _simplify_svg(svg_path)
-    _fix_superscript_labels(svg_path)
-    with open(svg_path, encoding="utf-8") as f:
-        return f.read()
+    root = ET.parse(svg_path).getroot()  # parsed ONCE; every fixer mutates this tree
+    axis_offset = 0 if _opt("closed") else _opt("axisOffset")
+    if axis_offset:
+        _extend_grid_span(root, axis_offset)
+    if _opt("inwardTicks"):
+        _flip_ticks_inward(root)
+    _layer_axes_to_front(root)
+    _simplify_svg(root)
+    _fix_superscript_labels(root)
+    svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
+    Path(svg_path).write_text(svg, encoding="utf-8")
+    return svg
 
 
 def save(
@@ -77,6 +87,7 @@ def save(
     embedReport: bool = True,
     format: str | list[str] | None = None,
     background: str | list[str] | None = None,
+    transparent: bool = True,
     maxRows: int = 5000,
     overrideMaxRows: bool = False,
 ) -> None:
@@ -122,10 +133,11 @@ def save(
         in), as a single string or a list. ``None`` (default) uses the theme option
         ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
 
-        ``"html"`` is the **interactive / approximate** tier: it renders live in the browser
-        via Vega, so it is fully themed and carries the metadata block, but it does NOT get
-        dysonsphere's static SVG post-processors (pixel-perfect tick alignment, superscript
-        typesetting). In particular ``inwardTicks`` is deliberately **not** applied to HTML:
+        ``"html"`` is the **interactive** tier: it renders live in the browser via Vega, so
+        it is fully themed, carries the metadata block, and gets exact tick positions (that
+        fix lives in the theme config), but it does NOT get dysonsphere's static SVG
+        post-processors (superscript typesetting, Illustrator-friendly flattening). In
+        particular ``inwardTicks`` is deliberately **not** applied to HTML:
         the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that
         works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different
         Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label
@@ -135,6 +147,13 @@ def save(
         Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles
         ``darkmode``), as a single string or a list. ``None`` (default) uses the theme
         option ``saveBackground`` (``"light"``). An empty list or unknown value raises.
+    transparent:
+        Whether the rendered SVG/PNG have a transparent background. ``True`` (default):
+        exported figures composite onto any page or slide. ``False``: the background is
+        filled with the theme's ``chartFill`` (white in light mode, black in dark mode,
+        unless set explicitly) - for outputs viewed on their own, e.g. images embedded in
+        a README. Applies to the SVG/PNG render only; the JSON and HTML keep the chart's
+        logical background (the theme option ``transparent``).
     maxRows:
         Row cap for the data inlined into the output (default ``5000``, matching Altair).
         Every format renders via ``chart.to_dict()``, which inlines the data, and the JSON
@@ -193,10 +212,8 @@ def save(
     # Resolve format/background (str or list) against the theme defaults, then validate up
     # front — before draining — so an invalid request errors cleanly and leaves the queue
     # for the next real save().
-    _formats = _resolve_choice(format, alt.theme.options.get("saveFormat", ["svg", "json"]), _VALID_FORMATS, "format")
-    _backgrounds = _resolve_choice(
-        background, alt.theme.options.get("saveBackground", ["light"]), _VALID_BACKGROUNDS, "background"
-    )
+    _formats = _resolve_choice(format, _opt("saveFormat"), _VALID_FORMATS, "format")
+    _backgrounds = _resolve_choice(background, _opt("saveBackground"), _VALID_BACKGROUNDS, "background")
 
     # Records are NOT drained here.  Instead, each add_comparisons()/add_correlation() tagged
     # its annotation layer with a marker name; below we resolve the chart, find which markers
@@ -225,8 +242,8 @@ def save(
         return str(out.parent / f"{out.name}{'_' + bg if multi else ''}.{ext}")
 
     _want_render = "svg" in _formats or "png" in _formats
-    original_darkmode = alt.theme.options.get("darkmode", False)
-    original_transparent = alt.theme.options.get("transparentBackground", False)
+    original_darkmode = _opt("darkmode")
+    original_transparent = _opt("transparent")
     # Cap the rows inlined for this save (every format renders via to_dict(), which enforces
     # it; overrideMaxRows lifts it) — restored on the way out via the ExitStack.  Over the cap,
     # Altair raises MaxRowsError, which we catch and re-raise with a clearer message.
@@ -240,8 +257,8 @@ def save(
         for bg in _backgrounds:
             alt.theme.options["darkmode"] = bg == "dark"
             # The spec is captured at the chart's logical transparency (for the JSON + the
-            # checksum); the SVG/PNG re-render below with transparentBackground on.
-            alt.theme.options["transparentBackground"] = original_transparent
+            # checksum); the SVG/PNG re-render below at the `transparent` param's value.
+            alt.theme.options["transparent"] = original_transparent
             base_obj = _resolve_base()
             spec = base_obj.to_dict()
             _hashes = metadata._scan_marker_hashes(spec) if saveMetadata else set()
@@ -280,7 +297,7 @@ def save(
                 Path(_path(bg, "html")).write_text(vlc.vegalite_to_html(hspec, bundle=True), encoding="utf-8")
 
             if _want_render:
-                alt.theme.options["transparentBackground"] = True
+                alt.theme.options["transparent"] = transparent
                 svg_path = _path(bg, "svg")
                 svg_content = _render_fixed_svg(base_obj, svg_path)
                 # Inject the metadata channels + user <desc> after the opening <svg> tag.  A
@@ -305,7 +322,7 @@ def save(
     finally:
         _cap_stack.close()
         alt.theme.options["darkmode"] = original_darkmode
-        alt.theme.options["transparentBackground"] = original_transparent
+        alt.theme.options["transparent"] = original_transparent
 
 
 def show(chart: _AltairChart | Callable[[], _AltairChart]):
@@ -313,8 +330,8 @@ def show(chart: _AltairChart | Callable[[], _AltairChart]):
     inline display in a notebook.
 
     Altair's own inline renderer (used when you just display a chart) does NOT run
-    dysonsphere's SVG post-processors, so its preview is approximate - ticks aren't
-    pixel-aligned, log/superscript labels aren't typeset, and with ``inwardTicks=True`` the
+    dysonsphere's SVG post-processors, so its preview is approximate - superscript labels
+    aren't typeset, the axisOffset grid gap remains, and with ``inwardTicks=True`` the
     ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
     :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
     the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
@@ -332,13 +349,13 @@ def show(chart: _AltairChart | Callable[[], _AltairChart]):
         ) from e
 
     base_obj = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
-    _prev_transp = alt.theme.options.get("transparentBackground")
-    alt.theme.options["transparentBackground"] = True
+    _prev_transp = alt.theme.options.get("transparent")
+    alt.theme.options["transparent"] = True
     try:
         with tempfile.TemporaryDirectory() as d:
             svg = _render_fixed_svg(base_obj, str(Path(d) / "preview.svg"))
     finally:
-        alt.theme.options["transparentBackground"] = _prev_transp
+        alt.theme.options["transparent"] = _prev_transp
     return SVG(svg)
 
 
@@ -378,435 +395,62 @@ def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairCh
     return cast("_AltairChart", alt.Chart.from_dict(stripped))
 
 
-def _fix_tick_alignment(
-    path: str, band_padding: float = 0.1, chart_width: float = 100.0, axis_offset: float = 0.0
-) -> None:
-    """Move axis tick and grid lines from Vega's rounded integer positions onto the exact
-    positions of the marks they label.
+def _extend_grid_span(root: ET.Element, axis_offset: float) -> None:
+    """Extend x-axis grid lines upward to close the top-border gap left by the axis offset.
 
-    Vega snaps axis tick/grid group ``transform`` values to integers for crisp screen rendering
-    but keeps mark coordinates as floats.  At high DPI (scale >= 4) the <1px gap is visible, so
-    ticks drift off the marks.
+    The x-axis group is placed ``axis_offset`` px below the chart area (the detached-axis
+    gap), and its grid lines span exactly ``chartHeight`` - so they stop ``axis_offset`` px
+    short of the top border.  Each vertical grid line (``translate(x,-H)`` with ``y2=H``
+    inside a ``role-axis-grid`` group) is stretched by ``axis_offset`` at both ends: the
+    translate keeps the bottom on the axis, the ``y2`` restores the span.
 
-    Strategy: **read, don't re-derive.**  A categorical tick belongs on the mark that sits at its
-    category (a bar or box centre) or bounds it (a heatmap ``rect`` edge).  Pass 1 collects those
-    exact anchor positions from the mark path data, in *global* coordinates (accumulating ancestor
-    ``<g>`` translates) so a tick only ever matches a mark in its own panel -- which makes
-    ``hconcat`` / ``vconcat`` panels (even ones that mix mark types, e.g. strip beside violin)
-    resolve independently.  Pass 2 walks each ``mark-rule role-axis-tick`` / ``role-axis-grid``
-    group and snaps every line to the nearest anchor within ``_TOL`` px: x-ticks use bar/box
-    centres and rect x-edges, y-ticks use rect y-edges.
-
-    Anchors handled (all read from path ``d``): ``bar`` and ``box`` -- square corners are
-    ``M x,y h w`` -> centre ``x + w/2``; rounded corners (``cornerRadius``) are
-    ``M x1,y L x2,y a...`` -> centre ``(x1 + x2)/2`` (the top edge runs between the two
-    symmetric corner insets); ``box`` covers the median indicator embedded in ``mark_strip`` /
-    ``mark_violin``, so those need no formula.  And ``rect mark`` (``M x,y h w v h2`` -> x-edges
-    ``{x, x+w}``, y-edges ``{y, y+h2}``).
-
-    Fallback: a group whose ticks match no anchor (a plain point-scale scatter, or a
-    ``mark_line`` / ``mark_tick`` categorical axis with no positional mark) is snapped by the
-    analytic band formula -- Case pi (``step = W/(n+bp)``), Case 0 (``step = W/(n+2*bp)``), or
-    point scale (``step = W/n``) -- which is why ``band_padding`` and ``chart_width`` are still
-    accepted.  A quantitative/time axis matches no formula and is left untouched.  There is no
-    Case-pi-vs-Case-0 disambiguation any more: the only marks that produced that ambiguity (boxes)
-    are now read exactly, so an ambiguous *and* anchorless group simply bails.
-
-    axis_offset: the theme's effective axis offset (tickSize when axisOffset is None, 0 when
-    closed=True).  Grid lines' y-span is extended by this amount so they reach the top chart
-    border despite the axis group being positioned axis_offset pixels below chartHeight.
+    Mutates the parsed SVG tree in place (like every fixer in ``_render_fixed_svg``).
+    (Formerly part of ``_fix_tick_alignment``.  Tick/grid *positions* need no fixing any
+    more - the theme renders with ``tickRound: false`` / ``axisBand.tickOffset: 0``, so they
+    already sit on the exact fractional scale positions.)
     """
-    import re
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-
-    tree = ET.parse(path)
-    root = tree.getroot()
-
-    _AXIS_CLS = {"mark-rule role-axis-tick", "mark-rule role-axis-grid"}
-    _TOL = 2.0  # px: a tick's floored/rounded position is <1px off its true anchor
     _xlate = re.compile(r"translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)")
-    _tick = re.compile(r"translate\(([-\d.eE]+),([-\d.eE]+)\)$")
 
-    # --- Pass 1: exact mark anchors in global coordinates ---
-    # A vertical x-tick belongs on a bar/box centre or a rect x-edge; a horizontal y-tick
-    # belongs on a rect y-edge.  Positions are accumulated in GLOBAL coordinates (summing
-    # ancestor <g> translates) so a tick only matches marks in its own panel: other panels'
-    # marks are a panel-width away, which is what makes mixed hconcat/vconcat resolve.
-    x_anchors: list[float] = []  # bar/box centres + rect x-edges
-    y_anchors: list[float] = []  # rect y-edges
-
-    def _collect(el: ET.Element, cx: float, cy: float) -> None:
+    def _walk(el: ET.Element) -> None:
         for ch in el:
-            ccx, ccy = cx, cy
-            mt = _xlate.search(ch.get("transform", ""))
-            if mt:
-                ccx += float(mt.group(1))
-                ccy += float(mt.group(2))
-            role = ch.get("aria-roledescription")
-            if role in ("bar", "box"):
-                # A box/bar is a rect path.  Square corners: "M x,y h w ..." -> centre x + w/2.
-                # Rounded corners (cornerRadius): "M x1,y L x2,y a..." (the top edge is a line
-                # between the two rounded corners, inset symmetrically) -> centre (x1 + x2)/2.
-                d = ch.get("d", "")
-                mh = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", d)
-                ml = re.match(r"M([-\d.]+),[-\d.eE+]+L([-\d.]+),", d)
-                if mh:
-                    x_anchors.append(round(ccx + float(mh.group(1)) + float(mh.group(2)) / 2, 4))
-                elif ml:
-                    x_anchors.append(round(ccx + (float(ml.group(1)) + float(ml.group(2))) / 2, 4))
-            elif role == "rect mark":
-                # "M x,y h w v h2 ..." -> x-edges {x, x+w}, y-edges {y, y+h2}
-                m = re.match(r"M([-\d.]+),([-\d.eE+]+)h([-\d.eE+]+)v([-\d.eE+]+)", ch.get("d", ""))
-                if m:
-                    x0, y0, w, h = (float(m.group(i)) for i in range(1, 5))
-                    x_anchors.extend([round(ccx + x0, 4), round(ccx + x0 + w, 4)])
-                    y_anchors.extend([round(ccy + y0, 4), round(ccy + y0 + h, 4)])
-            _collect(ch, ccx, ccy)
-
-    _collect(root, 0.0, 0.0)
-    sorted_x = sorted(set(x_anchors))
-    sorted_y = sorted(set(y_anchors))
-
-    modified = False
-
-    def _nearest(pos: float, anchors: list[float]) -> float | None:
-        c = min(anchors, key=lambda a: abs(a - pos))
-        return c if abs(c - pos) <= _TOL else None
-
-    def _snap_group(g: ET.Element, cx: float, cy: float) -> bool:
-        """Snap one axis group to the nearest mark anchors.  Returns True if the group is
-        anchor-aligned (every tick maps to an anchor) and was snapped; else False so the caller
-        falls back to the band formula.  Orientation is read from which translate coordinate
-        varies (x-ticks vary tx at constant ty; y-ticks vary ty at constant tx)."""
-        nonlocal modified
-        lines: list[tuple[ET.Element, float, float]] = []
-        for line in g:
-            m = _tick.match(line.get("transform", ""))
-            if m:
-                lines.append((line, float(m.group(1)), float(m.group(2))))
-        if not lines:
-            return False
-        txs = {round(tx, 3) for _, tx, _ in lines}
-        tys = {round(ty, 3) for _, _, ty in lines}
-        if len(txs) > 1 and len(tys) == 1:
-            is_x, anchors = True, sorted_x
-        elif len(tys) > 1 and len(txs) == 1:
-            is_x, anchors = False, sorted_y
-        else:
-            return False
-        if not anchors:
-            return False
-        gpos = [(cx + tx) if is_x else (cy + ty) for _, tx, ty in lines]
-        if any(_nearest(p, anchors) is None for p in gpos):
-            return False  # not this axis's marks -> leave to the fallback
-        is_grid = g.get("class") == "mark-rule role-axis-grid"
-        for (line, tx, ty), gp in zip(lines, gpos):
-            a = _nearest(gp, anchors)
-            if a is None:
-                continue
-            if is_x:
-                if is_grid and ty < -50 and axis_offset > 0:
+            if ch.get("class") == "mark-rule role-axis-grid":
+                for line in ch:
+                    m = _xlate.match(line.get("transform", ""))
                     y2 = line.get("y2")
-                    if y2 is not None and float(y2) > 50:
+                    if not m or y2 is None:
+                        continue
+                    ty = float(m.group(2))
+                    if ty < 0 and float(y2) > 0:  # vertical grid line hanging from the x-axis group
                         line.set("y2", str(float(y2) + axis_offset))
-                    ty -= axis_offset
-                line.set("transform", f"translate({round(a - cx, 4)},{ty})")
+                        line.set("transform", f"translate({m.group(1)},{ty - axis_offset})")
             else:
-                line.set("transform", f"translate({tx},{round(a - cy, 4)})")
-            modified = True
-        return True
+                _walk(ch)
 
-    def _fallback(g: ET.Element) -> None:
-        """Analytic band-formula snap for an x-axis group with no matching mark anchors
-        (point-scale scatter, or a mark_line/mark_tick categorical axis)."""
-        nonlocal modified
-        xs = []
-        for line in g:
-            m = re.match(r"translate\((\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)\)$", line.get("transform", ""))
-            if m and float(m.group(1)) > 0:
-                xs.append(float(m.group(1)))
-        if not xs:
-            return
-        xs = sorted(set(xs))
-        n = len(xs)
-        step0 = chart_width / (n + 2 * band_padding)
-        step_pi = chart_width / (n + band_padding)
-        step_pt = chart_width / n
-        exp0 = [int(step0 * (band_padding + i + 0.5)) for i in range(n)]
-        exp_pi = [int(step_pi * (i + 0.5 + band_padding / 2)) for i in range(n)]
-        exp_pt = [round(step_pt * (0.5 + i)) for i in range(n)]
-        actual = [int(v) for v in xs]
-        # No box disambiguation: boxes are read as anchors, so an ambiguous (pi == 0) group here
-        # is genuinely anchorless -> leave it untouched rather than guess.
-        if actual == exp_pi and actual != exp0:
-            centers = {v: round(step_pi * (i + 0.5 + band_padding / 2), 4) for i, v in enumerate(xs)}
-        elif actual == exp0 and actual != exp_pi:
-            centers = {v: round(step0 * (band_padding + i + 0.5), 4) for i, v in enumerate(xs)}
-        elif actual == exp_pt:
-            centers = {v: round(step_pt * (0.5 + i), 4) for i, v in enumerate(xs)}
-        else:
-            return
-        is_grid = g.get("class") == "mark-rule role-axis-grid"
-        for line in g:
-            m = re.match(r"translate\(([\d.]+),([-\d.]+)\)$", line.get("transform", ""))
-            if not m:
-                continue
-            c = centers.get(float(m.group(1)))
-            if c is None:
-                continue
-            ty = float(m.group(2))
-            if is_grid and ty < -50 and axis_offset > 0:
-                y2 = line.get("y2")
-                if y2 is not None and float(y2) > 50:
-                    line.set("y2", str(float(y2) + axis_offset))
-                ty -= axis_offset
-            line.set("transform", f"translate({c},{ty})")
-            modified = True
-
-    # --- Pass 2: walk axis groups (with accumulated panel offset) and snap ---
-    def _walk(el: ET.Element, cx: float, cy: float) -> None:
-        for ch in el:
-            ccx, ccy = cx, cy
-            mt = _xlate.search(ch.get("transform", ""))
-            if mt:
-                ccx += float(mt.group(1))
-                ccy += float(mt.group(2))
-            if ch.get("class") in _AXIS_CLS:
-                if not _snap_group(ch, ccx, ccy):
-                    _fallback(ch)
-            else:
-                _walk(ch, ccx, ccy)
-
-    _walk(root, 0.0, 0.0)
-
-    if not modified:
-        return
-
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(ET.tostring(root, encoding="unicode"))
+    _walk(root)
 
 
-def _fix_log_minor_ticks(path: str) -> None:
-    """Correct integer-rounded SVG positions for log- and power-scale minor ticks.
-
-    Vega rounds all SVG tick transforms to integers. When the chart dimension
-    is not divisible by the number of intervals, each interval gets a slightly
-    different pixel span, making minor tick spacings visually inconsistent at
-    high DPI. This function recomputes each minor tick's exact fractional
-    position within its enclosing major-tick interval and writes it back.
-
-    Handles both axes:
-      Y-axis: translate(0,N) lines with x2 < 0. Corrects the N (y-coordinate).
-      X-axis: translate(N,0) lines with 0 < y2 < 20 (excludes mark_rule
-              elements whose y2 equals the full chart height).
-
-    Spacing detection: two distinct tick sizes (major vs minor) must be present
-    in a context group. Gap-uniformity test on the first interval distinguishes
-    base-10 (non-uniform 2×–9× pattern, max_gap > 2 × min_gap) from uniform
-    equal-visual-space (power-scale or non-base-10 log).
-
-    Three design points worth noting:
-
-    Per-panel grouping: ticks are collected with their accumulated (cx, cy)
-    parent-transform context. Each unique (cx, cy) is a separate panel
-    coordinate space (hconcat panels differ in cx, vconcat in cy). Processing
-    per group prevents major ticks from a linear axis in one panel from
-    corrupting interval detection in a log/power axis in another.
-
-    Strict upper interval bound: the interval check uses lo - 1 <= pos <= hi
-    (not hi + 1). Minor ticks are strictly between major ticks in data space,
-    so Vega's integer rounding can only push a tick downward — never past hi.
-    A hi + 1 tolerance caused the 9× tick (1 px above the next major tick) to
-    match the wrong interval and be displaced.
-
-    Independent if-branches for translate(0,0): the leftmost x-axis tick has
-    this exact transform, which also matches the y-axis regex translate(0,...).
-    Both pattern checks are independent if-branches so the x-axis branch still
-    runs when the y-axis branch enters but fails x2 < 0, preventing the x=0
-    major tick from being silently dropped and the first interval left
-    uncorrectable.
-    """
-    import math
-    import re
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-
-    tree = ET.parse(path)
-    root = tree.getroot()
-    changed = False
-
-    _TRANSLATE = re.compile(r"translate\(\s*([0-9.-]+)\s*[,\s]\s*([0-9.-]+)\s*\)")
-
-    def _correct_axis(major_positions: list[float], minor_els: list, is_x: bool) -> None:
-        nonlocal changed
-        n = len(major_positions) - 1
-        if n < 1 or not minor_els:
-            return
-        # Detect uniform vs non-uniform from first interval.
-        lo1, hi1 = major_positions[0], major_positions[1]
-        interval1 = sorted(p for _, p in minor_els if lo1 - 1.0 <= p <= hi1)
-        if not interval1:
-            return
-        n_minor = len(interval1)
-        is_nonuniform = False
-        if n_minor >= 2:
-            gaps = [interval1[i + 1] - interval1[i] for i in range(n_minor - 1)]
-            # Base-10 pattern: clustering makes max gap > 2× min gap.
-            if min(gaps) > 0 and max(gaps) > 2 * min(gaps):
-                is_nonuniform = True
-        n_divs = n_minor + 1
-
-        for el, pos_int in minor_els:
-            for i in range(n):
-                lo = major_positions[i]
-                hi = major_positions[i + 1]
-                if lo - 1.0 <= pos_int <= hi:
-                    span = hi - lo
-                    if span == 0:
-                        break
-                    rel = max(0.0, min(1.0, (pos_int - lo) / span))
-                    if is_x:
-                        # X-axis: lo = low-value end (left). rel increases rightward.
-                        # base-10: fraction = log10(m), mval = 10^rel
-                        # uniform:  fraction = k/n_divs, k = round(rel × n_divs)
-                        if is_nonuniform:
-                            mval = max(2, min(9, int(round(10**rel))))
-                            pos_ex = lo + math.log10(mval) * span
-                        else:
-                            k = max(1, min(n_divs - 1, int(round(rel * n_divs))))
-                            pos_ex = lo + (k / n_divs) * span
-                        if abs(pos_ex - pos_int) > 0.001:
-                            el.set("transform", f"translate({pos_ex:.6f},0)")
-                            changed = True
-                    else:
-                        # Y-axis: lo = y_top (high-value end, top). rel increases downward.
-                        # base-10: fraction = log10(m), mval = 10^(1-rel)
-                        # uniform:  fraction = k/n_divs, k = round((1-rel) × n_divs)
-                        if is_nonuniform:
-                            mval = max(2, min(9, int(round(10 ** (1.0 - rel)))))
-                            pos_ex = hi - math.log10(mval) * span
-                        else:
-                            k = max(1, min(n_divs - 1, int(round((1.0 - rel) * n_divs))))
-                            pos_ex = hi - (k / n_divs) * span
-                        if abs(pos_ex - pos_int) > 0.001:
-                            el.set("transform", f"translate(0,{pos_ex:.6f})")
-                            changed = True
-                    break
-
-    # Walk the SVG tree, accumulating parent <g> transforms to build a
-    # (cx, cy) context key for each tick line. Panels in hconcat have
-    # different accumulated cx values; panels in vconcat have different cy
-    # values. Grouping by (cx, cy) prevents cross-panel contamination in
-    # both layouts — e.g. a linear axis in one hconcat panel cannot pollute
-    # the major-position list used to correct a log axis in another.
-    #
-    # y_groups[(cx,cy)] = [(el, local_y, tick_size), ...]
-    # x_groups[(cx,cy)] = [(el, local_x, tick_size), ...]
-    y_groups: dict[tuple[float, float], list] = {}
-    x_groups: dict[tuple[float, float], list] = {}
-
-    def _collect(el: ET.Element, cx: float = 0.0, cy: float = 0.0) -> None:
-        for child in el:
-            child_cx, child_cy = cx, cy
-            t = child.get("transform", "")
-            m = _TRANSLATE.match(t)
-            if m:
-                child_cx += float(m.group(1))
-                child_cy += float(m.group(2))
-
-            if child.tag == f"{{{NS}}}line":
-                lt = child.get("transform", "")
-                my = re.match(r"translate\(0,([0-9.-]+)\)$", lt)
-                mx = re.match(r"translate\(([0-9.-]+),0\)$", lt)
-                x2_str = child.get("x2", "")
-                y2_str = child.get("y2", "")
-                if my and x2_str:
-                    try:
-                        x2_val = float(x2_str)
-                    except ValueError:
-                        x2_val = 0.0
-                    if x2_val < 0:
-                        y_groups.setdefault((cx, cy), []).append((child, float(my.group(1)), abs(x2_val)))
-                # Use 'if' not 'elif': a tick at translate(0,0) (leftmost x-axis
-                # tick) matches both patterns; the y-axis branch may enter and exit
-                # without adding anything, so the x-axis branch must run independently.
-                if mx and y2_str:
-                    try:
-                        y2_val = float(y2_str)
-                    except ValueError:
-                        y2_val = 0.0
-                    if 0 < y2_val < 20:
-                        x_groups.setdefault((cx, cy), []).append((child, float(mx.group(1)), y2_val))
-            else:
-                _collect(child, child_cx, child_cy)
-
-    _collect(root)
-
-    # Process each panel's y-axis and x-axis ticks independently.
-    for ticks in y_groups.values():
-        sizes = sorted({s for _, _, s in ticks}, reverse=True)
-        if len(sizes) >= 2:
-            major_size, minor_size = sizes[0], sizes[-1]
-            major_ys = sorted(y for _, y, s in ticks if s == major_size)
-            minor_els = [(el, y) for el, y, s in ticks if s == minor_size]
-            _correct_axis(major_ys, minor_els, is_x=False)
-
-    for ticks in x_groups.values():
-        sizes = sorted({s for _, _, s in ticks}, reverse=True)
-        if len(sizes) >= 2:
-            major_size, minor_size = sizes[0], sizes[-1]
-            major_xs = sorted(x for _, x, s in ticks if s == major_size)
-            minor_els = [(el, x) for el, x, s in ticks if s == minor_size]
-            _correct_axis(major_xs, minor_els, is_x=True)
-
-    if changed:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(ET.tostring(root, encoding="unicode"))
-
-
-def _flip_ticks_inward(path: str) -> None:
+def _flip_ticks_inward(root: ET.Element) -> None:
     """Negate axis-tick line geometry so ticks point into the plot (theme(inwardTicks=True)).
 
     Vega/Vega-Lite always render ticks outward and reject a negative ``tickSize``, so inward
-    ticks are produced here as an SVG post-process. Runs AFTER the tick-position fixers
-    (``_fix_tick_alignment`` / ``_fix_log_minor_ticks``), which rely on the outward geometry to
-    detect ticks, then negates the non-zero ``x2``/``y2`` of every ``<line>`` inside an axis-tick
-    group. x-axis ticks carry their length in ``y2`` (``x2="0"``), y-axis ticks in ``x2``
+    ticks are produced here as an SVG post-process that negates the non-zero ``x2``/``y2`` of
+    every ``<line>`` inside an axis-tick group. x-axis ticks carry their length in ``y2``
+    (``x2="0"``), y-axis ticks in ``x2``
     (``y2="0"``), so negating the non-zero coordinate flips the direction. Covers primary,
     secondary (right/top), major, and minor (log/power) ticks uniformly, since all are
     ``role-axis-tick`` groups.
     """
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-
-    tree = ET.parse(path)
-    root = tree.getroot()
-    changed = False
-    for g in root.iter(f"{{{NS}}}g"):
+    for g in root.iter(f"{{{_SVG_NS}}}g"):
         if "role-axis-tick" not in g.get("class", ""):
             continue
-        for line in g.iter(f"{{{NS}}}line"):
+        for line in g.iter(f"{{{_SVG_NS}}}line"):
             for attr in ("x2", "y2"):
                 v = line.get(attr)
                 if v is not None and float(v) != 0.0:
                     line.set(attr, v[1:] if v.startswith("-") else "-" + v)
-                    changed = True
-    if changed:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(ET.tostring(root, encoding="unicode"))
 
 
-def _layer_axes_to_front(path: str) -> None:
+def _layer_axes_to_front(root: ET.Element) -> None:
     """Re-order SVG children so axis domain/tick elements and the view border render last.
 
     Vega emits axis groups (domain lines, ticks, labels) before data marks, so marks
@@ -825,17 +469,9 @@ def _layer_axes_to_front(path: str) -> None:
     the border still renders in front.
     """
     import copy
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 
     def _is_grid_axis(el: ET.Element) -> bool:
-        return any(g.get("class", "") == "mark-rule role-axis-grid" for g in el.iter(f"{{{NS}}}g"))
-
-    tree = ET.parse(path)
-    root = tree.getroot()
+        return any(g.get("class", "") == "mark-rule role-axis-grid" for g in el.iter(f"{{{_SVG_NS}}}g"))
 
     def reorder(el: ET.Element) -> None:
         to_move = []  # existing children to remove and re-append at end
@@ -845,7 +481,7 @@ def _layer_axes_to_front(path: str) -> None:
             if cls == "mark-group role-axis" and not _is_grid_axis(child):
                 to_move.append(child)
             elif (
-                child.tag == f"{{{NS}}}path"
+                child.tag == f"{{{_SVG_NS}}}path"
                 and cls == "background"
                 and child.get("stroke") not in (None, "none")
                 and child.get("display") != "none"
@@ -870,41 +506,30 @@ def _layer_axes_to_front(path: str) -> None:
             reorder(child)
 
     reorder(root)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(ET.tostring(root, encoding="unicode"))
 
 
 _SUPERSCRIPT_MAP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789−")
 _SUP_LABEL_PATTERN = re.compile(r"([×≈]\s*10)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)")
 
 
-def _fix_superscript_labels(path: str) -> None:
+def _fix_superscript_labels(root: ET.Element) -> None:
     """Fix misaligned Unicode superscripts in scientific/power notation labels.
 
     Unicode superscript digits 1-3 (U+00B9/B2/B3, Latin-1 Supplement) and 0/4-9
     (U+2070, U+2074-U+2079, Superscripts block) live in different font metric tables and
     render at inconsistent vertical positions in many fonts, causing visible misalignment
-    in multi-digit exponents like 10^-14. Finds the pattern in SVG text/.text nodes only
-    (not attribute values) and replaces the exponent portion with a <tspan dy="-2.5"
-    font-size="4"> element using plain ASCII digits for consistent font metrics.
+    in multi-digit exponents like 10^-14. Operates on element .text values in the parsed
+    tree only (never attribute values, which carry the same label text in aria-label/title)
+    and replaces the exponent portion with a <tspan dy="-2.5" font-size="4"> element using
+    plain ASCII digits for consistent font metrics.
 
     Tuned for p-value label fontSize=6: exponent font-size=4 (~67%), dy=-2.5 (~42% shift).
     """
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-
-    tree = ET.parse(path)
-    root = tree.getroot()
-    changed = False
-
     # Collect matching text/tspan elements first to avoid modifying while iterating.
     targets = [
         el
         for el in root.iter()
-        if el.tag in (f"{{{NS}}}text", f"{{{NS}}}tspan") and el.text and _SUP_LABEL_PATTERN.search(el.text)
+        if el.tag in (f"{{{_SVG_NS}}}text", f"{{{_SVG_NS}}}tspan") and el.text and _SUP_LABEL_PATTERN.search(el.text)
     ]
 
     for el in targets:
@@ -916,7 +541,7 @@ def _fix_superscript_labels(path: str) -> None:
         exp_ascii = m.group(2).translate(_SUPERSCRIPT_MAP)
         suffix = text[m.end() :]
 
-        tspan = ET.Element(f"{{{NS}}}tspan")
+        tspan = ET.Element(f"{{{_SVG_NS}}}tspan")
         tspan.set("dy", "-2.5")
         tspan.set("font-size", "4")
         tspan.text = exp_ascii
@@ -924,14 +549,9 @@ def _fix_superscript_labels(path: str) -> None:
 
         el.text = prefix
         el.insert(0, tspan)
-        changed = True
-
-    if changed:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(ET.tostring(root, encoding="unicode"))
 
 
-def _simplify_svg(path: str) -> None:
+def _simplify_svg(root: ET.Element) -> None:
     """
     Reduce SVG grouping depth by inlining structurally redundant ``<g>`` elements.
 
@@ -958,15 +578,8 @@ def _simplify_svg(path: str) -> None:
     The result is a flatter, editor-friendly SVG that renders identically to the
     original.
     """
-    import re
-    import xml.etree.ElementTree as ET
-
-    NS = "http://www.w3.org/2000/svg"
-    ET.register_namespace("", NS)
-    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-
     KEEP_ATTRS = {"transform", "clip-path", "opacity", "mask", "filter", "style", "id"}
-    SKIP_TAGS = {f"{{{NS}}}defs", f"{{{NS}}}clipPath", f"{{{NS}}}symbol"}
+    SKIP_TAGS = {f"{{{_SVG_NS}}}defs", f"{{{_SVG_NS}}}clipPath", f"{{{_SVG_NS}}}symbol"}
 
     _NOOP_TRANSLATE = re.compile(r"translate\(\s*0(?:\.0+)?\s*[,\s]\s*0(?:\.0+)?\s*\)$")
 
@@ -986,7 +599,7 @@ def _simplify_svg(path: str) -> None:
         while i < len(parent):
             child = parent[i]
             _flatten(child)
-            if child.tag == f"{{{NS}}}g" and _is_noop(child):
+            if child.tag == f"{{{_SVG_NS}}}g" and _is_noop(child):
                 grandchildren = list(child)
                 parent.remove(child)
                 for j, gc in enumerate(grandchildren):
@@ -996,8 +609,4 @@ def _simplify_svg(path: str) -> None:
             else:
                 i += 1
 
-    tree = ET.parse(path)
-    _flatten(tree.getroot())
-    with open(path, "w", encoding="utf-8") as f:
-        f.write('<?xml version="1.0" encoding="utf-8"?>\n')
-        f.write(ET.tostring(tree.getroot(), encoding="unicode"))
+    _flatten(root)

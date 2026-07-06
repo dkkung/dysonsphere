@@ -141,3 +141,20 @@ class TestAddMultilabel:
         assert isinstance(strip, alt.LayerChart)
         result = add_multilabel(strip, ML_GROUPS, categories=ML_CATS)
         assert isinstance(result, alt.VConcatChart)
+
+
+class TestMultilabelLabelMap:
+    def test_category_label_row_uses_display_names(self):
+        import json
+
+        chart = _multilabel_layer(
+            {"C1": [True, False]},
+            ["metadata_a", "metadata_b"],
+            categoryLabel=True,
+            labelMap={"metadata_a": "A!", "metadata_b": ["B", "two lines"]},
+        )
+        blob = json.dumps(chart.to_dict())
+        assert "A!" in blob
+        assert "B two lines" in blob  # list labels space-joined in the text row
+        # raw values still present (they are the band-scale positions)
+        assert "metadata_a" in blob

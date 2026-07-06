@@ -112,7 +112,7 @@ ds.theme(   # custom configuration
 | `axisOffset` | `tickSize × 1.5` | Distance between axis line and data area |
 | `axisWidth` | `0.25` | Stroke width of axes, ticks, and rules |
 | `bandPadding` | `0.1` | Inner and outer padding for ordinal bands |
-| `chartFill` | `"white"` | Background fill of the entire chart |
+| `chartFill` | `None` | Background fill of the entire chart (`None` = auto: white in light mode, black in dark mode) |
 | `chartHeight` | `100` | Default chart height in pixels |
 | `chartWidth` | `100` | Default chart width in pixels |
 | `closed` | auto | Draw a border around the plot area. Auto-enabled when `viewFill` is set or `inwardTicks=True` |
@@ -149,7 +149,7 @@ ds.theme(   # custom configuration
 | `strokeCap` | `"round"` | Stroke end cap: `"butt"`, `"round"`, or `"square"` |
 | `ticks` | `True` | Show axis ticks |
 | `tickSize` | `3` | Tick length in pixels |
-| `transparentBackground` | `False` | Transparent chart background (overrides `chartFill`) |
+| `transparent` | `False` | Transparent chart background (overrides `chartFill`) |
 | `viewFill` | `None` | Fill color of the plot area only. Setting this auto-enables `closed` |
 | `xAxis` | `True` | Toggle for the x-axis — disabling hides the axis domain and axis ticks, but not axis labels |
 | `xDomain` | `True` | Show the x-axis domain line (overridden to `False` when `xAxis=False`) |
@@ -200,12 +200,7 @@ chartWidth = 900
 chartHeight = 900
 darkmode = true
 fontSize = 18
-transparentBackground = true
-
-[presentation]
-fontSize = 12
-darkmode = true
-transparentBackground = true
+transparent = true
 
 # Custom styles - add your own style sections below
 
@@ -285,9 +280,10 @@ ds.categorical()      # flat palette for unrelated groups (12 colors); the defau
 ds.categorical(2)     # paired data: A1/A2, B1/B2, … (each group one hue, light→dark)
 ds.categorical(3)     # triples
 ds.categorical(4)     # quadruples
+ds.categorical(5)     # quintuples and beyond (up to 10) - within-hue contrast shrinks each step
 ```
 
-`members` (1–4) is the number of colors per associated group. `members=1` (default) cycles the four hues at each lightness tier, so adjacent categories differ in hue — for **unrelated** groups. `members≥2` groups by hue instead: each block of `members` consecutive categories is one hue climbing in lightness — for **paired** data. Sort your categories so a group's members are adjacent, then pass it as the color range:
+`members` is the number of colors per associated group. `members=1` (default) cycles the four hues at each lightness tier, so adjacent categories differ in hue — for **unrelated** groups. `members≥2` groups by hue instead: each block of `members` consecutive categories is one hue climbing in lightness — for **paired** data. Up to `4` the lightness stops are the classic well-separated tiers; `5`–`10` spread stops evenly across the ramp, trading within-hue contrast for group size (fine at normal mark sizes for 5–6, ambiguous past that — and if your members are really ordinal, like a dose series, a sequential slice per group such as `ds.palette("blues", n=5)` says so more honestly). Sort your categories so a group's members are adjacent, then pass it as the color range:
 
 ```python
 groups = ["A1", "A2", "B1", "B2"]
@@ -395,16 +391,17 @@ ds.save(chart, "plots/myplot")
 
 **Always use `ds.save()` instead of `chart.save()`.** `ds.save()` is a wrapper around Altair's built-in save that runs several post-processing steps essential for correct rendering in dysonsphere-themed charts:
 
-- **Tick alignment** — Vega floors axis tick positions to integers for screen rendering; at 1200 PPI this becomes a visible gap between ticks and their marks. `ds.save()` corrects tick transforms to exact float positions.
-- **Minor tick correction** — corrects sub-pixel rounding on log-scale and power-scale minor ticks so spacing is visually uniform at high DPI.
+- **Superscript typesetting** — fixes misaligned Unicode superscripts in scientific/power notation labels (e.g. p-values like 10⁻¹⁴).
+- **Grid span** — extends grid lines across the small gap left by the detached axis (`axisOffset`), so they reach the top chart border.
 - **Inward ticks** — when `inwardTicks=True`, flips axis ticks (major, minor, and secondary) to point into the plot; Altair/Vega-Lite can't render inward ticks natively.
 - **Axis layering** — moves axis elements to the front so they render above chart marks (relevant for `viewFill`-filled charts).
 - **SVG simplification** — flattens Vega's redundant `<g>` wrappers for cleaner Illustrator imports.
 - **Light/dark variants** — renders both background modes in a single call by toggling `darkmode` in the active theme.
+- **Transparent background** — exports render with a transparent background by default so figures composite onto any page or slide; pass `transparent=False` for an opaque background (the theme's `chartFill` — white in light mode, black in dark).
 
-Calling `chart.save()` directly skips all of the above and will produce misaligned ticks and incorrect minor tick spacing in dysonsphere charts.
+(Tick positions need no post-processing: the theme itself disables Vega's integer tick rounding, so ticks land exactly on their marks in every output, including plain `chart.save()` and notebook previews.)
 
-> **Notebook preview is approximate.** Displaying an Altair chart inline (in a notebook or IDE) renders it through Vega-Lite's own renderer, which does **not** run these post-processing steps — so the preview is not publication-accurate. Ticks aren't pixel-aligned, log/superscript labels aren't typeset, and (most visibly) with `inwardTicks=True` the ticks still point **outward** in the preview. For an accurate inline preview, use **`ds.show(chart)`** — it runs the same pipeline as `ds.save()` and returns an `IPython.display.SVG`, so the preview matches the saved figure (no file written). Requires IPython.
+> **Notebook preview is approximate.** Displaying an Altair chart inline (in a notebook or IDE) renders it through Vega-Lite's own renderer, which does **not** run these post-processing steps — superscript labels aren't typeset and (most visibly) with `inwardTicks=True` the ticks still point **outward** in the preview. For an accurate inline preview, use **`ds.show(chart)`** — it runs the same pipeline as `ds.save()` and returns an `IPython.display.SVG`, so the preview matches the saved figure (no file written). Requires IPython.
 >
 > ```python
 > ds.show(chart)   # accurate inline preview in a notebook (last expression in a cell)
@@ -412,7 +409,7 @@ Calling `chart.save()` directly skips all of the above and will produce misalign
 
 `ds.save()` writes a chart in one or more formats and background variants. **By default it writes SVG + the Vega-Lite JSON spec, light background only** — `myplot.svg` and `myplot.json`. The formats (`"svg"`/`"png"`/`"json"`/`"html"`) and backgrounds (`"light"`/`"dark"`) are set by `format` / `background` (a string or a list), each defaulting to the theme options `saveFormat` / `saveBackground` (so you can change the defaults globally or in `dysonsphere.toml`). A `_light`/`_dark` suffix is added **only when more than one background** is rendered. It accepts any Altair chart type — `Chart`, `LayerChart`, `FacetChart`, `HConcatChart`, `VConcatChart`, or `ConcatChart` — as well as a zero-argument callable that returns one.
 
-> **`format="html"` is the interactive tier.** It writes a self-contained interactive page (the Vega JS is bundled in, so it works offline — tooltips, pan, zoom), fully themed and with the metadata block embedded. But it renders live in the browser via Vega, so — like the notebook preview — it does **not** get the static SVG post-processors: no pixel-perfect tick alignment, no inward ticks, no superscript typesetting. Use `"svg"`/`"png"` for the publication-accurate static figure.
+> **`format="html"` is the interactive tier.** It writes a self-contained interactive page (the Vega JS is bundled in, so it works offline — tooltips, pan, zoom), fully themed and with the metadata block embedded. But it renders live in the browser via Vega, so — like the notebook preview — it does **not** get the static SVG post-processors: no inward ticks, no superscript typesetting. (Tick positions are exact in every output, including HTML — that fix lives in the theme itself.) Use `"svg"`/`"png"` for the publication-accurate static figure.
 
 ```python
 ds.save(chart, "myplot")                              # myplot.svg + myplot.json  (defaults)
@@ -420,6 +417,7 @@ ds.save(chart, "myplot", format="png")                # myplot.png only
 ds.save(chart, "myplot", format=["svg", "png", "json"])
 ds.save(chart, "myplot", background=["light", "dark"])  # myplot_light.* + myplot_dark.*
 ds.save(chart, "myplot", ppi=600)                     # lower PPI for faster PNG exports
+ds.save(chart, "myplot", transparent=False)           # opaque background (chartFill) instead of transparent
 ds.save(chart, "myplot", description="Figure 1")      # your own description, in SVG <desc>, PNG iTXt, and the JSON spec
 ds.save(chart, "myplot", saveMetadata=False)          # suppress the structured metadata block
 ds.save(chart, "myplot", maxRows=20000)               # allow bigger data (default cap 5000)
@@ -552,6 +550,7 @@ chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
 | `spread` | `None` | Point spread in pixels. For jitter: std dev (defaults to `min(chartWidth, chartHeight) / 50`). For beeswarm: collision radius (defaults to `√(markSize/π)` from theme) |
 | `legend` | `False` | Show a color legend |
 | `xLabelAngle` | `theme(xLabelAngle)` | X-axis label rotation in degrees |
+| `labelMap` | `None` | `{raw_value: label}` display mapping for x-axis tick labels (see [Relabeling axis values](#relabeling-axis-values)); a list value renders multi-line |
 | `errorbars` | `True` | Show mean ± error bars |
 | `errorbarExtent` | `"sem"` | `"sem"` or `"sd"` |
 | `yTitle` | `yCol` | Y-axis title; `None` suppresses it |
@@ -589,11 +588,41 @@ ds.save(alt.hconcat(left, right), "comparison")
 | `strokeWidth` | `theme(markStrokeWidth)` | Violin outline width |
 | `legend` | `False` | Show a color legend |
 | `xLabelAngle` | `theme(xLabelAngle)` | X-axis label rotation in degrees |
+| `labelMap` | `None` | `{raw_value: label}` display mapping for x-axis tick labels (see [Relabeling axis values](#relabeling-axis-values)); a list value renders multi-line |
 | `steps` | `200` | KDE grid resolution per group |
 | `yTitle` | `yCol` | Y-axis title; `None` suppresses it |
 | `xTitle` | `xCol` | X-axis title; `None` suppresses it |
 
 ![marks example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/marks_example.png)
+
+### Relabeling axis values
+
+Dataframes often hold machine names (`metadata_group1`) where the plot needs presentable
+labels (`group 1`). Renaming the data is tedious and changes what gets exported;
+hand-writing a Vega `labelExpr` is worse. `ds.label_expr()` builds the expression for you —
+only the rendered labels change, while the data, the exported JSON, checksums, and
+statistics records keep the raw values.
+
+```python
+labels = {
+    "metadata_ctrl": "Control",
+    "metadata_tnf10": ["TNF-α", "(10 ng/mL)"],   # a list renders as a multi-line label
+}
+
+# anywhere Vega-Lite accepts a label expression:
+alt.X("treatment:N", axis=alt.Axis(labelExpr=ds.label_expr(labels)))     # axis ticks
+alt.Color("treatment:N", legend=alt.Legend(labelExpr=ds.label_expr(labels)))  # legend
+alt.Facet("treatment:N", header=alt.Header(labelExpr=ds.label_expr(labels)))  # facet headers
+
+# or let the custom marks wire it up for you:
+chart = ds.mark_strip(df, "treatment", "value", CATEGORIES, labelMap=labels)
+chart = ds.mark_violin(df, "treatment", "value", CATEGORIES, labelMap=labels)
+annotated = ds.add_multilabel(chart, CONDITIONS, categoryLabel=True, labelMap=labels)
+```
+
+Unmapped values fall back to the raw value; map a value to `""` to hide it. Numeric keys
+work (`{5: "five"}`). In `add_multilabel`'s category-label row the mapping is a plain text
+lookup (list labels are space-joined there, since those are text marks, not axis labels).
 
 ### Statistical annotations
 
@@ -1077,6 +1106,42 @@ The `x` and `y` parameters accept three forms: a `float`/`int` for quantitative 
 | `data` | `None` | Facet-safe (datum) mode. Pass the same DataFrame as the base chart to share its data and position the text by `alt.datum` / `alt.value`, so `(base + add_text(..., data=df))` can be faceted and the text repeats in every panel |
 
 **Faceting note.** Like `add_rule` / `add_shade`, a text annotation carries its own data by default and can't be faceted. Pass `data=` (the same frame as the base) to switch to datum mode so `(base + add_text(..., data=df)).facet(...)` works.
+
+#### Point labels
+
+`add_labels()` attaches non-overlapping text labels with connector lines to a set of points — the auto-placed, no-overlap labeling that Altair itself lacks. Compose it with the base chart using `+`.
+
+```python
+# Auto-select 8 evenly-spread points and label them
+chart = base + ds.add_labels(df, "x", "y", "name", labels=8)
+
+# Label specific rows by their label-column value
+chart = base + ds.add_labels(df, "x", "y", "name", labels=["P16", "P104"])
+
+# Label every row
+chart = base + ds.add_labels(df, "x", "y", "name")
+```
+
+Placement is deterministic (no RNG, so figures are reproducible): each label takes the nearest open spot around its point that clears every plotted marker and the other labels, then a swap pass minimizes total connector length (which also removes crossing leaders). Connectors sit a uniform distance off their dots and labels; a connector is dropped when the label ends up adjacent to its point (`alwaysShowConnectors=True` forces them all). `add_labels` pins the shared scale itself — to the data extent rounded outward to nice tick bounds — so `base + ds.add_labels(...)` just works, with no manual `alt.Scale` needed and no extra marks in the exported SVG.
+
+![point labels example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/labels_example.png)
+
+| Parameter | Default | Description |
+|---|---|---|
+| `df` | required | The full plotted DataFrame (polars or pandas) |
+| `xCol` / `yCol` | required | Quantitative x / y columns (the same fields as the base chart) |
+| `labelCol` | required | Column holding the label text |
+| `labels` | `None` | Which rows to label: `None` = all; an `int n` = auto-select `n` points spread evenly across the plot; a list of `labelCol` values = those rows |
+| `xDomain` / `yDomain` | `None` | Axis domain; `None` infers from the full `df` extent rounded outward to nice tick bounds (override — used exactly, no rounding — only for derived positions not in `df`, e.g. cluster centroids) |
+| `fontSize` | `None` | Label font size; `None` inherits the theme's `fontSize` |
+| `color` | `None` | Label text color; `None` inherits from theme (darkmode-aware) |
+| `connector` | `True` | Draw the connector line from each point to its label |
+| `connectorColor` | `None` | Connector color; `None` inherits the theme's rule color |
+| `connectorStrokeDash` | `False` | Connector dash: `False` solid, `True` the theme's `dashedWidth`, or a list pattern |
+| `connectorGap` | `None` | Pixel gap at the marker end of the connector; `None` sizes it to the theme's point-mark radius plus a sliver of daylight so it clears the dot (the text end keeps just the daylight) |
+| `alwaysShowConnectors` | `False` | Draw every connector, including the short ones dropped by default when a label sits on its point |
+
+Returns an `alt.LayerChart`.
 
 ### Non-linear axes
 

@@ -46,7 +46,7 @@ base = alt.Chart(df).encode(
     y=alt.Y("value:Q", title="Response (AU)"),
 )
 
-boxplot = base.mark_boxplot().encode()
+boxplot = base.mark_boxplot().encode(color=alt.Color("group:N", scale=alt.Scale(range=ds.categorical(members=2))))
 
 points = base.mark_circle().encode(
     xOffset=alt.XOffset("beeswarm_x:Q"),

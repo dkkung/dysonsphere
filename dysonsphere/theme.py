@@ -18,13 +18,15 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
         "chartHeight": 900,
         "darkmode": True,
         "fontSize": 18,
-        "transparentBackground": True,
+        "transparent": True,
     },
-    "presentation": {
-        "fontSize": 12,
-        "darkmode": True,
-        "transparentBackground": True,
-    },
+}
+
+# DEPRECATED (remove at v3.0): dev-only aliases for renamed parameters - the old names
+# last shipped in v2.0.0 and the rename lands as a v3.0.0 breaking change, so the alias
+# never ships in a release (the release step-0 sweep deletes it).
+_DEPRECATED_ALIASES: dict[str, str] = {
+    "transparentBackground": "transparent",  # renamed in v3.0
 }
 
 _BUILTIN_DEFAULTS: dict[str, Any] = {
@@ -74,7 +76,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "strokeCap": "round",
     "ticks": True,
     "tickSize": 3,
-    "transparentBackground": False,
+    "transparent": False,
     "viewFill": None,
     "xAxis": True,
     "xDomain": True,
@@ -124,6 +126,27 @@ def _config_paths() -> list[Path]:
     return paths
 
 
+def _apply_deprecated_aliases(params: dict[str, Any], source: str) -> dict[str, Any]:
+    """Map deprecated parameter names to their replacements, warning once per use.
+
+    Returns a new dict with old keys renamed. When both the old and new name are
+    present, the new name wins (the old key is dropped).
+    """
+    import warnings
+
+    out = dict(params)
+    for old, new in _DEPRECATED_ALIASES.items():
+        if old in out:
+            warnings.warn(
+                f"{old!r} ({source}) is deprecated and will be removed in v3.0; use {new!r}.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            val = out.pop(old)
+            out.setdefault(new, val)
+    return out
+
+
 def _load_style_overrides(style: str | None) -> dict[str, Any]:
     """
     Build the final override dict for theme().
@@ -143,6 +166,7 @@ def _load_style_overrides(style: str | None) -> dict[str, Any]:
 
         for section in ("default", style):
             if section and section in config:
+                config[section] = _apply_deprecated_aliases(config[section], f"[{section}] in {path}")
                 unknown = set(config[section]) - set(_BUILTIN_DEFAULTS)
                 if unknown:
                     raise ValueError(f"Unknown theme parameter(s) in [{section}] of {path}: {sorted(unknown)}")
@@ -192,6 +216,7 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     overrides. See the README for the config file format and search path.
     Named styles in the config file are selected with ``style=``.
     """
+    kwargs = _apply_deprecated_aliases(kwargs, "theme() keyword argument")
     unknown = set(kwargs) - set(_BUILTIN_DEFAULTS)
     if unknown:
         raise TypeError(f"theme() got unexpected keyword argument(s): {sorted(unknown)}")
@@ -203,7 +228,23 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
 
     overrides = _load_style_overrides(style)
     p: dict[str, Any] = {**_BUILTIN_DEFAULTS, **overrides, **kwargs}
+    _compute_derived(p)
 
+    # Resolve every palette-valued key: a name in `colors` (built-in or custom)
+    # becomes its hex list; anything else (a raw list, or a Vega scheme name) is
+    # passed through unchanged.
+    for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
+        val = p[key]
+        p[key] = colors[val] if isinstance(val, str) and val in colors else val
+
+    alt.theme.options = {**p, "tickWidth": p["axisWidth"]}
+
+
+def _compute_derived(p: dict[str, Any]) -> None:
+    """Resolve the derive-at-theme-time sentinels in *p* in place (None / True markers).
+
+    Shared by :func:`theme` and the :func:`_opt` fallback so both resolve the same way.
+    """
     # Computed defaults — None means "derive from other params"
     if p["closed"] is None:
         # inward ticks point into the plot, so they need a closed (non-offset) axis;
@@ -217,8 +258,10 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
         p["cornerRadius"] = min(p["chartWidth"], p["chartHeight"]) / 100
     if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
         p["boxplotOutliers"] = p["markSize"] / 10
-    if p["chartFill"] is None and not p["darkmode"]:
-        p["chartFill"] = "white"
+    # chartFill=None means "auto" (white in light mode, black in dark mode) and is resolved
+    # at config-build time in _dysonsphere_theme(), NOT here - save() toggles darkmode per
+    # background variant without re-running theme(), so the fill must follow darkmode live
+    # (the same pattern as every other darkmode-aware colour).
     # Offset the axis line and legend from the plot by 1.5x the tick length — enough separation
     # to read as an intentional (Prism-style) detached axis, not a rendering gap. Resolved once
     # here (not inline at each use) so the axis config, legend config, and save()'s grid-span fix
@@ -240,14 +283,30 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
             p["secondaryFontSize"] = max(p["secondaryFontSize"], p["smallestFontSize"])
         # … unless the user explicitly set fontSize below the floor (escape hatch)
 
-    # Resolve every palette-valued key: a name in `colors` (built-in or custom)
-    # becomes its hex list; anything else (a raw list, or a Vega scheme name) is
-    # passed through unchanged.
-    for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
-        val = p[key]
-        p[key] = colors[val] if isinstance(val, str) and val in colors else val
 
-    alt.theme.options = {**p, "tickWidth": p["axisWidth"]}
+_FALLBACK_OPTIONS: dict[str, Any] | None = None
+
+
+def _opt(key: str) -> Any:
+    """Read a theme option, falling back to the (derived) built-in default.
+
+    The single accessor for theme options outside theme.py — replaces scattered
+    ``alt.theme.options.get(key, hardcoded)`` calls, whose per-site hardcoded fallbacks
+    could silently drift from ``_BUILTIN_DEFAULTS``. After ``ds.theme()`` every option is
+    present in ``alt.theme.options``, so the fallback only matters when a chart helper is
+    called before any ``theme()``; it then sees the fully derived built-in defaults
+    (``markSize`` 10.0, ``axisOffset`` 4.5, …), computed once and cached. Unknown keys
+    raise ``KeyError``.
+    """
+    try:
+        return alt.theme.options[key]
+    except KeyError:
+        global _FALLBACK_OPTIONS
+        if _FALLBACK_OPTIONS is None:
+            defaults = dict(_BUILTIN_DEFAULTS)
+            _compute_derived(defaults)
+            _FALLBACK_OPTIONS = defaults
+        return _FALLBACK_OPTIONS[key]
 
 
 @alt.theme.register("dysonsphere", enable=True)
@@ -270,7 +329,12 @@ def _dysonsphere_theme() -> dict[str, Any]:
     category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
     return {
-        "background": (None if opts["transparentBackground"] else opts["chartFill"]),  # background of the entire chart
+        # background of the entire chart; chartFill=None -> auto (darkmode-aware)
+        "background": (
+            None
+            if opts["transparent"]
+            else (opts["chartFill"] if opts["chartFill"] is not None else ("black" if opts["darkmode"] else "white"))
+        ),
         "config": {
             "arc": {
                 "fill": opts["markFill"],
@@ -309,6 +373,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
                 "tickColor": "white" if opts["darkmode"] else "black",
+                # Vega rounds tick/grid positions to integers for on-screen crispness, which
+                # drifts them off the (fractional) mark positions at high DPI. tickRound=False
+                # keeps ticks on the exact scale positions - the same family of fix as the
+                # hardcoded "translate": 0 below (Vega's 0.5px crisp-pixel offset).
+                "tickRound": False,
                 "tickSize": opts["tickSize"],
                 "tickWidth": opts["axisWidth"],
                 "titleColor": "white" if opts["darkmode"] else "black",
@@ -348,6 +417,12 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "labels": opts["xLabels"],
                 "ticks": opts["xAxis"] and opts["xTicks"] and opts["ticks"],
                 "translate": 0,
+            },
+            # Band-scale axes place ticks 0.5px off the band centre by default (Vega's
+            # tickOffset, resolved via the scale-type-specific axisBand config, not
+            # config.axis). Zeroing it puts ticks exactly on band centres.
+            "axisBand": {
+                "tickOffset": 0,
             },
             "bar": {
                 "fill": opts["markFill"],
@@ -404,7 +479,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 # Small default: mark_circle is primarily used to layer raw points over
                 # boxplots/violins/strips, where small dots read best.
                 "size": opts["markSize"] / 20,
-                "stroke": "black" if opts["darkmode"] else opts["markStroke"],
+                # No outline: at this dot size a stroke swamps the fill. Explicit None
+                # (not omitted) so nothing is inherited from other mark configs. The
+                # opacity/width stay configured so a re-enabled stroke (per chart or a
+                # future config) renders with the house style.
+                "stroke": None,
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
             },

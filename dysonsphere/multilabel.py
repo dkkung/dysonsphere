@@ -4,7 +4,8 @@ from typing import cast
 import altair as alt
 import polars as pl
 
-from .utils import _internal_data, count_n
+from .theme import _opt
+from .utils import _internal_data, band_geometry, count_n
 
 
 def _multilabel_layer(
@@ -28,6 +29,7 @@ def _multilabel_layer(
     rowHeight: int | float | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
+    labelMap: dict | None = None,
     categoryLabelAngle: int = -45,
     categoryLabelHeight: int | None = None,
     span: dict[str | None, list[str]] | list[dict[str | None, list[str]]] | None = None,
@@ -132,6 +134,10 @@ def _multilabel_layer(
         ``fontSize``, ``categoryLabelAngle``, and the longest category name when ``None``
         (default): ``ceil(fontSize × 0.6 × max_len × |sin(angle)| + fontSize ×
         |cos(angle)|)``.
+    labelMap:
+        ``{raw_value: label}`` mapping applied to the category-label row (plain lookup;
+        the data and band positions keep the raw values). List labels are space-joined
+        here - use the mark constructors' ``labelMap`` for true multi-line axis labels.
     span:
         Dict mapping span label → list of categories, or a list of such
         single-entry dicts (one per span). The span extends from the lowest
@@ -254,9 +260,9 @@ def _multilabel_layer(
     symbol_rows = [r for r in row_order if row_styles[r] == "symbol"]
 
     if chartWidth is None:
-        chartWidth = alt.theme.options.get("chartWidth", 100)
+        chartWidth = _opt("chartWidth")
     if fontSize is None:
-        fontSize = alt.theme.options.get("fontSize", 7)
+        fontSize = _opt("fontSize")
     if rowHeight is None:
         rowHeight = 10
 
@@ -268,10 +274,18 @@ def _multilabel_layer(
     label_y = 0.0
     label_y_offset = 0.0
     extra = 0.0
+
+    # Display names for the category-label row: labelMap lookup, raw value fallback.
+    # Multi-line list labels are space-joined here (mark_text rows are single-line);
+    # the axis-label path in the mark constructors renders them as true multi-line.
+    def _display(cat: str) -> str:
+        label = (labelMap or {}).get(cat, cat)
+        return " ".join(label) if isinstance(label, list) else str(label)
+
     if categoryLabel:
         if categoryLabelPosition not in ("top", "bottom"):
             raise ValueError(f"categoryLabelPosition={categoryLabelPosition!r} is invalid. Use 'top' or 'bottom'.")
-        max_len = max(len(cat) for cat in categories)
+        max_len = max(len(_display(cat)) for cat in categories)
         angle_rad = abs(math.radians(categoryLabelAngle))
         tight_height = fontSize * 0.6 * max_len * math.sin(angle_rad) + fontSize * math.cos(angle_rad)
         if categoryLabelHeight is None:
@@ -375,7 +389,7 @@ def _multilabel_layer(
     if symbol_rows:
         # Colours are resolved at call time from alt.theme.options so that darkmode
         # variants are correct. Use a callable with ds.save() to rebuild per variant.
-        darkmode = alt.theme.options.get("darkmode", False)
+        darkmode = _opt("darkmode")
         if darkmode:
             positive_color = "white"
             negative_fill = colors["greys"][11]
@@ -390,9 +404,9 @@ def _multilabel_layer(
             positive_color = palette[-1]
 
         if symbolSize is None:
-            symbolSize = alt.theme.options.get("markSize", 10) * 4
+            symbolSize = _opt("markSize") * 4
         if strokeWidth is None:
-            strokeWidth = alt.theme.options.get("markStrokeWidth", 0.25)
+            strokeWidth = _opt("markStrokeWidth")
 
         plus_df = marks_df.filter(pl.col("__label").is_in(symbol_rows) & (pl.col("__value") == "+"))
         minus_df = marks_df.filter(pl.col("__label").is_in(symbol_rows) & (pl.col("__value") == "−"))
@@ -529,7 +543,7 @@ def _multilabel_layer(
             layers.extend([negative, positive])
 
     if categoryLabel and not defer_cat_label:
-        label_df = pl.DataFrame({"__category": categories})
+        label_df = pl.DataFrame({"__category": categories, "__display": [_display(c) for c in categories]})
         layers.append(
             alt.Chart(_internal_data(label_df))
             .mark_text(
@@ -538,7 +552,8 @@ def _multilabel_layer(
                 align="center" if categoryLabelAngle % 360 == 0 else "right",
                 baseline="middle",
             )
-            .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__category:N"))
+            # __category stays raw (it is the band-scale position); __display is the text
+            .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__display:N"))
         )
 
     if span:
@@ -549,13 +564,11 @@ def _multilabel_layer(
             span_pairs = list(span.items())
 
         if spanTickHeight is None:
-            spanTickHeight = alt.theme.options.get("tickSize", 3)
+            spanTickHeight = _opt("tickSize")
 
-        band_padding = alt.theme.options.get("bandPadding", 0.1)
-        n_cats = len(categories)
-        step = chartWidth / (n_cats + 2 * band_padding)
-        axisWidth_val = alt.theme.options.get("axisWidth", 0.25)
-        darkmode_val = alt.theme.options.get("darkmode", False)
+        geo = band_geometry(len(categories), chartWidth)
+        axisWidth_val = _opt("axisWidth")
+        darkmode_val = _opt("darkmode")
         span_color = "white" if darkmode_val else "black"
         _one_row = _internal_data([{}])  # 1-row internal data for the pixel-positioned span marks
 
@@ -595,8 +608,8 @@ def _multilabel_layer(
                 indices.append(categories.index(cat))
             i_start, i_end = min(indices), max(indices)
 
-            x1 = step * (band_padding + 0.5 + i_start) - step * 0.30
-            x2 = step * (band_padding + 0.5 + i_end) + step * 0.30
+            x1 = geo.centers[i_start] - geo.step * 0.30
+            x2 = geo.centers[i_end] + geo.step * 0.30
             x_mid = (x1 + x2) / 2
 
             # Rule — alt.value() for all positions so no :Q scale is added to the layer
@@ -644,7 +657,7 @@ def _multilabel_layer(
     if defer_cat_label:
         label_y = chart_h + label_y_offset + extra
         chart_h += categoryLabelHeight or 0
-        label_df = pl.DataFrame({"__category": categories})
+        label_df = pl.DataFrame({"__category": categories, "__display": [_display(c) for c in categories]})
         layers.append(
             alt.Chart(_internal_data(label_df))
             .mark_text(
@@ -653,7 +666,8 @@ def _multilabel_layer(
                 align="center" if categoryLabelAngle % 360 == 0 else "right",
                 baseline="middle",
             )
-            .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__category:N"))
+            # __category stays raw (it is the band-scale position); __display is the text
+            .encode(x=x_enc, y=alt.value(label_y), text=alt.Text("__display:N"))
         )
 
     return cast(

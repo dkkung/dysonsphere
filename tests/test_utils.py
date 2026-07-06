@@ -1,7 +1,118 @@
+import math
+
 import polars as pl
 import pytest
 
-from dysonsphere.utils import count_n, ensure_polars, frame_checksum
+from dysonsphere.utils import (
+    _nice_domain,
+    _repel_labels,
+    _sample_spread,
+    band_geometry,
+    count_n,
+    ensure_polars,
+    frame_checksum,
+)
+
+
+class TestNiceDomain:
+    def test_rounds_outward_to_tick_multiples(self):
+        assert _nice_domain(1.13, 3.42) == (1.0, 3.6)
+        assert _nice_domain(4.2, 8.9) == (4.0, 9.0)
+
+    def test_already_nice_unchanged(self):
+        assert _nice_domain(1.0, 3.0) == (1.0, 3.0)
+        assert _nice_domain(0.0, 10.0) == (0.0, 10.0)
+
+    def test_never_shrinks(self):
+        lo, hi = _nice_domain(-2.37, 5.81)
+        assert lo <= -2.37 and hi >= 5.81
+
+    def test_negative_span(self):
+        assert _nice_domain(-8.9, -4.2) == (-9.0, -4.0)
+
+    def test_degenerate_span_unchanged(self):
+        # zero-width (or inverted) extents pass through - the caller's `span or 1.0` handles them
+        assert _nice_domain(5.0, 5.0) == (5.0, 5.0)
+        assert _nice_domain(0.0, 0.0) == (0.0, 0.0)
+
+
+class TestSampleSpread:
+    def test_returns_n_indices(self):
+        assert len(_sample_spread([float(i) for i in range(10)], [0.0] * 10, 3)) == 3
+
+    def test_n_ge_len_returns_all(self):
+        assert sorted(_sample_spread([1.0, 2.0, 3.0], [1.0, 2.0, 3.0], 5)) == [0, 1, 2]
+
+    def test_n_le_zero_empty(self):
+        assert _sample_spread([1.0, 2.0], [1.0, 2.0], 0) == []
+
+    def test_deterministic(self):
+        xs = [float(i) for i in range(20)]
+        ys = [float((i * 7) % 20) for i in range(20)]
+        assert _sample_spread(xs, ys, 5) == _sample_spread(xs, ys, 5)
+
+    def test_spread_reaches_extremes(self):
+        # an even spread over a line must include both ends
+        idx = _sample_spread([float(i) for i in range(10)], [0.0] * 10, 3)
+        assert 0 in idx and 9 in idx
+
+
+class TestRepelLabelsObstacles:
+    def test_obstacles_shift_placement(self):
+        # background points near where the label would sit must push it off them
+        anchor = [(150.0, 150.0)]
+        size = [(20.0, 8.0)]
+        base = _repel_labels(anchor, size, width=300, height=300)[0]  # obstacles default to anchor
+        obs = [(150.0, 150.0), (140.0, 138.0), (144.0, 140.0), (138.0, 142.0)]  # a cluster up-left
+        shifted = _repel_labels(anchor, size, width=300, height=300, obstacles=obs)[0]
+        assert math.dist(base, shifted) > 1.0  # the extra points moved the label
+
+    def test_labels_avoid_each_others_connectors(self):
+        # two labels with nearby points: repel must keep each label off the OTHER's connector line
+        anchors = [(150.0, 150.0), (156.0, 150.0)]
+        sizes = [(30.0, 8.0), (30.0, 8.0)]
+        pos = _repel_labels(anchors, sizes, width=400, height=400)
+        hw, hh = 30 / 2 + 2, 8 / 2 + 2  # box half-size incl. padding
+
+        def connector_crosses_box(anchor, label, box_center):
+            ax, ay = anchor
+            lx, ly = label
+            vx, vy = lx - ax, ly - ay
+            L2 = vx * vx + vy * vy
+            t = 0.0 if L2 == 0 else min(1.0, max(0.0, ((box_center[0] - ax) * vx + (box_center[1] - ay) * vy) / L2))
+            cx, cy = ax + t * vx, ay + t * vy
+            return abs(box_center[0] - cx) < hw and abs(box_center[1] - cy) < hh
+
+        assert not connector_crosses_box(anchors[0], pos[0], pos[1])
+        assert not connector_crosses_box(anchors[1], pos[1], pos[0])
+
+
+class TestRepelLabels:
+    def test_empty(self):
+        assert _repel_labels([], [], width=100, height=100) == []
+
+    def test_one_position_per_anchor(self):
+        out = _repel_labels([(10.0, 10.0), (20.0, 20.0), (30.0, 30.0)], [(8.0, 4.0)] * 3, width=100, height=100)
+        assert len(out) == 3
+
+    def test_deterministic(self):
+        anchors, sizes = [(50.0, 50.0)] * 5, [(10.0, 5.0)] * 5
+        assert _repel_labels(anchors, sizes, width=100, height=100) == _repel_labels(
+            anchors, sizes, width=100, height=100
+        )
+
+    def test_separates_coincident_anchors(self):
+        # 5 labels stacked on one point must fan out (force-show, never dropped).
+        out = _repel_labels([(150.0, 150.0)] * 5, [(12.0, 6.0)] * 5, width=300, height=300)
+        dists = [math.dist(out[i], out[j]) for i in range(5) for j in range(i + 1, 5)]
+        assert min(dists) > 1.0  # none coincide
+        assert max(dists) > 12.0  # spread beyond a single label width
+
+    def test_stays_in_panel(self):
+        out = _repel_labels([(0.0, 0.0), (100.0, 100.0)], [(20.0, 10.0)] * 2, width=100, height=100)
+        for x, y in out:
+            assert 0 <= x <= 100
+            assert 0 <= y <= 100
 
 
 @pytest.fixture
@@ -52,3 +163,83 @@ class TestFrameChecksum:
 
     def test_pandas_matches_polars(self, simple_df):
         assert frame_checksum(simple_df.to_pandas()) == frame_checksum(simple_df)  # ensure_polars first
+
+
+# ── band_geometry() ──────────────────────────────────────────────────────────
+
+
+class TestBandGeometry:
+    def test_offset_scale_formulas(self):
+        # paddingInner=0, paddingOuter=bp (xOffset/mark_circle/add_shade rects)
+        geo = band_geometry(3, 100, bandPadding=0.1)
+        step = 100 / (3 + 2 * 0.1)
+        assert geo.step == pytest.approx(step)
+        assert list(geo.centers) == pytest.approx([step * (0.1 + i + 0.5) for i in range(3)])
+        assert list(geo.starts) == pytest.approx([step * (0.1 + i) for i in range(3)])
+        assert list(geo.ends) == pytest.approx([step * (0.1 + i + 1) for i in range(3)])
+
+    def test_band_scale_formulas(self):
+        # paddingInner=paddingOuter=bp (mark_boxplot / mark_violin)
+        geo = band_geometry(3, 100, scale="band", bandPadding=0.1)
+        step = 100 / (3 + 0.1)
+        assert geo.step == pytest.approx(step)
+        assert list(geo.centers) == pytest.approx([step * (0.5 + 0.05 + i) for i in range(3)])
+
+    def test_point_scale_formulas(self):
+        geo = band_geometry(4, 100, scale="point")
+        assert geo.step == pytest.approx(25.0)
+        assert list(geo.centers) == pytest.approx([12.5, 37.5, 62.5, 87.5])
+        assert geo.starts == geo.centers and geo.ends == geo.centers
+
+    def test_adjacent_bands_share_edges(self):
+        # end of band i is the start of band i+1 (offset scale) - what add_shade's
+        # run merging and flush logic rely on
+        geo = band_geometry(5, 200)
+        for i in range(4):
+            assert geo.ends[i] == pytest.approx(geo.starts[i + 1])
+
+    def test_defaults_read_theme(self):
+        import altair as alt
+
+        from dysonsphere.theme import theme
+
+        theme(chartWidth=200, bandPadding=0.2)
+        geo = band_geometry(2)
+        assert geo.step == pytest.approx(200 / (2 + 2 * 0.2))
+        theme()  # reset
+        assert alt.theme.options.get("chartWidth") == 100
+
+    def test_band_centers_match_rendered_boxplot(self, tmp_path):
+        # the "band" case is the boxplot's actual scale: centres must equal the
+        # rendered box centres exactly (which also equal the ticks - see
+        # TestExactTickPositions in test_export.py)
+        import re
+
+        import altair as alt
+
+        from dysonsphere.export import save
+        from dysonsphere.theme import theme
+
+        theme()
+        df = pl.DataFrame({"g": ["A", "B", "C"] * 5, "v": [float(i % 4) for i in range(15)]})
+        save(
+            alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q"),
+            str(tmp_path / "b"),
+            format="svg",
+            background="light",
+        )
+        svg = (tmp_path / "b.svg").read_text(encoding="utf-8")
+        boxes = sorted(
+            float(x) + float(w) / 2
+            for x, w in re.findall(r'aria-roledescription="box"[^>]*d="M([-\d.]+),[-\d.]+h([-\d.]+)', svg)
+        )
+        geo = band_geometry(3, scale="band")
+        assert boxes == pytest.approx(list(geo.centers), abs=1e-9)
+
+    def test_invalid_scale_raises(self):
+        with pytest.raises(ValueError, match="scale"):
+            band_geometry(3, 100, scale="nope")
+
+    def test_zero_categories_raises(self):
+        with pytest.raises(ValueError, match="n must be"):
+            band_geometry(0, 100)

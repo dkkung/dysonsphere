@@ -55,13 +55,32 @@ class TestThemeDefaults:
         theme(viewFill="#eeeeee", closed=False)
         assert alt.theme.options["closed"] is False
 
-    def test_chart_fill_defaults_white_light_mode(self):
-        theme(darkmode=False)
-        assert alt.theme.options["chartFill"] == "white"
+    def test_chart_fill_auto_resolves_white_light_mode(self):
+        # chartFill stays None ("auto") in the options; the config resolves it live from
+        # darkmode so save()'s per-background toggle works without re-running theme()
+        from dysonsphere.theme import _dysonsphere_theme
 
-    def test_chart_fill_none_in_dark_mode(self):
-        theme(darkmode=True)
+        theme(darkmode=False)
         assert alt.theme.options["chartFill"] is None
+        assert _dysonsphere_theme()["background"] == "white"
+
+    def test_chart_fill_auto_resolves_black_dark_mode(self):
+        from dysonsphere.theme import _dysonsphere_theme
+
+        theme(darkmode=True)
+        assert _dysonsphere_theme()["background"] == "black"
+
+    def test_chart_fill_explicit_used_as_is(self):
+        from dysonsphere.theme import _dysonsphere_theme
+
+        theme(chartFill="#eeeeee")
+        assert _dysonsphere_theme()["background"] == "#eeeeee"
+
+    def test_transparent_suppresses_background(self):
+        from dysonsphere.theme import _dysonsphere_theme
+
+        theme(transparent=True)
+        assert _dysonsphere_theme()["background"] is None
 
     def test_secondary_font_size_default(self):
         theme()  # fontSize=7
@@ -316,7 +335,7 @@ class TestCreateConfig:
         content = (tmp_path / "dysonsphere.toml").read_text()
         assert "[nih]" not in content
         assert "[notebook]" in content
-        assert "[presentation]" in content
+        assert "[presentation]" not in content  # removed as a built-in preset in v3.0
         assert "[my_style]" in content
 
     def test_does_not_overwrite(self, tmp_path):
@@ -465,3 +484,71 @@ class TestBoxplotOutliers:
     def test_explicit_size_used_as_is(self):
         theme(boxplotOutliers=5)
         assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == 5
+
+
+# ── deprecated aliases ───────────────────────────────────────────────────────
+
+
+class TestDeprecatedAliases:
+    def test_transparent_background_kwarg_warns_and_maps(self):
+        with pytest.warns(DeprecationWarning, match="transparentBackground"):
+            theme(transparentBackground=True)
+        assert alt.theme.options["transparent"] is True
+
+    def test_new_name_wins_when_both_given(self):
+        with pytest.warns(DeprecationWarning):
+            theme(transparentBackground=True, transparent=False)
+        assert alt.theme.options["transparent"] is False
+
+    def test_unknown_kwarg_still_raises(self):
+        with pytest.raises(TypeError, match="unexpected keyword"):
+            theme(notAThing=1)
+
+    def test_toml_key_warns_and_maps(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text("[default]\ntransparentBackground = true\n", encoding="utf-8")
+        with pytest.warns(DeprecationWarning, match="transparentBackground"):
+            theme()
+        assert alt.theme.options["transparent"] is True
+
+
+# ── _opt() theme-option accessor ─────────────────────────────────────────────
+
+
+class TestOptAccessor:
+    def test_reads_active_theme(self):
+        from dysonsphere.theme import _opt
+
+        theme(bandPadding=0.25)
+        assert _opt("bandPadding") == 0.25
+
+    def test_falls_back_to_builtin_default(self):
+        from dysonsphere.theme import _opt
+
+        alt.theme.options = {}  # no theme() called
+        try:
+            assert _opt("bandPadding") == 0.1
+            assert _opt("chartWidth") == 100
+        finally:
+            theme()
+
+    def test_fallback_resolves_derived_defaults(self):
+        # the raw builtin for markSize/axisOffset is None (a derive-at-theme-time
+        # sentinel); the fallback must expose the DERIVED value, not the sentinel
+        from dysonsphere.theme import _opt
+
+        alt.theme.options = {}
+        try:
+            assert _opt("markSize") == 10.0  # min(100, 100) * 0.1
+            assert _opt("axisOffset") == 4.5  # tickSize 3 * 1.5
+            assert _opt("markStrokeWidth") == 0.25  # axisWidth
+            assert _opt("closed") is False
+        finally:
+            theme()
+
+    def test_unknown_key_raises(self):
+        from dysonsphere.theme import _opt
+
+        theme()
+        with pytest.raises(KeyError):
+            _opt("notAThing")

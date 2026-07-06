@@ -1,11 +1,15 @@
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Final, cast
 
 import altair as alt
 import numpy as np
 import polars as pl
 
+from .labels import label_expr
+from .theme import _opt
 from .transforms import add_beeswarm, add_jitter
-from .utils import _internal_data, ensure_polars
+from .utils import _internal_data, band_geometry, ensure_polars
 
 
 class _UnsetType:
@@ -13,6 +17,78 @@ class _UnsetType:
 
 
 _UNSET: Final[_UnsetType] = _UnsetType()
+
+
+@dataclass
+class _MarkScaffold:
+    """Shared chart chrome for the custom mark constructors (composition, NOT a base class).
+
+    Owns everything every ``mark_*`` function repeats - dataframe coercion, the ``_UNSET``
+    title sentinel resolution, the x-axis (label angle + ``labelMap`` -> ``labelExpr``),
+    the x/y/color encodings with category sorting and palette handling - so a new shared
+    parameter lands here once and every mark inherits it. The marks stay plain functions
+    returning Altair objects (the composition algebra belongs to Altair); their bodies
+    hold only the per-mark geometry and layers.
+    """
+
+    df: pl.DataFrame
+    xCol: str
+    yCol: str
+    categories: list[str]
+    palette: str | list[str] | None = None
+    legend: bool = False
+    xLabelAngle: float | None = None
+    labelMap: Mapping[Any, str | list[str]] | None = None
+    xTitle: str | None | _UnsetType = _UNSET
+    yTitle: str | None | _UnsetType = _UNSET
+
+    def __post_init__(self) -> None:
+        self.df = ensure_polars(self.df)
+        if self.xLabelAngle is None:
+            self.xLabelAngle = _opt("xLabelAngle")
+        self.x_title: str | None = self.xCol if isinstance(self.xTitle, _UnsetType) else self.xTitle
+        self.y_title: str | None = self.yCol if isinstance(self.yTitle, _UnsetType) else self.yTitle
+
+    def x_axis(self) -> alt.Axis:
+        """The x-axis: label rotation (align derived from the angle's sign) + label mapping."""
+        kwargs: dict[str, Any] = {}
+        angle = cast(float, self.xLabelAngle)
+        if angle != 0:
+            kwargs["labelAngle"] = angle % 360
+            kwargs["labelAlign"] = "right" if angle < 0 else "left"
+        if self.labelMap:
+            kwargs["labelExpr"] = label_expr(self.labelMap)
+        return alt.Axis(**kwargs)
+
+    def x(self) -> alt.X:
+        return alt.X(f"{self.xCol}:N", sort=self.categories, title=self.x_title, axis=self.x_axis())
+
+    def y(self, field: str | None = None) -> alt.Y:
+        return alt.Y(field if field is not None else f"{self.yCol}:Q", title=self.y_title)
+
+    def color(
+        self,
+        field: str | None = None,
+        title: str | None | _UnsetType = _UNSET,
+        symbolType: str | None = None,
+    ) -> alt.Color:
+        """Category colour encoding: palette resolution + legend flag + category sort.
+
+        ``field`` defaults to the x column; ``title`` defaults to the x column when the
+        legend is shown; ``symbolType`` picks the legend symbol.
+        """
+        if isinstance(title, _UnsetType):
+            title = self.xCol if self.legend else None
+        legend_kwargs: dict[str, Any] = {"symbolType": symbolType} if symbolType else {}
+        pal = self.palette
+        scale = alt.Undefined if pal is None else alt.Scale(range=pal if isinstance(pal, list) else [pal])
+        return alt.Color(
+            field if field is not None else f"{self.xCol}:N",
+            sort=self.categories,
+            title=title,
+            legend=alt.Legend(**legend_kwargs) if self.legend else None,
+            scale=scale,
+        )
 
 
 def mark_violin(
@@ -30,6 +106,7 @@ def mark_violin(
     strokeWidth: float | None = None,
     legend: bool = False,
     xLabelAngle: float | None = None,
+    labelMap: Mapping[Any, str | list[str]] | None = None,
     steps: int = 200,
     yTitle: str | None | _UnsetType = _UNSET,
     xTitle: str | None | _UnsetType = _UNSET,
@@ -73,6 +150,10 @@ def mark_violin(
         X-axis label rotation in degrees. Negative tilts left (e.g. ``-45``),
         positive tilts right; ``labelAlign`` is derived automatically from the
         sign. ``None`` inherits from ``theme(xLabelAngle)``.
+    labelMap:
+        ``{raw_value: label}`` mapping applied to the x-axis tick labels at render
+        time via :func:`label_expr` - the data keeps the raw values. A label may be
+        a list of strings for a multi-line label. Unmapped values show as-is.
     steps:
         Number of y grid points used for KDE estimation (per group).
     yTitle:
@@ -109,19 +190,28 @@ def mark_violin(
     """
     from scipy.stats import gaussian_kde
 
-    df = ensure_polars(df)
+    s = _MarkScaffold(
+        df,
+        xCol,
+        yCol,
+        categories,
+        palette=palette,
+        legend=legend,
+        xLabelAngle=xLabelAngle,
+        labelMap=labelMap,
+        xTitle=xTitle,
+        yTitle=yTitle,
+    )
+    df = s.df
     if fillOpacity is None:
-        fillOpacity = alt.theme.options.get("markFillOpacity", 1.0)
+        fillOpacity = _opt("markFillOpacity")
     if strokeWidth is None:
-        strokeWidth = alt.theme.options.get("markStrokeWidth", 0.5)
-    mark_size = alt.theme.options.get("markSize", 10)
-    band_padding = alt.theme.options.get("bandPadding", 0.1)
-    chart_width = alt.theme.options.get("chartWidth", 100)
-    # mark_boxplot uses paddingInner=paddingOuter=band_padding, so the D3 band
-    # scale formula is step = W / (n - paddingInner + 2*paddingOuter) = W / (n + bp).
-    # Band center for index i = step * (0.5 + bp/2 + i).  This differs from the
-    # xOffset/mark_circle formula (W / (n + 2*bp); center = step*(bp + 0.5 + i)).
-    step = chart_width / (len(categories) + band_padding)
+        strokeWidth = _opt("markStrokeWidth")
+    mark_size = _opt("markSize")
+    chart_width = _opt("chartWidth")  # x:Q domain of the violin layer
+    # mark_boxplot lowers to a band scale with paddingInner=paddingOuter=bandPadding
+    # (scale="band"), which is NOT the xOffset/mark_circle variant (scale="offset").
+    geo = band_geometry(len(categories), scale="band")
     half_width = mark_size * 0.75
 
     # Precompute absolute x positions for each violin point so the violin
@@ -130,7 +220,7 @@ def mark_violin(
     # chart that also uses xOffset (e.g. mark_strip).
     violin_rows = []
     for i, group in enumerate(categories):
-        x_center = step * (0.5 + band_padding / 2 + i)
+        x_center = geo.centers[i]
         vals = df.filter(pl.col(xCol) == group)[yCol].to_numpy()
         y_min = float(vals.min()) - 1
         y_max = float(vals.max()) + 1
@@ -159,16 +249,6 @@ def mark_violin(
             )
 
     violin_df = pl.DataFrame(violin_rows)
-    _y_title: str | None = yCol if isinstance(yTitle, _UnsetType) else yTitle
-    _x_title: str | None = xCol if isinstance(xTitle, _UnsetType) else xTitle
-
-    if xLabelAngle is None:
-        xLabelAngle = alt.theme.options.get("xLabelAngle", 0)
-    if xLabelAngle != 0:
-        align = "right" if xLabelAngle < 0 else "left"
-        x_axis = alt.Axis(labelAngle=xLabelAngle % 360, labelAlign=align)
-    else:
-        x_axis = alt.Axis()
 
     mark_kwargs = {
         "filled": True,
@@ -184,19 +264,9 @@ def mark_violin(
         .mark_line(**mark_kwargs)
         .encode(
             x=alt.X("__x:Q", scale=alt.Scale(domain=[0, chart_width]), axis=None),
-            y=alt.Y("__y:Q", title=_y_title),
+            y=s.y("__y:Q"),
             order=alt.Order("__order:Q"),
-            color=alt.Color(
-                "__group:N",
-                sort=categories,
-                title=None,
-                legend=alt.Legend(symbolType="circle") if legend else None,
-                **(
-                    {"scale": alt.Scale(range=palette if isinstance(palette, list) else [palette])}
-                    if palette is not None
-                    else {}
-                ),
-            ),
+            color=s.color(field="__group:N", title=None, symbolType="circle"),
         )
     )
 
@@ -210,8 +280,8 @@ def mark_violin(
             **({"size": boxplotSize} if boxplotSize is not None else {}),
         )
         .encode(
-            x=alt.X(f"{xCol}:N", sort=categories, title=_x_title, axis=x_axis),
-            y=alt.Y(f"{yCol}:Q", title=_y_title),
+            x=s.x(),
+            y=s.y(),
         )
     )
 
@@ -231,6 +301,7 @@ def mark_strip(
     spread: float | None = None,
     legend: bool = False,
     xLabelAngle: float | None = None,
+    labelMap: Mapping[Any, str | list[str]] | None = None,
     errorbars: bool = True,
     errorbarExtent: str = "sem",
     yTitle: str | None | _UnsetType = _UNSET,
@@ -268,6 +339,10 @@ def mark_strip(
         X-axis label rotation in degrees. Negative tilts left (e.g. ``-45``),
         positive tilts right; ``labelAlign`` is derived automatically from the
         sign. ``None`` inherits from ``theme(xLabelAngle)``.
+    labelMap:
+        ``{raw_value: label}`` mapping applied to the x-axis tick labels at render
+        time via :func:`label_expr` - the data keeps the raw values. A label may be
+        a list of strings for a multi-line label. Unmapped values show as-is.
     errorbars:
         Whether to show error bars around the group mean. When ``True``,
         the mean is shown as a tick with error bars. When ``False``, the
@@ -291,13 +366,23 @@ def mark_strip(
         # beeswarm variant
         chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
     """
-    df = ensure_polars(df)
-    _y_title: str | None = yCol if isinstance(yTitle, _UnsetType) else yTitle
-    _x_title: str | None = xCol if isinstance(xTitle, _UnsetType) else xTitle
+    s = _MarkScaffold(
+        df,
+        xCol,
+        yCol,
+        categories,
+        palette=palette,
+        legend=legend,
+        xLabelAngle=xLabelAngle,
+        labelMap=labelMap,
+        xTitle=xTitle,
+        yTitle=yTitle,
+    )
+    df = s.df
     if markSize is None:
-        markSize = alt.theme.options.get("markSize", 10)
+        markSize = _opt("markSize")
     if markOpacity is None:
-        markOpacity = alt.theme.options.get("markFillOpacity", 1.0)
+        markOpacity = _opt("markFillOpacity")
 
     if scatter == "jitter":
         df = add_jitter(df, spread=spread)
@@ -308,9 +393,10 @@ def mark_strip(
     else:
         raise ValueError(f"scatter must be 'jitter' or 'beeswarm', got {scatter!r}")
 
-    band_padding = alt.theme.options.get("bandPadding", 0.1)
-    chart_width = alt.theme.options.get("chartWidth", 100)
-    step = chart_width / (len(categories) + 2 * band_padding)
+    band_padding = _opt("bandPadding")
+    step = band_geometry(len(categories)).step
+    # NOT a band centre: the xOffset scale positions relative to the band start, so this
+    # is the in-band midpoint expressed in xOffset range coordinates.
     band_center = step * (0.5 - band_padding)
     max_offset = cast(float, df[offset_col].abs().cast(pl.Float64).max() or 0.0)
     offset_scale = alt.Scale(
@@ -318,30 +404,25 @@ def mark_strip(
         range=[band_center - max_offset, band_center + max_offset],
     )
 
-    if xLabelAngle is None:
-        xLabelAngle = alt.theme.options.get("xLabelAngle", 0)
-    if xLabelAngle != 0:
-        align = "right" if xLabelAngle < 0 else "left"
-        x_axis = alt.Axis(labelAngle=xLabelAngle % 360, labelAlign=align)
-    else:
-        x_axis = alt.Axis()
-
-    x = alt.X(f"{xCol}:N", sort=categories, title=_x_title, axis=x_axis)
+    x = s.x()
 
     points = (
         alt.Chart(df)
-        .mark_circle(size=markSize, opacity=markOpacity)
+        # Stroke pinned here, NOT inherited: the theme's config.circle has stroke=None
+        # (bare overlay dots are stroke-less), but strip/beeswarm points keep the house
+        # outlined-dot look. Black in darkmode too (outlines light palette fills).
+        .mark_circle(
+            size=markSize,
+            opacity=markOpacity,
+            stroke="black" if _opt("darkmode") else _opt("markStroke"),
+            strokeWidth=_opt("markStrokeWidth"),
+            strokeOpacity=_opt("markStrokeOpacity"),
+        )
         .encode(
             x=x,
-            y=alt.Y(f"{yCol}:Q", title=_y_title),
+            y=s.y(),
             xOffset=alt.XOffset(f"{offset_col}:Q", scale=offset_scale),
-            color=alt.Color(
-                f"{xCol}:N",
-                sort=categories,
-                title=xCol if legend else None,
-                legend=alt.Legend() if legend else None,
-                **({"scale": alt.Scale(range=palette)} if palette is not None else {}),
-            ),
+            color=s.color(),
         )
     )
 
@@ -355,7 +436,7 @@ def mark_strip(
         )
         .encode(
             x=x,
-            y=alt.Y(f"{yCol}:Q", title=_y_title),
+            y=s.y(),
         )
     )
 
@@ -369,14 +450,16 @@ def mark_strip(
     else:
         raise ValueError(f"errorbarExtent must be 'sem' or 'sd', got {errorbarExtent!r}")
 
-    summary = df.group_by(xCol).agg([pl.col(yCol).mean().alias("__mean"), error_expr])
+    # maintain_order: group_by is otherwise order-nondeterministic, which changed the
+    # inlined summary dataset (and so the spec checksum + mark z-order) run to run.
+    summary = df.group_by(xCol, maintain_order=True).agg([pl.col(yCol).mean().alias("__mean"), error_expr])
 
     errorbar_layer = (
         alt.Chart(_internal_data(summary))
         .mark_errorbar()
         .encode(
             x=x,
-            y=alt.Y("__mean:Q", title=_y_title),
+            y=s.y("__mean:Q"),
             yError=alt.YError("__error:Q"),
         )
     )
