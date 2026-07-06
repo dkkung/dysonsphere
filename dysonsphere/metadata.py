@@ -15,6 +15,10 @@ from typing import Any
 
 import altair as alt
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["read"]
+
 _REPORT_PREFIX = "dysonsphere-report-"
 
 

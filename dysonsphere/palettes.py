@@ -4,6 +4,10 @@ import shutil
 import struct
 from pathlib import Path
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["colors", "palette", "categorical", "export_swatches"]
+
 # Four base hues for the qualitative palette, in cycle order (blue, pink, yellow, green).
 # Chosen for distinguishability + colorblind robustness (deuteranopia-clean); green and
 # yellow are kept non-adjacent in categorical() so they never touch.
