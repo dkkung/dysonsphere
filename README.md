@@ -21,7 +21,7 @@
     - `ds.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
     - `ds.load()` rebuilds the chart from its JSON.
 
-`dysonsphere` is extensible with field-specific utilities, allowing domain toolkits (e.g. molecular biology, astronomy) to plug into the same theme, palettes, and export pipeline as separately installed packages.
+`dysonsphere` is extensible: you can develop and install packages of field-specific plotting toolkits (e.g. molecular biology, astronomy) for `altair`, which plug into the same theme, palettes, and export pipeline that core `dysonsphere` provides.
 
 ## Installation
 
