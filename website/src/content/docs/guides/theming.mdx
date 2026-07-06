@@ -42,8 +42,8 @@ order; `ds.create_config()` scaffolds a starter file.
 
 ## Frame and grid
 
-`closed=True` draws a full frame (all four spines); `grid=True` adds grid lines, and
-`dashedGrid=False` makes them solid.
+`closed=True` draws a full frame (all four spines); `grid=True` adds grid lines (solid by
+default - `dashedGrid=True` dashes them).
 
 <Example name="closed_frame" alt="Scatter plot with a closed frame" />
 
@@ -81,5 +81,7 @@ site switches automatically when you toggle the site's light/dark theme - that i
 
 The theme exposes dozens of parameters - `axisOffset`, `tickSize`, `inwardTicks`, `fontSize` /
 `secondaryFontSize` / `smallestFontSize`, `markSize`, `markStrokeWidth`, `bandPadding`, `sigFigs`,
-and the axis-element toggles (`xAxis`, `xTicks`, `xLabels`, and their `y` counterparts). See the
-[Theming reference](/reference/theme/) for the full list.
+and the axis-element toggles (`xAxis`, `xTicks`, `xLabels`, and their `y` counterparts). The
+[configuration guide's key reference](/guides/configuration/#key-reference) documents every one
+of them, with defaults - and each is equally valid as a `theme()` keyword or a `dysonsphere.toml`
+entry.

@@ -36,6 +36,18 @@ MODULES = [
     ("utils", "Utilities", 15, "Shared helpers: DataFrame handling, counts, band geometry, checksums."),
 ]
 
+# Extension modules documented from a separate distribution's package (not part of core's
+# `dysonsphere`). (griffe package name, submodule, page title, sidebar order, description).
+EXTENSION_MODULES = [
+    (
+        "dysonsphere_biology",
+        "volcano",
+        "Extension: volcano",
+        16,
+        "The volcano() chart from the dysonsphere-biology extension.",
+    ),
+]
+
 # Signatures longer than this render one-parameter-per-line instead of on a single line, so
 # wide APIs (theme, add_comparisons, ...) never force horizontal scrolling.
 ONE_LINE_LIMIT = 76
@@ -162,6 +174,14 @@ def main() -> None:
         page = render_page(pkg[name], title, order, description)
         (OUT / f"{name}.md").write_text(page, encoding="utf-8")
         print(f"wrote {OUT / f'{name}.md'}  ({len(public_functions(pkg[name]))} functions)")
+
+    # Extension packages live in their own distributions; load each and document one submodule.
+    for pkg_name, submodule, title, order, description in EXTENSION_MODULES:
+        search = [str(Path("dysonsphere-biology"))] if pkg_name == "dysonsphere_biology" else ["."]
+        ext_pkg = griffe.load(pkg_name, search_paths=search, docstring_parser="numpy")
+        page = render_page(ext_pkg[submodule], title, order, description)
+        (OUT / f"{submodule}.md").write_text(page, encoding="utf-8")
+        print(f"wrote {OUT / f'{submodule}.md'}  ({len(public_functions(ext_pkg[submodule]))} functions)")
 
 
 if __name__ == "__main__":

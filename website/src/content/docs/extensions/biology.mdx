@@ -1,0 +1,70 @@
+---
+title: "Extension: biology"
+description: "dysonsphere-biology - publication-ready molecular-biology charts. The volcano plot, with more genomics charts to come."
+sidebar:
+  order: 1
+---
+
+import Example from '../../../components/Example.astro';
+
+**`dysonsphere-biology`** adds molecular-biology charts to dysonsphere - built entirely on the
+public core + `ext` surfaces, so every chart it draws is themed, darkmode-aware, and
+round-trips through `ds.save()` / `ds.read()` like a built-in.
+
+```sh
+pip install dysonsphere-biology
+```
+
+Once installed, its charts resolve lazily under `ds.biology`:
+
+```python
+import dysonsphere as ds
+
+ds.biology.volcano(df, geneCol="gene", label=8)
+```
+
+## Volcano plot
+
+`volcano()` draws log2 fold change against −log₁₀ p, classifies each point as gained / lost /
+non-differential by the fold-change and p-value thresholds, colors it with the diverging
+`pinksblues` endpoints (pink = gained, blue = lost), and layers on optional threshold guides and
+gene labels:
+
+<Example name="volcano" alt="Volcano plot of differential expression with labeled top genes" />
+
+The gene labels are auto-placed with core's [`add_labels`](/guides/annotations/#point-labels)
+force-repel engine (deterministic, connector-linked), and the point ranking is domain-specific:
+`label=8` selects the 8 most significant genes by the combined score `|log2fc| × −log10(p)`.
+
+### Key parameters
+
+| Parameter | Default | What it does |
+| --- | --- | --- |
+| `log2fcCol` / `pvalueCol` | `"log2fc"` / `"pvalue"` | Effect-size and p-value column names |
+| `geneCol` | `None` | Gene-name column (required when `label` is set) |
+| `fcThreshold` | `1.0` | `|log2fc|` significance cutoff; vertical guides at ±this |
+| `pThreshold` | `0.05` | P-value cutoff; horizontal guide at −log₁₀ of it |
+| `label` | `None` | `int` (top-N by score), `"significant"` (all hits), or `list[str]` (named genes) |
+| `thresholdLines` | `True` | Draw the fold-change / p-value guide lines |
+| `palette` | `pinksblues` ends | `(gained, lost)` hex colors |
+| `nsColor` | theme grey | Non-differential point color (darkmode-aware) |
+| `legend` | `True` | Show the significance color legend |
+
+See the full signature and every parameter in the
+[`dysonsphere_biology.volcano` reference](/reference/volcano/).
+
+:::note
+Colors resolve from the active theme at call time (including the darkmode-aware grey), so for a
+correct light/dark export wrap the call in a `ds.save()` callable:
+
+```python
+ds.save(lambda: ds.biology.volcano(df, geneCol="gene", label=8), "volcano")
+```
+:::
+
+## Coming next
+
+The biology package is early - manhattan / MA plots, deepTools-style profiles, and a genome
+browser track are on the roadmap. The library already ships `nucleotides` and `proteins`
+palettes for sequence-colored charts. Want to build one yourself? See
+[writing an extension](/extensions/authoring/).

@@ -69,12 +69,21 @@ export default defineConfig({
 					items: [
 						{ label: 'Getting started', slug: 'guides/getting-started' },
 						{ label: 'Theming', slug: 'guides/theming' },
+						{ label: 'Configuration (dysonsphere.toml)', slug: 'guides/configuration' },
 						{ label: 'Palettes', slug: 'guides/palettes' },
 						{ label: 'Marks & transforms', slug: 'guides/marks' },
 						{ label: 'Annotations', slug: 'guides/annotations' },
 						{ label: 'Statistical annotations', slug: 'guides/statistics' },
 						{ label: 'Nonlinear axes', slug: 'guides/nonlinear' },
 						{ label: 'Saving & reading', slug: 'guides/saving' },
+					],
+				},
+				{
+					label: 'Extensions',
+					items: [
+						{ label: 'Overview', slug: 'extensions' },
+						{ label: 'biology', slug: 'extensions/biology' },
+						{ label: 'Writing an extension', slug: 'extensions/authoring' },
 					],
 				},
 				{
