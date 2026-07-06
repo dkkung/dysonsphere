@@ -31,7 +31,9 @@ pip install dysonsphere
 uv add dysonsphere
 ```
 
-Requires Python 3.11+. Every function that takes a `DataFrame` accepts `polars` or `pandas`. Dependencies:
+Requires Python 3.11+. Every function that takes a `DataFrame` accepts `polars` or `pandas`.
+
+Dependencies:
 - `altair`>=5.5.0
 - `numpy`>=1.26.0
 - `polars[pyarrow]`>=1.19.0
