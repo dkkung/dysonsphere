@@ -12,15 +12,15 @@ from dysonsphere.metadata import _inject_png_metadata
 from dysonsphere.theme import theme
 
 _PROV_ORDER = [
-    "dataChecksum",
-    "vegaliteChecksum",
-    "exportIdentifier",
     "user",
     "script",
     "timestamp",
     "environment",
+    "vegaliteChecksum",
+    "exportIdentifier",
+    "dataChecksum",
 ]
-_ENV_ORDER = ["python", "altair", "dysonsphere", "numpy", "scipy", "polars"]
+_ENV_ORDER = ["os", "python", "altair", "dysonsphere", "numpy", "scipy", "polars"]
 
 
 @pytest.fixture(autouse=True)
@@ -207,8 +207,11 @@ class TestSaveUsermeta:
         import importlib.metadata
 
         save(simple_chart, str(tmp_path / "out"), background=["light"])
+        import platform
+
         deps = self._usermeta(tmp_path)["dysonsphere"]["provenance"]["environment"]
-        assert list(deps) == _ENV_ORDER  # nested version group, in order
+        assert list(deps) == _ENV_ORDER  # os first, then the version group, in order
+        assert deps["os"] == platform.platform()
         assert deps["numpy"] == importlib.metadata.version("numpy")
         assert deps["scipy"] == importlib.metadata.version("scipy")
         assert deps["polars"] == importlib.metadata.version("polars")
