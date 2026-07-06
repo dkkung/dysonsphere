@@ -2,6 +2,8 @@
   <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/logo.svg" width="190" alt="dysonsphere" />
 </p>
 
+# dysonsphere
+
 `dysonsphere` is an [`altair`](https://altair-viz.github.io/) utility library for publication-ready scientific figures in Python, offering:
 - An attractive, cohesive, and sensible default configuration with a single invocation of `ds.theme()`.
 - Perceptually uniform palettes, including those from popular data visualization libraries.
@@ -27,7 +29,7 @@
 # with pip
 pip install dysonsphere
 
-# with pip through uv
+# with uv
 uv pip install dysonsphere
 
 # add as a project dependency
