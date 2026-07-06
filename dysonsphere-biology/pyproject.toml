@@ -8,7 +8,10 @@ authors = [{ name = "dkkung", email = "128324842+dkkung@users.noreply.github.com
 keywords = ["altair", "vega-lite", "bioinformatics", "volcano plot", "differential expression"]
 requires-python = ">=3.11"
 dependencies = [
-    "dysonsphere",
+    # Upper bound: extensions version independently of core, and this extension is written
+    # against core's v3 public surface (ds.ext / discovery). A future core v4 may break it,
+    # so cap at <4 - a v4 install then fails the resolver loudly instead of breaking silently.
+    "dysonsphere>=3.0.0,<4",
     "altair>=5.5.0",
     "polars[pyarrow]>=1.19.0",
     "numpy>=1.26.0",
