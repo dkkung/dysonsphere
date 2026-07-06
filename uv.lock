@@ -116,6 +116,7 @@ dependencies = [
     { name = "numpy" },
     { name = "polars", extra = ["pyarrow"] },
     { name = "scipy" },
+    { name = "vl-convert-python" },
 ]
 
 [package.dev-dependencies]
@@ -127,7 +128,6 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
-    { name = "vl-convert-python" },
 ]
 
 [package.metadata]
@@ -136,6 +136,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "polars", extras = ["pyarrow"], specifier = ">=1.19.0" },
     { name = "scipy", specifier = ">=1.11.0" },
+    { name = "vl-convert-python", specifier = ">=1.7.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -147,7 +148,6 @@ dev = [
     { name = "pytest", specifier = ">=9.0.0" },
     { name = "ruff", specifier = ">=0.15.17" },
     { name = "ty", specifier = ">=0.0.0" },
-    { name = "vl-convert-python", specifier = ">=1.7.0" },
 ]
 
 [[package]]
