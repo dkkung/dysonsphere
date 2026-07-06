@@ -1,16 +1,28 @@
 ---
-title: "Statistics"
+title: "Statistics registry"
 description: "Statistics report queue management."
 sidebar:
-  order: 10
+  order: 12
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
 
+Pure statistical computation (no Altair).
+
+Backs the chart-annotation constructors in ``layers.py`` (notably
+``add_comparisons``).  Holds the omnibus tests, hand-rolled post-hoc tests,
+effect-size functions, and the descriptive report builder.  Nothing here
+imports Altair, so it is unit-testable in isolation.
+
+The post-hoc tests scipy does not ship (Dunn, Nemenyi, Games-Howell) are
+implemented here from scipy primitives (``rankdata``, ``norm``,
+``studentized_range``) rather than taking a dependency on ``scikit-posthocs``
+(which would drag in statsmodels + seaborn + matplotlib).
+
 ## `clear_stats`
 
 ```python
-clear_stats()
+clear_stats() -> None
 ```
 
 Discard all pending statistical records queued by ``add_comparisons`` /

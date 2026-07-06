@@ -2,7 +2,7 @@
 title: "Reading exports"
 description: "Read embedded metadata, statistics, reports, and data back out of exports."
 sidebar:
-  order: 9
+  order: 11
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -10,7 +10,14 @@ sidebar:
 ## `read`
 
 ```python
-read(path: str, *, what: str = 'report', save: bool | str = False, output: str = 'polars', dataset: str | None = None)
+read(
+    path: str,
+    *,
+    what: str = 'report',
+    save: bool | str = False,
+    output: str = 'polars',
+    dataset: str | None = None,
+) -> Any
 ```
 
 Read back the metadata (or data) embedded by :func:`save` from a PNG, SVG, or JSON.
