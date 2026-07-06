@@ -2,8 +2,8 @@ import altair as alt
 import polars as pl
 import pytest
 
-from dysonsphere.annotations import _rule_mark_kwargs, add_labels, add_rule, add_shade, add_text
-from dysonsphere.theme import theme
+from dysonsphere.annotations import _rule_label_geometry, _rule_mark_kwargs, add_labels, add_rule, add_shade, add_text
+from dysonsphere.theme import _opt, theme
 
 
 def _text_values(spec):
@@ -334,6 +334,39 @@ class TestAddRule:
         texts = re.findall(r"<text[^>]*>([^<]+)</text>", svg)
         assert "weight" in texts
         assert not any("__" in t for t in texts)  # no leaked sidecar field name
+
+
+class TestRuleLabelInset:
+    # A closed plot's spine is flush with the content edge, so an edge-anchored rule label would
+    # hug the border; it is inset by axisOffset to match the gap an open (detached-axis) plot gets
+    # for free, so opened and closed look the same. Center anchors are untouched.
+    def test_open_left_label_at_content_edge(self):
+        theme(chartWidth=100, chartHeight=100)
+        perp_ch, perp_val, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
+        assert perp_ch == "x"
+        assert perp_val == 0  # flush with the content edge; the detached axis provides the gap
+
+    def test_closed_left_label_inset_by_axis_offset(self):
+        theme(chartWidth=100, chartHeight=100, closed=True)
+        _, perp_val, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
+        assert perp_val == _opt("axisOffset")
+
+    def test_closed_right_label_inset_from_right_edge(self):
+        theme(chartWidth=100, chartHeight=100, closed=True)
+        _, perp_val, _ = _rule_label_geometry("y", "right", "top", 0, 0, 7, None)
+        assert perp_val == 100 - _opt("axisOffset")
+
+    def test_closed_center_label_not_inset(self):
+        theme(chartWidth=100, chartHeight=100, closed=True)
+        _, perp_val, _ = _rule_label_geometry("y", "center", "top", 0, 0, 7, None)
+        assert perp_val == 50
+
+    def test_closed_vertical_rule_top_label_inset(self):
+        # axis="x" top-anchored label insets off the (closed) top spine by axisOffset.
+        theme(chartWidth=100, chartHeight=100, closed=True)
+        perp_ch, perp_val, _ = _rule_label_geometry("x", "top", "right", 0, 0, 7, None)
+        assert perp_ch == "y"
+        assert perp_val == _opt("axisOffset")
 
 
 class TestAddText:

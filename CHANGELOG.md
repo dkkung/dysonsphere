@@ -5,6 +5,11 @@
 ### Changes
 
 - **`mark_violin` docstring parses cleanly.** The "safe in `alt.hconcat()`" note sat between the Parameters and Examples sections, so numpy-style docstring parsers (griffe, the docs-site API generator) misread its prose as three phantom parameters. Moved into the function description; no behavior or signature change.
+- **`add_rule()` labels keep a consistent gap from a closed plot's border.** An edge-anchored reference-line label (left/right for `axis="y"`, top/bottom for `axis="x"`) sits at the plot's content edge. On an open plot the axis is detached, so the label clears the axis line by `axisOffset`; on a closed plot the spine is flush at that edge, so the label used to hug the border. Closed plots now inset such labels by `axisOffset`, giving them the same breathing room - so a reference-line label looks identical whether the plot is open or closed. Center-anchored labels are unaffected.
+
+### Fixes
+
+- **Grid lines on open plots span the plot content, off the detached axes.** With `grid=True` and `closed=False`, each grid line is rendered inside its (offset) axis group, so it inherited the detached-axis gap and rendered dragged toward its axis: vertical (x-axis) grid lines shifted down (top short of the highest tick, bottom overshooting onto the x-axis) and horizontal (y-axis) grid lines shifted left (touching the y-axis, short of the right edge). Both grid directions are now seated onto the plot content and float symmetrically off both detached axes. Closed plots (axes already flush, grid already correct) are untouched.
 
 ## [3.0.0] - 2026-07-06
 

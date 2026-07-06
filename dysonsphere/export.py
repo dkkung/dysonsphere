@@ -60,9 +60,10 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     every tick lands on the exact fractional scale position - i.e. exactly on its mark - at
     render time, on every axis type (band, linear, log/power minors) and in every panel.
     The remaining post-processors are shared by :func:`save` and :func:`show` so the pipeline
-    stays identical: grid-span extension (the axisOffset top-border gap), inward-tick flip
-    (when ``inwardTicks``), axis layering, ``<g>`` simplification, and superscript-label
-    typesetting. The SVG is parsed once here and each fixer mutates the shared ElementTree;
+    stays identical: grid alignment (seat both grid directions onto the plot content, off the
+    detached axes), inward-tick flip (when ``inwardTicks``), axis layering, ``<g>``
+    simplification, and superscript-label typesetting. The SVG is parsed once here and each
+    fixer mutates the shared ElementTree;
     the corrected tree is serialized once at the end (a single parse/write round trip, not
     one per fixer). The caller sets up the theme (e.g. ``transparent``) and owns the file's
     lifecycle.
@@ -71,7 +72,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     root = ET.parse(svg_path).getroot()  # parsed ONCE; every fixer mutates this tree
     axis_offset = 0 if _opt("closed") else _opt("axisOffset")
     if axis_offset:
-        _extend_grid_span(root, axis_offset)
+        _align_grid_to_content(root, axis_offset)
     if _opt("inwardTicks"):
         _flip_ticks_inward(root)
     _layer_axes_to_front(root)
@@ -401,14 +402,21 @@ def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairCh
     return cast("_AltairChart", alt.Chart.from_dict(stripped))
 
 
-def _extend_grid_span(root: ET.Element, axis_offset: float) -> None:
-    """Extend x-axis grid lines upward to close the top-border gap left by the axis offset.
+def _align_grid_to_content(root: ET.Element, axis_offset: float) -> None:
+    """Seat every grid line onto the plot content rectangle, off the detached axes.
 
-    The x-axis group is placed ``axis_offset`` px below the chart area (the detached-axis
-    gap), and its grid lines span exactly ``chartHeight`` - so they stop ``axis_offset`` px
-    short of the top border.  Each vertical grid line (``translate(x,-H)`` with ``y2=H``
-    inside a ``role-axis-grid`` group) is stretched by ``axis_offset`` at both ends: the
-    translate keeps the bottom on the axis, the ``y2`` restores the span.
+    On an open plot each axis is drawn ``axis_offset`` px away from the plot (the detached-axis
+    gap): the x-axis sits below, the y-axis sits left.  Vega renders each grid line inside its
+    axis group, so the grid inherits that offset and renders dragged toward its axis - the
+    vertical (x-axis) grid lines shifted DOWN (top short of the highest tick, bottom overshooting
+    onto the x-axis) and the horizontal (y-axis) grid lines shifted LEFT (touching the y-axis,
+    short of the right edge).  This translates each line back by ``axis_offset`` (span unchanged):
+    vertical lines up, horizontal lines right, so both span the plot content exactly and float
+    symmetrically off both detached axes - matching each other and the closed-plot grid (where
+    the axes are already flush, so this fixer is skipped entirely).
+
+    A vertical grid line is a ``translate(x,-H)`` (``ty<0``) with ``y2=H``; a horizontal one is a
+    ``translate(0,y)`` with ``x2=W``.  Both live inside a ``role-axis-grid`` group.
 
     Mutates the parsed SVG tree in place (like every fixer in ``_render_fixed_svg``).
     (Formerly part of ``_fix_tick_alignment``.  Tick/grid *positions* need no fixing any
@@ -422,13 +430,15 @@ def _extend_grid_span(root: ET.Element, axis_offset: float) -> None:
             if ch.get("class") == "mark-rule role-axis-grid":
                 for line in ch:
                     m = _xlate.match(line.get("transform", ""))
-                    y2 = line.get("y2")
-                    if not m or y2 is None:
+                    if not m:
                         continue
-                    ty = float(m.group(2))
-                    if ty < 0 and float(y2) > 0:  # vertical grid line hanging from the x-axis group
-                        line.set("y2", str(float(y2) + axis_offset))
-                        line.set("transform", f"translate({m.group(1)},{ty - axis_offset})")
+                    tx, ty = float(m.group(1)), float(m.group(2))
+                    x2 = float(line.get("x2") or 0)
+                    y2 = float(line.get("y2") or 0)
+                    if abs(y2) > abs(x2) and ty < 0:  # vertical grid (x-axis group, offset down): lift up
+                        line.set("transform", f"translate({tx},{ty - axis_offset})")
+                    elif abs(x2) > abs(y2):  # horizontal grid (y-axis group, offset left): shift right
+                        line.set("transform", f"translate({tx + axis_offset},{ty})")
             else:
                 _walk(ch)
 
