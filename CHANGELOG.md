@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-07-06
+
 ### Breaking changes
 
 - **`theme(transparentBackground=)` renamed to `theme(transparent=)`.** Shorter, and it pairs with the `save(transparent=)` parameter - the same question answered at the theme level (the chart's logical background: notebook display, JSON, HTML) and per export. The old name (keyword argument and `dysonsphere.toml` key) is removed. Note: files exported by v2.x bake the old key into their theme block, so `load(applyTheme=True)` on them raises - use `load(raw=True)` or re-export.
@@ -12,6 +14,7 @@
 
 ### New features
 
+- **Extension architecture - optional domain packages plug into the `dysonsphere` namespace.** A separately installed extension (e.g. `dysonsphere-biology`) that registers under the `dysonsphere.extensions` entry-point group resolves as `ds.<name>` - so `ds.biology.volcano(df)` just works once the package is pip-installed. `ds.extensions()` lists what's installed and `ds.load_extension(name)` imports one explicitly. Extension authors build first-class charts (theme-aware, with their generated data correctly filtered by `read(what="data")`) via the minimal, versioned `ds.ext` surface (`ext.opt` / `ext.internal_data` / `ext.AltairChart`) instead of reaching into core internals. Core stays a regular package; the only hook is an additive package `__getattr__`, so existing imports are unaffected.
 - **The package ships a `py.typed` marker (PEP 561).** dysonsphere has been fully type-annotated all along, but without the marker downstream type checkers discarded the annotations; now `mypy`/`pyright`/`ty` users get real signatures for the whole API.
 
 - **`label_expr()` and `labelMap=` - presentable labels without renaming data.** `ds.label_expr({"metadata_group1": "group 1"})` builds the Vega `labelExpr` that maps raw data values to display labels, usable on any axis, legend, or facet header; a list value renders as a multi-line label, unmapped values fall back to the raw value, and quoting/escaping is handled (the generated ternary chain also avoids the `{...}[datum.value] || datum.value` idiom's silent misfire on falsy labels). `mark_strip`/`mark_violin` accept the mapping directly via `labelMap=`, and `add_multilabel(labelMap=)` applies it to the category-label row. Presentation-only: the data, exported JSON, checksums, and statistics records keep the raw values.
