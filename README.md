@@ -2,7 +2,24 @@
   <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/logo.svg" width="190" alt="dysonsphere" />
 </p>
 
-An [Altair](https://altair-viz.github.io/) theme and chart utility library for publication-ready figures: perceptually uniform palettes, precise scientific defaults, statistical annotations, and self-documenting exports.
+`dysonsphere` is an [`altair`](https://altair-viz.github.io/) utility library for publication-ready scientific figures, offering:
+- An attractive, cohesive, and sensible default configuration with a single invocation of `ds.theme()`.
+- Perceptually uniform palettes, including those from popular data visualization libraries.
+- Print-precise rendering at any DPI: exact tick-to-mark alignment, typeset superscript labels, and clean detached axes.
+
+`dysonsphere` also comes with several intuitive and powerful utilities for `altair` charts; some highlights include:
+- The ability to quickly and easily layer `altair` charts with annotations like reference lines, shades, text, and data labels.
+- Statistical inference with `scipy`, layered directly onto `alt.Chart` and conveniently exported as metadata in your saved chart:
+    - Omnibus tests with effect sizes.
+    - Brackets and *p*-values for pairwise and post hoc comparisons.
+    - Correlations with fit lines.
+- Multilabels that allow for rich annotations of categorical labels, *e.g.* multi-condition axes and sample sizes.
+- Self-documenting exports for reproducible figures:
+    - One `ds.save()` writes corrected SVG, print-ready PNG, interactive HTML, and Vega-Lite JSON - in both light and dark variants.
+    - Every file embeds its provenance: environment versions and sha256 checksums identifying both the **Vega-Lite spec and the underlying data**.
+    - `ds.read()` recovers the statistics report, metadata, or even the original data from a saved figure; `ds.load()` rebuilds the chart from its JSON.
+
+`dysonsphere` is extensible with field-specific utilities, allowing domain toolkits (e.g. molecular biology, astronomy) to plug into the same theme, palettes, and export pipeline as separately installed packages.
 
 ## Installation
 
@@ -14,7 +31,11 @@ pip install dysonsphere
 uv add dysonsphere
 ```
 
-Requires Python 3.11+. Every function that takes a DataFrame accepts **polars** or **pandas**.
+Requires Python 3.11+. Every function that takes a `DataFrame` accepts `polars` or `pandas`. Dependencies:
+- `altair`>=5.5.0
+- `numpy`>=1.26.0
+- `polars[pyarrow]`>=1.19.0
+- `scipy`>=1.11.0
 
 ## Quick start
 
@@ -42,4 +63,4 @@ ds.save(chart, "myplot") # writes myplot.svg + myplot.json
 
 ## Documentation
 
-Documentation, examples, and the chart gallery: **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**
+Documentation, examples, palettes, and the chart gallery: **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**
