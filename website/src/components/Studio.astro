@@ -1,22 +1,26 @@
 ---
-// Chart Studio: an interactive plotter. Upload a CSV/TSV/JSON (or use the bundled sample),
-// pick encodings + a chart type, tune the theme, and see a live dysonsphere chart plus the
-// exact Python that produces it. The UI is instant TypeScript; the chart is rendered by the
-// shared Pyodide runtime (src/lib/runtime.ts), which boots in the background.
+// Chart Studio: an interactive plotter AND a live Python editor over the shared Pyodide runtime.
+//
+// Two modes share one chart panel:
+//   - Build: upload a CSV/TSV/JSON (or use the bundled sample), pick encodings and a chart type,
+//     layer on statistics, a condition table, and annotations, tune the theme - and read the
+//     exact Python that reproduces the chart.
+//   - Code: a CodeMirror editor (the absorbed playground). "Edit as code" seeds it from the
+//     builder's current snippet; #code= deep links land here directly.
+//
+// Uploaded data is written into the runtime's virtual filesystem under its real filename, so the
+// emitted `pl.read_csv("file.csv")` line runs verbatim - the shown code IS the executed code.
 import palettes from '../generated/palettes.json';
 
 const paletteNames = palettes.map((p) => p.name);
-// name -> colors, for the live swatch preview under the palette input.
-const paletteColors = Object.fromEntries(palettes.map((p) => [p.name, p.colors]));
 ---
 
-<div id="studio" class="st">
+<div id="studio" class="st not-content">
 	<div class="st__controls">
 		<section class="st__group">
 			<h3>Data</h3>
 			<label class="st__file">
 				<input id="st-file" type="file" accept=".csv,.tsv,.json,.txt" />
-				<span>Upload CSV / TSV / JSON</span>
 			</label>
 			<button id="st-sample" class="st__link" type="button">or load the sample dataset</button>
 			<p id="st-data-info" class="st__muted"></p>
@@ -27,15 +31,15 @@ const paletteColors = Object.fromEntries(palettes.map((p) => [p.name, p.colors])
 			<label>Type
 				<select id="st-type">
 					<option value="point">Scatter</option>
-					<option value="bar">Bar</option>
-					<option value="line">Line</option>
 					<option value="strip">Strip</option>
 					<option value="violin">Violin</option>
 					<option value="boxplot">Boxplot</option>
+					<option value="bar">Bar</option>
+					<option value="line">Line</option>
 				</select>
 			</label>
 			<label>X <select id="st-x"></select></label>
-			<label class="st__inline" id="st-xtype-wrap">Type
+			<label class="st__inline" id="st-xtype-wrap">X type
 				<select id="st-xtype">
 					<option value="N">Nominal</option>
 					<option value="Q">Quantitative</option>
@@ -43,14 +47,88 @@ const paletteColors = Object.fromEntries(palettes.map((p) => [p.name, p.colors])
 				</select>
 			</label>
 			<label>Y <select id="st-y"></select></label>
-			<label>Color <select id="st-color"><option value="">(none)</option></select></label>
-			<label id="st-transform-wrap">Transform
+			<label id="st-color-wrap">Color <select id="st-color"><option value="">(none)</option></select></label>
+			<label id="st-transform-wrap">Point spread
 				<select id="st-transform">
 					<option value="">None</option>
 					<option value="jitter">Jitter</option>
 					<option value="beeswarm">Beeswarm</option>
 				</select>
 			</label>
+			<div id="st-strip-opts">
+				<label>Scatter
+					<select id="st-scatter">
+						<option value="jitter">Jitter</option>
+						<option value="beeswarm">Beeswarm</option>
+					</select>
+				</label>
+				<label class="st__check"><input id="st-errorbars" type="checkbox" checked /> Mean error bars</label>
+				<label id="st-extent-wrap">Error bar extent
+					<select id="st-extent">
+						<option value="sem">Standard error</option>
+						<option value="sd">Standard deviation</option>
+					</select>
+				</label>
+			</div>
+		</section>
+
+		<section class="st__group" id="st-stats-group">
+			<h3>Statistics</h3>
+			<div id="st-comparisons-wrap">
+				<label>Test
+					<select id="st-test">
+						<option value="">None</option>
+						<option value="mannwhitneyu">Mann-Whitney U (pairwise)</option>
+						<option value="ttest_ind">t-test (pairwise)</option>
+						<option value="kruskal">Kruskal-Wallis + Dunn</option>
+						<option value="anova">ANOVA + Tukey HSD</option>
+					</select>
+				</label>
+				<label id="st-brackets-wrap">Brackets
+					<select id="st-brackets">
+						<option value="none">Omnibus label only</option>
+						<option value="all">All pairs (post-hoc)</option>
+					</select>
+				</label>
+				<label id="st-labelstyle-wrap">Label style
+					<select id="st-labelstyle">
+						<option value="p">P values</option>
+						<option value="asterisks">Asterisks</option>
+					</select>
+				</label>
+			</div>
+			<div id="st-correlation-wrap">
+				<label>Correlation
+					<select id="st-correlation">
+						<option value="">None</option>
+						<option value="pearson">Pearson (r + fit line)</option>
+						<option value="spearman">Spearman (&rho;)</option>
+						<option value="kendall">Kendall (&tau;)</option>
+					</select>
+				</label>
+				<label class="st__check" id="st-corr-verbose-wrap">
+					<input id="st-corr-verbose" type="checkbox" /> Verbose readout
+				</label>
+			</div>
+		</section>
+
+		<section class="st__group" id="st-table-group">
+			<h3>Condition table</h3>
+			<label class="st__check"><input id="st-multilabel" type="checkbox" /> Attach condition table</label>
+			<div id="st-multilabel-opts">
+				<label>Rows - one per line, <code>Label: +,-,+</code>
+					<textarea id="st-rows" rows="3" spellcheck="false" placeholder="Treated: -,+,+&#10;Fasted: -,-,+"></textarea>
+				</label>
+				<label class="st__check"><input id="st-samplesize" type="checkbox" checked /> Sample size row (n =)</label>
+				<label class="st__check"><input id="st-catlabels" type="checkbox" checked /> Category labels</label>
+			</div>
+		</section>
+
+		<section class="st__group" id="st-annot-group">
+			<h3>Annotations</h3>
+			<label>Reference line (y) <input id="st-rule" type="number" step="any" placeholder="(none)" /></label>
+			<label id="st-rule-label-wrap">Line label <input id="st-rule-label" type="text" placeholder="(none)" /></label>
+			<label class="st__check" id="st-shade-wrap"><input id="st-shade" type="checkbox" /> Shade alternating bands</label>
 		</section>
 
 		<section class="st__group">
@@ -82,22 +160,36 @@ const paletteColors = Object.fromEntries(palettes.map((p) => [p.name, p.colors])
 				Chart <span id="st-status" class="st__status">Loading runtime…</span>
 			</div>
 			<div id="st-chart" class="st__chart"></div>
+			<pre id="st-error" class="st__error" hidden></pre>
 		</div>
 		<div class="st__panel">
 			<div class="st__label">
-				Python
+				<span id="st-code-title">Python</span>
 				<span class="st__label-actions">
-					<a id="st-playground" class="st__copy" href="#">Open in playground</a>
+					<button id="st-run" class="st__copy st__run" type="button" hidden>Run &#9654;</button>
+					<button id="st-edit" class="st__copy" type="button">Edit as code</button>
+					<button id="st-back" class="st__copy" type="button" hidden>Back to builder</button>
 					<button id="st-copy" class="st__copy" type="button">Copy</button>
 				</span>
 			</div>
-			<pre class="st__code"><code id="st-code"></code></pre>
+			<pre class="st__code" id="st-code-view"><code id="st-code"></code></pre>
+			<div id="st-editor" hidden></div>
+			<p class="st__hint" id="st-editor-hint" hidden>
+				Define a variable named <code>chart</code>. Run with the button or
+				<kbd>Cmd/Ctrl</kbd>+<kbd>Enter</kbd>. Your uploaded file is available under its own
+				filename (e.g. <code>pl.read_csv("data.csv")</code>).
+			</p>
 		</div>
 	</div>
 </div>
 
 <script>
 	import vegaEmbed from 'vega-embed';
+	import { EditorView, basicSetup } from 'codemirror';
+	import { keymap } from '@codemirror/view';
+	import { python } from '@codemirror/lang-python';
+	import { githubLight, githubDark } from '@uiw/codemirror-theme-github';
+	import { Compartment } from '@codemirror/state';
 	import { getRuntime, onRuntimeStatus, type DsRuntime } from '../lib/runtime';
 	import palettes from '../generated/palettes.json';
 
@@ -110,22 +202,44 @@ const paletteColors = Object.fromEntries(palettes.map((p) => [p.name, p.colors])
 control,0,4.1,1
 control,0,3.6,2
 control,0,4.4,3
+control,0,3.9,4
+control,0,4.6,5
+control,0,3.4,6
 low,10,11.2,1
 low,10,9.8,2
 low,10,12.5,3
+low,10,10.9,4
+low,10,11.9,5
+low,10,10.1,6
 high,100,24.6,1
 high,100,27.1,2
-high,100,22.9,3`;
+high,100,22.9,3
+high,100,25.8,4
+high,100,23.9,5
+high,100,26.4,6`;
 
 	interface Column {
 		name: string;
 		dtype: string;
 		kind: 'quantitative' | 'temporal' | 'nominal';
+		nUnique: number;
 	}
 
 	const isDark = () => document.documentElement.dataset.theme === 'dark';
 	const q = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
 	const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+
+	/** Code from a #code=<base64 utf-8> deep link, if present and decodable. */
+	function hashCode(): string | null {
+		const m = location.hash.match(/#code=([^&]+)/);
+		if (!m) return null;
+		try {
+			const bytes = Uint8Array.from(atob(decodeURIComponent(m[1])), (c) => c.charCodeAt(0));
+			return new TextDecoder().decode(bytes);
+		} catch {
+			return null;
+		}
+	}
 
 	function initStudio() {
 		const root = document.getElementById('studio');
@@ -135,21 +249,77 @@ high,100,22.9,3`;
 		const statusEl = el('st-status');
 		const chartEl = el('st-chart');
 		const codeEl = el('st-code');
+		const errorEl = el('st-error');
 		const dataInfo = el('st-data-info');
 
 		let runtime: DsRuntime | null = null;
 		let columns: Column[] = [];
-		let tableName = 'data';
-		let displayName = 'data.csv';
+		let fileName = 'data.csv';
+		let fileFormat: 'csv' | 'tsv' | 'json' = 'csv';
+		let mode: 'build' | 'code' = hashCode() === null ? 'build' : 'code';
 
 		const setStatus = (msg: string, kind = '') => {
 			statusEl.textContent = msg;
 			statusEl.dataset.kind = kind;
 		};
+		const showError = (e: unknown) => {
+			// Show the tail of a Python traceback (the informative part) inline.
+			const text = String((e as Error)?.message ?? e);
+			const lines = text.trimEnd().split('\n');
+			errorEl.textContent = lines.slice(-14).join('\n');
+			errorEl.hidden = false;
+		};
+		const clearError = () => {
+			errorEl.hidden = true;
+		};
 
-		function colByKind(kind: Column['kind']): Column | undefined {
-			return columns.find((c) => c.kind === kind);
+		// ------------------------------------------------------------------ editor (code mode)
+
+		const themeCompartment = new Compartment();
+		const cmTheme = () => (isDark() ? githubDark : githubLight);
+		const editor = new EditorView({
+			doc: hashCode() ?? '',
+			extensions: [
+				basicSetup,
+				python(),
+				themeCompartment.of(cmTheme()),
+				keymap.of([
+					{
+						key: 'Mod-Enter',
+						run: () => {
+							runCode();
+							return true;
+						},
+					},
+				]),
+			],
+			parent: el('st-editor'),
+		});
+		// Web fonts load after CodeMirror measures its text: without a re-measure the cursor
+		// lands visibly off from the click position (the reported playground bug). Re-measure
+		// once the fonts settle.
+		document.fonts?.ready.then(() => editor.requestMeasure());
+
+		function setMode(next: 'build' | 'code', seed?: string) {
+			mode = next;
+			const isCode = next === 'code';
+			el('st-code-view').hidden = isCode;
+			el('st-editor').hidden = !isCode;
+			el('st-editor-hint').hidden = !isCode;
+			el<HTMLButtonElement>('st-run').hidden = !isCode;
+			el<HTMLButtonElement>('st-edit').hidden = isCode;
+			el<HTMLButtonElement>('st-back').hidden = !isCode;
+			el('st-code-title').textContent = isCode ? 'Python (editable)' : 'Python';
+			if (seed !== undefined) {
+				editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: seed } });
+			}
+			if (isCode) {
+				editor.requestMeasure();
+				editor.focus();
+			}
 		}
+
+		// ------------------------------------------------------------------ builder helpers
 
 		function fillSelect(id: string, includeNone = false, onlyKind?: Column['kind']) {
 			const sel = el<HTMLSelectElement>(id);
@@ -168,11 +338,14 @@ high,100,22.9,3`;
 			if (prev && cols.some((c) => c.name === prev)) sel.value = prev;
 		}
 
-		// Pick sensible defaults after a new table loads.
+		// Pick sensible defaults after a new table loads. Y prefers the quantitative column with
+		// the most distinct values - the measured variable, not a dose level or replicate id.
 		function seedEncodings() {
-			const cat = colByKind('nominal');
-			const quant = columns.filter((c) => c.kind === 'quantitative');
-			const temporal = colByKind('temporal');
+			const cat = columns.find((c) => c.kind === 'nominal');
+			const quant = [...columns.filter((c) => c.kind === 'quantitative')].sort(
+				(a, b) => b.nUnique - a.nUnique,
+			);
+			const temporal = columns.find((c) => c.kind === 'temporal');
 			el<HTMLSelectElement>('st-x').value = (cat ?? temporal ?? quant[0] ?? columns[0]).name;
 			el<HTMLSelectElement>('st-y').value = (quant[0] ?? columns[columns.length - 1]).name;
 			el<HTMLSelectElement>('st-color').value = '';
@@ -187,22 +360,84 @@ high,100,22.9,3`;
 			el<HTMLSelectElement>('st-xtype').value = map[col.kind];
 		}
 
-		// Which controls are relevant for the current chart type.
-		function syncVisibility() {
+		function isCategorical(): boolean {
 			const type = el<HTMLSelectElement>('st-type').value;
-			const usesCat = type === 'strip' || type === 'violin';
-			const showTransform = type === 'point';
-			el('st-xtype-wrap').style.display = usesCat ? 'none' : '';
-			el('st-transform-wrap').style.display = showTransform ? '' : 'none';
+			const xtype = el<HTMLSelectElement>('st-xtype').value;
+			return (
+				type === 'strip' ||
+				type === 'violin' ||
+				type === 'boxplot' ||
+				((type === 'bar' || type === 'point') && xtype === 'N')
+			);
 		}
 
-		function buildCode(forDisplay: boolean): string {
+		// Which controls are relevant for the current chart type / encodings.
+		function syncVisibility() {
+			const type = el<HTMLSelectElement>('st-type').value;
+			const xtype = el<HTMLSelectElement>('st-xtype').value;
+			const categorical = isCategorical();
+			const groupComparisons = type === 'strip' || type === 'violin' || type === 'boxplot';
+			const scatterQ = type === 'point' && xtype === 'Q';
+
+			el('st-xtype-wrap').style.display =
+				type === 'strip' || type === 'violin' || type === 'boxplot' ? 'none' : '';
+			el('st-transform-wrap').style.display = type === 'point' && xtype === 'N' ? '' : 'none';
+			el('st-strip-opts').style.display = type === 'strip' ? '' : 'none';
+			el('st-extent-wrap').style.display =
+				type === 'strip' && el<HTMLInputElement>('st-errorbars').checked ? '' : 'none';
+			// mark_strip/mark_violin color by category internally; the color channel applies to
+			// the plain Altair marks only.
+			el('st-color-wrap').style.display =
+				type === 'strip' || type === 'violin' || type === 'boxplot' ? 'none' : '';
+
+			el('st-comparisons-wrap').style.display = groupComparisons ? '' : 'none';
+			el('st-correlation-wrap').style.display = scatterQ ? '' : 'none';
+			el('st-stats-group').style.display = groupComparisons || scatterQ ? '' : 'none';
+			const test = el<HTMLSelectElement>('st-test').value;
+			const omnibus = test === 'kruskal' || test === 'anova';
+			el('st-brackets-wrap').style.display = groupComparisons && omnibus ? '' : 'none';
+			el('st-labelstyle-wrap').style.display = groupComparisons && test ? '' : 'none';
+			el('st-corr-verbose-wrap').style.display =
+				scatterQ && el<HTMLSelectElement>('st-correlation').value ? '' : 'none';
+
+			el('st-table-group').style.display = categorical ? '' : 'none';
+			el('st-multilabel-opts').style.display =
+				categorical && el<HTMLInputElement>('st-multilabel').checked ? '' : 'none';
+			el('st-shade-wrap').style.display = categorical ? '' : 'none';
+			el('st-rule-label-wrap').style.display =
+				el<HTMLInputElement>('st-rule').value.trim() !== '' ? '' : 'none';
+		}
+
+		// ------------------------------------------------------------------ code generation
+
+		/** Parse the condition-table rows DSL: `Label: +,-,+` per line -> Python dict entries. */
+		function parseRows(): string[] {
+			const entries: string[] = [];
+			for (const raw of el<HTMLTextAreaElement>('st-rows').value.split('\n')) {
+				const line = raw.trim();
+				if (!line) continue;
+				const i = line.indexOf(':');
+				if (i < 0) continue;
+				const label = line.slice(0, i).trim();
+				const vals = line
+					.slice(i + 1)
+					.split(',')
+					.map((v) => v.trim())
+					.map((v) => (v === '+' ? 'True' : v === '-' ? 'False' : q(v)));
+				entries.push(`${q(label)}: [${vals.join(', ')}]`);
+			}
+			return entries;
+		}
+
+		function buildCode(): string {
 			const type = el<HTMLSelectElement>('st-type').value;
 			const x = el<HTMLSelectElement>('st-x').value;
 			const y = el<HTMLSelectElement>('st-y').value;
 			const color = el<HTMLSelectElement>('st-color').value;
 			const xtype = el<HTMLSelectElement>('st-xtype').value;
 			const transform = el<HTMLSelectElement>('st-transform').value;
+			const categorical = isCategorical();
+			const groupComparisons = type === 'strip' || type === 'violin' || type === 'boxplot';
 
 			// theme args
 			const t: string[] = [];
@@ -220,46 +455,67 @@ high,100,22.9,3`;
 			if (el<HTMLInputElement>('st-grid').checked) t.push('grid=True');
 			if (el<HTMLInputElement>('st-corner').checked) t.push('cornerRadius=True');
 
-			const dataLine = forDisplay
-				? `df = pl.read_csv(${q(displayName)})`
-				: `df = __tables__[${q(tableName)}]`;
+			const reader =
+				fileFormat === 'json'
+					? `pl.read_json(${q(fileName)})`
+					: fileFormat === 'tsv'
+						? `pl.read_csv(${q(fileName)}, separator="\\t")`
+						: `pl.read_csv(${q(fileName)})`;
 
-			const head = [
-				'import polars as pl',
-				'import altair as alt',
-				'import dysonsphere as ds',
-				'',
-				`ds.theme(${t.join(', ')})`,
-				'',
-				dataLine,
-			];
+			const test = groupComparisons ? el<HTMLSelectElement>('st-test').value : '';
+			const omnibus = test === 'kruskal' || test === 'anova';
+			const wantsBrackets = Boolean(test) && (!omnibus || el<HTMLSelectElement>('st-brackets').value === 'all');
 
-			let body: string[];
-			if (type === 'strip' || type === 'violin') {
-				const fn = type === 'strip' ? 'mark_strip' : 'mark_violin';
-				body = [
-					`categories = df[${q(x)}].unique(maintain_order=True).to_list()`,
-					`chart = ds.${fn}(df, ${q(x)}, ${q(y)}, categories, yTitle=${q(y)})`,
-				];
-			} else if (type === 'point' && transform) {
-				const fn = transform === 'jitter' ? 'add_jitter' : 'add_beeswarm';
+			const head = ['import altair as alt', 'import polars as pl', 'import dysonsphere as ds'];
+			if (wantsBrackets) head.unshift('from itertools import combinations');
+			head.push('', `ds.theme(${t.join(', ')})`, '', `df = ${reader}`);
+
+			const body: string[] = [];
+			const needCategories =
+				categorical &&
+				(type === 'strip' ||
+					type === 'violin' ||
+					Boolean(test) ||
+					el<HTMLInputElement>('st-multilabel').checked ||
+					el<HTMLInputElement>('st-shade').checked);
+			if (needCategories) {
+				// sorted() matches the band order Vega-Lite renders for composed charts.
+				body.push(`categories = sorted(df[${q(x)}].unique().to_list())`);
+			}
+
+			if (type === 'strip') {
+				const opts: string[] = [];
+				const scatter = el<HTMLSelectElement>('st-scatter').value;
+				if (scatter !== 'jitter') opts.push(`scatter=${q(scatter)}`);
+				if (!el<HTMLInputElement>('st-errorbars').checked) opts.push('errorbars=False');
+				else if (el<HTMLSelectElement>('st-extent').value !== 'sem')
+					opts.push(`errorbarExtent=${q(el<HTMLSelectElement>('st-extent').value)}`);
+				const extra = opts.length ? `, ${opts.join(', ')}` : '';
+				body.push(`chart = ds.mark_strip(df, ${q(x)}, ${q(y)}, categories${extra})`);
+			} else if (type === 'violin') {
+				body.push(`chart = ds.mark_violin(df, ${q(x)}, ${q(y)}, categories)`);
+			} else if (type === 'point' && xtype === 'N' && transform) {
 				const off = transform === 'jitter' ? 'jitter_x' : 'beeswarm_x';
 				const call =
 					transform === 'jitter'
 						? `df = ds.add_jitter(df)`
 						: `df = ds.add_beeswarm(df, ${q(y)}, groupBy=[${q(x)}])`;
-				body = [
+				const enc = [
+					`        x=alt.X("${x}:N", title=None),`,
+					`        y=alt.Y("${y}:Q"),`,
+					`        xOffset=alt.XOffset("${off}:Q"),`,
+				];
+				if (color) enc.push(`        color=alt.Color("${color}:N", legend=None),`);
+				body.push(
 					call,
 					`chart = (`,
 					`    alt.Chart(df)`,
 					`    .mark_circle()`,
 					`    .encode(`,
-					`        x=alt.X("${x}:N", title=None),`,
-					`        y=alt.Y("${y}:Q"),`,
-					`        xOffset=alt.XOffset("${off}:Q"),`,
+					...enc,
 					`    )`,
 					`)`,
-				];
+				);
 			} else {
 				const marks: Record<string, string> = {
 					point: 'mark_point',
@@ -269,24 +525,68 @@ high,100,22.9,3`;
 				};
 				const yt = type === 'bar' ? `mean(${y})` : y;
 				const enc = [
-					`        x=alt.X("${x}:${xtype}"${type === 'bar' ? ', sort="-y"' : ''}),`,
+					`        x=alt.X("${x}:${type === 'boxplot' ? 'N' : xtype}"),`,
 					`        y=alt.Y("${yt}:Q"),`,
 				];
-				if (color) enc.push(`        color=alt.Color("${color}:N", legend=None),`);
-				body = [
-					`chart = (`,
-					`    alt.Chart(df)`,
-					`    .${marks[type]}()`,
-					`    .encode(`,
-					...enc,
-					`    )`,
-					`)`,
-				];
+				if (color && type !== 'boxplot') enc.push(`        color=alt.Color("${color}:N", legend=None),`);
+				body.push(`chart = (`, `    alt.Chart(df)`, `    .${marks[type]}()`, `    .encode(`, ...enc, `    )`, `)`);
 			}
+
+			// Layers compose with + : shade under, statistics/rules over, condition table wraps.
+			if (categorical && el<HTMLInputElement>('st-shade').checked) {
+				body.push('', `chart = ds.add_shade(categories=categories) + chart`);
+			}
+
+			if (type === 'point' && xtype === 'Q') {
+				const method = el<HTMLSelectElement>('st-correlation').value;
+				if (method) {
+					const opts = [`method=${q(method)}`];
+					if (el<HTMLInputElement>('st-corr-verbose').checked) opts.push('verbose=True');
+					body.push('', `chart = chart + ds.add_correlation(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
+				}
+			}
+
+			if (test) {
+				const opts = [`test=${q(test)}`, `categories=categories`];
+				const labelStyle = el<HTMLSelectElement>('st-labelstyle').value;
+				if (labelStyle !== 'p') opts.push(`labelStyle=${q(labelStyle)}`);
+				if (wantsBrackets) {
+					body.push('', `pairs = list(combinations(categories, 2))`);
+					body.push(`chart = chart + ds.add_comparisons(df, ${q(x)}, ${q(y)}, pairs, ${opts.join(', ')})`);
+				} else {
+					body.push('', `chart = chart + ds.add_comparisons(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
+				}
+			}
+
+			const rule = el<HTMLInputElement>('st-rule').value.trim();
+			if (rule !== '') {
+				const label = el<HTMLInputElement>('st-rule-label').value.trim();
+				const labelArg = label ? `, label=${q(label)}` : '';
+				body.push('', `chart = chart + ds.add_rule(${+rule}${labelArg})`);
+			}
+
+			if (categorical && el<HTMLInputElement>('st-multilabel').checked) {
+				const rows = parseRows();
+				const opts: string[] = [];
+				if (el<HTMLInputElement>('st-samplesize').checked)
+					opts.push(`showSampleSize=True`, `df=df`, `xCol=${q(x)}`);
+				if (el<HTMLInputElement>('st-catlabels').checked) opts.push('categoryLabel=True');
+				body.push(
+					'',
+					`chart = ds.add_multilabel(`,
+					`    chart,`,
+					`    groups={${rows.join(', ')}},`,
+					`    categories=categories,`,
+					...opts.map((o) => `    ${o},`),
+					`)`,
+				);
+			}
+
 			return [...head, '', ...body].join('\n');
 		}
 
-		const BASE = import.meta.env.BASE_URL;
+		// ------------------------------------------------------------------ rendering
+
 		function syncPalettePreview() {
 			const name = el<HTMLInputElement>('st-palette').value.trim();
 			const colors = PALETTE_COLORS[name];
@@ -299,95 +599,134 @@ high,100,22.9,3`;
 				preview.appendChild(stop);
 			}
 		}
-		function syncPlaygroundLink(displayCode: string) {
-			// base64 of UTF-8, matching the playground's #code= decoder.
-			const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(displayCode)));
-			el<HTMLAnchorElement>('st-playground').href = `${BASE}playground/#code=${encodeURIComponent(b64)}`;
-		}
 
-		let renderTimer: number | undefined;
-		async function render() {
-			const displayCode = buildCode(true);
-			codeEl.textContent = displayCode;
-			syncPalettePreview();
-			syncPlaygroundLink(displayCode);
-			if (!runtime || !columns.length) return;
+		async function renderSpec(code: string) {
+			if (!runtime) return;
 			setStatus('Rendering…');
 			try {
-				const spec = JSON.parse(runtime.runChart(buildCode(false), isDark()));
+				const spec = JSON.parse(runtime.runChart(code, isDark()));
 				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
+				clearError();
 				setStatus('', 'ok');
 			} catch (e) {
-				setStatus('Error - see console.', 'err');
+				setStatus('Error', 'err');
+				showError(e);
 				console.error(e);
 			}
 		}
+
+		let renderTimer: number | undefined;
+		async function renderBuild() {
+			const code = buildCode();
+			codeEl.textContent = code;
+			syncPalettePreview();
+			if (!runtime || !columns.length) return;
+			await renderSpec(code);
+		}
 		function scheduleRender() {
+			if (mode !== 'build') return;
 			window.clearTimeout(renderTimer);
-			renderTimer = window.setTimeout(render, 120);
+			renderTimer = window.setTimeout(renderBuild, 150);
+		}
+		async function runCode() {
+			await renderSpec(editor.state.doc.toString());
+		}
+		function rerenderCurrent() {
+			if (mode === 'build') scheduleRender();
+			else runCode();
 		}
 
 		async function loadTable(text: string, name: string, format: 'csv' | 'tsv' | 'json') {
 			if (!runtime) return;
-			displayName = name;
-			tableName = 'data';
+			fileName = name;
+			fileFormat = format;
 			try {
-				const info = JSON.parse(runtime.loadTable(tableName, text, format));
+				const info = JSON.parse(runtime.loadTable(name, text, format));
 				columns = info.columns;
-				dataInfo.textContent = `${displayName} · ${info.rows} rows · ${columns.length} columns`;
+				dataInfo.textContent = `${name} · ${info.rows} rows · ${columns.length} columns`;
 				fillSelect('st-x');
 				fillSelect('st-y', false, 'quantitative'); // Y is always the measured value
 				fillSelect('st-color', true);
 				seedEncodings();
 				syncVisibility();
-				render();
+				if (mode === 'build') renderBuild();
 			} catch (e) {
 				dataInfo.textContent = 'Could not parse that file.';
+				showError(e);
 				console.error(e);
 			}
 		}
 
-		// Wire controls.
-		root.querySelectorAll('select, input').forEach((node) => {
-			node.addEventListener('change', () => {
-				if ((node as HTMLElement).id === 'st-x') syncXType();
-				if ((node as HTMLElement).id === 'st-type') syncVisibility();
-				scheduleRender();
+		// ------------------------------------------------------------------ wiring
+
+		root
+			.querySelectorAll('.st__controls select, .st__controls input, .st__controls textarea')
+			.forEach((node) => {
+				node.addEventListener('change', () => {
+					if ((node as HTMLElement).id === 'st-x') syncXType();
+					syncVisibility();
+					scheduleRender();
+				});
+				node.addEventListener('input', () => {
+					syncVisibility();
+					scheduleRender();
+				});
 			});
-			node.addEventListener('input', scheduleRender);
-		});
 
 		el('st-file').addEventListener('change', (ev) => {
 			const file = (ev.target as HTMLInputElement).files?.[0];
 			if (!file) return;
 			const ext = file.name.split('.').pop()?.toLowerCase();
-			const format = ext === 'json' ? 'json' : ext === 'tsv' ? 'tsv' : 'csv';
-			file.text().then((text) => loadTable(text, file.name, format as 'csv' | 'tsv' | 'json'));
+			const format = (ext === 'json' ? 'json' : ext === 'tsv' ? 'tsv' : 'csv') as 'csv' | 'tsv' | 'json';
+			file.text().then((text) => loadTable(text, file.name, format));
 		});
 		el('st-sample').addEventListener('click', () => loadTable(SAMPLE, 'sample.csv', 'csv'));
 		el('st-copy').addEventListener('click', () => {
-			navigator.clipboard?.writeText(codeEl.textContent ?? '');
+			const text = mode === 'code' ? editor.state.doc.toString() : (codeEl.textContent ?? '');
+			navigator.clipboard?.writeText(text);
 			const b = el('st-copy');
 			b.textContent = 'Copied!';
 			setTimeout(() => (b.textContent = 'Copy'), 900);
 		});
-		new MutationObserver(() => scheduleRender()).observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: ['data-theme'],
+		el('st-edit').addEventListener('click', () => setMode('code', buildCode()));
+		el('st-back').addEventListener('click', () => {
+			setMode('build');
+			scheduleRender();
+		});
+		el('st-run').addEventListener('click', runCode);
+
+		// Site theme toggle: re-render the current chart with inverted ink; also swap the
+		// editor's syntax theme.
+		new MutationObserver(() => {
+			editor.dispatch({ effects: themeCompartment.reconfigure(cmTheme()) });
+			rerenderCurrent();
+		}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+		// A new #code= deep link while already on this page replaces the editor and re-runs.
+		window.addEventListener('hashchange', () => {
+			const code = hashCode();
+			if (code === null) return;
+			setMode('code', code);
+			if (runtime) runCode();
 		});
 
-		// Show the sample immediately (code + eventually the chart), boot the runtime in the bg.
-		render();
+		// Initial state: code mode when deep-linked, builder otherwise. The builder shows its
+		// generated snippet immediately; the chart appears once the runtime boots.
+		if (mode === 'code') setMode('code');
+		else codeEl.textContent = buildCode();
+		syncVisibility();
 		onRuntimeStatus((msg) => {
 			if (!runtime) setStatus(msg);
 		});
 		getRuntime()
-			.then((rt) => {
+			.then(async (rt) => {
 				runtime = rt;
-				loadTable(SAMPLE, 'sample.csv', 'csv');
+				await loadTable(SAMPLE, 'sample.csv', 'csv');
+				if (mode === 'code') await runCode();
 			})
 			.catch((e) => {
-				setStatus('Boot failed - see console.', 'err');
+				setStatus('Boot failed', 'err');
+				showError(e);
 				console.error(e);
 			});
 	}
@@ -399,8 +738,8 @@ high,100,22.9,3`;
 <style>
 	.st {
 		display: grid;
-		grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
-		gap: 1.5rem;
+		grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+		gap: 1.25rem;
 		margin-top: 1.5rem;
 		align-items: start;
 	}
@@ -429,7 +768,11 @@ high,100,22.9,3`;
 		color: var(--sl-color-gray-2);
 		margin-bottom: 0.6rem;
 	}
+	.st__group label code {
+		font-size: 0.72rem;
+	}
 	.st__group select,
+	.st__group textarea,
 	.st__group input:not([type='checkbox']):not([type='file']) {
 		display: block;
 		width: 100%;
@@ -440,6 +783,11 @@ high,100,22.9,3`;
 		background: var(--sl-color-bg);
 		color: var(--sl-color-text);
 		font-size: 0.82rem;
+	}
+	.st__group textarea {
+		font-family: var(--sl-font-mono);
+		font-size: 0.75rem;
+		resize: vertical;
 	}
 	.st__dims {
 		display: grid;
@@ -456,7 +804,7 @@ high,100,22.9,3`;
 		display: flex !important;
 		align-items: center;
 		gap: 0.45rem;
-		margin: 0 !important;
+		margin: 0 0 0.35rem !important;
 	}
 	.st__check input {
 		width: auto;
@@ -468,9 +816,6 @@ high,100,22.9,3`;
 	.st__file input {
 		font-size: 0.75rem;
 		width: 100%;
-	}
-	.st__file span {
-		display: none;
 	}
 	.st__link {
 		background: none;
@@ -505,10 +850,6 @@ high,100,22.9,3`;
 		gap: 0.4rem;
 		align-items: center;
 	}
-	a.st__copy {
-		text-decoration: none;
-		display: inline-block;
-	}
 	.st__output {
 		display: flex;
 		flex-direction: column;
@@ -541,11 +882,22 @@ high,100,22.9,3`;
 	}
 	.st__chart {
 		padding: 1rem;
-		min-height: 18rem;
+		min-height: 24rem;
 		display: flex;
 		justify-content: center;
 		align-items: center;
 		overflow: auto;
+	}
+	.st__error {
+		margin: 0;
+		padding: 0.75rem 1rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+		font-size: 0.72rem;
+		line-height: 1.45;
+		color: var(--sl-color-red, #b23b3b);
+		background: var(--sl-color-bg);
+		overflow: auto;
+		max-height: 14rem;
 	}
 	.st__copy {
 		background: var(--sl-color-gray-6);
@@ -558,6 +910,12 @@ high,100,22.9,3`;
 		padding: 0.2rem 0.6rem;
 		cursor: pointer;
 	}
+	.st__run {
+		background: var(--sl-color-white);
+		color: var(--sl-color-black);
+		border-color: var(--sl-color-white);
+		font-weight: 600;
+	}
 	.st__code {
 		margin: 0;
 		padding: 1rem;
@@ -565,5 +923,38 @@ high,100,22.9,3`;
 		font-size: 0.78rem;
 		line-height: 1.5;
 		background: var(--sl-color-bg);
+		font-family: var(--sl-font-mono);
+	}
+	/* CodeMirror renders its own DOM, so size it with global selectors. Pin the exact same
+	   font metrics on content and gutters - mismatched metrics (or a late-loading webfont)
+	   put the cursor visibly off from where you click. A re-measure also runs on
+	   document.fonts.ready (see script). */
+	:global(#st-editor .cm-editor) {
+		max-height: 30rem;
+		min-height: 16rem;
+		font-size: 0.78rem;
+	}
+	:global(#st-editor .cm-scroller) {
+		overflow: auto;
+		font-family: var(--sl-font-mono) !important;
+		line-height: 1.5;
+	}
+	:global(#st-editor .cm-gutters) {
+		font-family: var(--sl-font-mono) !important;
+		line-height: 1.5;
+	}
+	.st__hint {
+		margin: 0;
+		padding: 0.5rem 0.75rem 0.75rem;
+		font-size: 0.75rem;
+		color: var(--sl-color-gray-3);
+		border-top: 1px solid var(--sl-color-gray-5);
+	}
+	.st__hint kbd {
+		font-family: var(--sl-font-mono);
+		font-size: 0.68rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.25rem;
+		padding: 0 0.25rem;
 	}
 </style>

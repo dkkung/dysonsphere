@@ -1,7 +1,8 @@
 ---
 // One registry example: the VERBATIM source of website/examples/<name>.py as the code block,
-// the live chart rendered from its generated specs, and an "Open in playground" deep link.
-// Because the shown code IS the file the generator executed, snippet and chart cannot drift.
+// the live chart rendered from its generated specs, and an "Open in studio" deep link (the
+// Chart Studio's code editor). Because the shown code IS the file the generator executed,
+// snippet and chart cannot drift.
 import { Code } from '@astrojs/starlight/components';
 import Chart from './Chart.astro';
 
@@ -23,8 +24,8 @@ const source = sources[`../../examples/${name}.py`];
 if (!source) throw new Error(`No example source: website/examples/${name}.py`);
 const code = source.trimEnd();
 
-// Deep link: /playground/#code=<base64 utf-8>. Decoded by the playground on load.
-const playgroundHref = `${import.meta.env.BASE_URL}playground/#code=${encodeURIComponent(
+// Deep link: /studio/#code=<base64 utf-8>. Decoded by the studio's code editor on load.
+const studioHref = `${import.meta.env.BASE_URL}studio/#code=${encodeURIComponent(
 	Buffer.from(code, 'utf-8').toString('base64'),
 )}`;
 ---
@@ -35,7 +36,7 @@ const playgroundHref = `${import.meta.env.BASE_URL}playground/#code=${encodeURIC
 		<Chart name={name} alt={alt ?? `dysonsphere example: ${name}`} />
 	</div>
 	<div class="example__actions">
-		<a href={playgroundHref}>Open in playground &rarr;</a>
+		<a href={studioHref}>Open in studio &rarr;</a>
 	</div>
 </div>
 

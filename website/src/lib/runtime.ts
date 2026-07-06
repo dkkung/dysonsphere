@@ -6,8 +6,11 @@
 //
 // The Python side exposes two entry points:
 //   _run_chart(code, dark)      - exec a user snippet that defines `chart`, return the spec JSON.
-//   _load_table(name, text)     - parse uploaded CSV/TSV/JSON text into a named polars DataFrame,
-//                                 return its column schema as JSON (used by Chart Studio).
+//   _load_table(name, text)     - write an uploaded CSV/TSV/JSON into the runtime's virtual
+//                                 filesystem under its real filename AND parse it, returning the
+//                                 column schema as JSON (used by Chart Studio). Because the file
+//                                 exists in the FS, the emitted `pl.read_csv("file.csv")` snippet
+//                                 runs verbatim - shown code and executed code are the same.
 // Site render args (darkmode / transparent) are applied just before serializing,
 // never shown in user code.
 
@@ -83,6 +86,10 @@ def _run_chart(code, dark):
 
 def _load_table(name, text, format):
     import io
+    from pathlib import Path
+    # The file lands in the virtual FS under its real name, so the emitted
+    # pl.read_csv(name) / pl.read_json(name) line runs exactly as shown.
+    Path(name).write_text(text, encoding="utf-8")
     if format == "json":
         df = pl.read_json(text.encode())
     else:
@@ -91,7 +98,8 @@ def _load_table(name, text, format):
     schema = [
         {"name": c, "dtype": str(t), "kind": (
             "quantitative" if t.is_numeric() else
-            "temporal" if t.is_temporal() else "nominal")}
+            "temporal" if t.is_temporal() else "nominal"),
+         "nUnique": df[c].n_unique()}
         for c, t in df.schema.items()
     ]
     return json.dumps({"rows": df.height, "columns": schema})

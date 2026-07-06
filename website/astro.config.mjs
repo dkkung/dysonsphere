@@ -81,7 +81,6 @@ export default defineConfig({
 					label: 'Interactive',
 					items: [
 						{ label: 'Gallery', slug: 'gallery' },
-						{ label: 'Playground', slug: 'playground' },
 						{ label: 'Chart Studio', slug: 'studio' },
 					],
 				},

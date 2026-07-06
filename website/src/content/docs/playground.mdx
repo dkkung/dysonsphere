@@ -1,13 +1,15 @@
 ---
 title: Playground
-description: Run dysonsphere in your browser via WebAssembly - edit the code and see the chart update live.
-template: splash
+description: The playground has moved into Chart Studio.
+tableOfContents: false
+sidebar:
+  hidden: true
 ---
 
-import Playground from '../../components/Playground.astro';
+import PlaygroundRedirect from '../../components/PlaygroundRedirect.astro';
 
-Edit the Python and hit **Run**. dysonsphere runs entirely in your browser via Pyodide
-(WebAssembly) - no install, no server. The first load fetches the runtime and packages (tens of
-MB); after that, runs are instant.
+<PlaygroundRedirect />
 
-<Playground />
+The playground is now part of [Chart Studio](/studio/) - same editor, same in-browser Python
+runtime, plus the interactive builder. Old links keep working: this page forwards `#code=` deep
+links along.
