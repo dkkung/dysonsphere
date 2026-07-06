@@ -7,7 +7,11 @@ An [Altair](https://altair-viz.github.io/) theme and chart utility library for p
 ## Installation
 
 ```sh
-uv add dysonsphere    # or: pip install dysonsphere
+# with pip
+pip install dysonsphere
+
+# with uv
+uv add dysonsphere
 ```
 
 Requires Python 3.11+. Every function that takes a DataFrame accepts **polars** or **pandas**.
@@ -33,14 +37,9 @@ chart = (
     )
 )
 
-ds.save(chart, "myplot")
-# writes myplot.svg + myplot.json - corrected SVG, embedded provenance metadata
+ds.save(chart, "myplot") # writes myplot.svg + myplot.json
 ```
 
 ## Documentation
 
-The full documentation is moving to the dysonsphere website (in progress). Until it ships, see the [chart gallery](https://dkkung.github.io/dysonsphere/) and the [complete v2-era reference](website/legacy-readme/README.md).
-
-## License
-
-[MIT](LICENSE)
+Documentation, examples, and the chart gallery: **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**
