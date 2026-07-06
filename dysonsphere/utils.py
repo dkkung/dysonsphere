@@ -1,10 +1,15 @@
 import hashlib
 import json
+from collections.abc import Sequence
 from typing import Any, NamedTuple
 
 import polars as pl
 
 from .theme import _opt
+
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["BandGeometry", "band_geometry", "count_n", "ensure_polars", "frame_checksum"]
 
 
 class BandGeometry(NamedTuple):
@@ -86,139 +91,30 @@ def band_geometry(
     return BandGeometry(step, centers, starts, ends)
 
 
-def _repel_labels(
-    anchors: list[tuple[float, float]],
-    sizes: list[tuple[float, float]],
-    *,
-    width: float,
-    height: float,
-    obstacles: "list[tuple[float, float]] | None" = None,
-    iterations: int = 300,
-) -> list[tuple[float, float]]:
-    """Force-directed, non-overlapping label placement (deterministic) - the engine behind
-    :func:`add_labels`.
+def _nice_domain(lo: float, hi: float, count: int = 10) -> tuple[float, float]:
+    """Round ``(lo, hi)`` outward to nice tick-increment multiples - d3's ``nice()`` algorithm.
 
-    ``anchors`` are the pixel positions of the points being labelled and ``sizes`` each label's
-    ``(width, height)`` box in pixels (pixel origin top-left, y growing downward, matching a
-    rendered SVG). ``obstacles`` are the pixel positions of ALL plotted points to avoid covering
-    (default: just the ``anchors``); passing every point - not only the labelled ones - is what
-    keeps labels off the background markers AND breaks them out of a boring straight-up column (a
-    label near a dense region is pushed toward the emptier side). Returns one label-CENTRE pixel
-    position per anchor. Each label box repels the other labels (pushed apart along its axis of
-    least penetration) and every obstacle it overlaps (net push toward open space), a weak spring
-    pulls it back toward its anchor, and it is clamped inside the ``width`` x ``height`` panel;
-    iterated to a relaxed layout. Fully deterministic (no RNG - a tiny index-based offset breaks
-    exact ties), so the same inputs always give the same figure. **Never drops a label**
-    (force-show): in an impossibly dense region labels settle at their least-overlapping positions.
+    Used by ``add_labels`` to pin the shared scale to nice bounds instead of the raw data extent,
+    so the pinned axes read like Vega's own ``nice: true`` (whose rounding this replicates: the
+    d3-scale 1/2/5/10 tick increment at ``count`` ~ticks, applied twice so the widened domain can
+    settle on a coarser step). Exactness vs Vega does not matter - the caller FORCES the returned
+    domain, so whatever this computes is what renders. Degenerate spans return unchanged.
     """
-    import numpy as np
+    import math
 
-    n = len(anchors)
-    if n == 0:
-        return []
-    a = np.array(anchors, dtype=float)
-    obs = np.array(obstacles if obstacles is not None else anchors, dtype=float)
-    half = np.array(sizes, dtype=float) / 2.0 + 2.0  # +2px padding so boxes gap, not just touch
-    pos = a.copy()
-    pos[:, 1] -= half[:, 1] + 2.0  # start just above each anchor (y grows downward)
-    pos[:, 0] += np.arange(n) * 1e-3  # deterministic tie-break for coincident anchors
-
-    # k_spring pulls each label back toward its point (higher -> shorter connectors); k_label/k_point
-    # clear label-label and label-point overlaps; k_seg keeps labels off other connectors.
-    k_spring, k_label, k_point, point_r, k_seg = 0.05, 0.4, 0.35, 3.0, 0.5
-    # longer-range density escape: a label deep in a cluster feels the AABB pushes cancel (points on
-    # all sides), so it never leaves. A soft 1/dist push from every point within `dens_r` gives a net
-    # vector toward the sparse side, so the label drifts out to open space (then the spring/label
-    # forces settle it). Radius scales with the panel; strength kept LOW so it only biases direction -
-    # too high and labels overshoot far from their points (comically long connectors).
-    dens_r = 0.25 * min(width, height)
-    k_dens = 2.0
-    for _ in range(iterations):
-        disp = np.zeros_like(pos)
-        for i in range(n):
-            for j in range(i + 1, n):  # label <-> label box repulsion
-                d = pos[i] - pos[j]
-                overlap = (half[i] + half[j]) - np.abs(d)
-                if overlap[0] > 0 and overlap[1] > 0:
-                    # push apart along whichever axis is least overlapping (smaller move)
-                    if overlap[0] <= overlap[1]:
-                        push = np.array([overlap[0] * (1.0 if d[0] >= 0 else -1.0), 0.0])
-                    else:
-                        push = np.array([0.0, overlap[1] * (1.0 if d[1] >= 0 else -1.0)])
-                    disp[i] += push * k_label
-                    disp[j] -= push * k_label
-            # label <-> obstacle repulsion (all plotted points): net push away from every point the
-            # label box covers, so it clears the markers and drifts toward open space.
-            d = pos[i] - obs
-            ox = (half[i, 0] + point_r) - np.abs(d[:, 0])
-            oy = (half[i, 1] + point_r) - np.abs(d[:, 1])
-            hit = (ox > 0) & (oy > 0)
-            if hit.any():
-                dd = d[hit]
-                pen = np.minimum(ox[hit], oy[hit])
-                norm = np.linalg.norm(dd, axis=1)
-                norm[norm == 0] = 1e-9
-                disp[i] += (dd / norm[:, None] * pen[:, None]).sum(axis=0) * k_point
-            # density-gradient escape (see dens_r/k_dens above): net 1/dist push from nearby points
-            dn = np.linalg.norm(d, axis=1)
-            near = (dn > 1e-9) & (dn < dens_r)
-            if near.any():
-                dd = d[near]
-                dnn = dn[near]
-                disp[i] += (dd / (dnn[:, None] ** 2)).sum(axis=0) * k_dens
-            # label i <-> other labels' connector segments (anchor a[j] -> label pos[j]): if a
-            # connector line passes through label i's box, push i off it so leaders don't run through
-            # other labels. Treat the closest point on the segment like an obstacle.
-            for j in range(n):
-                if j == i:
-                    continue
-                seg = pos[j] - a[j]
-                seg_len2 = float(seg @ seg)
-                if seg_len2 < 1e-9:
-                    continue
-                t = min(1.0, max(0.0, float((pos[i] - a[j]) @ seg) / seg_len2))
-                d2 = pos[i] - (a[j] + t * seg)  # label centre - closest point on segment j
-                sx_ov, sy_ov = half[i, 0] - abs(d2[0]), half[i, 1] - abs(d2[1])
-                if sx_ov > 0 and sy_ov > 0:  # the line crosses i's box
-                    dist = float(np.linalg.norm(d2))
-                    push_dir = d2 / dist if dist > 1e-9 else np.array([0.0, -1.0])
-                    disp[i] += push_dir * min(sx_ov, sy_ov) * k_seg
-        disp += (a - pos) * k_spring  # weak spring back toward anchor
-        pos += disp
-        pos[:, 0] = np.clip(pos[:, 0], half[:, 0], width - half[:, 0])
-        pos[:, 1] = np.clip(pos[:, 1], half[:, 1], height - half[:, 1])
-    return [(float(p[0]), float(p[1])) for p in pos]
-
-
-def _sample_spread(xs: list[float], ys: list[float], n: int) -> list[int]:
-    """Return the indices of ``n`` points spread as evenly as possible across the (x, y) extent -
-    farthest-point sampling, deterministic (no RNG).
-
-    Used by ``add_labels(labels=n)`` to auto-pick a readable, unbiased subset to label without the
-    caller cherry-picking. Preferred over a uniform random sample, which is density-weighted and so
-    would clump labels in the busiest region. Coordinates are normalized to a unit square (so x and
-    y weigh equally); the seed is the point nearest the low corner, then each next point is the one
-    farthest from all already-chosen. ``n >= len`` returns every index; ``n <= 0`` returns none.
-    """
-    import numpy as np
-
-    total = len(xs)
-    if n >= total:
-        return list(range(total))
-    if n <= 0:
-        return []
-    pts = np.column_stack([xs, ys]).astype(float)
-    lo = pts.min(axis=0)
-    span = pts.max(axis=0) - lo
-    span[span == 0] = 1.0
-    p = (pts - lo) / span  # unit square
-    chosen = [int(np.argmin(p.sum(axis=1)))]  # deterministic seed: nearest the low corner
-    dist = np.linalg.norm(p - p[chosen[0]], axis=1)
-    for _ in range(n - 1):
-        i = int(np.argmax(dist))
-        chosen.append(i)
-        dist = np.minimum(dist, np.linalg.norm(p - p[i], axis=1))
-    return chosen
+    if not (hi > lo):
+        return lo, hi
+    for _ in range(2):
+        step = (hi - lo) / count
+        power = 10.0 ** math.floor(math.log10(step))
+        err = step / power
+        # d3's tickIncrement thresholds: sqrt(50), sqrt(10), sqrt(2)
+        step = power * (10 if err >= math.sqrt(50) else 5 if err >= math.sqrt(10) else 2 if err >= math.sqrt(2) else 1)
+        lo2, hi2 = math.floor(lo / step) * step, math.ceil(hi / step) * step
+        if (lo2, hi2) == (lo, hi):
+            break
+        lo, hi = lo2, hi2
+    return lo, hi
 
 
 def count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]:
@@ -340,3 +236,28 @@ def _internal_data(data: "list[dict] | pl.DataFrame | Any") -> "Any":
     if isinstance(data, list):
         return alt.Data(values=[{**dict(row), _INTERNAL_COL: 1} for row in data])
     return ensure_polars(data).with_columns(pl.lit(1).alias(_INTERNAL_COL))
+
+
+def _empty_layer() -> "Any":
+    """An invisible placeholder layer, for an annotation with nothing to draw.
+
+    Returned so the annotation still composes with ``+`` (``alt.layer()`` requires at least
+    one layer). Rides on a tagged internal frame, so ``read(what="data")`` filters it.
+    """
+    import altair as alt
+
+    return alt.Chart(_internal_data([{}])).mark_point(opacity=0)
+
+
+def _resolve_dash(value: "bool | Sequence[int | float] | None") -> "list[int | float] | None":
+    """Resolve the project-wide ``strokeDash`` convention to a concrete dash array.
+
+    ``True`` -> the theme's ``dashedWidth`` pattern; ``False`` -> ``[0, 0]`` (forced solid);
+    a list -> passed through unchanged; ``None`` -> ``None`` (the caller decides what unset
+    means - typically omitting the property so the theme config applies).
+    """
+    if value is True:
+        return _opt("dashedWidth")
+    if value is False:
+        return [0, 0]
+    return list(value) if value is not None else None

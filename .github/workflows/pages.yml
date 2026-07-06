@@ -1,9 +1,21 @@
 name: Deploy to GitHub Pages
 
+# Builds the Astro docs site (website/) and deploys it to the project Pages URL
+# (dkkung.github.io/dysonsphere). The generated chart specs / palette data under
+# website/public and website/src/generated are committed (regenerated locally via
+# website/scripts/gen_*.py when the library changes), so the build needs only Node.
+# site/base are passed here rather than baked into astro.config.mjs so local dev
+# and preview keep serving at "/".
+
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -18,10 +30,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build site
+        working-directory: website
+        env:
+          DEPLOY_SITE: https://dkkung.github.io
+          DEPLOY_BASE: /dysonsphere
+        run: npm run build
+
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/
+          path: website/dist/
 
       - name: Deploy to GitHub Pages
         id: deploy

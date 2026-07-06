@@ -1,0 +1,51 @@
+---
+title: Getting started
+description: Install dysonsphere and make your first themed chart.
+---
+
+import Example from '../../../components/Example.astro';
+
+## Install
+
+```sh
+pip install dysonsphere
+```
+
+dysonsphere is an [Altair](https://altair-viz.github.io/) companion. Its functions return native
+Altair objects, so you keep Altair's full API and compose dysonsphere's additions with `+`. Data
+can be a [polars](https://pola.rs) or a pandas DataFrame - dysonsphere converts at the boundary.
+
+## The shape of the library
+
+Everything hangs off one namespace, `dysonsphere` (conventionally `ds`):
+
+- **`ds.theme()`** - register a global theme. Call it once; every Altair chart afterwards inherits
+  perceptually uniform palettes and publication-ready styling. See [Theming](/guides/theming/).
+- **Marks** - `ds.mark_strip()`, `ds.mark_violin()` build composite plots. See [Marks](/guides/marks/).
+- **Annotations** - `ds.add_rule()`, `ds.add_text()`, `ds.add_shade()`, `ds.add_comparisons()`,
+  `ds.add_correlation()` return layers you add with `+`. See
+  [Annotations](/guides/annotations/) and [Statistics](/guides/statistics/).
+- **`ds.save()` / `ds.read()` / `ds.load()`** - export figures that carry their own provenance,
+  statistics, theme, and data. See [Saving & reading](/guides/saving/).
+
+## Your first chart
+
+<Example name="first_chart" alt="Bar chart of four groups, blues palette" />
+
+`ds.theme()` registers the theme; `palette="blues"` sets the categorical color scheme. Because the
+theme is global, plain `alt.Chart(...)` picks it up - dysonsphere only had to set the palette.
+
+## Saving
+
+```python
+ds.save(chart, "figure")   # writes figure.svg + figure.json by default
+```
+
+`save()` bakes provenance, the resolved theme, and (when present) statistics into the file, which
+`ds.read()` and `ds.load()` pull back out later.
+
+## Try it live
+
+Every example on this site has an **Open in playground** link, and the
+[playground](/playground/) runs the real library in your browser via WebAssembly - edit the code
+and watch the chart update, no install required.

@@ -6,8 +6,12 @@ import polars as pl
 from .theme import _opt
 from .utils import ensure_polars
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["add_jitter", "add_beeswarm"]
 
-def beeswarm_offsets(
+
+def _beeswarm_offsets(
     yVals,
     heightPx: int | None = None,
     spread: float | None = None,
@@ -55,7 +59,7 @@ def beeswarm_offsets(
             .with_row_index("__idx")
             .group_by(["group", "time"])
             .map_groups(lambda g: g.with_columns(
-                pl.Series("beeswarm_x", ds.beeswarm_offsets(
+                pl.Series("beeswarm_x", dysonsphere.transforms._beeswarm_offsets(
                     g["value"].to_numpy(),
                     heightPx=200,
                     spread=2.0,
@@ -133,7 +137,7 @@ def add_beeswarm(
     """
     Add a beeswarm x-offset column to a Polars DataFrame, computed per group.
 
-    A convenience wrapper around :func:`beeswarm_offsets` that handles the
+    A convenience wrapper around :func:`_beeswarm_offsets` that handles the
     ``with_row_index`` / ``map_groups`` / ``sort`` / ``drop`` pattern.
 
     ``spread`` is the collision radius in pixels — set it to roughly half the
@@ -181,7 +185,7 @@ def add_beeswarm(
             lambda g: g.with_columns(
                 pl.Series(
                     outCol,
-                    beeswarm_offsets(
+                    _beeswarm_offsets(
                         g[yCol].to_numpy(),
                         heightPx=heightPx,
                         spread=spread,

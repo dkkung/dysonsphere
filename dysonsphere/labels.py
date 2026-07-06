@@ -3,6 +3,10 @@
 from collections.abc import Mapping
 from typing import Any
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["label_expr"]
+
 # Escapes for embedding a Python string inside a single-quoted Vega expression literal.
 _JS_ESCAPE = str.maketrans({"\\": "\\\\", "'": "\\'"})
 

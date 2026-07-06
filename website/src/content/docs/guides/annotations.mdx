@@ -1,0 +1,50 @@
+---
+title: Annotations
+description: Reference lines, text, and background shading you compose onto any chart.
+---
+
+import Example from '../../../components/Example.astro';
+
+Each annotation returns a native Altair layer, so you add it to your chart with `+`. They share the
+base chart's scales, so they land at the right data coordinates automatically.
+
+## Reference lines
+
+`add_rule()` draws horizontal (`axis="y"`, the default) or vertical (`axis="x"`) reference lines at
+fixed values, with optional labels. `strokeDash=None` inherits the theme's dashed-rule style;
+`strokeDash=True`/`False` forces dashed/solid.
+
+<Example name="rule" alt="Strip plot with a horizontal reference line at 30 MPG" />
+
+<Example name="rule_vertical" alt="Scatter plot with a dashed vertical reference line" />
+
+## Text
+
+`add_text()` places annotations at data coordinates (numbers share the quantitative scale, strings
+snap to categories) or at frame positions via nine presets (`topLeft`, `middleCenter`, …).
+
+<Example name="text" alt="Scatter plot with frame-anchored and data-anchored text annotations" />
+
+## Shading
+
+`add_shade()` lays a background rectangle layer. In **band mode** it alternates shades across the
+x-axis categories; in **positions mode** it shades explicit coordinate ranges.
+
+<Example name="shade_bands" alt="Bar chart with alternating band shading" />
+
+<Example name="shade_range" alt="Strip plot with a shaded y-range" />
+
+## Condition tables
+
+`add_multilabel()` attaches an annotation table below a chart - `+`/`-` rows, symbols, or plain
+text aligned to each x category, with optional sample-size and category-label rows and grouped
+spans.
+
+<Example name="multilabel" alt="Strip plot with a plus/minus condition table below" />
+
+<Example name="multilabel_sample_size" alt="Strip plot with sample size and category-label rows" />
+
+Use `style="symbol"` for filled/open dots, and `span=` to bracket groups of categories under a
+shared label:
+
+<Example name="multilabel_symbol" alt="Strip plot with a symbol condition table and grouped spans" />

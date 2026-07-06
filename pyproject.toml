@@ -61,5 +61,9 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 
+[tool.ruff.lint.per-file-ignores]
+# __init__ re-exports via star imports; its explicit __all__ names are bound by them (F405).
+"dysonsphere/__init__.py" = ["F405"]
+
 [tool.ruff.format]
 quote-style = "double"

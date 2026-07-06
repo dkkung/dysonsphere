@@ -1,0 +1,87 @@
+---
+title: dysonsphere
+description: "An Altair theme and chart-utility library: perceptually uniform palettes, publication-ready defaults, statistical annotations, and round-trippable exports."
+template: splash
+hero:
+  image:
+    file: ../../assets/dysonsphere_logo.svg
+  tagline: >-
+    Publication-ready Altair charts. Perceptually uniform palettes, statistical
+    annotations, and exports that carry their own provenance.
+  actions:
+    # Relative links (resolved from the "/" or "/dysonsphere/" landing URL): frontmatter can't
+    # go through the remark base-prefix plugin, and Starlight passes these hrefs through as-is.
+    - text: Get started
+      link: guides/getting-started/
+      icon: right-arrow
+    - text: Plot your data
+      link: studio/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/dkkung/dysonsphere
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, Code } from '@astrojs/starlight/components';
+import Chart from '../../components/Chart.astro';
+// The raw source of the hero example, so the shown code and the rendered chart come from one file.
+import homeSource from '../../../examples/home_demo.py?raw';
+
+<div class="landing">
+
+<section class="landing__install">
+```sh
+pip install dysonsphere
+```
+</section>
+
+<section class="landing__demo">
+	<div class="landing__demo-code">
+		<Code code={homeSource.trimEnd()} lang="python" />
+	</div>
+	<div class="landing__demo-chart">
+		<Chart name="home_demo" alt="Beeswarm points over themed boxplots by group, with a condition table" />
+	</div>
+	<p class="landing__demo-caption">
+		Live chart - hover for the export menu. Beeswarm points, themed boxplots, and a condition
+		table below the axis, composed with <code>+</code>; one <code>theme()</code> call styles every
+		mark, and the categorical palette is perceptually uniform.
+	</p>
+</section>
+
+<section class="landing__features">
+<CardGrid>
+	<Card title="Publication defaults" icon="approve-check">
+		Charts are authored at print scale with considered typography, tick geometry, and mark
+		styling - the SVG that comes out is the figure that goes in the paper.
+	</Card>
+	<Card title="Perceptually uniform color" icon="star">
+		300+ palettes built in Oklab and resampled by arc length, so sequential ramps step evenly
+		and diverging ramps balance. Exportable straight to Illustrator swatches.
+	</Card>
+	<Card title="Statistical annotations" icon="magnifier">
+		Omnibus tests, post-hoc brackets, correlation readouts - computed with scipy, drawn as
+		layers you compose with <code>+</code>, reported with exact p-values and effect sizes.
+	</Card>
+	<Card title="Composable marks & layers" icon="add-document">
+		Violins, strip plots, reference lines, text, shading, condition tables, log/power minor
+		ticks - all native Altair objects that layer onto your own charts.
+	</Card>
+	<Card title="Self-describing exports" icon="download">
+		<code>save()</code> embeds provenance, statistics, the theme, and your data into SVG, PNG,
+		and JSON; <code>read()</code> and <code>load()</code> pull them back out. Every figure is
+		its own lab notebook entry.
+	</Card>
+	<Card title="Runs in your browser" icon="rocket">
+		{/* Relative hrefs (this page renders at the site root, "/" or "/dysonsphere/"): raw JSX
+		    anchors bypass the remark base-prefix plugin, so root-relative ones would 404 when
+		    deployed under a base path. */}
+		The <a href="playground/">playground</a> and <a href="studio/">Chart Studio</a> run the
+		real library via WebAssembly - upload your own data, no install, same output as your
+		notebook.
+	</Card>
+</CardGrid>
+</section>
+
+</div>

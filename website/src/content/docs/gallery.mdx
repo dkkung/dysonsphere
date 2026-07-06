@@ -1,0 +1,42 @@
+---
+title: Gallery
+description: Live, interactive charts built with dysonsphere on the standard vega-datasets.
+---
+
+import Example from '../../components/Example.astro';
+
+Every chart below is **live and interactive** - hover for tooltips, use the actions menu
+(top-right) to export SVG, PNG, or the Vega-Lite JSON, and follow **Open in playground** to edit the
+code. All are built with dysonsphere on the standard
+[vega-datasets](https://github.com/vega/vega-datasets). A dedicated molecular-biology gallery is on
+the way.
+
+## Distributions
+
+<Example name="strip_beeswarm" alt="Beeswarm strip plot of miles per gallon by car origin" chartOnly />
+
+<Example name="violin_styled" alt="Styled violin plot of horsepower by car origin" chartOnly />
+
+## Statistics
+
+<Example name="comparisons_kruskal" alt="Kruskal-Wallis omnibus with Dunn post-hoc brackets" chartOnly />
+
+<Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" chartOnly />
+
+## Color
+
+<Example name="heatmap_palette" alt="2D histogram heatmap with the lagoon palette" chartOnly />
+
+<Example name="corner_radius" alt="Bar chart with rounded bar tips" chartOnly />
+
+## Annotation
+
+<Example name="shade_bands" alt="Bar chart with alternating band shading" chartOnly />
+
+<Example name="multilabel_sample_size" alt="Strip plot with sample size and category-label rows" chartOnly />
+
+## Nonlinear axes
+
+<Example name="log" alt="Log-scale line chart of stock prices with minor ticks" chartOnly />
+
+<Example name="nonlinear_pow" alt="Square-root axis scatter with evenly spaced minor ticks" chartOnly />

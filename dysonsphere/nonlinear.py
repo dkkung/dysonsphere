@@ -5,6 +5,10 @@ import altair as alt
 from .theme import _opt
 from .utils import ensure_polars
 
+# The module's public API - star-imported into the dysonsphere namespace. Everything
+# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+__all__ = ["log_label_expr", "add_log_ticks", "add_pow_ticks"]
+
 # ---------------------------------------------------------------------------
 # Log-scale axis label helper
 # ---------------------------------------------------------------------------
@@ -108,6 +112,36 @@ def log_label_expr(base: int = 10, notation: str = "power") -> str:
 # ---------------------------------------------------------------------------
 
 
+def _minor_tick_layer(
+    df,
+    field: str,
+    axis: str,
+    minor_values: list[float],
+    scale: alt.Scale,
+    minor_tick_size: float,
+) -> alt.Chart:
+    """The invisible minor-tick layer shared by the log and pow constructors.
+
+    A zero-opacity point mark carrying a second axis that draws only unlabeled ticks at
+    ``minor_values``. The ``scale`` must set an explicit domain - without it Vega auto-fits
+    the independent scale to the data extent, dropping partial edge intervals. The caller
+    layers it over the main chart with ``resolve_axis(...="independent")``.
+    """
+    minor_axis = alt.Axis(
+        values=minor_values,
+        labels=False,
+        domain=False,
+        grid=False,
+        ticks=True,
+        tickSize=minor_tick_size,
+        orient="bottom" if axis == "x" else "left",
+    )
+    layer = alt.Chart(df).mark_point(opacity=0)
+    if axis == "y":
+        return layer.encode(y=alt.Y(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
+    return layer.encode(x=alt.X(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
+
+
 def _log_minor_layer(
     df,
     field: str,
@@ -123,22 +157,8 @@ def _log_minor_layer(
     else:
         n_divs = nMinor + 1
         minor_values = [base ** (e + k / n_divs) for e in range(exp_min, exp_max) for k in range(1, n_divs)]
-    orient = "bottom" if axis == "x" else "left"
-    minor_axis = alt.Axis(
-        values=minor_values,
-        labels=False,
-        domain=False,
-        grid=False,
-        ticks=True,
-        tickSize=minor_tick_size,
-        orient=orient,
-    )
     scale = alt.Scale(type="log", base=base, domain=[base**exp_min, base**exp_max])
-    layer = alt.Chart(df).mark_point(opacity=0)
-    if axis == "y":
-        return layer.encode(y=alt.Y(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
-    else:
-        return layer.encode(x=alt.X(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
+    return _minor_tick_layer(df, field, axis, minor_values, scale, minor_tick_size)
 
 
 def _derive_exp(df, field: str, base: int = 10) -> tuple[int, int]:
@@ -202,10 +222,11 @@ def add_log_ticks(
     and ``vconcat`` layouts.
 
     .. note::
-        Use ``ds.save()`` rather than ``chart.save()`` — ``ds.save()``
-        runs an SVG post-processing step that corrects the sub-pixel
-        rounding Vega applies to tick positions, ensuring consistent
-        minor tick spacing at high DPI.
+        Minor tick positions are exact at render time (the theme config
+        disables Vega's integer tick rounding), so they are correct in
+        any renderer. Still prefer ``ds.save()`` over ``chart.save()``
+        for the other SVG corrections (grid span, superscript labels)
+        and the embedded metadata.
 
     Parameters
     ----------
@@ -331,26 +352,12 @@ def _pow_minor_layer(
             val = (a**exp + k / n_divs * (b**exp - a**exp)) ** (1.0 / exp)
             minor_values.append(val)
 
-    orient = "bottom" if axis == "x" else "left"
-    minor_axis = alt.Axis(
-        values=minor_values,
-        labels=False,
-        domain=False,
-        grid=False,
-        ticks=True,
-        tickSize=minor_tick_size,
-        orient=orient,
-    )
     scale = alt.Scale(
         type="pow",
         exponent=exponent,
         domain=[float(min(major_values)), float(max(major_values))],
     )
-    layer = alt.Chart(df).mark_point(opacity=0)
-    if axis == "y":
-        return layer.encode(y=alt.Y(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
-    else:
-        return layer.encode(x=alt.X(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
+    return _minor_tick_layer(df, field, axis, minor_values, scale, minor_tick_size)
 
 
 def add_pow_ticks(
@@ -395,10 +402,11 @@ def add_pow_ticks(
     and ``vconcat`` layouts.
 
     .. note::
-        Use ``ds.save()`` rather than ``chart.save()`` — ``ds.save()``
-        runs an SVG post-processing step that corrects the sub-pixel
-        rounding Vega applies to tick positions, ensuring consistent
-        minor tick spacing at high DPI.
+        Minor tick positions are exact at render time (the theme config
+        disables Vega's integer tick rounding), so they are correct in
+        any renderer. Still prefer ``ds.save()`` over ``chart.save()``
+        for the other SVG corrections (grid span, superscript labels)
+        and the embedded metadata.
 
     Parameters
     ----------
