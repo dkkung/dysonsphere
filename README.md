@@ -15,10 +15,9 @@
     - Correlations with fit lines.
 - Multilabels that allow for rich annotations of categorical labels, *e.g.* multi-condition axes and sample sizes.
 - Self-documenting exports for reproducible figures:
-    - One `ds.save()` writes corrected SVG, print-ready PNG, interactive HTML, and Vega-Lite JSON - in both light and dark variants.
-    - Every file embeds its provenance: environment versions and sha256 checksums identifying both the **Vega-Lite spec and the underlying data**.
-        - `ds.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
-        - `ds.load()` rebuilds the chart from its JSON.
+    - One `ds.save()` writes corrected SVG, print-ready PNG, interactive HTML, and Vega-Lite JSON in light and dark variants, each file embedding its provenance: environment versions and sha256 checksums identifying both the **Vega-Lite spec and the underlying data**.
+    - `ds.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
+    - `ds.load()` rebuilds the chart from its JSON.
 
 `dysonsphere` is extensible with field-specific utilities, allowing domain toolkits (e.g. molecular biology, astronomy) to plug into the same theme, palettes, and export pipeline as separately installed packages.
 
