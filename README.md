@@ -5,7 +5,7 @@
 `dysonsphere` is an [`altair`](https://altair-viz.github.io/) utility library for publication-ready scientific figures, offering:
 - An attractive, cohesive, and sensible default configuration with a single invocation of `ds.theme()`.
 - Perceptually uniform palettes, including those from popular data visualization libraries.
-- Print-precise rendering at any DPI: exact tick-to-mark alignment, typeset superscript labels, and clean detached axes.
+- Shareable styles through a simple `dysonsphere.toml` config file - tune the theme once and reuse it across projects.
 
 `dysonsphere` also comes with several intuitive and powerful utilities for `altair` charts; some highlights include:
 - The ability to quickly and easily layer `altair` charts with annotations like reference lines, shades, text, and data labels.
