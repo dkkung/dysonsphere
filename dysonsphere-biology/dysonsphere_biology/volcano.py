@@ -31,6 +31,14 @@ _P_FLOOR = sys.float_info.min
 _NEGLOG_COL = "neglog10p"
 _SIG_COL = "significance"
 
+# The three differential-call categories (also the legend labels - the values render directly).
+# "Non-differential" describes the analytical CALL, not statistical significance: a point can
+# clear the p-value cutoff yet miss the fold-change threshold, so it is neither Gained nor Lost
+# but is NOT "non-significant" - the old "ns" label was wrong for exactly those points.
+_GAINED = "Gained"
+_LOST = "Lost"
+_NONDIFF = "Non-differential"
+
 
 def volcano(
     df: pl.DataFrame | Any,
@@ -51,12 +59,15 @@ def volcano(
 ) -> ext.AltairChart:
     """Build a volcano plot (log2 fold change vs -log10 p) as a layered Altair chart.
 
-    Points are classified ``"up"`` / ``"down"`` / ``"ns"`` by the fold-change and p-value
-    thresholds and colored accordingly; optional dashed threshold guides and gene labels are
-    layered on. Returns an ``alt.LayerChart`` to compose or pass to ``ds.save()``.
+    Points are classified ``"Gained"`` / ``"Lost"`` / ``"Non-differential"`` by the fold-change
+    and p-value thresholds and colored accordingly; optional dashed threshold guides and gene
+    labels are layered on. Returns an ``alt.LayerChart`` to compose or pass to ``ds.save()``.
+    (The third label describes the analytical call, not significance - a point can be significant
+    yet miss the fold-change threshold, so ``"ns"`` would be wrong for it.)
 
-    Colors are resolved from the active theme at call time (darkmode-aware ``ns`` grey), so
-    build inside a ``ds.save(lambda: volcano(...))`` callable for correct light/dark export.
+    Colors are resolved from the active theme at call time (darkmode-aware grey for the
+    non-differential points), so build inside a ``ds.save(lambda: volcano(...))`` callable for
+    correct light/dark export.
 
     Parameters
     ----------
@@ -78,10 +89,10 @@ def volcano(
     thresholdLines:
         Draw the fold-change / p-value guide lines (default ``True``).
     palette:
-        ``(up, down)`` hex colors. Defaults to the ``pinksblues`` diverging endpoints
-        (pink = up, blue = down).
+        ``(gained, lost)`` hex colors. Defaults to the ``pinksblues`` diverging endpoints
+        (pink = gained, blue = lost).
     nsColor:
-        Color for non-significant points. Defaults to a faint theme grey (darkmode-aware).
+        Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
     markOpacity:
         Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes
         from the active theme's ``mark_point`` config.
@@ -98,16 +109,18 @@ def volcano(
     data = ds.ensure_polars(df)
 
     data = data.with_columns((-pl.col(pvalueCol).clip(lower_bound=_P_FLOOR).log10()).alias(_NEGLOG_COL))
-    up = (pl.col(log2fcCol) >= fcThreshold) & (pl.col(pvalueCol) <= pThreshold)
-    down = (pl.col(log2fcCol) <= -fcThreshold) & (pl.col(pvalueCol) <= pThreshold)
+    gained = (pl.col(log2fcCol) >= fcThreshold) & (pl.col(pvalueCol) <= pThreshold)
+    lost = (pl.col(log2fcCol) <= -fcThreshold) & (pl.col(pvalueCol) <= pThreshold)
     data = data.with_columns(
-        pl.when(up).then(pl.lit("up")).when(down).then(pl.lit("down")).otherwise(pl.lit("ns")).alias(_SIG_COL)
+        pl.when(gained).then(pl.lit(_GAINED)).when(lost).then(pl.lit(_LOST)).otherwise(pl.lit(_NONDIFF)).alias(_SIG_COL)
     )
-    # Draw ns first (behind) so significant points sit on top.
-    data = data.sort(pl.col(_SIG_COL) != "ns")
+    # Draw non-differential points first (behind) so the called points sit on top.
+    data = data.sort(pl.col(_SIG_COL) != _NONDIFF)
 
     darkmode = bool(ext.opt("darkmode"))
-    up_color, down_color = palette if palette is not None else (ds.colors["pinksblues"][0], ds.colors["pinksblues"][-1])
+    gained_color, lost_color = (
+        palette if palette is not None else (ds.colors["pinksblues"][0], ds.colors["pinksblues"][-1])
+    )
     ns_color = nsColor if nsColor is not None else (ds.colors["greys"][10] if darkmode else ds.colors["greys"][1])
 
     x_title = "log2 fold change" if xTitle is _UNSET else xTitle
@@ -123,7 +136,7 @@ def volcano(
             y=alt.Y(f"{_NEGLOG_COL}:Q", title=y_title),
             color=alt.Color(
                 f"{_SIG_COL}:N",
-                scale=alt.Scale(domain=["up", "down", "ns"], range=[up_color, down_color, ns_color]),
+                scale=alt.Scale(domain=[_GAINED, _LOST, _NONDIFF], range=[gained_color, lost_color, ns_color]),
                 legend=alt.Legend(title=None) if legend else None,
             ),
         )
@@ -157,7 +170,7 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
     if geneCol is None:
         raise ValueError("volcano(label=...) requires geneCol to name the label column")
 
-    significant = data.filter(pl.col(_SIG_COL) != "ns")
+    significant = data.filter(pl.col(_SIG_COL) != _NONDIFF)
     if isinstance(label, bool):  # bool is an int subclass - reject before the int branch
         raise ValueError("volcano(label=...) does not accept a bool")
     elif isinstance(label, int):

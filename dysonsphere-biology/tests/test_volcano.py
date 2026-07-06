@@ -52,10 +52,12 @@ def test_no_threshold_lines():
 def test_significance_classification():
     rows = _main_rows(ds.biology.volcano(_df()))
     sig = {r["gene"]: r["significance"] for r in rows}
-    assert sig["up1"] == "up" and sig["up2"] == "up"
-    assert sig["down1"] == "down"
-    assert sig["ns_fc"] == "ns"  # |log2fc| below threshold
-    assert sig["ns_p"] == "ns"  # p above threshold
+    assert sig["up1"] == "Gained" and sig["up2"] == "Gained"
+    assert sig["down1"] == "Lost"
+    # "Non-differential" (the call), not "ns" (significance): these two miss the fold-change or
+    # p-value threshold and so are neither Gained nor Lost.
+    assert sig["ns_fc"] == "Non-differential"  # |log2fc| below threshold
+    assert sig["ns_p"] == "Non-differential"  # p above threshold
 
 
 def test_pvalue_zero_is_finite():
