@@ -486,32 +486,6 @@ class TestBoxplotOutliers:
         assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == 5
 
 
-# ── deprecated aliases ───────────────────────────────────────────────────────
-
-
-class TestDeprecatedAliases:
-    def test_transparent_background_kwarg_warns_and_maps(self):
-        with pytest.warns(DeprecationWarning, match="transparentBackground"):
-            theme(transparentBackground=True)
-        assert alt.theme.options["transparent"] is True
-
-    def test_new_name_wins_when_both_given(self):
-        with pytest.warns(DeprecationWarning):
-            theme(transparentBackground=True, transparent=False)
-        assert alt.theme.options["transparent"] is False
-
-    def test_unknown_kwarg_still_raises(self):
-        with pytest.raises(TypeError, match="unexpected keyword"):
-            theme(notAThing=1)
-
-    def test_toml_key_warns_and_maps(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        (tmp_path / "dysonsphere.toml").write_text("[default]\ntransparentBackground = true\n", encoding="utf-8")
-        with pytest.warns(DeprecationWarning, match="transparentBackground"):
-            theme()
-        assert alt.theme.options["transparent"] is True
-
-
 # ── _opt() theme-option accessor ─────────────────────────────────────────────
 
 

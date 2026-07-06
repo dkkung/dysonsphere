@@ -490,9 +490,10 @@ class TestReadLoad:
         txts = list(outdir.glob("dysonsphere_report_*.txt"))
         assert len(txts) == 1 and txts[0].read_text(encoding="utf-8").startswith("Statistics")
 
-    def test_load_maps_deprecated_theme_key(self, tmp_path):
-        # files exported before the transparentBackground -> transparent rename replay
-        # their baked theme through the deprecated alias (warn, but load fine)
+    def test_load_rejects_removed_theme_key(self, tmp_path):
+        # v2.x files bake the old `transparentBackground` key into their theme block. The v3.0
+        # alias removal means applyTheme replays it into theme(), which now raises a clear
+        # TypeError - a documented break; raw=True (or re-export) is the workaround.
         import dysonsphere as ds
 
         df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0]})
@@ -502,10 +503,10 @@ class TestReadLoad:
         theme_block = spec["usermeta"]["dysonsphere"]["theme"]
         theme_block["transparentBackground"] = theme_block.pop("transparent")  # simulate an old file
         (tmp_path / "old.json").write_text(json.dumps(spec), encoding="utf-8")
-        with pytest.warns(DeprecationWarning, match="transparentBackground"):
-            obj = ds.load(str(tmp_path / "old.json"))
-        assert obj is not None
-        assert alt.theme.options["transparent"] is False
+        with pytest.raises(TypeError, match="transparentBackground"):
+            ds.load(str(tmp_path / "old.json"))
+        # raw=True touches no globals and applies no theme, so the old file still loads.
+        assert ds.load(str(tmp_path / "old.json"), raw=True) is not None
 
 
 # ── PNG metadata helpers ──────────────────────────────────────────────────────

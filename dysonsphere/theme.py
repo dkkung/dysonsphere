@@ -26,13 +26,6 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
     },
 }
 
-# DEPRECATED (remove at v3.0): dev-only aliases for renamed parameters - the old names
-# last shipped in v2.0.0 and the rename lands as a v3.0.0 breaking change, so the alias
-# never ships in a release (the release step-0 sweep deletes it).
-_DEPRECATED_ALIASES: dict[str, str] = {
-    "transparentBackground": "transparent",  # renamed in v3.0
-}
-
 _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisOffset": None,
     "axisWidth": 0.25,
@@ -130,27 +123,6 @@ def _config_paths() -> list[Path]:
     return paths
 
 
-def _apply_deprecated_aliases(params: dict[str, Any], source: str) -> dict[str, Any]:
-    """Map deprecated parameter names to their replacements, warning once per use.
-
-    Returns a new dict with old keys renamed. When both the old and new name are
-    present, the new name wins (the old key is dropped).
-    """
-    import warnings
-
-    out = dict(params)
-    for old, new in _DEPRECATED_ALIASES.items():
-        if old in out:
-            warnings.warn(
-                f"{old!r} ({source}) is deprecated and will be removed in v3.0; use {new!r}.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            val = out.pop(old)
-            out.setdefault(new, val)
-    return out
-
-
 def _load_style_overrides(style: str | None) -> dict[str, Any]:
     """
     Build the final override dict for theme().
@@ -170,7 +142,6 @@ def _load_style_overrides(style: str | None) -> dict[str, Any]:
 
         for section in ("default", style):
             if section and section in config:
-                config[section] = _apply_deprecated_aliases(config[section], f"[{section}] in {path}")
                 unknown = set(config[section]) - set(_BUILTIN_DEFAULTS)
                 if unknown:
                     raise ValueError(f"Unknown theme parameter(s) in [{section}] of {path}: {sorted(unknown)}")
@@ -220,7 +191,6 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     overrides. See the README for the config file format and search path.
     Named styles in the config file are selected with ``style=``.
     """
-    kwargs = _apply_deprecated_aliases(kwargs, "theme() keyword argument")
     unknown = set(kwargs) - set(_BUILTIN_DEFAULTS)
     if unknown:
         raise TypeError(f"theme() got unexpected keyword argument(s): {sorted(unknown)}")
