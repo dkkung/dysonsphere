@@ -2,10 +2,41 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
-// NOTE: `site` / `base` for GitHub Pages are set in the deploy step (project pages serve
-// under /dysonsphere). Left unset here so local dev/build runs cleanly at "/".
+// NOTE: `site` / `base` for GitHub Pages come from env, set by the Pages workflow (project
+// pages serve under /dysonsphere). Unset locally, so dev/build/preview run cleanly at "/".
+const site = process.env.DEPLOY_SITE || undefined;
+const base = (process.env.DEPLOY_BASE || '').replace(/\/+$/, '') + '/';
+const prefix = base.slice(0, -1); // '' at "/", '/dysonsphere' when deployed
+
+// Astro/Starlight do NOT rewrite root-relative CONTENT links when `base` is set - every
+// markdown [text](/guides/...) lands in the build verbatim and 404s on a project-pages
+// deploy. This prefixes them at build time, so authors keep writing base-free root-relative
+// links that work at any base. (Starlight's own chrome - sidebar, assets, canonical - is
+// already base-aware; this covers only links written in md/mdx content.)
+function remarkBaseLinks() {
+	return (tree) => {
+		if (!prefix) return;
+		const walk = (node) => {
+			if (
+				(node.type === 'link' || node.type === 'definition' || node.type === 'image') &&
+				typeof node.url === 'string' &&
+				node.url.startsWith('/') &&
+				!node.url.startsWith('//') &&
+				!node.url.startsWith(prefix + '/')
+			) {
+				node.url = prefix + node.url;
+			}
+			(node.children ?? []).forEach(walk);
+		};
+		walk(tree);
+	};
+}
+
 // https://astro.build/config
 export default defineConfig({
+	site,
+	base,
+	markdown: { remarkPlugins: [remarkBaseLinks] },
 	integrations: [
 		starlight({
 			title: 'dysonsphere',

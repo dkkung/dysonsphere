@@ -9,11 +9,13 @@ hero:
     Publication-ready Altair charts. Perceptually uniform palettes, statistical
     annotations, and exports that carry their own provenance.
   actions:
+    # Relative links (resolved from the "/" or "/dysonsphere/" landing URL): frontmatter can't
+    # go through the remark base-prefix plugin, and Starlight passes these hrefs through as-is.
     - text: Get started
-      link: /guides/getting-started/
+      link: guides/getting-started/
       icon: right-arrow
     - text: Plot your data
-      link: /studio/
+      link: studio/
       variant: minimal
     - text: GitHub
       link: https://github.com/dkkung/dysonsphere
@@ -72,7 +74,10 @@ pip install dysonsphere
 		its own lab notebook entry.
 	</Card>
 	<Card title="Runs in your browser" icon="rocket">
-		The <a href="/playground/">playground</a> and <a href="/studio/">Chart Studio</a> run the
+		{/* Relative hrefs (this page renders at the site root, "/" or "/dysonsphere/"): raw JSX
+		    anchors bypass the remark base-prefix plugin, so root-relative ones would 404 when
+		    deployed under a base path. */}
+		The <a href="playground/">playground</a> and <a href="studio/">Chart Studio</a> run the
 		real library via WebAssembly - upload your own data, no install, same output as your
 		notebook.
 	</Card>

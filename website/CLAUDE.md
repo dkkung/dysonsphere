@@ -1,7 +1,8 @@
 # Website (dysonsphere docs site)
 
 An Astro + Starlight docs site for dysonsphere, built by two Python generators plus Astro. Lives
-in `website/`; developed on the `website` branch, in a git worktree (see Working notes).
+in `website/`; developed on the `website` branch (in the main repo - the dedicated worktree was
+dissolved 2026-07-06).
 
 ## Layout
 
@@ -30,7 +31,10 @@ in `website/`; developed on the `website` branch, in a git worktree (see Working
 ## Commands
 
 - Dev server: `npm run dev` (it daemonizes; manage with `astro dev stop` / `status` / `logs`).
-- Build: `npm run build`.
+- Build: `npm run build` (local, serves at `/`). Deploy-equivalent build:
+  `DEPLOY_SITE=https://dkkung.github.io DEPLOY_BASE=/dysonsphere npm run build` - the env vars
+  set Astro's `site`/`base` (see astro.config.mjs); CI (`.github/workflows/pages.yml`) builds
+  exactly this and deploys `website/dist` to Pages on every push to main.
 - npm 11 blocks install scripts: after `npm install`, run
   `npm approve-scripts esbuild sharp && npm rebuild esbuild sharp`.
 - Regenerate the API reference: `uv run --no-project --with griffe python website/scripts/gen_api.py`.
@@ -72,6 +76,12 @@ in `website/`; developed on the `website` branch, in a git worktree (see Working
 - **Pages that embed a chart must be `.mdx`** (to `import Chart`). Generated API pages are `.md`,
   NOT `.mdx` - docstrings contain `{}`/`<>` that MDX parses as JSX and chokes on.
 - **Quote frontmatter** `title`/`description` values - a colon in the text breaks the YAML parser.
+- **Base-path discipline (project-pages deploy).** Astro/Starlight do NOT rewrite root-relative
+  CONTENT links under a `base`; a `remarkBaseLinks` plugin in astro.config.mjs prefixes markdown
+  `[text](/guides/...)` links at build time - keep writing them base-free. It CANNOT reach
+  frontmatter (hero `link:`) or raw JSX anchors (`<a href>`): write those RELATIVE (the landing
+  page's `guides/getting-started/`) or via `import.meta.env.BASE_URL` in components. Verify with
+  the deploy-equivalent build + `grep -r 'href="/' dist | grep -v /dysonsphere`.
 - **`.gitignore`.** The repo root ignores `*.json`; the site's JSON is kept via `!website/**/*.json`.
 - vega-embed is bundled (npm); Pyodide loads from the CDN (v314.x). The CodeMirror editor uses the
   GitHub theme to match Starlight's Expressive Code docs code blocks.
@@ -114,9 +124,9 @@ background to check them on light/dark. Do this in `/tmp` and delete the scratch
   light/dark toggle are BROWSER-ONLY - the user confirms those.
 - Regenerate specs/API when the underlying source changes.
 - Commit per coherent chunk. The site lives on the `website` branch and reaches `main` via PR.
-- **Multi-session safety.** Develop the site in a dedicated worktree
-  (`git worktree add ../dysonsphere-website website`) so a second Claude session working elsewhere
-  in the same repo can't yank HEAD out from under you (this happened once).
+- **Multi-session safety.** The dedicated worktree was dissolved 2026-07-06 (site now develops on
+  the `website` branch in the main repo). If parallel sessions return, recreate one
+  (`git worktree add ../dysonsphere-website website`) - a second session once yanked HEAD.
 
 ## Status (living)
 
@@ -128,8 +138,14 @@ playground" deep links; the shared Pyodide runtime (`src/lib/runtime.ts`); full 
 statistics, nonlinear, saving & reading); Chart Studio (upload data → live chart + emitted Python);
 griffe API reference; the logo (unchanged), wired into header + homepage.
 
+Deploy wiring DONE (2026-07-06): pages.yml builds the site (Node-only - generated artifacts are
+committed, generators still run locally, CI regeneration remains a TODO) and deploys
+`website/dist` to the project Pages URL, replacing the old `docs/` gallery artifact; goes live
+when the `website` branch merges to main. The playground/Studio install dysonsphere from PyPI at
+runtime - after any library release with API changes, regenerate examples/specs so shown code
+matches the published package.
+
 TODO: molecular-biology gallery (synthetic gene-expression / dose-response / qPCR datasets - user
-wants this next; note the library already ships `nucleotides`/`proteins` palettes); deploy
-(`site`/`base` + a GitHub Actions workflow running the three generators, and switching Pages off the
-old `docs/` gallery). Browser-only checks still pending user confirmation: Studio upload/render,
+wants this next; note the library already ships `nucleotides`/`proteins` palettes); CI runs of the
+three generators. Browser-only checks still pending user confirmation: Studio upload/render,
 runtime shared-boot, playground deep links, light/dark on every new chart.
