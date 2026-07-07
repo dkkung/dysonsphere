@@ -3,7 +3,7 @@
 //
 // Two modes share one chart panel:
 //   - Build: upload a CSV/TSV/JSON (or use the bundled sample), pick encodings and a chart type,
-//     layer on statistics, a condition table, and annotations, tune the theme - and read the
+//     layer on statistics, a multilabel table, and annotations, tune the theme - and read the
 //     exact Python that reproduces the chart.
 //   - Code: a CodeMirror editor (the absorbed playground). "Edit as code" seeds it from the
 //     builder's current snippet; #code= deep links land here directly.
@@ -113,8 +113,8 @@ const paletteNames = palettes.map((p) => p.name);
 		</section>
 
 		<section class="st__group" id="st-table-group">
-			<h3>Condition table</h3>
-			<label class="st__check"><input id="st-multilabel" type="checkbox" /> Attach condition table</label>
+			<h3>Multilabel</h3>
+			<label class="st__check"><input id="st-multilabel" type="checkbox" /> Attach multilabel table</label>
 			<div id="st-multilabel-opts">
 				<label>Rows - one per line, <code>Label: +,-,+</code>
 					<textarea id="st-rows" rows="3" spellcheck="false" placeholder="Treated: -,+,+&#10;Fasted: -,-,+"></textarea>
@@ -532,7 +532,7 @@ high,100,26.4,6`;
 				body.push(`chart = (`, `    alt.Chart(df)`, `    .${marks[type]}()`, `    .encode(`, ...enc, `    )`, `)`);
 			}
 
-			// Layers compose with + : shade under, statistics/rules over, condition table wraps.
+			// Layers compose with + : shade under, statistics/rules over, multilabel wraps.
 			if (categorical && el<HTMLInputElement>('st-shade').checked) {
 				body.push('', `chart = ds.add_shade(categories=categories) + chart`);
 			}

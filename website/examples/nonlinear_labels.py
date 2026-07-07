@@ -12,7 +12,7 @@ line = alt.Chart(stocks).mark_line().encode(
     y=alt.Y(
         "price:Q",
         scale=alt.Scale(type="log"),
-        axis=alt.Axis(labelExpr=ds.log_label_expr(notation="power")),
+        axis=alt.Axis(values=[1, 10, 100, 1000], labelExpr=ds.log_label_expr(notation="power")),
         title="Price (USD)",
     ),
     color=alt.Color("symbol:N", title="Symbol"),

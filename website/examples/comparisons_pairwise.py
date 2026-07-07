@@ -4,7 +4,7 @@ from vega_datasets import data
 ds.theme()
 
 cars = data.cars().dropna(subset=["Horsepower"])
-origins = ["USA", "Europe", "Japan"]
+origins = ["Europe", "Japan", "USA"]
 
 # Pairwise Mann-Whitney U with Holm correction; brackets stack automatically.
 chart = ds.mark_strip(

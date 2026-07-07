@@ -24,7 +24,7 @@ MODULES = [
     ("marks", "Marks", 3, "Composite marks: strip and violin plots."),
     ("annotations", "Annotations", 4, "Composable annotation layers: reference lines, text, shading, point labels."),
     ("inference", "Statistical annotations", 5, "Pairwise/omnibus comparisons and correlation layers."),
-    ("multilabel", "Condition tables", 6, "Attach a condition-table annotation below a chart."),
+    ("multilabel", "Multilabels", 6, "Attach a multilabel annotation table below a chart."),
     ("labels", "Display labels", 7, "Map raw data values to display labels on axes, legends, and headers."),
     ("nonlinear", "Nonlinear axes", 8, "Minor ticks and typeset labels for log and power axes."),
     ("transforms", "Transforms", 9, "Data transforms for jittered and beeswarm x-offsets."),

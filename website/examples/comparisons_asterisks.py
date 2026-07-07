@@ -4,7 +4,7 @@ from vega_datasets import data
 ds.theme()
 
 cars = data.cars().dropna(subset=["Horsepower"])
-origins = ["USA", "Europe", "Japan"]
+origins = ["Europe", "Japan", "USA"]
 
 # Asterisk labels (* / ** / *** / ns) and plain-line brackets.
 chart = ds.mark_strip(

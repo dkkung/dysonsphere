@@ -41,13 +41,8 @@ pip install dysonsphere
 		<Code code={homeSource.trimEnd()} lang="python" />
 	</div>
 	<div class="landing__demo-chart">
-		<Chart name="home_demo" alt="Beeswarm of fuel efficiency by car origin with a condition table below the axis" />
+		<Chart name="home_demo" alt="Beeswarm of fuel efficiency by car origin with significance brackets" />
 	</div>
-	<p class="landing__demo-caption">
-		Live chart - hover for the export menu. A beeswarm with a condition table in place of a
-		legend, composed with dysonsphere's transforms and annotations; one <code>theme()</code> call
-		styles every mark at publication scale.
-	</p>
 </section>
 
 <section class="landing__features">
@@ -65,7 +60,7 @@ pip install dysonsphere
 		layers you compose with <code>+</code>, reported with exact p-values and effect sizes.
 	</Card>
 	<Card title="Composable marks & layers" icon="add-document">
-		Violins, strip plots, reference lines, text, shading, point labels, condition tables,
+		Violins, strip plots, reference lines, text, shading, point labels, multilabels,
 		log/power minor ticks - all native Altair objects that layer onto your own charts.
 	</Card>
 	<Card title="Self-describing exports" icon="download">

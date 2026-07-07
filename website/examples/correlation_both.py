@@ -2,7 +2,8 @@ import altair as alt
 import dysonsphere as ds
 from vega_datasets import data
 
-ds.theme()
+# The three-part readout is wide - give it a wider canvas.
+ds.theme(chartWidth=150)
 
 cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
 

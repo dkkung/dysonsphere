@@ -1,6 +1,6 @@
 ---
-title: "Condition tables"
-description: "Attach a condition-table annotation below a chart."
+title: "Multilabels"
+description: "Attach a multilabel annotation table below a chart."
 sidebar:
   order: 6
 ---

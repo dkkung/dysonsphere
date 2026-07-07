@@ -15,7 +15,7 @@ Browse by area in the sidebar:
 - **Marks** - `mark_strip()`, `mark_violin()`
 - **Annotations** - `add_rule()`, `add_text()`, `add_shade()`, `add_labels()`
 - **Statistical annotations** - `add_comparisons()`, `add_correlation()`
-- **Condition tables** - `add_multilabel()`
+- **Multilabels** - `add_multilabel()`
 - **Display labels** - `label_expr()`
 - **Nonlinear axes** - `add_log_ticks()`, `add_pow_ticks()`, `log_label_expr()`
 - **Transforms** - `add_jitter()`, `add_beeswarm()`

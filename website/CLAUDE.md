@@ -73,7 +73,7 @@ dissolved 2026-07-06).
   emitted snippet reads the upload with `pl.read_csv("file.csv")` (copy-runnable AND executed
   verbatim, since the upload is in the runtime's virtual FS under that name), and a **code editor**
   (the absorbed playground) seeded from the builder via "Edit as code". The builder can layer
-  statistics (`add_comparisons`/`add_correlation`), a condition table (`add_multilabel`), and
+  statistics (`add_comparisons`/`add_correlation`), a multilabel table (`add_multilabel`), and
   annotations (`add_rule`/`add_shade`).
 - **Chart size.** Charts are authored at dysonsphere's publication defaults (100x100 px, small
   fonts/marks); scale them for the web with CSS `zoom` on `.vega-embed .chart-wrapper` (tune
@@ -161,7 +161,7 @@ studio" deep links; the shared Pyodide runtime; full guide set (getting-started,
 **configuration [dysonsphere.toml]**, palettes w/ live swatch browser, marks & transforms,
 annotations [incl. `add_labels`], statistics, nonlinear, saving & reading [with a real
 embedded-metadata prose example]); **extensions section** (overview + biology [volcano] +
-authoring); the **two-mode Chart Studio** (builder w/ statistics + condition table + annotations,
+authoring); the **two-mode Chart Studio** (builder w/ statistics + multilabel + annotations,
 AND an embedded code editor - the Playground was absorbed; `/playground/` redirects); griffe API
 reference (v3 modules, multi-line signatures for wide APIs, ext/discovery/volcano pages);
 persistent collapsible sidebar; "References" renamed "Documentation".
