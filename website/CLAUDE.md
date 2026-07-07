@@ -99,6 +99,11 @@ dissolved 2026-07-06).
   (the absorbed playground) seeded from the builder via "Edit as code". The builder can layer
   statistics (`add_comparisons`/`add_correlation`), a multilabel table (`add_multilabel`), and
   annotations (`add_rule`/`add_shade`).
+- **Superscript exponents are re-typeset client-side.** The library's `_fix_superscript_labels`
+  runs only in `save()`, never in the browser - so live charts rendered mixed-metric Unicode
+  superscripts (`P = 5.03×10⁻¹⁷`). `src/lib/fixSuperscripts.ts` ports the fixer to the rendered
+  SVG DOM (raised/shrunk ASCII tspan, same ratios); Chart.astro and the Studio call it after
+  every vegaEmbed. Only text nodes are touched - aria-label attributes keep the original string.
 - **Chart size.** Charts are authored at dysonsphere's publication defaults (100x100 px, small
   fonts/marks); scale them for the web with CSS `zoom` on `.vega-embed .chart-wrapper` (tune
   `--ds-chart-zoom` in theme.css). Do NOT zoom `.vega-embed` (that scales the export menu too) or

@@ -16,6 +16,7 @@ const { name, alt = 'dysonsphere chart' } = Astro.props;
 
 <script>
 	import vegaEmbed from 'vega-embed';
+	import { fixSuperscripts } from '../lib/fixSuperscripts';
 
 	const BASE = import.meta.env.BASE_URL;
 	const views = new WeakMap<HTMLElement, { finalize: () => void }>();
@@ -29,6 +30,7 @@ const { name, alt = 'dysonsphere chart' } = Astro.props;
 			views.get(el)?.finalize();
 			el.innerHTML = '';
 			views.set(el, await vegaEmbed(el, spec, { actions: true, renderer: 'svg', background: 'transparent' }));
+			fixSuperscripts(el);
 		} catch (e) {
 			el.textContent = 'Failed to load chart.';
 			console.error(e);

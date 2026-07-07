@@ -214,6 +214,7 @@ const paletteNames = palettes.map((p) => p.name);
 
 <script>
 	import vegaEmbed from 'vega-embed';
+	import { fixSuperscripts } from '../lib/fixSuperscripts';
 	import { EditorView, basicSetup } from 'codemirror';
 	import { keymap } from '@codemirror/view';
 	import { python } from '@codemirror/lang-python';
@@ -654,6 +655,7 @@ high,100,26.4,6`;
 			try {
 				const spec = JSON.parse(runtime.runChart(code, isDark()));
 				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
+				fixSuperscripts(chartEl);
 				clearError();
 				setStatus('', 'ok');
 			} catch (e) {
