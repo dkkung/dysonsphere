@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changes
+
+- **Stacked significance brackets breathe: the auto `yStep` is now `yPad * 2` (was `1.5`).** At the old spacing a bracket's p-value label (drawn above its bar) nearly touched the bracket stacked above it - ~4 px of clearance at the default theme, less with superscript exponents. The default gap between stacking levels is now ~16 px (`bracketStyle="line"`) / ~20 px (`"bracket"`), roughly doubling the label clearance. An explicit `yStep=` is unaffected.
+
 ## [3.1.0] - 2026-07-06
 
 ### New features

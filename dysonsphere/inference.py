@@ -371,7 +371,9 @@ def add_comparisons(
         ``max(y values for all annotated groups) + yPad``.
     yStep:
         Vertical distance (data units) between stacking levels. Defaults to
-        ``yPad * 1.5``.
+        ``yPad * 2`` (~16 px for ``bracketStyle='line'``, ~20 px for
+        ``'bracket'``), leaving clearance between a bracket's label and the
+        bracket stacked above it.
     yPad:
         Padding above the data maximum when ``yStart`` is auto-placed. Defaults
         to a fixed visual gap of ~8 px (``bracketStyle='line'``) or ~10 px
@@ -676,7 +678,9 @@ def add_comparisons(
                 )
 
             if yStep is None:
-                yStep = yPad * 1.5
+                # 2x the base gap so a bracket's label (fontSize ~7 px, dy -4) clears the
+                # bracket stacked above it - at 1.5x the label nearly touched the next bar.
+                yStep = yPad * 2
 
             # Assign stacking levels via greedy interval scheduling.
             # Shorter spans go to lower levels so narrow brackets sit closer to the data.

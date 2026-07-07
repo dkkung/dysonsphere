@@ -150,6 +150,28 @@ class TestAddComparisons:
         )
         assert isinstance(result, alt.LayerChart)
 
+    def test_auto_ystep_is_twice_ypad(self):
+        # Two overlapping pairs stack; the auto level gap must be 2 * yPad so a bracket's
+        # label clears the bracket above it (at the old 1.5x it nearly touched).
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4,
+                "value": [1.0, 2.0, 3.0, 4.0] * 3,
+            }
+        )
+        result = add_comparisons(
+            df,
+            "group",
+            "value",
+            [("A", "C"), ("B", "C")],  # overlapping spans -> two stacking levels
+            pvalues=[0.01, 0.02],
+            yPad=5.0,
+        )
+        spec = result.to_dict()
+        # Each pair's first sub-layer is the horizontal bar ({x, x2, y}); collect the two ys.
+        bar_ys = [pair_layer["layer"][0]["data"]["values"][0]["y"] for pair_layer in spec["layer"]]
+        assert abs(abs(bar_ys[1] - bar_ys[0]) - 2 * 5.0) < 1e-9
+
     def test_asterisk_label_style(self, group_df):
         result = add_comparisons(
             group_df,
