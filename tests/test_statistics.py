@@ -150,9 +150,9 @@ class TestAddComparisons:
         )
         assert isinstance(result, alt.LayerChart)
 
-    def test_auto_ystep_is_twice_ypad(self):
-        # Two overlapping pairs stack; the auto level gap must be 2 * yPad so a bracket's
-        # label clears the bracket above it (at the old 1.5x it nearly touched).
+    def test_auto_ystep_is_1_75x_ypad(self):
+        # Two overlapping pairs stack; the auto level gap is 1.75 * yPad - enough that a
+        # bracket's label clears the bracket above it without the airy spacing 2x gave.
         df = pl.DataFrame(
             {
                 "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4,
@@ -170,7 +170,34 @@ class TestAddComparisons:
         spec = result.to_dict()
         # Each pair's first sub-layer is the horizontal bar ({x, x2, y}); collect the two ys.
         bar_ys = [pair_layer["layer"][0]["data"]["values"][0]["y"] for pair_layer in spec["layer"]]
-        assert abs(abs(bar_ys[1] - bar_ys[0]) - 2 * 5.0) < 1e-9
+        assert abs(abs(bar_ys[1] - bar_ys[0]) - 1.75 * 5.0) < 1e-9
+
+    def test_auto_ypad_uses_full_data_extent(self):
+        # yPad/yStep scale to the FULL data extent, not just the compared groups. Here a
+        # large un-annotated group ("Z") dominates the rendered domain; if the gap were
+        # sized from the A/B/C extent (~0.5) the stacked brackets would collapse to a sliver.
+        # Basing it on the full extent (0..100) keeps them readable. Regression for the
+        # positive-control failure mode.
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4 + ["Z"] * 4,
+                "value": [0.0, 0.1, 0.05, 0.08]
+                + [0.2, 0.25, 0.22, 0.28]
+                + [0.4, 0.45, 0.42, 0.48]
+                + [0.0, 100.0, 50.0, 25.0],  # un-annotated, dominates the domain
+            }
+        )
+        result = add_comparisons(
+            df,
+            "group",
+            "value",
+            [("A", "B"), ("A", "C")],  # overlapping spans -> two stacking levels
+            pvalues=[0.01, 0.02],
+        )
+        spec = result.to_dict()
+        bar_ys = [pair_layer["layer"][0]["data"]["values"][0]["y"] for pair_layer in spec["layer"]]
+        # Full extent 100, chartHeight 200 (fixture), bracket pad 10 -> yPad 5, yStep 8.75.
+        assert abs(abs(bar_ys[1] - bar_ys[0]) - 1.75 * (10.0 * 100.0 / 200.0)) < 1e-6
 
     def test_asterisk_label_style(self, group_df):
         result = add_comparisons(

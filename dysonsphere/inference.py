@@ -371,14 +371,16 @@ def add_comparisons(
         ``max(y values for all annotated groups) + yPad``.
     yStep:
         Vertical distance (data units) between stacking levels. Defaults to
-        ``yPad * 2`` (~16 px for ``bracketStyle='line'``, ~20 px for
-        ``'bracket'``), leaving clearance between a bracket's label and the
+        ``yPad * 1.75``, leaving clearance between a bracket's label and the
         bracket stacked above it.
     yPad:
         Padding above the data maximum when ``yStart`` is auto-placed. Defaults
-        to a fixed visual gap of ~8 px (``bracketStyle='line'``) or ~10 px
-        (``bracketStyle='bracket'``), expressed in data units via ``chartHeight``
-        so the gap stays visually consistent regardless of chart height.
+        to a visual gap of ~8 px (``bracketStyle='line'``) or ~10 px
+        (``bracketStyle='bracket'``), expressed in data units as a fraction of
+        the **full** data extent over ``chartHeight``. Using the full extent
+        (not just the compared groups) keeps the spacing stable - and stops the
+        brackets collapsing when an un-annotated group inflates the rendered
+        domain - since the gap in pixels tracks ``chartHeight / rendered domain``.
     categories:
         Ordered list of all x-axis categories. Inferred from ``df`` (sorted
         alphabetically) when not provided.
@@ -654,8 +656,14 @@ def add_comparisons(
 
         # --- y positioning ---
         annotated_groups_for_pad = list({g for pair in pairs for g in pair})
-        y_vals = df.filter(pl.col(xCol).is_in(annotated_groups_for_pad))[yCol]
-        y_range = cast(float, y_vals.cast(pl.Float64).max() or 0.0) - cast(float, y_vals.cast(pl.Float64).min() or 0.0)
+        # Base the gap on the FULL data extent, not just the compared groups: Vega fits the
+        # rendered domain to every group, and the visual gap is yStep * chartHeight / domain.
+        # Using only the annotated groups' range collapses the brackets when an un-annotated
+        # group (e.g. a saturating positive control) blows up the domain; the full extent
+        # tracks the domain, so the gap stays stable. (yStart still sits above the compared
+        # groups - see below.)
+        y_all = df[yCol].cast(pl.Float64)
+        y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
         chart_height = _opt("chartHeight")
         if yPad is None:
             # Use the larger (bracket) gap if any pair is a bracket, so ticks clear the data.
@@ -678,9 +686,10 @@ def add_comparisons(
                 )
 
             if yStep is None:
-                # 2x the base gap so a bracket's label (fontSize ~7 px, dy -4) clears the
-                # bracket stacked above it - at 1.5x the label nearly touched the next bar.
-                yStep = yPad * 2
+                # 1.75x the base gap between stacking levels - enough that a bracket's label
+                # (fontSize ~7 px, dy -4) clears the bracket above it, without the airy
+                # spacing 2x gave on charts whose rendered domain hugs the data extent.
+                yStep = yPad * 1.75
 
             # Assign stacking levels via greedy interval scheduling.
             # Shorter spans go to lower levels so narrow brackets sit closer to the data.
