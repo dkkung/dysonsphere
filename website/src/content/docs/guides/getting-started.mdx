@@ -21,7 +21,7 @@ uv add dysonsphere
 Requires Python >= 3.11. The runtime dependencies install with it:
 
 - [Altair](https://altair-viz.github.io/) >= 5.5 - the charting layer
-- [Polars](https://pola.rs/) >= 1.19 - the native DataFrame (pandas input is accepted and converted)
+- [Polars](https://pola.rs/) >= 1.19 - the native `DataFrame` ([pandas](https://pandas.pydata.org/) input is accepted and converted)
 - [NumPy](https://numpy.org/) >= 1.26 - numeric primitives
 - [SciPy](https://scipy.org/) >= 1.11 - the statistics behind `add_comparisons()` / `add_correlation()`
 - [vl-convert](https://github.com/vega/vl-convert) >= 1.7 - the SVG/PNG renderer behind `save()`
@@ -30,7 +30,7 @@ Requires Python >= 3.11. The runtime dependencies install with it:
 
 dysonsphere is an [Altair](https://altair-viz.github.io/) companion. Its functions return native
 Altair objects, so you keep Altair's full API and compose dysonsphere's additions with `+`. Data
-can be a [polars](https://pola.rs) or a pandas DataFrame - dysonsphere converts at the boundary.
+can be a [polars](https://pola.rs) or a [pandas](https://pandas.pydata.org/) `DataFrame` - dysonsphere converts at the boundary.
 
 ## The shape of the library
 
