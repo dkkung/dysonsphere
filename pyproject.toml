@@ -1,6 +1,6 @@
 [project]
 name = "dysonsphere"
-version = "3.4.2"
+version = "3.4.3"
 description = "An Altair theme and chart utility library for publication-ready scientific figures."
 readme = "README.md"
 license = "MIT"
