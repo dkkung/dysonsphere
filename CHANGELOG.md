@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changes
+
+- **Significance-bracket spacing revised: `yStep` is now `yPad * 1.75` and `yPad` scales to the full data extent.** The `2.0×` gap shipped in 3.2.0 looked airy on charts whose rendered y-domain hugs the data extent; `1.75×` still clears a bracket's label from the bar above it without the extra air. More importantly, `yPad` (and `tickHeight`) now derive from the **full** data extent rather than just the compared groups: bracket positions are data-unit values on the shared y-scale, so the visual gap is `yStep × chartHeight / rendered_domain`, and Vega fits that domain to *every* group. Sizing the gap off only the annotated groups collapsed the stacked brackets into a sub-pixel sliver when an un-annotated group (e.g. a saturating positive control) inflated the domain; the full extent tracks the rendered domain, so spacing stays stable across charts and no longer collapses. `yStart` still anchors above the compared groups. Explicit `yPad`/`yStep`/`yPositions` override the auto values as before.
+
 ## [3.2.0] - 2026-07-06
 
 ### Changes
