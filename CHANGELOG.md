@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [3.4.1] - 2026-07-07
+
+### Changes
+
+- **README: the statistical-symbol italics bullet is dropped from the feature overview.** The 3.4.0 note was detail out of scale with the README's short capability list - and the README is the PyPI project description, hence the patch release. The feature itself is unchanged and documented in the 3.4.0 entry below and the website's saving guide.
+
 ## [3.4.0] - 2026-07-07
 
 ### New features
