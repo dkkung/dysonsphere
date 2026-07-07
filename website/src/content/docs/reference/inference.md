@@ -2,7 +2,7 @@
 title: "Statistical annotations"
 description: "Pairwise/omnibus comparisons and correlation layers."
 sidebar:
-  order: 5
+  order: 4
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

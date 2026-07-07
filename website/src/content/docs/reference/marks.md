@@ -2,7 +2,7 @@
 title: "Marks"
 description: "Composite marks: strip and violin plots."
 sidebar:
-  order: 3
+  order: 1
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

@@ -2,7 +2,7 @@
 title: "Display labels"
 description: "Map raw data values to display labels on axes, legends, and headers."
 sidebar:
-  order: 7
+  order: 6
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

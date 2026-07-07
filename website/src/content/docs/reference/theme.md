@@ -2,7 +2,7 @@
 title: "Theming"
 description: "Register the dysonsphere Altair theme and scaffold config files."
 sidebar:
-  order: 1
+  order: 8
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

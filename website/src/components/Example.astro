@@ -57,9 +57,16 @@ const studioHref = `${import.meta.env.BASE_URL}studio/#code=${encodeURIComponent
 		justify-content: flex-start;
 		padding: 0;
 	}
+	/* Revealed only while the example is hovered or focused, like the chart's export menu. */
 	.example__actions {
 		display: flex;
 		justify-content: flex-end;
+		opacity: 0;
+		transition: opacity 0.15s ease;
+	}
+	.example:hover .example__actions,
+	.example:focus-within .example__actions {
+		opacity: 1;
 	}
 	.example__actions a {
 		font-size: 0.8rem;

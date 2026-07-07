@@ -2,7 +2,7 @@
 title: "Palettes"
 description: "Perceptually uniform palettes and Adobe Illustrator swatch export."
 sidebar:
-  order: 2
+  order: 9
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

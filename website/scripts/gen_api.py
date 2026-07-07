@@ -18,16 +18,17 @@ import griffe
 from griffe import ParameterKind
 
 # (module name, page title, sidebar order, one-line description)
+# Ordered like the guides: build a chart, annotate it, style it, save it, then internals.
 MODULES = [
-    ("theme", "Theming", 1, "Register the dysonsphere Altair theme and scaffold config files."),
-    ("palettes", "Palettes", 2, "Perceptually uniform palettes and Adobe Illustrator swatch export."),
-    ("marks", "Marks", 3, "Composite marks: strip and violin plots."),
-    ("annotations", "Annotations", 4, "Composable annotation layers: reference lines, text, shading, point labels."),
-    ("inference", "Statistical annotations", 5, "Pairwise/omnibus comparisons and correlation layers."),
-    ("multilabel", "Multilabels", 6, "Attach a multilabel annotation table below a chart."),
-    ("labels", "Display labels", 7, "Map raw data values to display labels on axes, legends, and headers."),
-    ("nonlinear", "Nonlinear axes", 8, "Minor ticks and typeset labels for log and power axes."),
-    ("transforms", "Transforms", 9, "Data transforms for jittered and beeswarm x-offsets."),
+    ("marks", "Marks", 1, "Composite marks: strip and violin plots."),
+    ("transforms", "Transforms", 2, "Data transforms for jittered and beeswarm x-offsets."),
+    ("annotations", "Annotations", 3, "Composable annotation layers: reference lines, text, shading, point labels."),
+    ("inference", "Statistical annotations", 4, "Pairwise/omnibus comparisons and correlation layers."),
+    ("multilabel", "Multilabels", 5, "Attach a multilabel annotation table below a chart."),
+    ("labels", "Display labels", 6, "Map raw data values to display labels on axes, legends, and headers."),
+    ("nonlinear", "Nonlinear axes", 7, "Minor ticks and typeset labels for log and power axes."),
+    ("theme", "Theming", 8, "Register the dysonsphere Altair theme and scaffold config files."),
+    ("palettes", "Palettes", 9, "Perceptually uniform palettes and Adobe Illustrator swatch export."),
     ("export", "Saving & loading", 10, "Export charts to files and rebuild them from the Vega-Lite JSON."),
     ("metadata", "Reading exports", 11, "Read embedded metadata, statistics, reports, and data back out of exports."),
     ("statistics", "Statistics registry", 12, "Statistics report queue management."),

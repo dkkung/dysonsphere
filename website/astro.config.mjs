@@ -44,7 +44,6 @@ export default defineConfig({
 			logo: { src: './src/assets/dysonsphere_logo.svg', replacesTitle: false },
 			components: {
 				SiteTitle: './src/components/SiteTitle.astro',
-				Sidebar: './src/components/Sidebar.astro',
 			},
 			description:
 				'An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.',
@@ -63,19 +62,28 @@ export default defineConfig({
 					frames: { shadowColor: 'transparent' },
 				},
 			},
+			// Ordered as the reader works: build a chart, annotate it, style it, save it -
+			// then the interactive surfaces, extensions, and the generated reference.
 			sidebar: [
 				{
 					label: 'Guides',
 					items: [
 						{ label: 'Getting started', slug: 'guides/getting-started' },
-						{ label: 'Theming', slug: 'guides/theming' },
-						{ label: 'Configuration (dysonsphere.toml)', slug: 'guides/configuration' },
-						{ label: 'Palettes', slug: 'guides/palettes' },
 						{ label: 'Marks & transforms', slug: 'guides/marks' },
 						{ label: 'Annotations', slug: 'guides/annotations' },
 						{ label: 'Statistical annotations', slug: 'guides/statistics' },
 						{ label: 'Nonlinear axes', slug: 'guides/nonlinear' },
+						{ label: 'Theming', slug: 'guides/theming' },
+						{ label: 'Palettes', slug: 'guides/palettes' },
+						{ label: 'Configuration (dysonsphere.toml)', slug: 'guides/configuration' },
 						{ label: 'Saving & reading', slug: 'guides/saving' },
+					],
+				},
+				{
+					label: 'Interactive',
+					items: [
+						{ label: 'Gallery', slug: 'gallery' },
+						{ label: 'Chart Studio', slug: 'studio' },
 					],
 				},
 				{
@@ -84,13 +92,6 @@ export default defineConfig({
 						{ label: 'Overview', slug: 'extensions' },
 						{ label: 'biology', slug: 'extensions/biology' },
 						{ label: 'Writing an extension', slug: 'extensions/authoring' },
-					],
-				},
-				{
-					label: 'Interactive',
-					items: [
-						{ label: 'Gallery', slug: 'gallery' },
-						{ label: 'Chart Studio', slug: 'studio' },
 					],
 				},
 				{

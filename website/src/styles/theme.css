@@ -130,9 +130,9 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   font-weight: 550;
 }
 
-/* Collapsible sidebar (toggle in src/components/Sidebar.astro). Zeroing the width var is enough
-   to reflow everything - Starlight derives the content inset and header grid from it; the pane
-   itself is hidden with visibility (not display) so the fixed toggle inside can un-hide itself. */
+/* Collapsible sidebar (header toggle in src/components/SiteTitle.astro, next to the wordmark -
+   the same spot as mobile's hamburger). Zeroing the width var is enough to reflow everything -
+   Starlight derives the content inset and header grid from it. */
 @media (min-width: 50rem) {
   [data-ds-sidebar='collapsed'] {
     --sl-sidebar-width: 0rem;

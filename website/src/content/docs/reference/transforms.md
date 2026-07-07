@@ -2,7 +2,7 @@
 title: "Transforms"
 description: "Data transforms for jittered and beeswarm x-offsets."
 sidebar:
-  order: 9
+  order: 2
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

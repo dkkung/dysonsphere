@@ -2,7 +2,7 @@
 title: "Nonlinear axes"
 description: "Minor ticks and typeset labels for log and power axes."
 sidebar:
-  order: 8
+  order: 7
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
