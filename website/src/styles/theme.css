@@ -53,6 +53,17 @@
 /* Translucent, blurred header over content (border via Starlight's hairline). */
 :root {
   --sl-color-bg-nav: color-mix(in srgb, var(--sl-color-bg) 72%, transparent);
+  /* One uniform surface: the sidebar sits on the page background in both themes (Starlight
+     gives it its own grey by default, which reads as a two-tone layout in dark mode). Code
+     cells are the deliberate exception - see --ds-code-bg below. */
+  --sl-color-bg-sidebar: var(--sl-color-bg);
+  /* Code-cell ground, shared by Expressive Code blocks and the CodeMirror editors. Dark uses
+     the skin's neutral raised-surface tone (gray-6) instead of GitHub-dark's blue-tinted
+     #0d1117, which clashed with the pure-neutral greys ramp. */
+  --ds-code-bg: #1a1a1b;
+}
+:root[data-theme='light'] {
+  --ds-code-bg: #ffffff;
 }
 header.header {
   backdrop-filter: blur(14px);
@@ -140,6 +151,13 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   [data-ds-sidebar='collapsed'] #starlight__sidebar {
     visibility: hidden;
   }
+}
+
+/* CodeMirror editors (studio builder view + editor, config generator): retint the GitHub
+   themes' ground onto the skin's code-cell color; the syntax colors stay. */
+.cm-editor,
+.cm-editor .cm-gutters {
+  background-color: var(--ds-code-bg) !important;
 }
 
 /* Inline code: quiet chip. */

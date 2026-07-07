@@ -54,12 +54,20 @@ export default defineConfig({
 				'./src/styles/theme.css',
 			],
 			expressiveCode: {
-				// GitHub themes match the playground's CodeMirror editor; neutral frames.
+				// GitHub themes match the playground's CodeMirror editor; neutral frames. The
+				// ground comes from --ds-code-bg (theme.css) so code cells share one surface
+				// with the CodeMirror editors - dark uses the skin's neutral raised tone, not
+				// GitHub-dark's blue-tinted #0d1117.
 				themes: ['github-dark', 'github-light'],
 				styleOverrides: {
 					borderRadius: '0.65rem',
 					borderColor: 'var(--sl-color-hairline)',
-					frames: { shadowColor: 'transparent' },
+					codeBackground: 'var(--ds-code-bg)',
+					frames: {
+						shadowColor: 'transparent',
+						terminalBackground: 'var(--ds-code-bg)',
+						terminalTitlebarBackground: 'var(--ds-code-bg)',
+					},
 				},
 			},
 			// Ordered as the reader works: build a chart, annotate it, style it, save it -
