@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [3.4.3] - 2026-07-07
+
+### Changes
+
+- **Comment-only source cleanup; no functional changes.** Drops a rationale comment from the theme defaults and stale style-guide / version-history wording from the italics pattern comment and a test comment.
+
 ## [3.4.2] - 2026-07-07
 
 ### Fixes
