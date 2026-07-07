@@ -71,14 +71,18 @@
 		views.get(el)?.finalize();
 		el.innerHTML = '';
 		views.set(el, await vegaEmbed(el, spec, { actions: false, renderer: 'svg', background: 'transparent' }));
-		// Auto-fit: charts have different natural widths (legends, angled labels), so a single
-		// shared zoom leaves the narrow ones small. Scale each render to fill its own column
-		// instead (the container itself is not zoomed, so clientWidth is honest).
+		// Auto-fit: zoom each chart so it fills its column. With actions:false vega-embed makes
+		// the container itself the .vega-embed with the <svg> directly inside - there is NO
+		// .chart-wrapper child - so the site-wide wrapper zoom rule (theme.css) never applies
+		// here and the chart paints at its natural ~140px unless the container is zoomed
+		// directly. Charts differ in natural width (legends, angled labels), so the zoom is
+		// per-chart; the row is measured (not the container - its own zoom would skew it).
 		const svg = el.querySelector('svg');
 		const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
-		if (natural > 0 && el.clientWidth > 0) {
-			const z = Math.min(Math.max(el.clientWidth / natural, 1.2), 3.6);
-			el.style.setProperty('--ds-chart-zoom', z.toFixed(3));
+		const rowWidth = el.closest('.palprev__row')?.getBoundingClientRect().width ?? 0;
+		if (natural > 0 && rowWidth > 0) {
+			const z = Math.min(Math.max(rowWidth / natural, 1.2), 3.4);
+			(el.style as CSSStyleDeclaration & { zoom: string }).zoom = z.toFixed(3);
 		}
 	}
 
@@ -128,13 +132,11 @@
 		align-items: center;
 		justify-items: start;
 	}
-	/* Each chart's --ds-chart-zoom is set per render (auto-fit to the column width, see the
-	   script); this is only the pre-render fallback. The site-wide zoom rule in theme.css reads
-	   the variable off the embed's ancestors - never zoom this container itself. */
+	/* Each chart's zoom is set inline per render (auto-fit to the row width, see the script) -
+	   the container IS the .vega-embed here (actions:false), so it is zoomed directly; the
+	   site-wide .chart-wrapper rule never matches. */
 	.palprev__chart {
-		--ds-chart-zoom: 2.4;
 		width: 100%;
-		min-height: 8rem;
-		overflow: hidden;
+		min-height: 6rem;
 	}
 </style>
