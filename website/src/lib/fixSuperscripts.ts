@@ -55,6 +55,54 @@ export function fixSuperscripts(root: ParentNode): void {
 	}
 }
 
+// Client-side port of `export._italicize_stat_symbols()` (dysonsphere >= 3.4.0): Latin
+// statistical symbols are set in italic per APA/CSE convention while digits, operators, and
+// Greek symbols (η², ε², χ², ρ, τ) stay upright. The library applies this at save() time;
+// the same treatment is applied here to the live vega-embed SVG so the site's charts match
+// exported figures. The pattern mirrors export._ITALIC_STAT_PATTERN exactly.
+const ITALIC_STAT =
+	/(?<![A-Za-z])(?:P(?=\s*[=<≈])|[FHA](?=\()|W(?=\s*=)|r(?=²?\s*=)|n(?=\s*=)|y(?=\s*=)|t(?=-test))|(?<=Mann-Whitney )U(?![A-Za-z])|(?<=[\d.])x(?=\s*[+\-−]\s*\d)/g;
+
+/**
+ * Italicize Latin statistical symbols (`P n F H A W r y x t U`, whole-label `ns`) in every
+ * `<text>` of the rendered chart(s) under `root`. Run AFTER `fixSuperscripts` (both split
+ * text into tspans; this one walks all remaining text nodes, so it must see the final ones).
+ */
+export function italicizeStatSymbols(root: ParentNode): void {
+	for (const text of root.querySelectorAll('svg text')) {
+		// A label that is exactly "ns" (the asterisks-style non-significant bracket label) is
+		// italicized whole; "ns" is deliberately NOT matched inside longer text, where it is
+		// usually prose or a unit (nanoseconds).
+		if (text.childElementCount === 0 && (text.textContent ?? '').trim() === 'ns') {
+			text.setAttribute('font-style', 'italic');
+			continue;
+		}
+		// Snapshot the text nodes first - matches are replaced by (text, tspan, text) splices.
+		const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+		const nodes: Text[] = [];
+		for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n as Text);
+		for (const node of nodes) {
+			const s = node.data;
+			ITALIC_STAT.lastIndex = 0;
+			if (!ITALIC_STAT.test(s)) continue;
+			const frag = document.createDocumentFragment();
+			let pos = 0;
+			ITALIC_STAT.lastIndex = 0;
+			for (const m of s.matchAll(ITALIC_STAT)) {
+				const i = m.index ?? 0;
+				if (i > pos) frag.appendChild(document.createTextNode(s.slice(pos, i)));
+				const tspan = document.createElementNS(SVG_NS, 'tspan');
+				tspan.setAttribute('font-style', 'italic');
+				tspan.textContent = m[0];
+				frag.appendChild(tspan);
+				pos = i + m[0].length;
+			}
+			if (pos < s.length) frag.appendChild(document.createTextNode(s.slice(pos)));
+			node.parentNode?.replaceChild(frag, node);
+		}
+	}
+}
+
 /**
  * Client-side port of `export._flip_ticks_inward()`: negate the non-zero `x2`/`y2` of every
  * axis-tick line so ticks point INTO the plot. Like the superscript fixer, the library applies
