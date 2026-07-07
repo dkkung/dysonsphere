@@ -523,6 +523,10 @@ high,100,26.4,6`;
 			const x = el<HTMLSelectElement>('st-x').value;
 			const y = el<HTMLSelectElement>('st-y').value;
 			const color = el<HTMLSelectElement>('st-color').value;
+			// A quantitative color must encode :Q (a gradient legend) - :N would explode every
+			// distinct value into its own nominal legend symbol.
+			const colorKind = columns.find((c) => c.name === color)?.kind;
+			const colorType = colorKind === 'quantitative' ? 'Q' : colorKind === 'temporal' ? 'T' : 'N';
 			const xtype = el<HTMLSelectElement>('st-xtype').value;
 			const transform = el<HTMLSelectElement>('st-transform').value;
 			const categorical = isCategorical();
@@ -595,7 +599,7 @@ high,100,26.4,6`;
 					`        y=alt.Y("${y}:Q"),`,
 					`        xOffset=alt.XOffset("${off}:Q"),`,
 				];
-				if (color) enc.push(`        color=alt.Color("${color}:N"),`);
+				if (color) enc.push(`        color=alt.Color("${color}:${colorType}"),`);
 				body.push(
 					call,
 					`chart = (`,
@@ -623,7 +627,7 @@ high,100,26.4,6`;
 					`        x=alt.X("${x}:${type === 'boxplot' ? 'N' : xtype}"${titled(x)}),`,
 					`        y=alt.Y("${yt}:Q"${titled(y)}),`,
 				];
-				if (color && type !== 'boxplot') enc.push(`        color=alt.Color("${color}:N"),`);
+				if (color && type !== 'boxplot') enc.push(`        color=alt.Color("${color}:${colorType}"),`);
 				body.push(`chart = (`, `    alt.Chart(df)`, `    .${marks[type]}()`, `    .encode(`, ...enc, `    )`, `)`);
 			}
 
