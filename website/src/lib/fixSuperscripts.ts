@@ -55,28 +55,22 @@ export function fixSuperscripts(root: ParentNode): void {
 	}
 }
 
-// Client-side port of `export._italicize_stat_symbols()` (dysonsphere >= 3.4.0): Latin
-// statistical symbols are set in italic per APA/CSE convention while digits, operators, and
-// Greek symbols (η², ε², χ², ρ, τ) stay upright. The library applies this at save() time;
-// the same treatment is applied here to the live vega-embed SVG so the site's charts match
-// exported figures. The pattern mirrors export._ITALIC_STAT_PATTERN exactly.
+// Client-side port of `export._italicize_stat_symbols()` (dysonsphere >= 3.4.2): single-letter
+// Latin statistical symbols are set in italic per scientific convention while digits, operators,
+// Greek symbols (η², ε², χ², ρ, τ), and multi-letter abbreviations (`ns`) stay upright. The
+// library applies this at save() time; the same treatment is applied here to the live
+// vega-embed SVG so the site's charts match exported figures. The pattern mirrors
+// export._ITALIC_STAT_PATTERN exactly.
 const ITALIC_STAT =
 	/(?<![A-Za-z])(?:P(?=\s*[=<≈])|[FHA](?=\()|W(?=\s*=)|r(?=²?\s*=)|n(?=\s*=)|y(?=\s*=)|t(?=-test))|(?<=Mann-Whitney )U(?![A-Za-z])|(?<=[\d.])x(?=\s*[+\-−]\s*\d)/g;
 
 /**
- * Italicize Latin statistical symbols (`P n F H A W r y x t U`, whole-label `ns`) in every
- * `<text>` of the rendered chart(s) under `root`. Run AFTER `fixSuperscripts` (both split
- * text into tspans; this one walks all remaining text nodes, so it must see the final ones).
+ * Italicize Latin statistical symbols (`P n F H A W r y x t U`) in every `<text>` of the
+ * rendered chart(s) under `root`. Run AFTER `fixSuperscripts` (both split text into tspans;
+ * this one walks all remaining text nodes, so it must see the final ones).
  */
 export function italicizeStatSymbols(root: ParentNode): void {
 	for (const text of root.querySelectorAll('svg text')) {
-		// A label that is exactly "ns" (the asterisks-style non-significant bracket label) is
-		// italicized whole; "ns" is deliberately NOT matched inside longer text, where it is
-		// usually prose or a unit (nanoseconds).
-		if (text.childElementCount === 0 && (text.textContent ?? '').trim() === 'ns') {
-			text.setAttribute('font-style', 'italic');
-			continue;
-		}
 		// Snapshot the text nodes first - matches are replaced by (text, tspan, text) splices.
 		const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
 		const nodes: Text[] = [];
