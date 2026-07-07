@@ -18,6 +18,7 @@
 - Multilabels that allow for rich annotations of categorical labels, *e.g.* multi-condition axes and sample sizes.
 - Self-documenting exports for reproducible figures:
     - `ds.save()` writes a corrected SVG, print-ready PNG, interactive HTML, and/or Vega-Lite JSON, while also embedding the output file with its provenance: environment versions and sha256 checksums fingerprint both the Vega-Lite spec and the underlying data.
+    - Saved SVGs and PNGs are typeset to publication convention: statistical symbols (*P*, *n*, *F*, *r*, ...) are set in italic (Greek symbols stay upright) and scientific-notation exponents are aligned.
     - `ds.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
     - `ds.load()` rebuilds the chart from its JSON.
 

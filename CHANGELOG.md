@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### New features
+
+- **Saved SVGs and PNGs typeset statistical symbols in italic.** A new SVG post-processor (run by `save()`/`show()` after the superscript fixer) wraps Latin statistical symbols in italic per APA/CSE convention: *P* in p-value labels (`P = 0.012`, `P < 0.001`, `P ≈ 10⁻⁵`), the omnibus statistics `F(…)`/`H(…)`/`A(…)` and Kendall's `W`, the correlation readout's `r`/`r²` (the `²` digit stays upright) and fit-equation `y`/`x`, `t` in "t-test", `U` in "Mann-Whitney U", `n` in the multilabel sample-size row, and the whole-label `ns`. Digits, operators, and Greek symbols (η², ε², χ², ρ, τ) stay upright. Patterns match globally on rendered text - a hand-written `add_text("P = 0.03")` gets the same treatment, keeping typography consistent across a figure (the same policy as the superscript fixer). SVG/PNG only, like all fixers: interactive HTML and bare notebook previews render upright.
+
+### Changes
+
+- **The theme's default font is now the family name `"Helvetica Neue"` (was the PostScript-style `"HelveticaNeue"`).** vl-convert's rasterizer matches a PostScript name to the regular face only, so styled variants were unreachable in PNG export - italic text silently rendered upright. Both names resolve to identical regular-face metrics (verified byte-identical SVG output), so existing figures are unaffected; the rename only unlocks the italic face.
+
 ## [3.3.1] - 2026-07-07
 
 ### Fixes
