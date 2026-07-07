@@ -13,8 +13,7 @@
 
 <div class="palprev not-content">
 	<p class="palprev__status">
-		Previewing <code id="palprev-name">ember</code> - click any palette in the browser below to
-		restyle these charts.
+		Previewing <code id="palprev-name">ember</code> - click any palette to restyle these charts.
 	</p>
 	<div class="palprev__row">
 		<div class="palprev__chart" data-preview="preview_bars" data-role="category" data-n="6"></div>
@@ -109,27 +108,24 @@
 		color: var(--sl-color-gray-3);
 		margin: 1rem 0 0.25rem;
 	}
+	/* One column inside the palette page's sticky aside (~28rem); auto-fit lets the charts sit
+	   side by side when the component gets full width (the narrow-screen stacked layout). */
 	.palprev__row {
 		display: grid;
-		grid-template-columns: 1fr;
+		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
 		gap: 0.75rem;
 		align-items: center;
 		justify-items: center;
 	}
-	@media (min-width: 60rem) {
-		.palprev__row {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-		}
-	}
 	/* The site-wide chart zoom (theme.css) reads this variable off the embed's ancestors -
 	   override it here rather than zooming the container (which would compound with it). */
 	.palprev__chart {
-		--ds-chart-zoom: 2;
+		--ds-chart-zoom: 2.4;
 		min-height: 8rem;
 	}
 	@media (max-width: 640px) {
 		.palprev__chart {
-			--ds-chart-zoom: 1.6;
+			--ds-chart-zoom: 1.8;
 		}
 	}
 </style>

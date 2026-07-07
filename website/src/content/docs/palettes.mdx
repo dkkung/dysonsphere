@@ -8,10 +8,15 @@ import Palettes from '../../components/Palettes.astro';
 import PalettePreview from '../../components/PalettePreview.astro';
 
 Every dysonsphere palette, with a live preview: **click any swatch** to copy its name and restyle
-the three charts - categorical bars and lines take evenly spaced stops (what
-`ds.palette(name, n)` returns; qualitative palettes apply positionally), and the heatmap
-interpolates the full ramp. See the [palettes guide](/guides/palettes/) for how to use them.
+the charts - categorical bars and lines take evenly spaced stops (what `ds.palette(name, n)`
+returns; qualitative palettes apply positionally), and the heatmap interpolates the full ramp.
+See the [palettes guide](/guides/palettes/) for how to use them.
 
-<PalettePreview />
-
-<Palettes />
+<div class="palpage not-content">
+	<div class="palpage__browser">
+		<Palettes />
+	</div>
+	<aside class="palpage__preview">
+		<PalettePreview />
+	</aside>
+</div>

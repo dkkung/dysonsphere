@@ -205,7 +205,9 @@ says condition table - core-side edit, not done). Sidebar toggle moved into the 
 the wordmark (Sidebar override deleted); docs reordered build->style->export; Open-in-studio
 links hover-only. The palette browser + live preview (three charts restyled on swatch click via client-side
 config.range patching; `ds-palette-select` CustomEvent from Palettes.astro) live on their own
-`/palettes/` page under Interactive; the guide links to it. Studio
+`/palettes/` page under Interactive (swatch list = main column, preview charts in a STICKY
+aside so they stay visible while scrolling the 300+ palettes; stacks on narrow screens); the
+guide links to it. Studio
 gains "Import an export" (ds.load rebuild + ds.read metadata panel) and the Pyodide boot fix (see
 the deps=False gotcha above). All verified headless (incl. a full Pyodide boot + JSON/PNG import
 round-trip) plus the deploy-equivalent base-path grep.

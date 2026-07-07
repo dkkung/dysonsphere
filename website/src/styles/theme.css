@@ -237,8 +237,41 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
    content column. Starlight derives every content panel's max-width from this variable, so
    widening it on the pane that contains these components is enough. */
 .main-pane:has(.landing),
-.main-pane:has(.st) {
+.main-pane:has(.st),
+.main-pane:has(.palpage) {
   --sl-content-width: 72rem;
+}
+
+/* Palette browser page: the swatch list is the main scrolling column; the live preview charts
+   sit beside it in a sticky aside (the standard "pinned preview" pattern), so they stay in view
+   while scrolling the 300+ palettes. On narrow screens the preview stacks above the list. */
+.palpage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28rem;
+  gap: 2rem;
+  align-items: start;
+  margin-top: 1rem;
+}
+.palpage__preview {
+  position: sticky;
+  top: calc(var(--sl-nav-height) + 1rem);
+  max-height: calc(100vh - var(--sl-nav-height) - 2rem);
+  overflow: auto;
+}
+@media (max-width: 72rem) {
+  .palpage {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+  }
+}
+@media (max-width: 56rem) {
+  .palpage {
+    grid-template-columns: 1fr;
+  }
+  .palpage__preview {
+    position: static;
+    order: -1;
+    max-height: none;
+  }
 }
 
 .landing {
