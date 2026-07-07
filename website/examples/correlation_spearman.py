@@ -15,5 +15,5 @@ scatter = alt.Chart(cars).mark_point().encode(
 # line is not their model.
 chart = scatter + ds.add_correlation(
     cars, "Weight_in_lbs", "Miles_per_Gallon",
-    method="spearman", includePvalue=True, position="topRight",
+    method="spearman", includePvalue=True, position="bottomLeft",
 )

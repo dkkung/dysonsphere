@@ -29,12 +29,12 @@ const paletteNames = palettes.map((p) => p.name);
 			</label>
 			<label>Or a sample dataset
 				<select id="st-dataset">
-					<option value="sample">dose-response (synthetic)</option>
 					<option value="cars">cars</option>
-					<option value="penguins">penguins</option>
+					<option value="sample">dose-response (synthetic)</option>
 					<option value="iris">iris</option>
 					<option value="barley">barley</option>
 					<option value="stocks">stocks</option>
+					<option value="seattle_weather">seattle_weather</option>
 				</select>
 			</label>
 			<p id="st-data-info" class="st__muted"></p>
@@ -191,6 +191,7 @@ const paletteNames = palettes.map((p) => p.name);
 			<label>Axis offset <input id="st-axisoffset" type="number" min="0" max="20" step="0.5" placeholder="auto" /></label>
 			<label>X label angle <input id="st-xangle" type="number" min="-90" max="90" step="15" value="0" /></label>
 			<div class="st__toggles">
+				<label class="st__check"><input id="st-legend" type="checkbox" checked /> Legend</label>
 				<label class="st__check"><input id="st-closed" type="checkbox" /> Closed frame</label>
 				<label class="st__check"><input id="st-grid" type="checkbox" /> Grid lines</label>
 				<label class="st__check"><input id="st-corner" type="checkbox" /> Rounded marks</label>
@@ -529,6 +530,7 @@ high,100,26.4,6`;
 			if (axisOffset !== '') t.push(`axisOffset=${+axisOffset}`);
 			const xangle = +el<HTMLInputElement>('st-xangle').value;
 			if (xangle !== 0) t.push(`xLabelAngle=${xangle}`);
+			if (!el<HTMLInputElement>('st-legend').checked) t.push('legend=False');
 			if (el<HTMLInputElement>('st-closed').checked) t.push('closed=True');
 			if (el<HTMLInputElement>('st-grid').checked) t.push('grid=True');
 			if (el<HTMLInputElement>('st-corner').checked) t.push('cornerRadius=True');
@@ -602,9 +604,14 @@ high,100,26.4,6`;
 					boxplot: 'mark_boxplot',
 				};
 				const yt = type === 'bar' ? `mean(${y})` : y;
+				// A layered correlation's fit line carries private _x/_y fields; without explicit
+				// base titles Vega-Lite CONCATENATES them into the shared axis titles (", _x").
+				const wantsCorrelation =
+					type === 'point' && xtype === 'Q' && el<HTMLSelectElement>('st-correlation').value !== '';
+				const titled = (col: string) => (wantsCorrelation ? `, title=${q(col)}` : '');
 				const enc = [
-					`        x=alt.X("${x}:${type === 'boxplot' ? 'N' : xtype}"),`,
-					`        y=alt.Y("${yt}:Q"),`,
+					`        x=alt.X("${x}:${type === 'boxplot' ? 'N' : xtype}"${titled(x)}),`,
+					`        y=alt.Y("${yt}:Q"${titled(y)}),`,
 				];
 				if (color && type !== 'boxplot') enc.push(`        color=alt.Color("${color}:N", legend=None),`);
 				body.push(`chart = (`, `    alt.Chart(df)`, `    .${marks[type]}()`, `    .encode(`, ...enc, `    )`, `)`);
@@ -908,7 +915,17 @@ high,100,26.4,6`;
 		getRuntime()
 			.then(async (rt) => {
 				runtime = rt;
-				await loadTable(SAMPLE, 'sample.csv', 'csv');
+				// Default working set: the classic cars dataset as a weight-vs-economy scatter.
+				applySchema(rt.loadDataset('cars'), 'cars.csv', 'csv');
+				const setSel = (id: string, v: string) => {
+					const sel = el<HTMLSelectElement>(id);
+					if ([...sel.options].some((o) => o.value === v)) sel.value = v;
+				};
+				setSel('st-x', 'Miles_per_Gallon');
+				setSel('st-y', 'Weight_in_lbs');
+				syncXType();
+				syncVisibility();
+				if (mode === 'build') renderBuild();
 				if (mode === 'code') await runCode();
 			})
 			.catch((e) => {
