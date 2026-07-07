@@ -22,7 +22,7 @@ implemented here from scipy primitives (``rankdata``, ``norm``,
 ## `clear_stats`
 
 ```python
-clear_stats() -> None
+def clear_stats() -> None: ...
 ```
 
 Discard all pending statistical records queued by ``add_comparisons`` /

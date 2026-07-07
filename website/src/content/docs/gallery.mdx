@@ -13,36 +13,36 @@ code. All are built with dysonsphere on the standard
 
 ## Distributions
 
-<Example name="strip_beeswarm" alt="Beeswarm strip plot of miles per gallon by car origin" chartOnly />
+<Example name="strip_beeswarm" caption="Beeswarm strip of fuel economy by origin - <code>mark_strip(scatter=&quot;beeswarm&quot;)</code> packs points analytically, with a median tick and SEM bars." alt="Beeswarm strip plot of miles per gallon by car origin" chartOnly />
 
-<Example name="violin_styled" alt="Styled violin plot of horsepower by car origin" chartOnly />
+<Example name="violin_styled" caption="Violin plot of horsepower by origin - <code>mark_violin()</code> (KDE + embedded boxplot) with a custom palette." alt="Styled violin plot of horsepower by car origin" chartOnly />
 
 ## Statistics
 
-<Example name="comparisons_kruskal" alt="Kruskal-Wallis omnibus with Dunn post-hoc brackets" chartOnly />
+<Example name="comparisons_kruskal" caption="Kruskal-Wallis omnibus with Dunn post-hoc brackets - <code>add_comparisons(test=&quot;kruskal&quot;, omnibusVerbose=True)</code> layered onto a boxplot." alt="Kruskal-Wallis omnibus with Dunn post-hoc brackets" chartOnly />
 
-<Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" chartOnly />
+<Example name="correlation" caption="Pearson correlation with an OLS fit line - <code>add_correlation()</code> layered onto a scatter." alt="Horsepower versus miles per gallon with an OLS fit line" chartOnly />
 
 ## Color
 
-<Example name="heatmap_palette" alt="2D histogram heatmap with the lagoon palette" chartOnly />
+<Example name="heatmap_palette" caption="Binned 2D histogram - a plain Altair <code>mark_rect</code> heatmap, colored by <code>theme(heatmapPalette=&quot;lagoon&quot;)</code>." alt="2D histogram heatmap with the lagoon palette" chartOnly />
 
-<Example name="palette_grouped" alt="Paired pre/post bars colored by the grouped categorical palette" chartOnly />
+<Example name="palette_grouped" caption="Paired pre/post bars - <code>categorical(members=2)</code>, each drug one hue climbing in lightness." alt="Paired pre/post bars colored by the grouped categorical palette" chartOnly />
 
 ## Annotation
 
-<Example name="shade_bands" alt="Bar chart with alternating band shading" chartOnly />
+<Example name="shade_bands" caption="Mean barley yield by site - <code>add_shade(categories=...)</code> alternates band shading behind a bar chart." alt="Bar chart with alternating band shading" chartOnly />
 
-<Example name="labels" alt="Scatter with auto-placed, connector-linked point labels" chartOnly />
+<Example name="labels" caption="Auto-placed point labels - <code>add_labels()</code> repels labels into clear space and draws connectors, deterministically." alt="Scatter with auto-placed, connector-linked point labels" chartOnly />
 
-<Example name="multilabel_sample_size" alt="Strip plot with sample size and category-label rows" chartOnly />
+<Example name="multilabel_sample_size" caption="A multilabel table - <code>add_multilabel(showSampleSize=True, categoryLabel=True)</code> replaces the x-axis labels below a strip plot." alt="Strip plot with sample size and category-label rows" chartOnly />
 
 ## Nonlinear axes
 
-<Example name="log" alt="Log-scale line chart of stock prices with minor ticks" chartOnly />
+<Example name="log" caption="Log-scale stock prices - <code>add_log_ticks()</code> adds correctly spaced minor ticks between the decade majors." alt="Log-scale line chart of stock prices with minor ticks" chartOnly />
 
-<Example name="nonlinear_pow" alt="Square-root axis scatter with evenly spaced minor ticks" chartOnly />
+<Example name="nonlinear_pow" caption="Square-root y axis - <code>add_pow_ticks()</code> interpolates minor ticks evenly in transformed space." alt="Square-root axis scatter with evenly spaced minor ticks" chartOnly />
 
 ## Extensions
 
-<Example name="volcano" alt="Volcano plot of differential expression with labeled top genes" chartOnly />
+<Example name="volcano" caption="Differential expression volcano - <code>ds.biology.volcano(df, label=8)</code> from the biology extension: classification, guides, and labeled top genes in one call." alt="Volcano plot of differential expression with labeled top genes" chartOnly />

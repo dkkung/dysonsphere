@@ -1,8 +1,8 @@
 ---
-title: "Extension: volcano"
+title: "volcano()"
 description: "The volcano() chart from the dysonsphere-biology extension."
 sidebar:
-  order: 16
+  order: 2
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -18,7 +18,7 @@ core internals.
 ## `volcano`
 
 ```python
-volcano(
+def volcano(
     df: pl.DataFrame | Any,
     *,
     log2fcCol: str = 'log2fc',
@@ -34,7 +34,7 @@ volcano(
     legend: bool = True,
     xTitle: str | None = _UNSET,
     yTitle: str | None = _UNSET,
-) -> ext.AltairChart
+) -> ext.AltairChart: ...
 ```
 
 Build a volcano plot (log2 fold change vs -log10 p) as a layered Altair chart.

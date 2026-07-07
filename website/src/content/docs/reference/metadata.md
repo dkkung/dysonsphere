@@ -10,14 +10,14 @@ sidebar:
 ## `read`
 
 ```python
-read(
+def read(
     path: str,
     *,
     what: str = 'report',
     save: bool | str = False,
     output: str = 'polars',
     dataset: str | None = None,
-) -> Any
+) -> Any: ...
 ```
 
 Read back the metadata (or data) embedded by :func:`save` from a PNG, SVG, or JSON.

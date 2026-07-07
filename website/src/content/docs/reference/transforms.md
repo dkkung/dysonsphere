@@ -10,14 +10,14 @@ sidebar:
 ## `add_beeswarm`
 
 ```python
-add_beeswarm(
+def add_beeswarm(
     df: pl.DataFrame | Any,
     yCol: str,
     groupBy: list[str],
     heightPx: int | None = None,
     spread: float | None = None,
     outCol: str = 'beeswarm_x',
-) -> pl.DataFrame
+) -> pl.DataFrame: ...
 ```
 
 Add a beeswarm x-offset column to a Polars DataFrame, computed per group.
@@ -59,12 +59,12 @@ width of the beeswarm grows with n.
 ## `add_jitter`
 
 ```python
-add_jitter(
+def add_jitter(
     df: pl.DataFrame | Any,
     spread: float | None = None,
     outCol: str = 'jitter_x',
     seed: int | None = 20220701,
-) -> pl.DataFrame
+) -> pl.DataFrame: ...
 ```
 
 Add a column of random Gaussian x-offsets to a Polars DataFrame.

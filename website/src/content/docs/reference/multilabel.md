@@ -10,7 +10,7 @@ sidebar:
 ## `add_multilabel`
 
 ```python
-add_multilabel(
+def add_multilabel(
     chart: alt.Chart | alt.LayerChart,
     groups: dict[str, list] | None = None,
     categories: list[str] | None = None,
@@ -22,7 +22,7 @@ add_multilabel(
     sampleSizeIndex: int = 0,
     sampleSizeLabel: str = 'n =',
     **kwargs,
-) -> alt.VConcatChart
+) -> alt.VConcatChart: ...
 ```
 
 Compose a chart with a grid annotation table, replacing its x-axis labels.

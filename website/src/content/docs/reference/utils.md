@@ -10,13 +10,13 @@ sidebar:
 ## `band_geometry`
 
 ```python
-band_geometry(
+def band_geometry(
     n: int,
     span: float | None = None,
     *,
     scale: str = 'offset',
     bandPadding: float | None = None,
-) -> BandGeometry
+) -> BandGeometry: ...
 ```
 
 Compute the pixel geometry of an ``n``-category band axis - the single source of
@@ -50,7 +50,11 @@ padding configuration, which differs by mark type. ``scale`` picks the variant:
 ## `count_n`
 
 ```python
-count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]
+def count_n(
+    df: pl.DataFrame,
+    xCol: str,
+    categories: list[str],
+) -> list[int]: ...
 ```
 
 Count the number of rows in ``df`` belonging to each category.
@@ -77,7 +81,7 @@ Count the number of rows in ``df`` belonging to each category.
 ## `ensure_polars`
 
 ```python
-ensure_polars(df: pl.DataFrame) -> pl.DataFrame
+def ensure_polars(df: pl.DataFrame) -> pl.DataFrame: ...
 ```
 
 Convert a pandas DataFrame to Polars, or pass a Polars DataFrame through unchanged.
@@ -107,7 +111,7 @@ name only.  If ``df`` is neither, a ``TypeError`` is raised.
 ## `frame_checksum`
 
 ```python
-frame_checksum(df: pl.DataFrame | Any) -> str
+def frame_checksum(df: pl.DataFrame | Any) -> str: ...
 ```
 
 Order-independent ``sha256:<hex>`` fingerprint of a dataframe's rows.

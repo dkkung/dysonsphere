@@ -65,7 +65,7 @@ Surface:
 ## `tag_extension`
 
 ```python
-tag_extension(chart: _AltairChart, name: str) -> _AltairChart
+def tag_extension(chart: _AltairChart, name: str) -> _AltairChart: ...
 ```
 
 Tag ``chart`` as produced by the extension ``name`` (e.g. ``"biology"``) so ``save()``
@@ -75,7 +75,7 @@ survives composition (``+``/layer/concat) and is stripped from the written spec.
 ## `internal_data`
 
 ```python
-internal_data(data: list[dict] | pl.DataFrame | Any) -> Any
+def internal_data(data: list[dict] | pl.DataFrame | Any) -> Any: ...
 ```
 
 Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
@@ -87,7 +87,7 @@ result straight to ``alt.Chart(...)``.
 ## `opt`
 
 ```python
-opt(key: str) -> Any
+def opt(key: str) -> Any: ...
 ```
 
 Read a theme option, falling back to the (derived) built-in default.

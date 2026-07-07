@@ -10,7 +10,7 @@ sidebar:
 ## `theme`
 
 ```python
-theme(style: str | None = None, **kwargs) -> None
+def theme(style: str | None = None, **kwargs) -> None: ...
 ```
 
 Configure and register the dysonsphere Altair theme.
@@ -25,11 +25,11 @@ Named styles in the config file are selected with ``style=``.
 ## `create_config`
 
 ```python
-create_config(
+def create_config(
     directory: str | Path | None = None,
     *,
     persist: bool = False,
-) -> None
+) -> None: ...
 ```
 
 Write a dysonsphere.toml template to *directory* (default: current working directory).

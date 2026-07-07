@@ -11,8 +11,10 @@ interface Props {
 	alt?: string;
 	/** Hide the code block (chart only) - for gallery-style pages. */
 	chartOnly?: boolean;
+	/** Short note under the chart (what it is / the calls that made it) - for gallery pages. */
+	caption?: string;
 }
-const { name, alt, chartOnly = false } = Astro.props;
+const { name, alt, chartOnly = false, caption } = Astro.props;
 
 const sources = import.meta.glob('../../examples/*.py', {
 	query: '?raw',
@@ -35,6 +37,7 @@ const studioHref = `${import.meta.env.BASE_URL}studio/#code=${encodeURIComponent
 	<div class="example__row">
 		<Chart name={name} alt={alt ?? `dysonsphere example: ${name}`} />
 	</div>
+	{caption && <p class="example__caption" set:html={caption} />}
 	<div class="example__actions">
 		<a href={studioHref}>Open in studio &rarr;</a>
 	</div>
@@ -56,6 +59,19 @@ const studioHref = `${import.meta.env.BASE_URL}studio/#code=${encodeURIComponent
 	.example__row :global(.ds-chart__view) {
 		justify-content: flex-start;
 		padding: 0;
+	}
+	.example__caption {
+		margin: 0.35rem 0 0;
+		font-size: 0.8rem;
+		color: var(--sl-color-gray-3);
+	}
+	.example__caption :global(code) {
+		font-family: var(--sl-font-mono);
+		font-size: 0.72rem;
+		background: var(--sl-color-gray-6);
+		border: 1px solid var(--sl-color-hairline);
+		border-radius: 0.3rem;
+		padding: 0.05em 0.3em;
 	}
 	/* Revealed only while the example is hovered or focused, like the chart's export menu. */
 	.example__actions {

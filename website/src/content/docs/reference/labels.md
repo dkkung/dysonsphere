@@ -12,7 +12,7 @@ Display-label helpers: map raw data values to presentable labels at render time.
 ## `label_expr`
 
 ```python
-label_expr(mapping: Mapping[Any, str | list[str]]) -> str
+def label_expr(mapping: Mapping[Any, str | list[str]]) -> str: ...
 ```
 
 Build a Vega ``labelExpr`` that maps raw data values to display labels.

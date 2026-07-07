@@ -100,8 +100,14 @@ export default defineConfig({
 					label: 'Extensions',
 					items: [
 						{ label: 'Overview', slug: 'extensions' },
-						{ label: 'biology', slug: 'extensions/biology' },
 						{ label: 'Writing an extension', slug: 'extensions/authoring' },
+						{
+							label: 'dysonsphere-biology',
+							items: [
+								{ label: 'Overview', slug: 'extensions/biology' },
+								{ label: 'volcano()', slug: 'extensions/volcano' },
+							],
+						},
 					],
 				},
 				{

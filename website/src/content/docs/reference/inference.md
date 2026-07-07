@@ -18,7 +18,7 @@ registry and embedded into exports by ``save()`` via layer-name markers.
 ## `add_comparisons`
 
 ```python
-add_comparisons(
+def add_comparisons(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -52,7 +52,7 @@ add_comparisons(
     testLabelY = None,
     report: bool = False,
     save: bool | str = False,
-) -> alt.LayerChart
+) -> alt.LayerChart: ...
 ```
 
 Build p-value annotation layers for one or more group comparisons.
@@ -163,7 +163,7 @@ From pre-computed p-values::
 ## `add_correlation`
 
 ```python
-add_correlation(
+def add_correlation(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -188,7 +188,7 @@ add_correlation(
     lineStyle: dict | None = None,
     report: bool = False,
     save: bool | str = False,
-) -> alt.LayerChart
+) -> alt.LayerChart: ...
 ```
 
 Annotate a scatter with a correlation coefficient (and an OLS fit line for Pearson).

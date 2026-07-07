@@ -10,7 +10,7 @@ sidebar:
 ## `save`
 
 ```python
-save(
+def save(
     chart: _AltairChart | Callable[[], _AltairChart],
     filename: str,
     ppi: int = 1200,
@@ -22,7 +22,7 @@ save(
     transparent: bool = True,
     maxRows: int = 5000,
     overrideMaxRows: bool = False,
-) -> None
+) -> None: ...
 ```
 
 Save a chart in one or more formats and background variants.
@@ -75,7 +75,7 @@ Callable — rebuilt per variant so dark-mode colours are correct::
 ## `show`
 
 ```python
-show(chart: _AltairChart | Callable[[], _AltairChart])
+def show(chart: _AltairChart | Callable[[], _AltairChart]): ...
 ```
 
 Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
@@ -96,12 +96,12 @@ once). Requires IPython (present in any notebook); otherwise raises ``ImportErro
 ## `load`
 
 ```python
-load(
+def load(
     path: str,
     *,
     raw: bool = False,
     applyTheme: bool = True,
-) -> '_AltairChart | dict'
+) -> '_AltairChart | dict': ...
 ```
 
 Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).
