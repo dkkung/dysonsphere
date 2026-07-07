@@ -79,6 +79,11 @@ def build(path: Path, dark: bool) -> dict:
         kwargs["transparent"] = True
         return _real_theme(*args, **kwargs)
 
+    # The dysonsphere theme is registered + enabled ONCE at import time; ds.theme() only
+    # updates the options. A PLAIN_EXAMPLES build switches Altair to the default theme, so
+    # re-enable explicitly or every example sorting after it renders silently unthemed
+    # (that shipped: violin/violin_styled/volcano - everything after "theme_before").
+    alt.theme.enable("dysonsphere")
     # Baseline in case the snippet never calls ds.theme(); the patch covers it when it does.
     patched_theme()
     ds.theme = patched_theme
