@@ -710,6 +710,19 @@ high,100,26.4,6`;
 			}
 		}
 
+		// Fit the render to the panel: the site-wide 3.5x chart zoom overflows once a legend
+		// or a wide canvas grows the chart - cap the zoom so the whole figure stays in view.
+		function fitChartZoom() {
+			const svg = chartEl.querySelector('svg');
+			const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
+			if (natural <= 0) return;
+			const avail = chartEl.clientWidth - 32; // panel padding
+			if (avail <= 0) return;
+			const z = Math.min(3.5, Math.max(1, avail / natural));
+			chartEl.style.setProperty('--ds-chart-zoom', z.toFixed(3));
+		}
+		new ResizeObserver(() => fitChartZoom()).observe(chartEl);
+
 		async function renderSpec(code: string) {
 			if (!runtime) return;
 			setStatus('Rendering…');
@@ -717,6 +730,7 @@ high,100,26.4,6`;
 				const spec = JSON.parse(runtime.runChart(code, isDark()));
 				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
 				fixSuperscripts(chartEl);
+				fitChartZoom();
 				clearError();
 				setStatus('', 'ok');
 			} catch (e) {
