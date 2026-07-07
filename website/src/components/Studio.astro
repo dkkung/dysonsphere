@@ -17,7 +17,11 @@
 // emitted `pl.read_csv("file.csv")` line runs verbatim - the shown code IS the executed code.
 import palettes from '../generated/palettes.json';
 
-const paletteNames = palettes.map((p) => p.name);
+const paletteGroups = [
+	{ label: 'Sequential', kind: 'sequential' },
+	{ label: 'Diverging', kind: 'diverging' },
+	{ label: 'Qualitative', kind: 'qualitative' },
+].map((g) => ({ ...g, names: palettes.filter((p) => p.kind === g.kind).map((p) => p.name) }));
 ---
 
 <div id="studio" class="st not-content">
@@ -178,10 +182,16 @@ const paletteNames = palettes.map((p) => p.name);
 		<section class="st__group">
 			<h3>Theme</h3>
 			<label>Palette
-				<input id="st-palette" list="st-palette-list" placeholder="(default)" />
-				<datalist id="st-palette-list">
-					{paletteNames.map((n) => <option value={n} />)}
-				</datalist>
+				<select id="st-palette">
+					<option value="">(default)</option>
+					{paletteGroups.map((g) => (
+						<optgroup label={g.label}>
+							{g.names.map((n) => (
+								<option value={n}>{n}</option>
+							))}
+						</optgroup>
+					))}
+				</select>
 				<span id="st-palette-preview" class="st__swatch" aria-hidden="true"></span>
 			</label>
 			<div class="st__dims">
@@ -520,7 +530,7 @@ high,100,26.4,6`;
 
 			// theme args
 			const t: string[] = [];
-			const pal = el<HTMLInputElement>('st-palette').value.trim();
+			const pal = el<HTMLSelectElement>('st-palette').value;
 			if (pal) t.push(`palette=${q(pal)}`);
 			const w = +el<HTMLInputElement>('st-w').value;
 			const h = +el<HTMLInputElement>('st-h').value;
@@ -585,7 +595,7 @@ high,100,26.4,6`;
 					`        y=alt.Y("${y}:Q"),`,
 					`        xOffset=alt.XOffset("${off}:Q"),`,
 				];
-				if (color) enc.push(`        color=alt.Color("${color}:N", legend=None),`);
+				if (color) enc.push(`        color=alt.Color("${color}:N"),`);
 				body.push(
 					call,
 					`chart = (`,
@@ -613,7 +623,7 @@ high,100,26.4,6`;
 					`        x=alt.X("${x}:${type === 'boxplot' ? 'N' : xtype}"${titled(x)}),`,
 					`        y=alt.Y("${yt}:Q"${titled(y)}),`,
 				];
-				if (color && type !== 'boxplot') enc.push(`        color=alt.Color("${color}:N", legend=None),`);
+				if (color && type !== 'boxplot') enc.push(`        color=alt.Color("${color}:N"),`);
 				body.push(`chart = (`, `    alt.Chart(df)`, `    .${marks[type]}()`, `    .encode(`, ...enc, `    )`, `)`);
 			}
 
@@ -684,7 +694,7 @@ high,100,26.4,6`;
 		// ------------------------------------------------------------------ rendering
 
 		function syncPalettePreview() {
-			const name = el<HTMLInputElement>('st-palette').value.trim();
+			const name = el<HTMLSelectElement>('st-palette').value;
 			const colors = PALETTE_COLORS[name];
 			const preview = el('st-palette-preview');
 			preview.innerHTML = '';
