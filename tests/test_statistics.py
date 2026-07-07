@@ -988,6 +988,32 @@ class TestAddCorrelation:
         assert isinstance(layer, alt.LayerChart)
         assert len(layer.to_dict()["layer"]) == 2  # line + readout
 
+    def test_fit_line_fields_match_the_columns(self):
+        # The fit line's sidecar must carry the REAL column names: Vega-Lite merges a shared
+        # axis title by joining the layers' DISTINCT derived titles, so private names ("_x")
+        # rendered as "height, _x" on the base chart's axes. Matching names dedupe to one.
+        rng = np.random.default_rng(1)
+        x = rng.uniform(0, 10, 40)
+        df = pl.DataFrame({"height": x, "weight": 2.0 * x + rng.normal(0, 1, 40)})
+        spec = add_correlation(df, "height", "weight").to_dict()
+        line = spec["layer"][0]
+        assert line["mark"]["type"] == "line"
+        assert line["encoding"]["x"]["field"] == "height"
+        assert line["encoding"]["y"]["field"] == "weight"
+        # No title/axis overrides: an explicit title on the BASE chart must keep winning.
+        assert "title" not in line["encoding"]["x"]
+        assert "title" not in line["encoding"]["y"]
+
+    def test_fit_line_survives_special_column_names(self):
+        # field=/type= (not shorthand) so a ':' in a column name is not parsed as a type tag.
+        rng = np.random.default_rng(2)
+        x = rng.uniform(0, 10, 40)
+        df = pl.DataFrame({"hp:max": x, "mpg.city": 1.5 * x + rng.normal(0, 1, 40)})
+        spec = add_correlation(df, "hp:max", "mpg.city").to_dict()
+        line = spec["layer"][0]
+        assert line["encoding"]["x"]["field"] == "hp:max"
+        assert line["encoding"]["y"]["field"] == "mpg.city"
+
     def test_spearman_no_line(self, scatter_df):
         layer = add_correlation(scatter_df, "x", "y", method="spearman")
         assert len(layer.to_dict()["layer"]) == 1  # readout only, no line

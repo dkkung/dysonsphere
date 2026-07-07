@@ -924,7 +924,10 @@ def add_correlation(
     if line and result["slope"] is not None:
         x0, x1 = float(x.min()), float(x.max())
         slope, intercept = result["slope"], result["intercept"]
-        fit_df = pl.DataFrame({"_x": [x0, x1], "_y": [slope * x0 + intercept, slope * x1 + intercept]})
+        # The sidecar's fields carry the REAL column names: Vega-Lite merges a shared axis's
+        # title by joining the layers' DISTINCT titles, so private names ("_x") concatenated
+        # into the base chart's derived title ("height, _x"). Matching names dedupe to one.
+        fit_df = pl.DataFrame({xCol: [x0, x1], yCol: [slope * x0 + intercept, slope * x1 + intercept]})
         # By default the line inherits the theme's mark_line config (no overrides).
         # Curated params override only what's passed; lineStyle overrides everything.
         mark_kwargs: dict = {}
@@ -938,12 +941,14 @@ def add_correlation(
             mark_kwargs["opacity"] = opacity
         if lineStyle:
             mark_kwargs.update(lineStyle)
-        # Plain x:Q/y:Q with no title/axis override: the fit line shares the main chart's
-        # scale, and because the base chart is the first layer, its axis (titles, ticks)
-        # wins the shared-axis resolution.  (Setting title=None nulls the base title;
-        # axis=None suppresses the axis entirely — both wrong here.)
+        # No title/axis override: with matching field names the derived titles dedupe, and
+        # an explicit base title still beats this layer's derived one.  (Setting title=None
+        # nulls the base title; axis=None suppresses the axis entirely — both wrong here.)
+        # field=/type= rather than shorthand, so column names containing ':' survive.
         layers.append(
-            alt.Chart(_internal_data(fit_df)).mark_line(**mark_kwargs).encode(x=alt.X("_x:Q"), y=alt.Y("_y:Q"))
+            alt.Chart(_internal_data(fit_df))
+            .mark_line(**mark_kwargs)
+            .encode(x=alt.X(field=xCol, type="quantitative"), y=alt.Y(field=yCol, type="quantitative"))
         )
 
     # Corner readout.
