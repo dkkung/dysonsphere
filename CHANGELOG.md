@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-07-07
+
 ### Fixes
 
 - **`add_correlation()` no longer leaks `_x`/`_y` into merged axis titles.** The OLS fit line's sidecar dataset used private field names; when the base scatter had no explicit `title=`, Vega-Lite's shared-axis merge joined the two layers' derived titles into `"height, _x"` / `"weight, _y"`. The sidecar now carries the real column names (encoded non-shorthand, so names containing `:` or `.` survive), so the derived titles dedupe to one; an explicit base title keeps winning as before. No workaround needed anymore - previously the base chart had to set explicit axis titles.
