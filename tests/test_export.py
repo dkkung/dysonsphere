@@ -811,23 +811,17 @@ class TestItalicizeStatSymbols:
         _italicize_stat_symbols(root)
         assert self._italic_runs(root) == ["t"]
 
-    def test_ns_label_italicized_whole(self):
-        root = self._root_with_text("ns")
-        _italicize_stat_symbols(root)
-        text_el = root.find(f"{{{NS}}}text")
-        assert text_el is not None
-        assert text_el.get("font-style") == "italic"
-        assert text_el.text == "ns"  # no tspan needed
-        assert self._italic_runs(root) == []
-
-    def test_ns_not_matched_inside_prose(self):
-        # "ns" mid-text is usually a unit (nanoseconds) or prose - never italicized
-        root = self._root_with_text("delay of 10 ns")
-        _italicize_stat_symbols(root)
-        text_el = root.find(f"{{{NS}}}text")
-        assert text_el is not None
-        assert text_el.get("font-style") is None
-        assert self._italic_runs(root) == []
+    def test_ns_label_stays_upright(self):
+        # "ns" is an abbreviation (not significant), not a symbol - multi-letter
+        # abbreviations stay upright (the whole-label italic shipped in 3.4.0/3.4.1 was
+        # an APA-ism, dropped in 3.4.2)
+        for label in ("ns", "delay of 10 ns"):
+            root = self._root_with_text(label)
+            _italicize_stat_symbols(root)
+            text_el = root.find(f"{{{NS}}}text")
+            assert text_el is not None
+            assert text_el.get("font-style") is None, label
+            assert self._italic_runs(root) == [], label
 
     def test_letter_context_guards(self):
         # symbols embedded in words never match

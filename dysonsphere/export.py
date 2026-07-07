@@ -600,14 +600,8 @@ def _italicize_text_element(el: ET.Element) -> None:
     already split around an exponent ``<tspan>``. A child's own ``.text`` is NOT touched
     here: every ``<tspan>`` is itself a target of :func:`_italicize_stat_symbols` (Vega
     sometimes wraps a whole label in one), so each string node is processed exactly once,
-    by the element that owns it. A label that is exactly ``ns`` (the asterisks-style
-    non-significant bracket label) is italicized whole via a ``font-style`` attribute on the
-    element; ``ns`` is deliberately NOT pattern-matched inside longer text, where it is
-    usually prose or a unit (nanoseconds).
+    by the element that owns it.
     """
-    if len(el) == 0 and (el.text or "").strip() == "ns":
-        el.set("font-style", "italic")
-        return
     items = [(None, el.text or "")] + [(child, child.tail or "") for child in list(el)]
     if not any(_ITALIC_STAT_PATTERN.search(s) for _, s in items):
         return
@@ -646,8 +640,9 @@ def _italicize_text_element(el: ET.Element) -> None:
 def _italicize_stat_symbols(root: ET.Element) -> None:
     """Italicize Latin statistical symbols (``P n F H A W r y x t U``) in rendered text.
 
-    Scientific typesetting convention (APA/CSE) sets Latin statistical symbols in italic
-    while numbers, operators, and Greek symbols (η², ε², χ², ρ, τ) stay upright. Vega-Lite
+    Scientific typesetting convention sets single-letter Latin statistical symbols in
+    italic while numbers, operators, Greek symbols (η², ε², χ², ρ, τ), and multi-letter
+    abbreviations (``ns`` - an abbreviation, not a symbol) stay upright. Vega-Lite
     text marks have no rich text (``fontStyle`` styles a whole string), so this is applied
     as an SVG post-process: each matched symbol is wrapped in a
     ``<tspan font-style="italic">``, rendering with the label font's italic face.
