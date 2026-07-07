@@ -17,10 +17,12 @@ dissolved 2026-07-06).
   live chart + "Open in studio" deep link), `Studio.astro` (the **two-mode Chart Studio**: an
   interactive builder AND an embedded CodeMirror editor - the old Playground was absorbed into it),
   `PlaygroundRedirect.astro` (client-side `/playground/`→`/studio/` redirect preserving `#code=`),
-  `Sidebar.astro` (Starlight Sidebar override adding a desktop collapse toggle), `Palettes.astro`
-  (client-side swatch browser from generated JSON), `SiteTitle.astro` (two-toned header wordmark).
+  `Palettes.astro` (client-side swatch browser from generated JSON), `PalettePreview.astro` (three
+  charts restyled live by the selected palette), `SiteTitle.astro` (two-toned header wordmark +
+  the desktop sidebar-collapse toggle; there is no Sidebar override anymore).
 - `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
-  `onRuntimeStatus()`). Exposes `runChart(code, dark)` and `loadTable(name, text, format)`.
+  `onRuntimeStatus()`). Exposes `runChart(code, dark)`, `loadTable(name, text, format)`,
+  `writeFile(name, data)` (raw FS write, binary-safe), and `readExport(name)` (ds.read metadata).
   `runChart` injects `darkmode`/`transparent` by **monkeypatching `ds.theme` during exec** (same
   technique as `gen_examples.py`), so the site render args apply wherever the snippet calls
   `theme()` and never appear in shown code. `loadTable` also **writes the upload into Pyodide's
@@ -181,12 +183,30 @@ AND an embedded code editor - the Playground was absorbed; `/playground/` redire
 reference (v3 modules, multi-line signatures for wide APIs, ext/discovery/volcano pages);
 persistent collapsible sidebar; "References" renamed "Documentation".
 
-Rework done 2026-07-06 (this pass): regenerated all artifacts against v3.0.0; fixed the x-axis
+Rework done 2026-07-06 (v3.0.0 pass): regenerated all artifacts against v3.0.0; fixed the x-axis
 tick/xOffset misalignment (dropped `scale=None`); fixed the correlation examples' `_x` axis-title
 leak (explicit base title); Studio darkmode re-render + cursor-alignment fix (fonts.ready
 remeasure); Ember swatch alignment (`not-content`); larger flush inline charts (zoom 3.5). All
 verified in a real headless-chromium sweep (charts render on every new page, darkmode inverts the
 hero ink, sidebar+toggle on landing, deep-link redirect preserves `#code=`).
+
+Rework done 2026-07-06/07 (v3.1.0 pass, `website` worktree): regenerated artifacts against v3.1.0
+(API ref gains `ext.tag_extension`; saving guide's metadata example recaptured - new provenance
+order, os/vl-convert env fields, extensions note). Example fixes verified in browser Vega: log
+axes get explicit decade `values=` (browser Vega auto-ticks every log multiple FULL length -
+that's the main axis, not the minor layer; vl-convert differs), comparisons categories now
+alphabetical (the layer scale-merge renders alphabetical band order; pixel-anchored p-labels used
+the passed order - mislabeled brackets), omnibus corner labels need a PADDED y domain + `yStart`
+(the auto domain hugs the top bracket, so the pixel-anchored corner label always collides),
+correlation readouts sized to their chartWidth. New beeswarm+brackets homepage hero (caption
+dropped, zoom 2.6). "Condition tables" renamed "multilabels" sitewide (library docstring still
+says condition table - core-side edit, not done). Sidebar toggle moved into the header next to
+the wordmark (Sidebar override deleted); docs reordered build->style->export; Open-in-studio
+links hover-only. Palettes guide gains a live preview (three charts restyled on swatch click via
+client-side config.range patching; `ds-palette-select` CustomEvent from Palettes.astro). Studio
+gains "Import an export" (ds.load rebuild + ds.read metadata panel) and the Pyodide boot fix (see
+the deps=False gotcha above). All verified headless (incl. a full Pyodide boot + JSON/PNG import
+round-trip) plus the deploy-equivalent base-path grep.
 
 Deploy wiring: pages.yml builds Node-only (generated artifacts committed) and deploys
 `website/dist` to Pages when `website` merges to main. Studio installs dysonsphere from PyPI at
@@ -194,6 +214,4 @@ runtime - after any library release with API changes, regenerate examples/specs.
 
 TODO: molecular-biology gallery (synthetic gene-expression / dose-response / qPCR datasets); CI
 runs of the three generators; publish `dysonsphere-biology` to PyPI so LIVE studio execution of
-`ds.biology.*` works (its committed specs already render). NOTE: a parallel `release-v3.1.0`
-reorders `save()` provenance and adds an OS/vl-convert field - after it merges, refresh the
-hardcoded metadata JSON in `guides/saving.mdx` (currently accurate for v3.0.0).
+`ds.biology.*` works (its committed specs already render). The `guides/saving.mdx` metadata JSON is accurate for v3.1.0.

@@ -274,9 +274,9 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* This hero chart is a wide composite (3 groups + brackets); dial the zoom back from the
-     site-wide default so it fits the column without horizontal scroll. */
-  --ds-chart-zoom: 2.3;
+  /* This hero chart is wider than the inline examples (3 groups + brackets at chartWidth=140);
+     dial the zoom back from the site-wide default so it fits the column without scroll. */
+  --ds-chart-zoom: 2.6;
   overflow: auto;
 }
 .landing__demo-caption {
