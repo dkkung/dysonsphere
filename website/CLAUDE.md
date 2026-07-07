@@ -10,7 +10,8 @@ dissolved 2026-07-06).
   the sidebar shows on the landing page too), `guides/*` (getting-started, theming, **configuration**
   [the dysonsphere.toml reference], palettes, marks, annotations, statistics, nonlinear, saving),
   `extensions/*` (index/overview, biology, authoring), `gallery.mdx`, `palettes.mdx` (the
-  palette browser + live preview, under Interactive), `studio.mdx` (Chart Studio),
+  palette browser + live preview, under Interactive), `config-generator.mdx` (the
+  dysonsphere.toml generator, under Interactive), `studio.mdx` (Chart Studio),
   `playground.mdx` (a thin **redirect stub** to `/studio/`, kept for old `#code=` deep links),
   `reference/*` (generated API).
 - `src/components/` - `Chart.astro` (live vega-embed chart from a named spec, light/dark reactive),
@@ -18,8 +19,10 @@ dissolved 2026-07-06).
   live chart + "Open in studio" deep link), `Studio.astro` (the **two-mode Chart Studio**: an
   interactive builder AND an embedded CodeMirror editor - the old Playground was absorbed into it),
   `PlaygroundRedirect.astro` (client-side `/playground/`→`/studio/` redirect preserving `#code=`),
-  `Palettes.astro` (client-side swatch browser from generated JSON), `PalettePreview.astro` (three
-  charts restyled live by the selected palette), `SiteTitle.astro` (two-toned header wordmark +
+  `Palettes.astro` (client-side swatch browser from generated JSON; click copies the HEX LIST, not
+  the name - hex rides on data-color attributes since inline style serializes to rgb()),
+  `PalettePreview.astro` (charts restyled live by the selected palette), `ConfigGenerator.astro`
+  (editable default dysonsphere.toml + theme-param cheat sheet, inputs from gen_config.py), `SiteTitle.astro` (two-toned header wordmark +
   the desktop sidebar-collapse toggle; there is no Sidebar override anymore).
 - `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
   `onRuntimeStatus()`). Exposes `runChart(code, dark)`, `loadTable(name, text, format)`,
@@ -52,7 +55,10 @@ dissolved 2026-07-06).
 - Regenerate the example charts: `uv run --with vega-datasets python website/scripts/gen_examples.py`
   (pass example names to rebuild a subset).
 - Regenerate the palette swatch data: `uv run python website/scripts/gen_palettes.py`.
-- Generated files (`reference/*.md`, `charts/*.json`, `src/generated/palettes.json`) are committed
+- Regenerate the config-generator inputs (default TOML + theme-param cheat sheet):
+  `uv run python website/scripts/gen_config.py`.
+- Generated files (`reference/*.md`, `charts/*.json`, `src/generated/*.json`,
+  `src/generated/default_config.toml`) are committed
   for now; CI regeneration is a deploy TODO.
 
 ## Conventions and gotchas

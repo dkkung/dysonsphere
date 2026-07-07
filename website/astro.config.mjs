@@ -75,7 +75,7 @@ export default defineConfig({
 						{ label: 'Nonlinear axes', slug: 'guides/nonlinear' },
 						{ label: 'Theming', slug: 'guides/theming' },
 						{ label: 'Palettes', slug: 'guides/palettes' },
-						{ label: 'Configuration (dysonsphere.toml)', slug: 'guides/configuration' },
+						{ label: 'Global theme overrides', slug: 'guides/configuration' },
 						{ label: 'Saving & reading', slug: 'guides/saving' },
 					],
 				},
@@ -84,6 +84,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Gallery', slug: 'gallery' },
 						{ label: 'Palette browser', slug: 'palettes' },
+						{ label: 'dysonsphere.toml generator', slug: 'config-generator' },
 						{ label: 'Chart Studio', slug: 'studio' },
 					],
 				},

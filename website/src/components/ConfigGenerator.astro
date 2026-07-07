@@ -1,0 +1,245 @@
+---
+// dysonsphere.toml generator: the exact default config ds.create_config() scaffolds, editable
+// in place, next to a cheat sheet of every ds.theme() parameter with its built-in default
+// (both generated from the library by scripts/gen_config.py). Clicking a cheat-sheet row
+// inserts `key = default` at the cursor; Copy/Download produce the finished file. Pure
+// client-side - no Pyodide.
+import defaultToml from '../generated/default_config.toml?raw';
+import params from '../generated/theme_defaults.json';
+---
+
+<div class="cfg not-content">
+	<div class="cfg__editor-panel">
+		<div class="cfg__bar">
+			<span class="cfg__title">dysonsphere.toml</span>
+			<span class="cfg__actions">
+				<button id="cfg-reset" type="button">Reset</button>
+				<button id="cfg-copy" type="button">Copy</button>
+				<button id="cfg-download" type="button" class="cfg__primary">Download</button>
+			</span>
+		</div>
+		<textarea id="cfg-editor" spellcheck="false" rows={24}>{defaultToml.trimEnd()}</textarea>
+		<p class="cfg__hint">
+			Save the file next to your notebook/script (or anywhere up the directory tree), or pass
+			<code>persist=True</code> to <code>ds.create_config()</code> for the user-wide location.
+			Keys in <code>[default]</code> apply to every <code>ds.theme()</code> call; named sections
+			are styles you load with <code>ds.theme(style="name")</code>.
+		</p>
+	</div>
+
+	<aside class="cfg__cheats">
+		<div class="cfg__bar">
+			<span class="cfg__title">theme() parameters</span>
+		</div>
+		<input id="cfg-filter" type="search" placeholder="Filter parameters…" aria-label="Filter parameters" />
+		<p class="cfg__hint cfg__hint--tight">Click a row to insert it at the cursor. Values shown are the built-in defaults.</p>
+		<table class="cfg__table">
+			<tbody id="cfg-params">
+				{
+					params.map((p) => (
+						<tr
+							class="cfg__row"
+							data-key={p.key}
+							data-default={p.default ?? ''}
+							title={`Insert ${p.key}`}
+						>
+							<td class="cfg__key">{p.key}</td>
+							<td class="cfg__default">{p.default ?? p.hint ?? 'auto'}</td>
+						</tr>
+					))
+				}
+			</tbody>
+		</table>
+	</aside>
+</div>
+
+<script>
+	function initConfigGenerator() {
+		const editor = document.getElementById('cfg-editor') as HTMLTextAreaElement | null;
+		if (!editor || editor.dataset.wired) return;
+		editor.dataset.wired = '1';
+		const initial = editor.value;
+
+		document.getElementById('cfg-reset')?.addEventListener('click', () => {
+			editor.value = initial;
+		});
+		document.getElementById('cfg-copy')?.addEventListener('click', (ev) => {
+			navigator.clipboard?.writeText(editor.value);
+			const b = ev.currentTarget as HTMLButtonElement;
+			b.textContent = 'Copied!';
+			setTimeout(() => (b.textContent = 'Copy'), 900);
+		});
+		document.getElementById('cfg-download')?.addEventListener('click', () => {
+			const url = URL.createObjectURL(new Blob([editor.value], { type: 'application/toml' }));
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = 'dysonsphere.toml';
+			a.click();
+			URL.revokeObjectURL(url);
+		});
+
+		// Cheat sheet: filter + click-to-insert at the cursor (own line, cursor after the value).
+		const filter = document.getElementById('cfg-filter') as HTMLInputElement;
+		const rows = Array.from(document.querySelectorAll<HTMLElement>('.cfg__row'));
+		filter.addEventListener('input', () => {
+			const q = filter.value.trim().toLowerCase();
+			for (const r of rows) {
+				r.style.display = !q || (r.dataset.key ?? '').toLowerCase().includes(q) ? '' : 'none';
+			}
+		});
+		for (const r of rows) {
+			r.addEventListener('click', () => {
+				const line = `${r.dataset.key} = ${r.dataset.default ?? ''}`;
+				const pos = editor.selectionStart ?? editor.value.length;
+				const before = editor.value.slice(0, pos);
+				const after = editor.value.slice(editor.selectionEnd ?? pos);
+				// Land on its own line wherever the cursor is.
+				const prefix = before.length && !before.endsWith('\n') ? '\n' : '';
+				const suffix = after.startsWith('\n') || after.length === 0 ? '' : '\n';
+				editor.value = before + prefix + line + suffix + after;
+				const cursor = (before + prefix + line).length;
+				editor.focus();
+				editor.setSelectionRange(cursor, cursor);
+			});
+		}
+	}
+
+	initConfigGenerator();
+	document.addEventListener('astro:page-load', initConfigGenerator);
+</script>
+
+<style>
+	.cfg {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 24rem;
+		gap: 1.5rem;
+		align-items: start;
+		margin-top: 1.5rem;
+	}
+	@media (max-width: 60rem) {
+		.cfg {
+			grid-template-columns: 1fr;
+		}
+	}
+	.cfg__editor-panel,
+	.cfg__cheats {
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.65rem;
+		overflow: hidden;
+	}
+	/* The cheat sheet scrolls in place beside the editor. */
+	.cfg__cheats {
+		position: sticky;
+		top: calc(var(--sl-nav-height) + 1rem);
+		max-height: calc(100vh - var(--sl-nav-height) - 2rem);
+		overflow: auto;
+	}
+	@media (max-width: 60rem) {
+		.cfg__cheats {
+			position: static;
+			max-height: 24rem;
+		}
+	}
+	.cfg__bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.72rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+		border-bottom: 1px solid var(--sl-color-gray-5);
+		position: sticky;
+		top: 0;
+		background: var(--sl-color-bg);
+		z-index: 1;
+	}
+	.cfg__actions {
+		display: flex;
+		gap: 0.4rem;
+	}
+	.cfg__actions button {
+		background: var(--sl-color-gray-6);
+		border: 1px solid var(--sl-color-hairline);
+		border-radius: 0.4rem;
+		color: var(--sl-color-gray-2);
+		font-size: 0.7rem;
+		letter-spacing: 0;
+		text-transform: none;
+		padding: 0.2rem 0.6rem;
+		cursor: pointer;
+	}
+	.cfg__actions .cfg__primary {
+		background: var(--sl-color-white);
+		color: var(--sl-color-black);
+		border-color: var(--sl-color-white);
+		font-weight: 600;
+	}
+	#cfg-editor {
+		display: block;
+		width: 100%;
+		border: 0;
+		padding: 1rem;
+		background: var(--sl-color-bg);
+		color: var(--sl-color-text);
+		font-family: var(--sl-font-mono);
+		font-size: 0.78rem;
+		line-height: 1.55;
+		resize: vertical;
+		min-height: 24rem;
+	}
+	#cfg-editor:focus {
+		outline: none;
+	}
+	.cfg__hint {
+		margin: 0;
+		padding: 0.55rem 0.75rem 0.7rem;
+		font-size: 0.75rem;
+		color: var(--sl-color-gray-3);
+		border-top: 1px solid var(--sl-color-gray-5);
+	}
+	.cfg__hint--tight {
+		border-top: 0;
+		padding-top: 0.2rem;
+	}
+	#cfg-filter {
+		display: block;
+		width: calc(100% - 1.5rem);
+		margin: 0.6rem 0.75rem 0.35rem;
+		padding: 0.35rem 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		background: var(--sl-color-bg);
+		color: var(--sl-color-text);
+		font-size: 0.8rem;
+	}
+	.cfg__table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.74rem;
+		margin: 0;
+	}
+	.cfg__row {
+		cursor: pointer;
+	}
+	.cfg__row:hover {
+		background: var(--sl-color-gray-6);
+	}
+	.cfg__row td {
+		padding: 0.28rem 0.75rem;
+		border-top: 1px solid var(--sl-color-hairline);
+		vertical-align: top;
+	}
+	.cfg__key {
+		font-family: var(--sl-font-mono);
+		color: var(--sl-color-white);
+		white-space: nowrap;
+	}
+	.cfg__default {
+		font-family: var(--sl-font-mono);
+		color: var(--sl-color-gray-3);
+		overflow-wrap: anywhere;
+	}
+</style>

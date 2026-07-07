@@ -1,7 +1,7 @@
 ---
 // Live palette browser: renders every dysonsphere palette as a swatch strip, filterable by name
 // and kind. Pure client-side (data baked from src/generated/palettes.json at build time) - no
-// Pyodide. Click a swatch strip to copy its name.
+// Pyodide. Click a swatch strip to copy its hex codes (as a list) and preview it in the charts.
 import palettes from '../generated/palettes.json';
 ---
 
@@ -21,10 +21,10 @@ import palettes from '../generated/palettes.json';
 	<div id="pal-grid" class="pal__grid">
 		{
 			palettes.map((p) => (
-				<button class="pal__item" data-name={p.name} data-kind={p.kind} title={`Copy "${p.name}"`}>
+				<button class="pal__item" data-name={p.name} data-kind={p.kind} title={`Copy ${p.name} hex codes`}>
 					<span class="pal__strip">
 						{p.colors.map((c) => (
-							<span class="pal__stop" style={`background:${c}`} />
+							<span class="pal__stop" data-color={c} style={`background:${c}`} />
 						))}
 					</span>
 					<span class="pal__name">{p.name}</span>
@@ -70,15 +70,16 @@ import palettes from '../generated/palettes.json';
 		for (const el of items) {
 			el.addEventListener('click', () => {
 				const name = el.dataset.name ?? '';
-				navigator.clipboard?.writeText(name);
+				const colors = Array.from(el.querySelectorAll<HTMLElement>('.pal__stop')).map(
+					(s) => s.dataset.color ?? '',
+				);
+				// Copy the hex codes as a ready-to-paste list (what a scale range wants).
+				navigator.clipboard?.writeText(`[${colors.map((c) => `"${c.toUpperCase()}"`).join(', ')}]`);
 				const label = el.querySelector('.pal__name') as HTMLElement;
 				const prev = label.textContent;
-				label.textContent = 'copied!';
+				label.textContent = 'hex codes copied!';
 				setTimeout(() => (label.textContent = prev), 900);
 				// Tell the live preview (PalettePreview.astro) to restyle its charts.
-				const colors = Array.from(el.querySelectorAll<HTMLElement>('.pal__stop')).map(
-					(s) => s.style.background,
-				);
 				items.forEach((i) => i.classList.toggle('is-selected', i === el));
 				document.dispatchEvent(
 					new CustomEvent('ds-palette-select', {

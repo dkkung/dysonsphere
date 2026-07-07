@@ -238,7 +238,8 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
    widening it on the pane that contains these components is enough. */
 .main-pane:has(.landing),
 .main-pane:has(.st),
-.main-pane:has(.palpage) {
+.main-pane:has(.palpage),
+.main-pane:has(.cfg) {
   --sl-content-width: 72rem;
 }
 

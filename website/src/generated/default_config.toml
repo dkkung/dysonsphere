@@ -1,0 +1,32 @@
+# dysonsphere.toml
+# Theme configuration for dysonsphere.
+# Load a style with ds.theme(style="name").
+
+# Only the keys present in a section are applied - everything else uses
+# dysonsphere's built-in defaults. Unknown keys raise a ValueError immediately.
+
+# [default] applies to every ds.theme() call regardless of style.
+# Leave it empty or omit to use dysonsphere's built-in defaults unchanged,
+# or add keys to override the defaults, such as default palettes for range types.
+
+[default]
+
+# Built-in styles - edit values or remove sections you don't need.
+
+[notebook]
+chartWidth = 900
+chartHeight = 900
+darkmode = true
+fontSize = 18
+transparent = true
+
+# Custom styles - add your own style sections below
+
+[my_style]  # Rename to your desired style name
+
+# Custom palettes — lists of hex strings, available via ds.palette("name")
+# or ds.theme(palette="name"). dysonsphere palettes are typically 12 stops
+# for sequential palettes, and 13 stops for diverging palettes.
+
+[palettes]
+# my_palette = ["#DFE9F7", "#C6D9F1", "#ADC8EC", "#94B8E6", "#7AA8E0", "#6097DA", "#4D87CA", "#4177B1", "#386898", "#2F597F", "#264A69", "#1D3A58"]

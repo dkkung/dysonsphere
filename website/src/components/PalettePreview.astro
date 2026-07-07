@@ -109,7 +109,7 @@
 		const seedEl = document.querySelector<HTMLElement>(`.pal__item[data-name="${current.name}"]`);
 		if (seedEl && !current.colors.length) {
 			current.colors = Array.from(seedEl.querySelectorAll<HTMLElement>('.pal__stop')).map(
-				(s) => s.style.background,
+				(s) => s.dataset.color ?? '',
 			);
 		}
 		renderAll();
