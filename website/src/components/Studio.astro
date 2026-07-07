@@ -8,6 +8,11 @@
 //   - Code: a CodeMirror editor (the absorbed playground). "Edit as code" seeds it from the
 //     builder's current snippet; #code= deep links land here directly.
 //
+// "Import an export" takes a file saved by ds.save(): a Vega-Lite JSON rebuilds the chart via
+// ds.load() (seeded + run in the code editor, so the shown snippet is what executed); JSON,
+// SVG, and PNG all read their embedded dysonsphere block back via ds.read() into a metadata
+// panel (report + structured JSON).
+//
 // Uploaded data is written into the runtime's virtual filesystem under its real filename, so the
 // emitted `pl.read_csv("file.csv")` line runs verbatim - the shown code IS the executed code.
 import palettes from '../generated/palettes.json';
@@ -24,6 +29,18 @@ const paletteNames = palettes.map((p) => p.name);
 			</label>
 			<button id="st-sample" class="st__link" type="button">or load the sample dataset</button>
 			<p id="st-data-info" class="st__muted"></p>
+		</section>
+
+		<section class="st__group">
+			<h3>Import an export</h3>
+			<label class="st__file">
+				<input id="st-export-file" type="file" accept=".json,.svg,.png" />
+			</label>
+			<p class="st__muted">
+				Drop a file saved by <code>ds.save()</code>: a JSON rebuilds the chart via
+				<code>ds.load()</code>; JSON, SVG, and PNG all read their embedded metadata back
+				(shown below the chart).
+			</p>
 		</section>
 
 		<section class="st__group">
@@ -161,6 +178,18 @@ const paletteNames = palettes.map((p) => p.name);
 			</div>
 			<div id="st-chart" class="st__chart"></div>
 			<pre id="st-error" class="st__error" hidden></pre>
+		</div>
+		<div class="st__panel" id="st-meta-panel" hidden>
+			<div class="st__label">
+				<span id="st-meta-title">Export metadata</span>
+				<button id="st-meta-close" class="st__copy" type="button">Hide</button>
+			</div>
+			<div class="st__meta">
+				<h4>Report</h4>
+				<pre id="st-meta-report"></pre>
+				<h4>Structured block (<code>ds.read(path, what="metadata")</code>)</h4>
+				<pre id="st-meta-json"></pre>
+			</div>
 		</div>
 		<div class="st__panel">
 			<div class="st__label">
@@ -617,6 +646,7 @@ high,100,26.4,6`;
 
 		let renderTimer: number | undefined;
 		async function renderBuild() {
+			if (mode !== 'build') return; // a queued render must never clobber code-mode output
 			const code = buildCode();
 			codeEl.textContent = code;
 			syncPalettePreview();
@@ -657,11 +687,82 @@ high,100,26.4,6`;
 			}
 		}
 
+		// ------------------------------------------------------------------ export import
+
+		/** Last line of a Python traceback - the informative part for inline hints. */
+		const pyMessage = (e: unknown) =>
+			String((e as Error)?.message ?? e)
+				.trimEnd()
+				.split('\n')
+				.pop() ?? '';
+
+		function showMeta(name: string, meta: Record<string, unknown> | null, error?: string) {
+			el('st-meta-title').textContent = `Export metadata - ${name}`;
+			const report = meta?.report
+				? Object.values(meta.report as Record<string, string>).join('\n\n')
+				: '';
+			el('st-meta-report').textContent = report || error || '(no embedded report)';
+			el('st-meta-json').textContent = meta ? JSON.stringify(meta, null, 2) : '';
+			el('st-meta-panel').hidden = false;
+		}
+
+		// A file saved by ds.save(): a JSON spec rebuilds the chart through ds.load() (run in
+		// the code editor, so the shown snippet is exactly what executed); JSON, SVG, and PNG
+		// all surface their embedded dysonsphere block via ds.read().
+		async function importExport(file: File) {
+			const rt = runtime ?? (await getRuntime());
+			runtime = rt;
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			rt.writeFile(file.name, bytes);
+			clearError();
+			el('st-meta-panel').hidden = true;
+			const ext = file.name.split('.').pop()?.toLowerCase();
+			if (ext === 'json') {
+				let parsed: Record<string, unknown> | null = null;
+				try {
+					parsed = JSON.parse(new TextDecoder().decode(bytes));
+				} catch {
+					/* not JSON after all - fall through to the metadata attempt */
+				}
+				const isSpec =
+					parsed &&
+					!Array.isArray(parsed) &&
+					['$schema', 'mark', 'layer', 'encoding', 'vconcat', 'hconcat', 'concat'].some(
+						(k) => k in parsed,
+					);
+				if (isSpec) {
+					setMode(
+						'code',
+						[
+							'import dysonsphere as ds',
+							'',
+							'# Rebuild the exported chart: ds.load() re-applies the theme baked into the file.',
+							`chart = ds.load(${q(file.name)})`,
+						].join('\n'),
+					);
+					await runCode();
+				} else if (parsed) {
+					showError(
+						new Error(`${file.name} looks like a data table, not a chart export - use the Data upload above.`),
+					);
+					return;
+				}
+			}
+			try {
+				showMeta(file.name, JSON.parse(rt.readExport(file.name)));
+			} catch (e) {
+				showMeta(file.name, null, pyMessage(e));
+			}
+		}
+
 		// ------------------------------------------------------------------ wiring
 
 		root
 			.querySelectorAll('.st__controls select, .st__controls input, .st__controls textarea')
 			.forEach((node) => {
+				// The export importer runs its own async flow (and may switch to code mode) - a
+				// builder re-render here would race it and paint the old chart back over the result.
+				if ((node as HTMLElement).id === 'st-export-file') return;
 				node.addEventListener('change', () => {
 					if ((node as HTMLElement).id === 'st-x') syncXType();
 					syncVisibility();
@@ -681,6 +782,13 @@ high,100,26.4,6`;
 			file.text().then((text) => loadTable(text, file.name, format));
 		});
 		el('st-sample').addEventListener('click', () => loadTable(SAMPLE, 'sample.csv', 'csv'));
+		el('st-export-file').addEventListener('change', (ev) => {
+			const file = (ev.target as HTMLInputElement).files?.[0];
+			if (file) importExport(file);
+		});
+		el('st-meta-close').addEventListener('click', () => {
+			el('st-meta-panel').hidden = true;
+		});
 		el('st-copy').addEventListener('click', () => {
 			const text = mode === 'code' ? editor.state.doc.toString() : (codeEl.textContent ?? '');
 			navigator.clipboard?.writeText(text);
@@ -942,6 +1050,33 @@ high,100,26.4,6`;
 	:global(#st-editor .cm-gutters) {
 		font-family: var(--sl-font-mono) !important;
 		line-height: 1.5;
+	}
+	.st__meta {
+		padding: 0.75rem 1rem 1rem;
+	}
+	.st__meta h4 {
+		margin: 0.5rem 0 0.4rem;
+		font-size: 0.72rem;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+	}
+	.st__meta h4 code {
+		text-transform: none;
+		letter-spacing: 0;
+	}
+	.st__meta pre {
+		margin: 0 0 0.75rem;
+		padding: 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		background: var(--sl-color-bg);
+		font-family: var(--sl-font-mono);
+		font-size: 0.72rem;
+		line-height: 1.5;
+		overflow: auto;
+		max-height: 22rem;
 	}
 	.st__hint {
 		margin: 0;

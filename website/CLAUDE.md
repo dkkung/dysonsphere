@@ -69,6 +69,21 @@ dissolved 2026-07-06).
 - **Shared runtime.** Don't boot Pyodide directly; call `getRuntime()` from `src/lib/runtime.ts`.
   It's a singleton, so both studio modes share one boot. The Python bootstrap lives in
   `PY_BOOTSTRAP`; site render args are applied there, never in shown code.
+- **vl-convert has no wasm wheel - install dysonsphere `deps=False`.** dysonsphere >= 3.1.0
+  declares `vl-convert-python` (the `save()` renderer) as a runtime dependency; it ships no
+  emscripten wheel, so a plain `micropip.install("dysonsphere")` FAILS and the studio never boots
+  (this silently broke the live site when 3.1.0 published). `runtime.ts` installs the importable
+  deps explicitly (altair/numpy/polars/pyarrow/scipy/vega-datasets) then
+  `micropip.install("dysonsphere", deps=False)` - safe because `vl_convert` is imported lazily
+  only when `save()` renders, which the browser never does. Keep the explicit list in sync with
+  `[project] dependencies` in the root pyproject.
+- **Studio export import.** The "Import an export" group takes a `ds.save()` file: a Vega-Lite
+  JSON rebuilds the chart via `ds.load()` (seeded + auto-run in the code editor, so shown code =
+  executed code); JSON/SVG/PNG all read their embedded block via `ds.read(what="metadata")`
+  (`_read_export` in runtime.ts) into a metadata panel (report + structured JSON). Uploads land
+  in the Pyodide FS via `writeFile` (binary-safe - PNG works). The export file input is excluded
+  from the generic builder-rerender wiring AND `renderBuild` guards on mode, so the async import
+  can't be clobbered by a queued sample render (that race shipped briefly during development).
 - **Chart Studio codegen.** `Studio.astro` has two modes over one chart panel: a **builder** whose
   emitted snippet reads the upload with `pl.read_csv("file.csv")` (copy-runnable AND executed
   verbatim, since the upload is in the runtime's virtual FS under that name), and a **code editor**
