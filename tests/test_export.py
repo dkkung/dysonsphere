@@ -813,8 +813,7 @@ class TestItalicizeStatSymbols:
 
     def test_ns_label_stays_upright(self):
         # "ns" is an abbreviation (not significant), not a symbol - multi-letter
-        # abbreviations stay upright (the whole-label italic shipped in 3.4.0/3.4.1 was
-        # an APA-ism, dropped in 3.4.2)
+        # abbreviations stay upright
         for label in ("ns", "delay of 10 ns"):
             root = self._root_with_text(label)
             _italicize_stat_symbols(root)
