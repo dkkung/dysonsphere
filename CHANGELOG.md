@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [3.4.2] - 2026-07-07
+
+### Fixes
+
+- **The asterisks-style `ns` bracket label is upright again.** 3.4.0 set the whole `ns` label in italic alongside the statistical symbols, but `ns` is an abbreviation ("not significant"), not a symbol - scientific typesetting italicizes single-letter symbols only, and multi-letter abbreviations stay upright (also how Prism and ggsignif render it). The pattern-matched single-letter symbols are unchanged.
+
 ## [3.4.1] - 2026-07-07
 
 ### Changes
