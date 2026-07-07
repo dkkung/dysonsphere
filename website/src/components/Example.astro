@@ -13,8 +13,10 @@ interface Props {
 	chartOnly?: boolean;
 	/** Short note under the chart (what it is / the calls that made it) - for gallery pages. */
 	caption?: string;
+	/** Apply the save()-time inward-ticks SVG fix (theme(inwardTicks=True) charts). */
+	inwardTicks?: boolean;
 }
-const { name, alt, chartOnly = false, caption } = Astro.props;
+const { name, alt, chartOnly = false, caption, inwardTicks = false } = Astro.props;
 
 const sources = import.meta.glob('../../examples/*.py', {
 	query: '?raw',
@@ -35,7 +37,7 @@ const studioHref = `${import.meta.env.BASE_URL}studio/#code=${encodeURIComponent
 <div class="example">
 	{!chartOnly && <Code lang="python" code={code} />}
 	<div class="example__row">
-		<Chart name={name} alt={alt ?? `dysonsphere example: ${name}`} />
+		<Chart name={name} alt={alt ?? `dysonsphere example: ${name}`} inwardTicks={inwardTicks} />
 	</div>
 	{caption && <p class="example__caption" set:html={caption} />}
 	<div class="example__actions">

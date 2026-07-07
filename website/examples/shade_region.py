@@ -4,7 +4,7 @@ from vega_datasets import data
 
 ds.theme()
 
-cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
+cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
 
 scatter = alt.Chart(cars).mark_point().encode(
     x=alt.X("Horsepower:Q"),
@@ -13,7 +13,7 @@ scatter = alt.Chart(cars).mark_point().encode(
 
 # axis="both" with a nested ((x_start, x_end), (y_start, y_end)) tuple shades a 2D region -
 # an intersection rectangle spanning both axes. Drawn under the points with +.
-chart = ds.add_shade(
+chart = ds.add_shade(palette=[ds.colors["blues"][0]], 
     positions=[((40, 100), (28, 48))],
     axis="both",
     opacity=0.5,

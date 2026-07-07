@@ -3,7 +3,7 @@ from vega_datasets import data
 
 ds.theme()
 
-cars = data.cars().dropna(subset=["Horsepower"])
+cars = ds.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
 origins = ["Europe", "Japan", "USA"]
 
 # Scientific notation for small p-values, 2 significant figures.

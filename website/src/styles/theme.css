@@ -151,6 +151,12 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   [data-ds-sidebar='collapsed'] #starlight__sidebar {
     visibility: hidden;
   }
+  /* Starlight reuses --sl-sidebar-width inside the RIGHT sidebar container's width formula,
+     so zeroing it also collapsed the "On this page" TOC - restore that formula with the
+     original width. (Keep in sync with Starlight's default --sl-sidebar-width: 18.75rem.) */
+  [data-ds-sidebar='collapsed'] .right-sidebar-container {
+    width: max(18.75rem, calc(18.75rem + (100% - var(--sl-content-width) - 18.75rem) / 2));
+  }
 }
 
 /* CodeMirror editors (studio builder view + editor, config generator): retint the GitHub
@@ -339,6 +345,31 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   text-align: center;
   max-width: 40rem;
   margin: 0;
+}
+
+/* Before/after comparisons (theming guide): the two charts stack vertically, size-matched by
+   Chart.astro's fitWidth auto-zoom to the shared cell width. */
+.ba {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  justify-items: center;
+  margin: 1rem 0 2rem;
+}
+.ba__cell {
+  margin: 0;
+  text-align: center;
+  width: min(100%, 32rem);
+  min-width: 0;
+  overflow: hidden;
+}
+.ba__cell figcaption {
+  font-size: 0.8rem;
+  color: var(--sl-color-gray-3);
+}
+.ba__cell figcaption code {
+  font-family: var(--sl-font-mono);
+  font-size: 0.72rem;
 }
 
 /* --------------------------------------------------------------------- logo */

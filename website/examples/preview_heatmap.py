@@ -2,9 +2,9 @@ import altair as alt
 import dysonsphere as ds
 from vega_datasets import data
 
-ds.theme(chartWidth=120)
+ds.theme(chartWidth=120, xLabelAngle=-45)
 
-cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
+cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
 
 chart = (
     alt.Chart(cars)

@@ -3,11 +3,57 @@ title: Theming
 description: Register the dysonsphere theme, switch palettes, and tune every publication default.
 ---
 
+import { Code } from '@astrojs/starlight/components';
 import Example from '../../../components/Example.astro';
+import Chart from '../../../components/Chart.astro';
+import afterSource from '../../../../examples/theme_after.py?raw';
+import darkSource from '../../../../examples/darkmode_dark.py?raw';
 
 `ds.theme()` registers a global Altair theme, so every chart you build afterwards inherits
 perceptually uniform palettes and publication-ready styling. Call it once; override per chart with
 ordinary Altair encodings. Calling it again replaces the theme entirely.
+
+## Before and after
+
+The same Altair code, with exactly one line added - `ds.theme()`:
+
+<Code code={afterSource.trimEnd()} lang="python" />
+
+<div class="ba not-content">
+	<figure class="ba__cell">
+		<Chart name="theme_before" alt="Scatter of horsepower versus fuel economy, Altair default theme" fitWidth />
+		<figcaption>Altair's default theme</figcaption>
+	</figure>
+	<figure class="ba__cell">
+		<Chart name="theme_after" alt="The same scatter after ds.theme()" fitWidth />
+		<figcaption>after <code>ds.theme()</code></figcaption>
+	</figure>
+</div>
+
+## Dark mode
+
+Dark-background figures keep getting more common: notebooks render inline charts against the
+dark editor themes most IDEs default to, and dark or black slide backgrounds are increasingly
+the norm in scientific and industrial presentations alike. `ds.theme(darkmode=True)` inverts the
+axis, label, and text ink while keeping palette colors intact - one flag, same chart code:
+
+<Code code={darkSource.trimEnd()} lang="python" />
+
+<div class="ba not-content">
+	<figure class="ba__cell">
+		<Chart name="darkmode_light" alt="Scatter on a white chartFill background, default light ink" fitWidth />
+		<figcaption>default ink, white <code>chartFill</code></figcaption>
+	</figure>
+	<figure class="ba__cell">
+		<Chart name="darkmode_dark" alt="The same scatter with darkmode=True on a black chartFill background" fitWidth />
+		<figcaption>after <code>darkmode=True</code> - black <code>chartFill</code></figcaption>
+	</figure>
+</div>
+
+These two pin `transparent=False`, so each bakes its own contrasting `chartFill` background
+(auto: white, black in darkmode). Ordinarily dysonsphere draws transparent instead, letting the
+page or slide provide the ground - every chart on this site swaps ink with the site's light/dark
+toggle, which is this same `darkmode` flag at work.
 
 ## Palettes
 
@@ -42,10 +88,11 @@ order; `ds.create_config()` scaffolds a starter file.
 
 ## Frame and grid
 
-`closed=True` draws a full frame (all four spines); `grid=True` adds grid lines (solid by
-default - `dashedGrid=True` dashes them).
+`closed=True` draws a full frame around the plot (all four spines):
 
 <Example name="closed_frame" alt="Scatter plot with a closed frame" />
+
+`grid=True` adds grid lines - solid by default; `dashedGrid=True` dashes them:
 
 <Example name="grid_lines" alt="Line chart with grid lines" />
 
@@ -68,14 +115,7 @@ so crowded categories stay legible.
 `inwardTicks=True` points tick marks into the plot area (physics-journal style) and defaults the
 frame to closed:
 
-<Example name="inward_ticks" alt="Scatter plot with inward-pointing tick marks" />
-
-## Dark mode
-
-dysonsphere draws on a transparent background and adapts with `ds.theme(darkmode=True)`, which
-inverts the axis and text ink to white while leaving palette colors intact. Every chart on this
-site switches automatically when you toggle the site's light/dark theme - that is the same
-`darkmode` flag at work.
+<Example name="inward_ticks" alt="Scatter plot with inward-pointing tick marks" inwardTicks />
 
 ## More knobs
 

@@ -2,7 +2,7 @@
 title: "Reading exports"
 description: "Read embedded metadata, statistics, reports, and data back out of exports."
 sidebar:
-  order: 11
+  order: 9
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

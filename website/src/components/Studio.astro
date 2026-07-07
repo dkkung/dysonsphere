@@ -17,7 +17,11 @@
 // emitted `pl.read_csv("file.csv")` line runs verbatim - the shown code IS the executed code.
 import palettes from '../generated/palettes.json';
 
-const paletteNames = palettes.map((p) => p.name);
+const paletteGroups = [
+	{ label: 'Sequential', kind: 'sequential' },
+	{ label: 'Diverging', kind: 'diverging' },
+	{ label: 'Qualitative', kind: 'qualitative' },
+].map((g) => ({ ...g, names: palettes.filter((p) => p.kind === g.kind).map((p) => p.name) }));
 ---
 
 <div id="studio" class="st not-content">
@@ -27,7 +31,16 @@ const paletteNames = palettes.map((p) => p.name);
 			<label class="st__file">
 				<input id="st-file" type="file" accept=".csv,.tsv,.json,.txt" />
 			</label>
-			<button id="st-sample" class="st__link" type="button">or load the sample dataset</button>
+			<label>Or a sample dataset
+				<select id="st-dataset">
+					<option value="cars">cars</option>
+					<option value="sample">dose-response (synthetic)</option>
+					<option value="iris">iris</option>
+					<option value="barley">barley</option>
+					<option value="stocks">stocks</option>
+					<option value="seattle_weather">seattle_weather</option>
+				</select>
+			</label>
 			<p id="st-data-info" class="st__muted"></p>
 		</section>
 
@@ -145,16 +158,40 @@ const paletteNames = palettes.map((p) => p.name);
 			<h3>Annotations</h3>
 			<label>Reference line (y) <input id="st-rule" type="number" step="any" placeholder="(none)" /></label>
 			<label id="st-rule-label-wrap">Line label <input id="st-rule-label" type="text" placeholder="(none)" /></label>
+			<label>Text annotation <input id="st-text" type="text" placeholder="(none)" /></label>
+			<label id="st-text-pos-wrap">Text position
+				<select id="st-text-pos">
+					<option value="topLeft">Top left</option>
+					<option value="topCenter">Top center</option>
+					<option value="topRight">Top right</option>
+					<option value="middleLeft">Middle left</option>
+					<option value="middleCenter">Middle center</option>
+					<option value="middleRight">Middle right</option>
+					<option value="bottomLeft">Bottom left</option>
+					<option value="bottomCenter">Bottom center</option>
+					<option value="bottomRight">Bottom right</option>
+				</select>
+			</label>
+			<div class="st__dims">
+				<label>Shade y from <input id="st-shade-lo" type="number" step="any" placeholder="(none)" /></label>
+				<label>to <input id="st-shade-hi" type="number" step="any" placeholder="(none)" /></label>
+			</div>
 			<label class="st__check" id="st-shade-wrap"><input id="st-shade" type="checkbox" /> Shade alternating bands</label>
 		</section>
 
 		<section class="st__group">
 			<h3>Theme</h3>
 			<label>Palette
-				<input id="st-palette" list="st-palette-list" placeholder="(default)" />
-				<datalist id="st-palette-list">
-					{paletteNames.map((n) => <option value={n} />)}
-				</datalist>
+				<select id="st-palette">
+					<option value="">(default)</option>
+					{paletteGroups.map((g) => (
+						<optgroup label={g.label}>
+							{g.names.map((n) => (
+								<option value={n}>{n}</option>
+							))}
+						</optgroup>
+					))}
+				</select>
 				<span id="st-palette-preview" class="st__swatch" aria-hidden="true"></span>
 			</label>
 			<div class="st__dims">
@@ -164,6 +201,7 @@ const paletteNames = palettes.map((p) => p.name);
 			<label>Axis offset <input id="st-axisoffset" type="number" min="0" max="20" step="0.5" placeholder="auto" /></label>
 			<label>X label angle <input id="st-xangle" type="number" min="-90" max="90" step="15" value="0" /></label>
 			<div class="st__toggles">
+				<label class="st__check"><input id="st-legend" type="checkbox" checked /> Legend</label>
 				<label class="st__check"><input id="st-closed" type="checkbox" /> Closed frame</label>
 				<label class="st__check"><input id="st-grid" type="checkbox" /> Grid lines</label>
 				<label class="st__check"><input id="st-corner" type="checkbox" /> Rounded marks</label>
@@ -455,6 +493,8 @@ high,100,26.4,6`;
 			el('st-shade-wrap').style.display = categorical ? '' : 'none';
 			el('st-rule-label-wrap').style.display =
 				el<HTMLInputElement>('st-rule').value.trim() !== '' ? '' : 'none';
+			el('st-text-pos-wrap').style.display =
+				el<HTMLInputElement>('st-text').value.trim() !== '' ? '' : 'none';
 		}
 
 		// ------------------------------------------------------------------ code generation
@@ -483,6 +523,10 @@ high,100,26.4,6`;
 			const x = el<HTMLSelectElement>('st-x').value;
 			const y = el<HTMLSelectElement>('st-y').value;
 			const color = el<HTMLSelectElement>('st-color').value;
+			// A quantitative color must encode :Q (a gradient legend) - :N would explode every
+			// distinct value into its own nominal legend symbol.
+			const colorKind = columns.find((c) => c.name === color)?.kind;
+			const colorType = colorKind === 'quantitative' ? 'Q' : colorKind === 'temporal' ? 'T' : 'N';
 			const xtype = el<HTMLSelectElement>('st-xtype').value;
 			const transform = el<HTMLSelectElement>('st-transform').value;
 			const categorical = isCategorical();
@@ -490,7 +534,7 @@ high,100,26.4,6`;
 
 			// theme args
 			const t: string[] = [];
-			const pal = el<HTMLInputElement>('st-palette').value.trim();
+			const pal = el<HTMLSelectElement>('st-palette').value;
 			if (pal) t.push(`palette=${q(pal)}`);
 			const w = +el<HTMLInputElement>('st-w').value;
 			const h = +el<HTMLInputElement>('st-h').value;
@@ -500,6 +544,7 @@ high,100,26.4,6`;
 			if (axisOffset !== '') t.push(`axisOffset=${+axisOffset}`);
 			const xangle = +el<HTMLInputElement>('st-xangle').value;
 			if (xangle !== 0) t.push(`xLabelAngle=${xangle}`);
+			if (!el<HTMLInputElement>('st-legend').checked) t.push('legend=False');
 			if (el<HTMLInputElement>('st-closed').checked) t.push('closed=True');
 			if (el<HTMLInputElement>('st-grid').checked) t.push('grid=True');
 			if (el<HTMLInputElement>('st-corner').checked) t.push('cornerRadius=True');
@@ -554,7 +599,7 @@ high,100,26.4,6`;
 					`        y=alt.Y("${y}:Q"),`,
 					`        xOffset=alt.XOffset("${off}:Q"),`,
 				];
-				if (color) enc.push(`        color=alt.Color("${color}:N", legend=None),`);
+				if (color) enc.push(`        color=alt.Color("${color}:${colorType}"),`);
 				body.push(
 					call,
 					`chart = (`,
@@ -573,17 +618,27 @@ high,100,26.4,6`;
 					boxplot: 'mark_boxplot',
 				};
 				const yt = type === 'bar' ? `mean(${y})` : y;
+				// A layered correlation's fit line carries private _x/_y fields; without explicit
+				// base titles Vega-Lite CONCATENATES them into the shared axis titles (", _x").
+				const wantsCorrelation =
+					type === 'point' && xtype === 'Q' && el<HTMLSelectElement>('st-correlation').value !== '';
+				const titled = (col: string) => (wantsCorrelation ? `, title=${q(col)}` : '');
 				const enc = [
-					`        x=alt.X("${x}:${type === 'boxplot' ? 'N' : xtype}"),`,
-					`        y=alt.Y("${yt}:Q"),`,
+					`        x=alt.X("${x}:${type === 'boxplot' ? 'N' : xtype}"${titled(x)}),`,
+					`        y=alt.Y("${yt}:Q"${titled(y)}),`,
 				];
-				if (color && type !== 'boxplot') enc.push(`        color=alt.Color("${color}:N", legend=None),`);
+				if (color && type !== 'boxplot') enc.push(`        color=alt.Color("${color}:${colorType}"),`);
 				body.push(`chart = (`, `    alt.Chart(df)`, `    .${marks[type]}()`, `    .encode(`, ...enc, `    )`, `)`);
 			}
 
-			// Layers compose with + : shade under, statistics/rules over, multilabel wraps.
+			// Layers compose with + : shade under, statistics/rules/text over, multilabel wraps.
 			if (categorical && el<HTMLInputElement>('st-shade').checked) {
 				body.push('', `chart = ds.add_shade(categories=categories) + chart`);
+			}
+			const shadeLo = el<HTMLInputElement>('st-shade-lo').value.trim();
+			const shadeHi = el<HTMLInputElement>('st-shade-hi').value.trim();
+			if (shadeLo !== '' && shadeHi !== '') {
+				body.push('', `chart = ds.add_shade(positions=[(${+shadeLo}, ${+shadeHi})], axis="y") + chart`);
 			}
 
 			if (type === 'point' && xtype === 'Q') {
@@ -614,6 +669,12 @@ high,100,26.4,6`;
 				body.push('', `chart = chart + ds.add_rule(${+rule}${labelArg})`);
 			}
 
+			const textNote = el<HTMLInputElement>('st-text').value.trim();
+			if (textNote !== '') {
+				const pos = el<HTMLSelectElement>('st-text-pos').value;
+				body.push('', `chart = chart + ds.add_text(${q(textNote)}, position=${q(pos)})`);
+			}
+
 			if (categorical && el<HTMLInputElement>('st-multilabel').checked) {
 				const rows = parseRows();
 				const opts: string[] = [];
@@ -637,7 +698,7 @@ high,100,26.4,6`;
 		// ------------------------------------------------------------------ rendering
 
 		function syncPalettePreview() {
-			const name = el<HTMLInputElement>('st-palette').value.trim();
+			const name = el<HTMLSelectElement>('st-palette').value;
 			const colors = PALETTE_COLORS[name];
 			const preview = el('st-palette-preview');
 			preview.innerHTML = '';
@@ -649,6 +710,22 @@ high,100,26.4,6`;
 			}
 		}
 
+		// Fit the render to the panel: the site-wide 3.5x chart zoom overflows once a legend
+		// or a wide canvas grows the chart - cap the zoom so the whole figure stays in view.
+		function fitChartZoom() {
+			const svg = chartEl.querySelector('svg');
+			const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
+			if (natural <= 0) return;
+			// Measure the PARENT panel: the chart div itself is (re)classed .vega-embed and can
+			// shrink-wrap its zoomed content, so its own size follows the thing being fitted.
+			const panel = chartEl.parentElement?.getBoundingClientRect().width ?? 0;
+			const avail = panel - 34; // chart padding + panel border
+			if (avail <= 0) return;
+			const z = Math.min(3.5, Math.max(1, avail / natural));
+			chartEl.style.setProperty('--ds-chart-zoom', z.toFixed(3));
+		}
+		new ResizeObserver(() => fitChartZoom()).observe(chartEl);
+
 		async function renderSpec(code: string) {
 			if (!runtime) return;
 			setStatus('Rendering…');
@@ -656,6 +733,7 @@ high,100,26.4,6`;
 				const spec = JSON.parse(runtime.runChart(code, isDark()));
 				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
 				fixSuperscripts(chartEl);
+				fitChartZoom();
 				clearError();
 				setStatus('', 'ok');
 			} catch (e) {
@@ -687,20 +765,24 @@ high,100,26.4,6`;
 			else runCode();
 		}
 
-		async function loadTable(text: string, name: string, format: 'csv' | 'tsv' | 'json') {
-			if (!runtime) return;
+		function applySchema(infoJson: string, name: string, format: 'csv' | 'tsv' | 'json') {
+			const info = JSON.parse(infoJson);
 			fileName = name;
 			fileFormat = format;
+			columns = info.columns;
+			dataInfo.textContent = `${name} · ${info.rows} rows · ${columns.length} columns`;
+			fillSelect('st-x');
+			fillSelect('st-y', false, 'quantitative'); // Y is always the measured value
+			fillSelect('st-color', true);
+			seedEncodings();
+			syncVisibility();
+			if (mode === 'build') renderBuild();
+		}
+
+		async function loadTable(text: string, name: string, format: 'csv' | 'tsv' | 'json') {
+			if (!runtime) return;
 			try {
-				const info = JSON.parse(runtime.loadTable(name, text, format));
-				columns = info.columns;
-				dataInfo.textContent = `${name} · ${info.rows} rows · ${columns.length} columns`;
-				fillSelect('st-x');
-				fillSelect('st-y', false, 'quantitative'); // Y is always the measured value
-				fillSelect('st-color', true);
-				seedEncodings();
-				syncVisibility();
-				if (mode === 'build') renderBuild();
+				applySchema(runtime.loadTable(name, text, format), name, format);
 			} catch (e) {
 				dataInfo.textContent = 'Could not parse that file.';
 				showError(e);
@@ -781,9 +863,9 @@ high,100,26.4,6`;
 		root
 			.querySelectorAll('.st__controls select, .st__controls input, .st__controls textarea')
 			.forEach((node) => {
-				// The export importer runs its own async flow (and may switch to code mode) - a
-				// builder re-render here would race it and paint the old chart back over the result.
-				if ((node as HTMLElement).id === 'st-export-file') return;
+				// The export importer and the dataset loader run their own async flows - a builder
+				// re-render here would race them and paint the old chart back over the result.
+				if (['st-export-file', 'st-dataset'].includes((node as HTMLElement).id)) return;
 				node.addEventListener('change', () => {
 					if ((node as HTMLElement).id === 'st-x') syncXType();
 					syncVisibility();
@@ -802,7 +884,20 @@ high,100,26.4,6`;
 			const format = (ext === 'json' ? 'json' : ext === 'tsv' ? 'tsv' : 'csv') as 'csv' | 'tsv' | 'json';
 			file.text().then((text) => loadTable(text, file.name, format));
 		});
-		el('st-sample').addEventListener('click', () => loadTable(SAMPLE, 'sample.csv', 'csv'));
+		el('st-dataset').addEventListener('change', async () => {
+			const name = el<HTMLSelectElement>('st-dataset').value;
+			if (!name) return;
+			if (name === 'sample') return loadTable(SAMPLE, 'sample.csv', 'csv');
+			const rt = runtime ?? (await getRuntime());
+			runtime = rt;
+			try {
+				applySchema(rt.loadDataset(name), `${name}.csv`, 'csv');
+			} catch (e) {
+				dataInfo.textContent = `Could not load ${name}.`;
+				showError(e);
+				console.error(e);
+			}
+		});
 		el('st-export-file').addEventListener('change', (ev) => {
 			const file = (ev.target as HTMLInputElement).files?.[0];
 			if (file) importExport(file);
@@ -851,7 +946,17 @@ high,100,26.4,6`;
 		getRuntime()
 			.then(async (rt) => {
 				runtime = rt;
-				await loadTable(SAMPLE, 'sample.csv', 'csv');
+				// Default working set: the classic cars dataset as a weight-vs-economy scatter.
+				applySchema(rt.loadDataset('cars'), 'cars.csv', 'csv');
+				const setSel = (id: string, v: string) => {
+					const sel = el<HTMLSelectElement>(id);
+					if ([...sel.options].some((o) => o.value === v)) sel.value = v;
+				};
+				setSel('st-x', 'Miles_per_Gallon');
+				setSel('st-y', 'Weight_in_lbs');
+				syncXType();
+				syncVisibility();
+				if (mode === 'build') renderBuild();
 				if (mode === 'code') await runCode();
 			})
 			.catch((e) => {
@@ -868,10 +973,26 @@ high,100,26.4,6`;
 <style>
 	.st {
 		display: grid;
-		grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+		grid-template-columns: minmax(30rem, 36rem) minmax(0, 1fr);
 		gap: 1.25rem;
 		margin-top: 1.5rem;
 		align-items: start;
+	}
+	/* Two control columns fill the space beside the output; groups never split. */
+	.st__controls {
+		columns: 2;
+		column-gap: 1rem;
+	}
+	.st__group {
+		break-inside: avoid;
+	}
+	@media (max-width: 1250px) {
+		.st {
+			grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+		}
+		.st__controls {
+			columns: 1;
+		}
 	}
 	@media (max-width: 950px) {
 		.st {
@@ -984,11 +1105,19 @@ high,100,26.4,6`;
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+		/* Stay inside the grid track: without this, a wide (zoomed) chart inflates the item
+		   past its column (min-width:auto), the panel clips it, and the fit-zoom measures the
+		   inflated width - so the cap never engages. */
+		min-width: 0;
 	}
 	.st__panel {
 		border: 1px solid var(--sl-color-gray-5);
 		border-radius: 0.65rem;
 		overflow: hidden;
+		/* Same track-containment as .st__output: a flex item's min-width:auto floors its
+		   stretched width at the (zoomed) content's min-content size. */
+		min-width: 0;
+		max-width: 100%;
 	}
 	.st__label {
 		display: flex;
@@ -1017,6 +1146,15 @@ high,100,26.4,6`;
 		justify-content: center;
 		align-items: center;
 		overflow: auto;
+	}
+	/* vega-embed tags the chart div itself with .vega-embed { display: inline-block } at
+	   runtime; the scoped rule above compiles to a zero-specificity :where() and loses the
+	   tie, letting the div shrink-wrap its ZOOMED content and overflow the panel. An id
+	   selector outranks it. */
+	:global(#st-chart) {
+		display: flex !important;
+		width: 100%;
+		max-width: 100%;
 	}
 	.st__error {
 		margin: 0;

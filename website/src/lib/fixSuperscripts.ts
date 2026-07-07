@@ -54,3 +54,18 @@ export function fixSuperscripts(root: ParentNode): void {
 		}
 	}
 }
+
+/**
+ * Client-side port of `export._flip_ticks_inward()`: negate the non-zero `x2`/`y2` of every
+ * axis-tick line so ticks point INTO the plot. Like the superscript fixer, the library applies
+ * this only at save() time; the site opts in per chart (theming's inwardTicks example) since
+ * the rendered spec carries no flag for it.
+ */
+export function flipTicksInward(root: ParentNode): void {
+	for (const line of root.querySelectorAll('svg g[class*="role-axis-tick"] line')) {
+		const x2 = parseFloat(line.getAttribute('x2') ?? '0');
+		const y2 = parseFloat(line.getAttribute('y2') ?? '0');
+		if (x2 !== 0) line.setAttribute('x2', String(-x2));
+		else if (y2 !== 0) line.setAttribute('y2', String(-y2));
+	}
+}

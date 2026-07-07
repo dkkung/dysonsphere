@@ -4,7 +4,7 @@ from vega_datasets import data
 
 # cornerRadius=True rounds bar tips (and rects/arcs) by a size derived from the
 # chart dimensions; pass a float for explicit pixels.
-ds.theme(palette="blues", cornerRadius=True)
+ds.theme(palette="blues", xLabelAngle=-45, cornerRadius=True)
 
 barley = data.barley()
 

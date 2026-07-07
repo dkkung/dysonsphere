@@ -4,7 +4,7 @@ from vega_datasets import data
 
 ds.theme()
 
-cars = data.cars().dropna(subset=["Horsepower", "Weight_in_lbs"])
+cars = ds.ensure_polars(data.cars()).drop_nulls(["Horsepower", "Weight_in_lbs"])
 
 majors = [0, 1000, 2000, 3000, 4000, 5000]
 line = alt.Chart(cars).mark_point().encode(

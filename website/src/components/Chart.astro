@@ -6,17 +6,29 @@
 interface Props {
 	name: string;
 	alt?: string;
+	/** Apply the save()-time inward-ticks SVG fix (theme(inwardTicks=True) charts). */
+	inwardTicks?: boolean;
+	/** Auto-zoom the render to fill its container's width (for size-matched comparisons). */
+	fitWidth?: boolean;
 }
-const { name, alt = 'dysonsphere chart' } = Astro.props;
+const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false } = Astro.props;
 ---
 
 <figure class="ds-chart">
-	<div class="ds-chart__view" data-chart={name} role="img" aria-label={alt}></div>
+	<div
+		class="ds-chart__view"
+		data-chart={name}
+		data-inward={inwardTicks ? '1' : undefined}
+		data-fit={fitWidth ? '1' : undefined}
+		role="img"
+		aria-label={alt}
+	>
+	</div>
 </figure>
 
 <script>
 	import vegaEmbed from 'vega-embed';
-	import { fixSuperscripts } from '../lib/fixSuperscripts';
+	import { fixSuperscripts, flipTicksInward } from '../lib/fixSuperscripts';
 
 	const BASE = import.meta.env.BASE_URL;
 	const views = new WeakMap<HTMLElement, { finalize: () => void }>();
@@ -29,8 +41,31 @@ const { name, alt = 'dysonsphere chart' } = Astro.props;
 			const spec = await (await fetch(`${BASE}charts/${name}-${theme}.json`)).json();
 			views.get(el)?.finalize();
 			el.innerHTML = '';
-			views.set(el, await vegaEmbed(el, spec, { actions: true, renderer: 'svg', background: 'transparent' }));
+			// A spec that bakes its own background (chartFill comparisons, the default-theme
+			// example) keeps it; everything else renders transparent so the page shows through.
+			const opaque = Boolean(spec.background ?? spec.config?.background);
+			views.set(
+				el,
+				await vegaEmbed(el, spec, {
+					actions: true,
+					renderer: 'svg',
+					...(opaque ? {} : { background: 'transparent' }),
+				}),
+			);
 			fixSuperscripts(el);
+			if (el.dataset.inward) flipTicksInward(el);
+			if (el.dataset.fit) {
+				// Chart.astro embeds with actions:true, so the .chart-wrapper exists and the
+				// site-wide zoom rule reads the variable - override it with the computed fit.
+				// Measure the block-level <figure>, NOT the embed container: vega-embed sizes
+				// the container to its (already-zoomed) content, which would feed back.
+				const svg = el.querySelector('svg');
+				const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
+				const avail = el.closest('figure')?.clientWidth ?? 0;
+				if (natural > 0 && avail > 0) {
+					el.style.setProperty('--ds-chart-zoom', (avail / natural).toFixed(3));
+				}
+			}
 		} catch (e) {
 			el.textContent = 'Failed to load chart.';
 			console.error(e);

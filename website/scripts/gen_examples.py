@@ -38,8 +38,40 @@ OUT = Path("website/public/charts")
 _real_theme = ds.theme
 
 
+# Examples whose stem is listed here render with Altair's DEFAULT theme (no dysonsphere
+# baseline) - the "before" half of before/after comparisons. Their spec gets an explicit
+# white background so the default look stays readable on the site's dark pages.
+PLAIN_EXAMPLES = {"theme_before"}
+
+# Examples whose theme() args must NOT be overridden by the site's darkmode/transparent
+# injection - fixed light/dark comparisons that bake their own chartFill background and
+# render identically in both site themes.
+PINNED_EXAMPLES = {"darkmode_light", "darkmode_dark"}
+
+
 def build(path: Path, dark: bool) -> dict:
     """Execute one example file and return the chart's Vega-Lite spec dict."""
+
+    if path.stem in PINNED_EXAMPLES:
+        ns: dict = {}
+        exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), ns)
+        chart = ns.get("chart")
+        if chart is None:
+            raise SystemExit(f"{path}: does not define a variable named 'chart'")
+        spec = chart.to_dict()
+        ds.clear_stats()
+        return spec
+
+    if path.stem in PLAIN_EXAMPLES:
+        alt.theme.enable("default")
+        ns: dict = {}
+        exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), ns)
+        chart = ns.get("chart")
+        if chart is None:
+            raise SystemExit(f"{path}: does not define a variable named 'chart'")
+        spec = chart.to_dict()
+        spec["background"] = "white"
+        return spec
 
     @functools.wraps(_real_theme)
     def patched_theme(*args, **kwargs):
