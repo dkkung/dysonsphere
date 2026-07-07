@@ -104,6 +104,15 @@ dissolved 2026-07-06).
   `pl.read_csv("cars.csv")` runs verbatim. Controls flow in TWO CSS columns beside the output on
   wide screens (`columns: 2`, groups `break-inside: avoid`); the dataset select is excluded from
   the generic rerender wiring like the export input (same async race).
+- **Plain (unthemed) examples.** Example stems listed in `PLAIN_EXAMPLES` (gen_examples.py)
+  render with Altair's DEFAULT theme + an explicit white spec background (readable on dark
+  pages) - the "before" half of the theming guide's before/after comparison (`theme_before` /
+  `theme_after`, shown side by side via the `.ba` grid in theme.css with per-side zooms, since
+  the default chart is ~4x larger natively).
+- **Inward ticks are flipped client-side per chart.** `flipTicksInward` (fixSuperscripts.ts)
+  ports `export._flip_ticks_inward`; the rendered spec carries no flag, so the page opts in via
+  `<Example inwardTicks />` -> Chart.astro `data-inward`. Only the theming guide's example uses
+  it.
 - **Superscript exponents are re-typeset client-side.** The library's `_fix_superscript_labels`
   runs only in `save()`, never in the browser - so live charts rendered mixed-metric Unicode
   superscripts (`P = 5.03×10⁻¹⁷`). `src/lib/fixSuperscripts.ts` ports the fixer to the rendered

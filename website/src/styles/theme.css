@@ -341,6 +341,34 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   margin: 0;
 }
 
+/* Before/after ds.theme() comparison (theming guide): two charts side by side; each side sets
+   its own chart zoom because the default-Altair chart is already ~4x larger natively. */
+.ba {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+  align-items: center;
+  margin: 1rem 0 2rem;
+}
+.ba__cell {
+  margin: 0;
+  text-align: center;
+}
+.ba__cell--before {
+  --ds-chart-zoom: 1.05;
+}
+.ba__cell--after {
+  --ds-chart-zoom: 1.8;
+}
+.ba__cell figcaption {
+  font-size: 0.8rem;
+  color: var(--sl-color-gray-3);
+}
+.ba__cell figcaption code {
+  font-family: var(--sl-font-mono);
+  font-size: 0.72rem;
+}
+
 /* --------------------------------------------------------------------- logo */
 
 /* Header logo. Starlight scales the logo down to the nav height by default, which is tiny for our

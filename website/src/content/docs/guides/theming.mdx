@@ -3,11 +3,31 @@ title: Theming
 description: Register the dysonsphere theme, switch palettes, and tune every publication default.
 ---
 
+import { Code } from '@astrojs/starlight/components';
 import Example from '../../../components/Example.astro';
+import Chart from '../../../components/Chart.astro';
+import afterSource from '../../../../examples/theme_after.py?raw';
 
 `ds.theme()` registers a global Altair theme, so every chart you build afterwards inherits
 perceptually uniform palettes and publication-ready styling. Call it once; override per chart with
 ordinary Altair encodings. Calling it again replaces the theme entirely.
+
+## Before and after
+
+The same Altair code, with exactly one line added - `ds.theme()`:
+
+<Code code={afterSource.trimEnd()} lang="python" />
+
+<div class="ba not-content">
+	<figure class="ba__cell ba__cell--before">
+		<Chart name="theme_before" alt="Scatter of horsepower versus fuel economy, Altair default theme" />
+		<figcaption>Altair's default theme</figcaption>
+	</figure>
+	<figure class="ba__cell ba__cell--after">
+		<Chart name="theme_after" alt="The same scatter after ds.theme()" />
+		<figcaption>after <code>ds.theme()</code></figcaption>
+	</figure>
+</div>
 
 ## Palettes
 
@@ -69,7 +89,7 @@ so crowded categories stay legible.
 `inwardTicks=True` points tick marks into the plot area (physics-journal style) and defaults the
 frame to closed:
 
-<Example name="inward_ticks" alt="Scatter plot with inward-pointing tick marks" />
+<Example name="inward_ticks" alt="Scatter plot with inward-pointing tick marks" inwardTicks />
 
 ## Dark mode
 

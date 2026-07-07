@@ -6,17 +6,26 @@
 interface Props {
 	name: string;
 	alt?: string;
+	/** Apply the save()-time inward-ticks SVG fix (theme(inwardTicks=True) charts). */
+	inwardTicks?: boolean;
 }
-const { name, alt = 'dysonsphere chart' } = Astro.props;
+const { name, alt = 'dysonsphere chart', inwardTicks = false } = Astro.props;
 ---
 
 <figure class="ds-chart">
-	<div class="ds-chart__view" data-chart={name} role="img" aria-label={alt}></div>
+	<div
+		class="ds-chart__view"
+		data-chart={name}
+		data-inward={inwardTicks ? '1' : undefined}
+		role="img"
+		aria-label={alt}
+	>
+	</div>
 </figure>
 
 <script>
 	import vegaEmbed from 'vega-embed';
-	import { fixSuperscripts } from '../lib/fixSuperscripts';
+	import { fixSuperscripts, flipTicksInward } from '../lib/fixSuperscripts';
 
 	const BASE = import.meta.env.BASE_URL;
 	const views = new WeakMap<HTMLElement, { finalize: () => void }>();
@@ -31,6 +40,7 @@ const { name, alt = 'dysonsphere chart' } = Astro.props;
 			el.innerHTML = '';
 			views.set(el, await vegaEmbed(el, spec, { actions: true, renderer: 'svg', background: 'transparent' }));
 			fixSuperscripts(el);
+			if (el.dataset.inward) flipTicksInward(el);
 		} catch (e) {
 			el.textContent = 'Failed to load chart.';
 			console.error(e);
