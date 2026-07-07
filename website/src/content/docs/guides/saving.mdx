@@ -33,7 +33,9 @@ can differ subtly from the saved file. `ds.show(chart)` renders a chart *through
 pipeline so the preview matches the exported figure exactly.
 
 The SVG is post-processed for publication: `<g>` wrappers are flattened for Illustrator, axis ticks
-and log/power minor ticks are snapped to exact positions, and superscript exponents are realigned.
+and log/power minor ticks are snapped to exact positions, superscript exponents are realigned, and
+Latin statistical symbols (*P*, *n*, *F*, *r*, ...) are set in italic per convention - digits,
+operators, and Greek symbols (η², ρ, τ) stay upright.
 
 ## What gets embedded
 
