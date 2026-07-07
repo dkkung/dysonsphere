@@ -42,7 +42,12 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "dashedLine": False,
     "dashedRule": True,
     "dashedWidth": [2, 2],
-    "font": "HelveticaNeue",
+    # The FAMILY name (with space), not the PostScript name "HelveticaNeue": vl-convert's
+    # rasterizer matches the PostScript name to the regular face only, so the italic face
+    # (used by export._italicize_stat_symbols) is never found and stat symbols render
+    # upright in PNGs. Both names resolve to identical regular-face metrics (verified
+    # byte-identical SVG output), so this is rendering-inert everywhere else.
+    "font": "Helvetica Neue",
     "fontSize": 7,
     "secondaryFontSize": None,
     "smallestFontSize": 5,

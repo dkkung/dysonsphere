@@ -12,6 +12,7 @@ from dysonsphere.export import (
     _align_grid_to_content,
     _fix_superscript_labels,
     _flip_ticks_inward,
+    _italicize_stat_symbols,
     _layer_axes_to_front,
     _simplify_svg,
     save,
@@ -258,7 +259,7 @@ class TestHtmlExport:
     def test_html_is_themed(self, simple_chart, tmp_path):
         # the theme config is baked into the embedded spec (e.g. the house font)
         save(simple_chart, str(tmp_path / "out"), format="html", background=["light"])
-        assert "HelveticaNeue" in (tmp_path / "out.html").read_text(encoding="utf-8")
+        assert "Helvetica Neue" in (tmp_path / "out.html").read_text(encoding="utf-8")
 
     def test_html_embeds_metadata(self, simple_chart, tmp_path):
         save(simple_chart, str(tmp_path / "out"), format="html", background=["light"])
@@ -748,3 +749,146 @@ class TestFixSuperscriptLabels:
         inner_tspan = outer_tspan.find(f"{{{NS}}}tspan")
         assert inner_tspan is not None
         assert inner_tspan.text == "−14"
+
+
+class TestItalicizeStatSymbols:
+    def _root_with_text(self, content: str) -> ET.Element:
+        escaped = content.replace("&", "&amp;").replace("<", "&lt;")
+        return ET.fromstring(f'<svg xmlns="{NS}"><text>{escaped}</text></svg>')
+
+    def _italic_runs(self, root: ET.Element) -> list[str]:
+        return [t.text or "" for t in root.iter(f"{{{NS}}}tspan") if t.get("font-style") == "italic"]
+
+    def _flat_text(self, el: ET.Element) -> str:
+        return "".join(el.itertext())  # text + descendant text/tails, in document order
+
+    def test_pvalue_forms(self):
+        for label in ("P = 0.012", "P < 0.001", "P ≈ 0.05"):
+            root = self._root_with_text(label)
+            _italicize_stat_symbols(root)
+            assert self._italic_runs(root) == ["P"], label
+            text_el = root.find(f"{{{NS}}}text")
+            assert text_el is not None
+            assert self._flat_text(text_el) == label  # content preserved, only markup added
+
+    def test_verbose_omnibus_latin_italic_greek_upright(self):
+        root = self._root_with_text("ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18")
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["F", "P"]  # η² stays upright
+
+    def test_kruskal_and_alexander_govern_statistics(self):
+        root = self._root_with_text("Kruskal-Wallis H(2) = 8.11, P = 0.017, ε² = 0.21")
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["H", "P"]
+        root = self._root_with_text("Alexander-Govern A(2) = 9.02, P = 0.011, η² = 0.20")
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["A", "P"]
+
+    def test_friedman_kendalls_w(self):
+        root = self._root_with_text("Friedman χ²(2) = 7.60, P = 0.022, W = 0.42")
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["P", "W"]  # left-to-right; χ² stays upright
+
+    def test_correlation_readout(self):
+        root = self._root_with_text("r = 0.904, r² = 0.818, P < 0.001, y = 0.791x - 0.0342")
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["r", "r", "P", "y", "x"]
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        # the ² digit stays upright (outside the italic tspan)
+        assert "² = 0.818" in self._flat_text(text_el)
+
+    def test_sample_size_row_label(self):
+        root = self._root_with_text("n =")
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["n"]
+
+    def test_test_name_labels(self):
+        root = self._root_with_text("Mann-Whitney U")
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["U"]
+        root = self._root_with_text("Student's t-test")
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["t"]
+
+    def test_ns_label_italicized_whole(self):
+        root = self._root_with_text("ns")
+        _italicize_stat_symbols(root)
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        assert text_el.get("font-style") == "italic"
+        assert text_el.text == "ns"  # no tspan needed
+        assert self._italic_runs(root) == []
+
+    def test_ns_not_matched_inside_prose(self):
+        # "ns" mid-text is usually a unit (nanoseconds) or prose - never italicized
+        root = self._root_with_text("delay of 10 ns")
+        _italicize_stat_symbols(root)
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        assert text_el.get("font-style") is None
+        assert self._italic_runs(root) == []
+
+    def test_letter_context_guards(self):
+        # symbols embedded in words never match
+        for label in ("power = 5", "mean = 3", "sharpen = true", "PP = 1", "2x faster"):
+            root = self._root_with_text(label)
+            _italicize_stat_symbols(root)
+            assert self._italic_runs(root) == [], label
+
+    def test_asterisk_labels_untouched(self):
+        for label in ("*", "**", "***"):
+            root = self._root_with_text(label)
+            _italicize_stat_symbols(root)
+            assert self._italic_runs(root) == [], label
+
+    def test_after_superscript_fixer(self):
+        # pipeline order: superscript fixer splits the exponent out first; the P (still in
+        # .text) and any symbols in the exponent tspan's TAIL must still be found
+        root = self._root_with_text("r = 0.9, P = 3.03×10⁻¹⁴, y = 0.8x + 0.2")
+        _fix_superscript_labels(root)
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["r", "P", "y", "x"]
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        # exponent tspan still present with its styling
+        exp = [t for t in text_el.iter(f"{{{NS}}}tspan") if t.get("dy") == "-2.5"]
+        assert len(exp) == 1 and exp[0].text == "−14"
+        # document order preserved: exponent sits between the P and y italic runs
+        kinds = [(t.get("font-style"), t.text) for t in text_el.iter(f"{{{NS}}}tspan")]
+        assert kinds == [("italic", "r"), ("italic", "P"), (None, "−14"), ("italic", "y"), ("italic", "x")]
+
+    def test_vega_outer_tspan_wrapper(self):
+        # Vega sometimes wraps a whole label in an outer <tspan>
+        root = ET.fromstring(f'<svg xmlns="{NS}"><text><tspan dy="0">P = 0.012</tspan></text></svg>')
+        _italicize_stat_symbols(root)
+        assert self._italic_runs(root) == ["P"]
+        outer = root.find(f".//{{{NS}}}tspan[@dy='0']")
+        assert outer is not None
+        inner = outer.find(f"{{{NS}}}tspan")
+        assert inner is not None and inner.text == "P"
+
+    def test_aria_label_attribute_not_modified(self):
+        root = ET.fromstring(f'<svg xmlns="{NS}"><text aria-label="P = 0.012">P = 0.012</text></svg>')
+        _italicize_stat_symbols(root)
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        assert text_el.get("aria-label") == "P = 0.012"
+        assert self._italic_runs(root) == ["P"]
+
+    def test_rendered_chart_has_italic_symbols(self, tmp_path):
+        # end-to-end through save(): bracket P and the n= multilabel row both italicized
+        import dysonsphere as ds
+
+        df = pl.DataFrame(
+            {
+                "g": ["a"] * 6 + ["b"] * 6,
+                "y": [1.0, 2.0, 3.0, 2.5, 1.5, 2.2, 4.0, 5.0, 4.5, 5.5, 4.8, 5.2],
+            }
+        )
+        chart = ds.mark_strip(df, "g", "y", ["a", "b"]) + ds.add_comparisons(
+            df, "g", "y", pairs=[("a", "b")], test="mannwhitneyu"
+        )
+        save(chart, str(tmp_path / "italic"), format="svg", background=["light"])
+        svg = (tmp_path / "italic.svg").read_text(encoding="utf-8")
+        assert '<tspan font-style="italic">P</tspan>' in svg

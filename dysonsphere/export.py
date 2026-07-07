@@ -62,7 +62,9 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     The remaining post-processors are shared by :func:`save` and :func:`show` so the pipeline
     stays identical: grid alignment (seat both grid directions onto the plot content, off the
     detached axes), inward-tick flip (when ``inwardTicks``), axis layering, ``<g>``
-    simplification, and superscript-label typesetting. The SVG is parsed once here and each
+    simplification, superscript-label typesetting, and statistical-symbol italicization
+    (``P``/``n``/``F``/``r``/… - after the superscript fixer, which only scans element
+    ``.text``). The SVG is parsed once here and each
     fixer mutates the shared ElementTree;
     the corrected tree is serialized once at the end (a single parse/write round trip, not
     one per fixer). The caller sets up the theme (e.g. ``transparent``) and owns the file's
@@ -78,6 +80,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     _layer_axes_to_front(root)
     _simplify_svg(root)
     _fix_superscript_labels(root)
+    _italicize_stat_symbols(root)
     svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
     Path(svg_path).write_text(svg, encoding="utf-8")
     return svg
@@ -565,6 +568,111 @@ def _fix_superscript_labels(root: ET.Element) -> None:
 
         el.text = prefix
         el.insert(0, tspan)
+
+
+# Latin statistical symbols that scientific convention (APA/CSE) sets in italic; Greek
+# symbols (ρ, τ, η², ε², χ²) stay upright and are deliberately absent. Matched globally
+# on rendered text - dysonsphere-generated labels and user annotations alike - because
+# the typography is correct regardless of who wrote the text (same policy as
+# _SUP_LABEL_PATTERN above). Each alternative is anchored to the exact context our
+# labels generate, so accidental matches in prose are rare (and typographically right
+# when they do occur).
+_ITALIC_STAT_PATTERN = re.compile(
+    r"(?<![A-Za-z])(?:"
+    r"P(?=\s*[=<≈])"  # p-value: P = 0.012 / P < 0.001 / P ≈ 10⁻⁵
+    r"|[FHA](?=\()"  # omnibus statistic: F(2, 57) / H(2) / A(2)
+    r"|W(?=\s*=)"  # Kendall's W = 0.18
+    r"|r(?=²?\s*=)"  # correlation r = / r² =  (the ² digit stays upright)
+    r"|n(?=\s*=)"  # sample size: n =
+    r"|y(?=\s*=)"  # fit equation: y = 0.84x + 0.27
+    r"|t(?=-test)"  # Student's t-test / Paired t-test
+    r")"
+    r"|(?<=Mann-Whitney )U(?![A-Za-z])"  # Mann-Whitney U test label
+    r"|(?<=[\d.])x(?=\s*[+\-−]\s*\d)"  # fit equation slope term: 0.84x + 0.27
+)
+
+
+def _italicize_text_element(el: ET.Element) -> None:
+    """Wrap every statistical-symbol match in *el*'s text content in an italic ``<tspan>``.
+
+    Only the string nodes *el* owns are processed - ``el.text`` and each existing child's
+    ``tail``, in document order - so symbols survive in text the superscript fixer has
+    already split around an exponent ``<tspan>``. A child's own ``.text`` is NOT touched
+    here: every ``<tspan>`` is itself a target of :func:`_italicize_stat_symbols` (Vega
+    sometimes wraps a whole label in one), so each string node is processed exactly once,
+    by the element that owns it. A label that is exactly ``ns`` (the asterisks-style
+    non-significant bracket label) is italicized whole via a ``font-style`` attribute on the
+    element; ``ns`` is deliberately NOT pattern-matched inside longer text, where it is
+    usually prose or a unit (nanoseconds).
+    """
+    if len(el) == 0 and (el.text or "").strip() == "ns":
+        el.set("font-style", "italic")
+        return
+    items = [(None, el.text or "")] + [(child, child.tail or "") for child in list(el)]
+    if not any(_ITALIC_STAT_PATTERN.search(s) for _, s in items):
+        return
+
+    for child in list(el):
+        el.remove(child)
+    el.text = None
+    last: ET.Element | None = None  # last re-appended node; None → plain text goes to el.text
+
+    def _append_plain(s: str) -> None:
+        nonlocal last
+        if not s:
+            return
+        if last is None:
+            el.text = (el.text or "") + s
+        else:
+            last.tail = (last.tail or "") + s
+
+    for child, trailing in items:
+        if child is not None:
+            child.tail = None
+            el.append(child)
+            last = child
+        pos = 0
+        for m in _ITALIC_STAT_PATTERN.finditer(trailing):
+            _append_plain(trailing[pos : m.start()])
+            tspan = ET.Element(f"{{{_SVG_NS}}}tspan")
+            tspan.set("font-style", "italic")
+            tspan.text = m.group(0)
+            el.append(tspan)
+            last = tspan
+            pos = m.end()
+        _append_plain(trailing[pos:])
+
+
+def _italicize_stat_symbols(root: ET.Element) -> None:
+    """Italicize Latin statistical symbols (``P n F H A W r y x t U``) in rendered text.
+
+    Scientific typesetting convention (APA/CSE) sets Latin statistical symbols in italic
+    while numbers, operators, and Greek symbols (η², ε², χ², ρ, τ) stay upright. Vega-Lite
+    text marks have no rich text (``fontStyle`` styles a whole string), so this is applied
+    as an SVG post-process: each matched symbol is wrapped in a
+    ``<tspan font-style="italic">``, rendering with the label font's italic face.
+
+    Covers the dysonsphere-generated labels - ``add_comparisons`` bracket p-values and the
+    omnibus/test label (``ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18``), the
+    ``add_correlation`` readout (``r = 0.85, r² = 0.72, P < 0.001, y = 0.84x + 0.27``), and
+    ``add_multilabel``'s ``n =`` sample-size row - and, by the same global-pattern policy as
+    :func:`_fix_superscript_labels`, any user text matching the same forms (a hand-written
+    ``P = 0.03`` via ``add_text`` gets the identical treatment, keeping typography
+    consistent across a figure).
+
+    Must run AFTER :func:`_fix_superscript_labels`: that fixer only scans element ``.text``,
+    so wrapping a leading ``P`` into a ``<tspan>`` first would move the ``×10⁻⁵`` portion
+    into a tail it cannot see. This fixer scans both ``.text`` and child tails, so the
+    reverse order is safe. Operates on element text in the parsed tree only, never attribute
+    values (``aria-label``/``title`` carry the same label text).
+    """
+    # Both tags, like the superscript fixer: Vega sometimes wraps a label in an outer
+    # <tspan>. Materialize before mutating - the italic tspans inserted during the loop
+    # must not become targets themselves (and mutating while root.iter() walks is
+    # undefined anyway).
+    targets = [el for el in root.iter() if el.tag in (f"{{{_SVG_NS}}}text", f"{{{_SVG_NS}}}tspan")]
+    for el in targets:
+        _italicize_text_element(el)
 
 
 def _simplify_svg(root: ET.Element) -> None:
