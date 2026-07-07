@@ -41,7 +41,17 @@ const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false }
 			const spec = await (await fetch(`${BASE}charts/${name}-${theme}.json`)).json();
 			views.get(el)?.finalize();
 			el.innerHTML = '';
-			views.set(el, await vegaEmbed(el, spec, { actions: true, renderer: 'svg', background: 'transparent' }));
+			// A spec that bakes its own background (chartFill comparisons, the default-theme
+			// example) keeps it; everything else renders transparent so the page shows through.
+			const opaque = Boolean(spec.background ?? spec.config?.background);
+			views.set(
+				el,
+				await vegaEmbed(el, spec, {
+					actions: true,
+					renderer: 'svg',
+					...(opaque ? {} : { background: 'transparent' }),
+				}),
+			);
 			fixSuperscripts(el);
 			if (el.dataset.inward) flipTicksInward(el);
 			if (el.dataset.fit) {

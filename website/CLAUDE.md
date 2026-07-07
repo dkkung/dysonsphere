@@ -109,6 +109,11 @@ dissolved 2026-07-06).
   pages) - the "before" half of the theming guide's before/after comparison (`theme_before` /
   `theme_after`, shown side by side via the `.ba` grid in theme.css with per-side zooms, since
   the default chart is ~4x larger natively).
+- **Pinned-theme examples.** Stems in `PINNED_EXAMPLES` (gen_examples.py) keep their OWN
+  `theme()` args - the site's darkmode/transparent injection is skipped - for fixed light/dark
+  comparisons that bake a `chartFill` background (`darkmode_light`/`darkmode_dark` on the
+  theming guide). Chart.astro only passes vega-embed's `background: 'transparent'` when the
+  spec does NOT bake its own background (the embed option would override `config.background`).
 - **Inward ticks are flipped client-side per chart.** `flipTicksInward` (fixSuperscripts.ts)
   ports `export._flip_ticks_inward`; the rendered spec carries no flag, so the page opts in via
   `<Example inwardTicks />` -> Chart.astro `data-inward`. Only the theming guide's example uses

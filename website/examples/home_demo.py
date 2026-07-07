@@ -1,19 +1,22 @@
 import altair as alt
+import numpy as np
+import polars as pl
 import dysonsphere as ds
-from vega_datasets import data
 
 ds.theme(palette="blues2", chartWidth=140)
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Horsepower", "Weight_in_lbs"])
+rng = np.random.default_rng(7)
+rep1 = rng.normal(10, 2, 2500)
+df = pl.DataFrame({"rep1": rep1, "rep2": rep1 * 0.9 + rng.normal(1, 0.9, 2500)})
 
-scatter = (
-    alt.Chart(cars)
-    .mark_point()
+heatmap = (
+    alt.Chart(df)
+    .mark_rect()
     .encode(
-        x=alt.X("Weight_in_lbs:Q", title="Weight (lbs)"),
-        y=alt.Y("Horsepower:Q", title="Horsepower"),
-        color=alt.Color("Horsepower:Q", legend=None),
+        x=alt.X("rep1:Q", bin=alt.Bin(maxbins=24), title="Replicate 1"),
+        y=alt.Y("rep2:Q", bin=alt.Bin(maxbins=24), title="Replicate 2"),
+        color=alt.Color("count():Q", title=None),
     )
 )
 
-chart = scatter + ds.add_correlation(cars, "Weight_in_lbs", "Horsepower")
+chart = heatmap + ds.add_correlation(df, "rep1", "rep2")

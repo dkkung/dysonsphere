@@ -347,29 +347,21 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   margin: 0;
 }
 
-/* Before/after ds.theme() comparison (theming guide): two charts side by side; each side sets
-   its own chart zoom because the default-Altair chart is already ~4x larger natively. */
+/* Before/after comparisons (theming guide): the two charts stack vertically, size-matched by
+   Chart.astro's fitWidth auto-zoom to the shared cell width. */
 .ba {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: 1rem;
-  align-items: center;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  justify-items: center;
   margin: 1rem 0 2rem;
 }
 .ba__cell {
   margin: 0;
   text-align: center;
-  /* Equal tracks: without this the oversized default-theme chart inflates its own grid
-     column (min-width:auto) before the fitWidth zoom can measure it. */
+  width: min(100%, 32rem);
   min-width: 0;
   overflow: hidden;
-}
-/* Pre-fit fallbacks; Chart.astro's fitWidth auto-zoom normalizes both to the column width. */
-.ba__cell--before {
-  --ds-chart-zoom: 1;
-}
-.ba__cell--after {
-  --ds-chart-zoom: 1.8;
 }
 .ba__cell figcaption {
   font-size: 0.8rem;
