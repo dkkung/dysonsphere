@@ -75,6 +75,16 @@ import palettes from '../generated/palettes.json';
 				const prev = label.textContent;
 				label.textContent = 'copied!';
 				setTimeout(() => (label.textContent = prev), 900);
+				// Tell the live preview (PalettePreview.astro) to restyle its charts.
+				const colors = Array.from(el.querySelectorAll<HTMLElement>('.pal__stop')).map(
+					(s) => s.style.background,
+				);
+				items.forEach((i) => i.classList.toggle('is-selected', i === el));
+				document.dispatchEvent(
+					new CustomEvent('ds-palette-select', {
+						detail: { name, kind: el.dataset.kind ?? 'sequential', colors },
+					}),
+				);
 			});
 		}
 		apply();
@@ -157,5 +167,12 @@ import palettes from '../generated/palettes.json';
 	}
 	.pal__item:hover .pal__name {
 		color: var(--sl-color-text-accent);
+	}
+	.pal__item.is-selected .pal__strip {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 1px;
+	}
+	.pal__item.is-selected .pal__name {
+		color: var(--sl-color-white);
 	}
 </style>
