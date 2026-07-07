@@ -98,7 +98,12 @@ dissolved 2026-07-06).
   verbatim, since the upload is in the runtime's virtual FS under that name), and a **code editor**
   (the absorbed playground) seeded from the builder via "Edit as code". The builder can layer
   statistics (`add_comparisons`/`add_correlation`), a multilabel table (`add_multilabel`), and
-  annotations (`add_rule`/`add_shade`).
+  annotations (`add_rule`, `add_text` with a position preset, `add_shade` bands or a y-range).
+  Sample datasets: the synthetic dose-response plus vega_datasets classics (cars/penguins/iris/
+  barley/stocks) bundled into the FS as `<name>.csv` by `_load_dataset` so the emitted
+  `pl.read_csv("cars.csv")` runs verbatim. Controls flow in TWO CSS columns beside the output on
+  wide screens (`columns: 2`, groups `break-inside: avoid`); the dataset select is excluded from
+  the generic rerender wiring like the export input (same async race).
 - **Superscript exponents are re-typeset client-side.** The library's `_fix_superscript_labels`
   runs only in `save()`, never in the browser - so live charts rendered mixed-metric Unicode
   superscripts (`P = 5.03×10⁻¹⁷`). `src/lib/fixSuperscripts.ts` ports the fixer to the rendered
@@ -212,6 +217,17 @@ leak (explicit base title); Studio darkmode re-render + cursor-alignment fix (fo
 remeasure); Ember swatch alignment (`not-content`); larger flush inline charts (zoom 3.5). All
 verified in a real headless-chromium sweep (charts render on every new page, darkmode inverts the
 hero ink, sidebar+toggle on landing, deep-link redirect preserves `#code=`).
+
+Batch 2026-07-07 (post-PR-#64-open, same branch): guides reordered per user (getting started ->
+theming/config/palettes -> marks -> annotations/stats -> multilabels [SPLIT out of annotations
+into guides/multilabels.mdx] -> nonlinear -> saving); reference alphabetized; homepage hero is a
+cars weight-vs-horsepower scatter (blues2, color=y, add_correlation fit); examples use polars
+idioms (ensure_polars + drop_nulls, never pandas dropna); beeswarm examples switched to the
+continuous Acceleration column + 50/group subsample (integer-tied MPG made arm artifacts);
+shade examples use blues[0]; dependencies documented in getting-started + reference index;
+authoring headings de-numbered; config generator cheat sheet height-locked to the editor panel
+(height:0/min-height:100% grid trick) with internal scroll; studio gains sample datasets +
+text/shade-range annotations + 2-column controls; sidebar toggle enlarged/bordered.
 
 Rework done 2026-07-06/07 (v3.1.0 pass, `website` worktree): regenerated artifacts against v3.1.0
 (API ref gains `ext.tag_extension`; saving guide's metadata example recaptured - new provenance

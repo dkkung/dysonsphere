@@ -27,7 +27,16 @@ const paletteNames = palettes.map((p) => p.name);
 			<label class="st__file">
 				<input id="st-file" type="file" accept=".csv,.tsv,.json,.txt" />
 			</label>
-			<button id="st-sample" class="st__link" type="button">or load the sample dataset</button>
+			<label>Or a sample dataset
+				<select id="st-dataset">
+					<option value="sample">dose-response (synthetic)</option>
+					<option value="cars">cars</option>
+					<option value="penguins">penguins</option>
+					<option value="iris">iris</option>
+					<option value="barley">barley</option>
+					<option value="stocks">stocks</option>
+				</select>
+			</label>
 			<p id="st-data-info" class="st__muted"></p>
 		</section>
 
@@ -145,6 +154,24 @@ const paletteNames = palettes.map((p) => p.name);
 			<h3>Annotations</h3>
 			<label>Reference line (y) <input id="st-rule" type="number" step="any" placeholder="(none)" /></label>
 			<label id="st-rule-label-wrap">Line label <input id="st-rule-label" type="text" placeholder="(none)" /></label>
+			<label>Text annotation <input id="st-text" type="text" placeholder="(none)" /></label>
+			<label id="st-text-pos-wrap">Text position
+				<select id="st-text-pos">
+					<option value="topLeft">Top left</option>
+					<option value="topCenter">Top center</option>
+					<option value="topRight">Top right</option>
+					<option value="middleLeft">Middle left</option>
+					<option value="middleCenter">Middle center</option>
+					<option value="middleRight">Middle right</option>
+					<option value="bottomLeft">Bottom left</option>
+					<option value="bottomCenter">Bottom center</option>
+					<option value="bottomRight">Bottom right</option>
+				</select>
+			</label>
+			<div class="st__dims">
+				<label>Shade y from <input id="st-shade-lo" type="number" step="any" placeholder="(none)" /></label>
+				<label>to <input id="st-shade-hi" type="number" step="any" placeholder="(none)" /></label>
+			</div>
 			<label class="st__check" id="st-shade-wrap"><input id="st-shade" type="checkbox" /> Shade alternating bands</label>
 		</section>
 
@@ -455,6 +482,8 @@ high,100,26.4,6`;
 			el('st-shade-wrap').style.display = categorical ? '' : 'none';
 			el('st-rule-label-wrap').style.display =
 				el<HTMLInputElement>('st-rule').value.trim() !== '' ? '' : 'none';
+			el('st-text-pos-wrap').style.display =
+				el<HTMLInputElement>('st-text').value.trim() !== '' ? '' : 'none';
 		}
 
 		// ------------------------------------------------------------------ code generation
@@ -581,9 +610,14 @@ high,100,26.4,6`;
 				body.push(`chart = (`, `    alt.Chart(df)`, `    .${marks[type]}()`, `    .encode(`, ...enc, `    )`, `)`);
 			}
 
-			// Layers compose with + : shade under, statistics/rules over, multilabel wraps.
+			// Layers compose with + : shade under, statistics/rules/text over, multilabel wraps.
 			if (categorical && el<HTMLInputElement>('st-shade').checked) {
 				body.push('', `chart = ds.add_shade(categories=categories) + chart`);
+			}
+			const shadeLo = el<HTMLInputElement>('st-shade-lo').value.trim();
+			const shadeHi = el<HTMLInputElement>('st-shade-hi').value.trim();
+			if (shadeLo !== '' && shadeHi !== '') {
+				body.push('', `chart = ds.add_shade(positions=[(${+shadeLo}, ${+shadeHi})], axis="y") + chart`);
 			}
 
 			if (type === 'point' && xtype === 'Q') {
@@ -612,6 +646,12 @@ high,100,26.4,6`;
 				const label = el<HTMLInputElement>('st-rule-label').value.trim();
 				const labelArg = label ? `, label=${q(label)}` : '';
 				body.push('', `chart = chart + ds.add_rule(${+rule}${labelArg})`);
+			}
+
+			const textNote = el<HTMLInputElement>('st-text').value.trim();
+			if (textNote !== '') {
+				const pos = el<HTMLSelectElement>('st-text-pos').value;
+				body.push('', `chart = chart + ds.add_text(${q(textNote)}, position=${q(pos)})`);
 			}
 
 			if (categorical && el<HTMLInputElement>('st-multilabel').checked) {
@@ -687,20 +727,24 @@ high,100,26.4,6`;
 			else runCode();
 		}
 
-		async function loadTable(text: string, name: string, format: 'csv' | 'tsv' | 'json') {
-			if (!runtime) return;
+		function applySchema(infoJson: string, name: string, format: 'csv' | 'tsv' | 'json') {
+			const info = JSON.parse(infoJson);
 			fileName = name;
 			fileFormat = format;
+			columns = info.columns;
+			dataInfo.textContent = `${name} · ${info.rows} rows · ${columns.length} columns`;
+			fillSelect('st-x');
+			fillSelect('st-y', false, 'quantitative'); // Y is always the measured value
+			fillSelect('st-color', true);
+			seedEncodings();
+			syncVisibility();
+			if (mode === 'build') renderBuild();
+		}
+
+		async function loadTable(text: string, name: string, format: 'csv' | 'tsv' | 'json') {
+			if (!runtime) return;
 			try {
-				const info = JSON.parse(runtime.loadTable(name, text, format));
-				columns = info.columns;
-				dataInfo.textContent = `${name} · ${info.rows} rows · ${columns.length} columns`;
-				fillSelect('st-x');
-				fillSelect('st-y', false, 'quantitative'); // Y is always the measured value
-				fillSelect('st-color', true);
-				seedEncodings();
-				syncVisibility();
-				if (mode === 'build') renderBuild();
+				applySchema(runtime.loadTable(name, text, format), name, format);
 			} catch (e) {
 				dataInfo.textContent = 'Could not parse that file.';
 				showError(e);
@@ -781,9 +825,9 @@ high,100,26.4,6`;
 		root
 			.querySelectorAll('.st__controls select, .st__controls input, .st__controls textarea')
 			.forEach((node) => {
-				// The export importer runs its own async flow (and may switch to code mode) - a
-				// builder re-render here would race it and paint the old chart back over the result.
-				if ((node as HTMLElement).id === 'st-export-file') return;
+				// The export importer and the dataset loader run their own async flows - a builder
+				// re-render here would race them and paint the old chart back over the result.
+				if (['st-export-file', 'st-dataset'].includes((node as HTMLElement).id)) return;
 				node.addEventListener('change', () => {
 					if ((node as HTMLElement).id === 'st-x') syncXType();
 					syncVisibility();
@@ -802,7 +846,20 @@ high,100,26.4,6`;
 			const format = (ext === 'json' ? 'json' : ext === 'tsv' ? 'tsv' : 'csv') as 'csv' | 'tsv' | 'json';
 			file.text().then((text) => loadTable(text, file.name, format));
 		});
-		el('st-sample').addEventListener('click', () => loadTable(SAMPLE, 'sample.csv', 'csv'));
+		el('st-dataset').addEventListener('change', async () => {
+			const name = el<HTMLSelectElement>('st-dataset').value;
+			if (!name) return;
+			if (name === 'sample') return loadTable(SAMPLE, 'sample.csv', 'csv');
+			const rt = runtime ?? (await getRuntime());
+			runtime = rt;
+			try {
+				applySchema(rt.loadDataset(name), `${name}.csv`, 'csv');
+			} catch (e) {
+				dataInfo.textContent = `Could not load ${name}.`;
+				showError(e);
+				console.error(e);
+			}
+		});
 		el('st-export-file').addEventListener('change', (ev) => {
 			const file = (ev.target as HTMLInputElement).files?.[0];
 			if (file) importExport(file);
@@ -868,10 +925,26 @@ high,100,26.4,6`;
 <style>
 	.st {
 		display: grid;
-		grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+		grid-template-columns: minmax(30rem, 36rem) minmax(0, 1fr);
 		gap: 1.25rem;
 		margin-top: 1.5rem;
 		align-items: start;
+	}
+	/* Two control columns fill the space beside the output; groups never split. */
+	.st__controls {
+		columns: 2;
+		column-gap: 1rem;
+	}
+	.st__group {
+		break-inside: avoid;
+	}
+	@media (max-width: 1250px) {
+		.st {
+			grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+		}
+		.st__controls {
+			columns: 1;
+		}
 	}
 	@media (max-width: 950px) {
 		.st {

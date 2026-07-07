@@ -5,7 +5,7 @@ from vega_datasets import data
 # your group count (blue / pink / yellow / green).
 ds.theme()
 
-cars = data.cars().dropna(subset=["Miles_per_Gallon"])
+cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
 origins = ["USA", "Europe", "Japan"]
 
 chart = ds.mark_strip(

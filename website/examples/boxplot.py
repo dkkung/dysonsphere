@@ -6,7 +6,7 @@ from vega_datasets import data
 # rounded whisker caps. boxplotOutliers=False hides outlier points.
 ds.theme()
 
-cars = data.cars().dropna(subset=["Miles_per_Gallon"])
+cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
 
 chart = (
     alt.Chart(cars)

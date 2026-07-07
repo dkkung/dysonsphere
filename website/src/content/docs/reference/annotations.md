@@ -2,7 +2,7 @@
 title: "Annotations"
 description: "Composable annotation layers: reference lines, text, shading, point labels."
 sidebar:
-  order: 3
+  order: 1
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

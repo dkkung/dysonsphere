@@ -1,17 +1,19 @@
+import altair as alt
 import dysonsphere as ds
 from vega_datasets import data
 
 ds.theme(palette="blues2", chartWidth=140)
 
-cars = data.cars().dropna(subset=["Miles_per_Gallon"])
-origins = ["Europe", "Japan", "USA"]
+cars = ds.ensure_polars(data.cars()).drop_nulls(["Horsepower", "Weight_in_lbs"])
 
-# A strip plot (jittered points + median + SEM bars) with significance brackets.
-chart = ds.mark_strip(
-    cars, "Origin", "Miles_per_Gallon", origins,
-    yTitle="Miles per gallon",
-) + ds.add_comparisons(
-    cars, "Origin", "Miles_per_Gallon",
-    [("Europe", "USA"), ("Japan", "USA")],
-    test="mannwhitneyu", correction="holm", categories=origins,
+scatter = (
+    alt.Chart(cars)
+    .mark_point()
+    .encode(
+        x=alt.X("Weight_in_lbs:Q", title="Weight (lbs)"),
+        y=alt.Y("Horsepower:Q", title="Horsepower"),
+        color=alt.Color("Horsepower:Q", legend=None),
+    )
 )
+
+chart = scatter + ds.add_correlation(cars, "Weight_in_lbs", "Horsepower")

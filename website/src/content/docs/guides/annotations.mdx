@@ -16,6 +16,8 @@ fixed values, with optional labels. `strokeDash=None` inherits the theme's dashe
 
 <Example name="rule" alt="Strip plot with a horizontal reference line at 30 MPG" />
 
+`axis="x"` draws the same line vertically, at a fixed x value:
+
 <Example name="rule_vertical" alt="Scatter plot with a dashed vertical reference line" />
 
 Pass a list of values (and a matching list of labels) for several lines in one call.
@@ -37,6 +39,8 @@ x-axis categories; in **positions mode** it shades explicit coordinate ranges.
 
 <Example name="shade_bands" alt="Bar chart with alternating band shading" />
 
+In positions mode, a numeric `(start, end)` tuple shades a fixed range on either axis:
+
 <Example name="shade_range" alt="Strip plot with a shaded y-range" />
 
 With `axis="both"` and a nested `((x0, x1), (y0, y1))` tuple, it shades a 2D region - an
@@ -53,18 +57,3 @@ from each point to its label. Pass the full plotted `df` and let `labels=` selec
 name - an integer picks that many spread evenly across the plot, a list names specific rows.
 
 <Example name="labels" alt="Scatter plot with eight auto-placed, connector-linked point labels" />
-
-## Multilabels
-
-`add_multilabel()` attaches an annotation table below a chart - `+`/`-` rows, symbols, or plain
-text aligned to each x category, with optional sample-size and category-label rows and grouped
-spans.
-
-<Example name="multilabel" alt="Strip plot with a plus/minus multilabel table below" />
-
-<Example name="multilabel_sample_size" alt="Strip plot with sample size and category-label rows" />
-
-Use `style="symbol"` for filled/open dots, and `span=` to bracket groups of categories under a
-shared label:
-
-<Example name="multilabel_symbol" alt="Strip plot with a symbol multilabel table and grouped spans" />

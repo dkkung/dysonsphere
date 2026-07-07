@@ -1,16 +1,16 @@
 ---
 title: Writing an extension
-description: Build your own dysonsphere extension - the entry point, the ds.ext primitive surface, the internal-data discipline, and packaging.
+description: Build your own dysonsphere extension - packaging, entry point registration, the ds.ext primitive surface, and data tagging.
 sidebar:
   order: 2
 ---
 
 An extension is an ordinary Python distribution that registers one entry point. Do that, build
 your charts on the public **`dysonsphere.ext`** surface, and they resolve under `ds.<name>` and
-behave like built-ins. This guide covers the four things you need: the package, the entry point,
-the `ext` primitives, and the data-tagging discipline.
+behave like built-ins. This guide covers packaging, entry point registration, the `ext`
+primitives, and tagging generated data.
 
-## 1. The package
+## Package layout
 
 Ship a normal top-level package with its own dependencies. `dysonsphere` is a dependency, not
 something you vendor:
@@ -45,9 +45,9 @@ dependencies = [
 ]
 ```
 
-## 2. The entry point
+## Entry point registration
 
-This one table is the whole hookup - it registers your package under the
+One table in `pyproject.toml` registers your package under the
 `dysonsphere.extensions` group, keyed by the name you want on `ds`:
 
 ```toml
@@ -59,7 +59,7 @@ Now `pip install dysonsphere-yourname` makes `ds.yourname.yourchart(...)` work, 
 `ds.extensions()` lists `yourname` - with no change to core. That's the entire integration
 contract.
 
-## 3. Build on `dysonsphere.ext`
+## The `dysonsphere.ext` surface
 
 Your chart is just a function that returns an Altair object. To make it a *first-class*
 dysonsphere chart - themed, darkmode-aware, and correctly handled by `ds.read()` - use the
@@ -101,7 +101,7 @@ need them. Today it is exactly three names:
   `opt("darkmode")`, …). It falls back to the derived built-in default when called before any
   `ds.theme()`, so your styling code never sees `None` sentinels. This is the only supported way
   to read theme options outside core.
-- **`ext.internal_data(data)`** - tag a generated sidecar dataset (step 4).
+- **`ext.internal_data(data)`** - tag a generated sidecar dataset (next section).
 
 Because colors resolve from the theme *at call time*, a chart exported for both light and dark
 must be built inside a `ds.save()` callable so it re-runs per variant:
@@ -110,7 +110,7 @@ must be built inside a `ds.save()` callable so it re-runs per variant:
 ds.save(lambda: ds.yourname.yourchart(df), "figure")
 ```
 
-## 4. The internal-data discipline
+## Tagging generated data
 
 Composite charts often generate their own small "sidecar" datasets - reference bands, computed
 label coordinates, fit lines. Altair inlines each as a separate dataset, so `ds.read(what="data")`
@@ -132,7 +132,7 @@ polars frame). Miss a sidecar and it leaks as a phantom "user" dataframe - a fal
 error from `read`, or the wrong frame returned. Tag the user's frame and you hide their real
 data. So: *data you computed → tag it; data the caller passed in → leave it.*
 
-## 5. Lazy-import heavy dependencies
+## Lazy imports for heavy dependencies
 
 Domain packages often need heavyweight, optional libraries (genome-file parsers, image stacks).
 Import them **inside the function**, not at module top level, with a clear error - so

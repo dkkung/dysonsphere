@@ -2,7 +2,7 @@
 title: "Extension authoring"
 description: "The stable primitive surface for extension authors (dysonsphere.ext)."
 sidebar:
-  order: 14
+  order: 3
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

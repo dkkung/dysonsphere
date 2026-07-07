@@ -18,4 +18,4 @@ bar = (
 )
 
 # Band mode: alternate background shades across the x-axis categories.
-chart = ds.add_shade(categories=sites, opacity=0.5) + bar
+chart = ds.add_shade(categories=sites, palette=[ds.colors["blues"][0], "white"], opacity=0.5) + bar

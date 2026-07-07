@@ -24,6 +24,8 @@ export interface DsRuntime {
 	loadTable(name: string, text: string, format: 'csv' | 'tsv' | 'json'): string;
 	/** Write a file (text or binary) into the runtime's virtual FS under its real name. */
 	writeFile(name: string, data: Uint8Array | string): void;
+	/** Bundle a vega_datasets table into the FS as <name>.csv; returns the schema JSON. */
+	loadDataset(name: string): string;
 	/** ds.read(name, what="metadata") -> the embedded dysonsphere block as a JSON string. */
 	readExport(name: string): string;
 }
@@ -100,6 +102,16 @@ def _read_export(name):
         raise RuntimeError("No dysonsphere metadata block found in this file.")
     return json.dumps(block, ensure_ascii=False)
 
+def _schema_json(df):
+    schema = [
+        {"name": c, "dtype": str(t), "kind": (
+            "quantitative" if t.is_numeric() else
+            "temporal" if t.is_temporal() else "nominal"),
+         "nUnique": df[c].n_unique()}
+        for c, t in df.schema.items()
+    ]
+    return json.dumps({"rows": df.height, "columns": schema})
+
 def _load_table(name, text, format):
     import io
     from pathlib import Path
@@ -111,14 +123,17 @@ def _load_table(name, text, format):
     else:
         df = pl.read_csv(io.StringIO(text), separator="\\t" if format == "tsv" else ",")
     _studio_tables[name] = df
-    schema = [
-        {"name": c, "dtype": str(t), "kind": (
-            "quantitative" if t.is_numeric() else
-            "temporal" if t.is_temporal() else "nominal"),
-         "nUnique": df[c].n_unique()}
-        for c, t in df.schema.items()
-    ]
-    return json.dumps({"rows": df.height, "columns": schema})
+    return _schema_json(df)
+
+def _load_dataset(name):
+    # Bundle a vega_datasets classic into the FS as <name>.csv, so the emitted
+    # pl.read_csv("<name>.csv") line runs exactly as shown.
+    import dysonsphere as ds
+    from vega_datasets import data
+    df = ds.ensure_polars(getattr(data, name)())
+    df.write_csv(f"{name}.csv")
+    _studio_tables[f"{name}.csv"] = df
+    return _schema_json(df)
 `;
 
 /**
@@ -149,6 +164,7 @@ await micropip.install("dysonsphere", deps=False)
 		const runChartPy = pyodide.globals.get('_run_chart');
 		const loadTablePy = pyodide.globals.get('_load_table');
 		const readExportPy = pyodide.globals.get('_read_export');
+		const loadDatasetPy = pyodide.globals.get('_load_dataset');
 
 		ready = true;
 		announce('Ready.');
@@ -157,6 +173,7 @@ await micropip.install("dysonsphere", deps=False)
 			loadTable: (name: string, text: string, format: 'csv' | 'tsv' | 'json') =>
 				loadTablePy(name, text, format) as string,
 			writeFile: (name: string, data: Uint8Array | string) => pyodide.FS.writeFile(name, data),
+			loadDataset: (name: string) => loadDatasetPy(name) as string,
 			readExport: (name: string) => readExportPy(name) as string,
 		};
 	})();

@@ -4,7 +4,7 @@ from vega_datasets import data
 
 ds.theme()
 
-cars = data.cars().dropna(subset=["Miles_per_Gallon"])
+cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
 origins = ["Europe", "Japan", "USA"]
 
 box = alt.Chart(cars).mark_boxplot().encode(

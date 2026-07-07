@@ -6,7 +6,7 @@ from vega_datasets import data
 # it also defaults the frame to closed.
 ds.theme(inwardTicks=True)
 
-cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
+cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
 
 chart = (
     alt.Chart(cars)

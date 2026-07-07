@@ -18,22 +18,22 @@ import griffe
 from griffe import ParameterKind
 
 # (module name, page title, sidebar order, one-line description)
-# Ordered like the guides: build a chart, annotate it, style it, save it, then internals.
+# Alphabetical by page title (the sidebar order mirrors it).
 MODULES = [
-    ("marks", "Marks", 1, "Composite marks: strip and violin plots."),
-    ("transforms", "Transforms", 2, "Data transforms for jittered and beeswarm x-offsets."),
-    ("annotations", "Annotations", 3, "Composable annotation layers: reference lines, text, shading, point labels."),
-    ("inference", "Statistical annotations", 4, "Pairwise/omnibus comparisons and correlation layers."),
-    ("multilabel", "Multilabels", 5, "Attach a multilabel annotation table below a chart."),
-    ("labels", "Display labels", 6, "Map raw data values to display labels on axes, legends, and headers."),
+    ("annotations", "Annotations", 1, "Composable annotation layers: reference lines, text, shading, point labels."),
+    ("labels", "Display labels", 2, "Map raw data values to display labels on axes, legends, and headers."),
+    ("ext", "Extension authoring", 3, "The stable primitive surface for extension authors (dysonsphere.ext)."),
+    ("discovery", "Extensions", 4, "Discover and load installed dysonsphere extensions."),
+    ("marks", "Marks", 5, "Composite marks: strip and violin plots."),
+    ("multilabel", "Multilabels", 6, "Attach a multilabel annotation table below a chart."),
     ("nonlinear", "Nonlinear axes", 7, "Minor ticks and typeset labels for log and power axes."),
-    ("theme", "Theming", 8, "Register the dysonsphere Altair theme and scaffold config files."),
-    ("palettes", "Palettes", 9, "Perceptually uniform palettes and Adobe Illustrator swatch export."),
+    ("palettes", "Palettes", 8, "Perceptually uniform palettes and Adobe Illustrator swatch export."),
+    ("metadata", "Reading exports", 9, "Read embedded metadata, statistics, reports, and data back out of exports."),
     ("export", "Saving & loading", 10, "Export charts to files and rebuild them from the Vega-Lite JSON."),
-    ("metadata", "Reading exports", 11, "Read embedded metadata, statistics, reports, and data back out of exports."),
+    ("inference", "Statistical annotations", 11, "Pairwise/omnibus comparisons and correlation layers."),
     ("statistics", "Statistics registry", 12, "Statistics report queue management."),
-    ("discovery", "Extensions", 13, "Discover and load installed dysonsphere extensions."),
-    ("ext", "Extension authoring", 14, "The stable primitive surface for extension authors (dysonsphere.ext)."),
+    ("theme", "Theming", 13, "Register the dysonsphere Altair theme and scaffold config files."),
+    ("transforms", "Transforms", 14, "Data transforms for jittered and beeswarm x-offsets."),
     ("utils", "Utilities", 15, "Shared helpers: DataFrame handling, counts, band geometry, checksums."),
 ]
 

@@ -70,21 +70,22 @@ export default defineConfig({
 					},
 				},
 			},
-			// Ordered as the reader works: build a chart, annotate it, style it, save it -
-			// then the interactive surfaces, extensions, and the generated reference.
+			// Guides: getting started, then styling (theme/config/palettes), then building
+			// (marks/annotations/statistics), then export. Reference is alphabetical.
 			sidebar: [
 				{
 					label: 'Guides',
 					items: [
 						{ label: 'Getting started', slug: 'guides/getting-started' },
+						{ label: 'Theming', slug: 'guides/theming' },
+						{ label: 'Global theme overrides', slug: 'guides/configuration' },
+						{ label: 'Palettes', slug: 'guides/palettes' },
 						{ label: 'Marks & transforms', slug: 'guides/marks' },
 						{ label: 'Annotations', slug: 'guides/annotations' },
 						{ label: 'Statistical annotations', slug: 'guides/statistics' },
+						{ label: 'Multilabels', slug: 'guides/multilabels' },
 						{ label: 'Nonlinear axes', slug: 'guides/nonlinear' },
-						{ label: 'Theming', slug: 'guides/theming' },
-						{ label: 'Palettes', slug: 'guides/palettes' },
-						{ label: 'Global theme overrides', slug: 'guides/configuration' },
-						{ label: 'Saving & reading', slug: 'guides/saving' },
+						{ label: 'Saving, reading, loading', slug: 'guides/saving' },
 					],
 				},
 				{

@@ -32,6 +32,7 @@ import params from '../generated/theme_defaults.json';
 		</div>
 		<input id="cfg-filter" type="search" placeholder="Filter parameters…" aria-label="Filter parameters" />
 		<p class="cfg__hint cfg__hint--tight">Click a row to insert it at the cursor. Values shown are the built-in defaults.</p>
+		<div class="cfg__scroll">
 		<table class="cfg__table">
 			<tbody id="cfg-params">
 				{
@@ -49,6 +50,7 @@ import params from '../generated/theme_defaults.json';
 				}
 			</tbody>
 		</table>
+		</div>
 	</aside>
 </div>
 
@@ -129,11 +131,13 @@ import params from '../generated/theme_defaults.json';
 </script>
 
 <style>
+	/* The cheat sheet column stretches to exactly the editor panel's height (grid stretch +
+	   min-height:0 so the table's content can't grow the row) and scrolls internally. */
 	.cfg {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) 24rem;
 		gap: 1.5rem;
-		align-items: start;
+		align-items: stretch;
 		margin-top: 1.5rem;
 	}
 	@media (max-width: 60rem) {
@@ -147,16 +151,21 @@ import params from '../generated/theme_defaults.json';
 		border-radius: 0.65rem;
 		overflow: hidden;
 	}
-	/* The cheat sheet scrolls in place beside the editor. */
+	/* height:0 + min-height:100% takes the cheat sheet OUT of the grid row's height
+	   calculation, so the row is sized by the editor panel alone and the sheet fills it. */
 	.cfg__cheats {
-		position: sticky;
-		top: calc(var(--sl-nav-height) + 1rem);
-		max-height: calc(100vh - var(--sl-nav-height) - 2rem);
+		display: flex;
+		flex-direction: column;
+		height: 0;
+		min-height: 100%;
+	}
+	.cfg__scroll {
+		flex: 1;
+		min-height: 0;
 		overflow: auto;
 	}
 	@media (max-width: 60rem) {
 		.cfg__cheats {
-			position: static;
 			max-height: 24rem;
 		}
 	}

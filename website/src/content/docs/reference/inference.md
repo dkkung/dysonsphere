@@ -2,7 +2,7 @@
 title: "Statistical annotations"
 description: "Pairwise/omnibus comparisons and correlation layers."
 sidebar:
-  order: 4
+  order: 11
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -87,7 +87,7 @@ Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 - **`nComparisons`** (`int | None`) - Total number of comparisons for Bonferroni correction. Defaults to ``len(pairs)`` when ``correction='bonferroni'`` and not set explicitly.
 - **`yPositions`** (`list[float] | None`) - Explicit y positions (data units) for each bracket, one per pair in the same order. When provided, overrides all auto-stacking logic (``yStart``, ``yStep``, ``yPad`` are ignored).
 - **`yStart`** (`float | None`) - Y position (data units) of the lowest bracket. Defaults to ``max(y values for all annotated groups) + yPad``.
-- **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels. Defaults to ``yPad * 1.5``.
+- **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels. Defaults to ``yPad * 2`` (~16 px for ``bracketStyle='line'``, ~20 px for ``'bracket'``), leaving clearance between a bracket's label and the bracket stacked above it.
 - **`yPad`** (`float | None`) - Padding above the data maximum when ``yStart`` is auto-placed. Defaults to a fixed visual gap of ~8 px (``bracketStyle='line'``) or ~10 px (``bracketStyle='bracket'``), expressed in data units via ``chartHeight`` so the gap stays visually consistent regardless of chart height.
 - **`categories`** (`list | None`) - Ordered list of all x-axis categories. Inferred from ``df`` (sorted alphabetically) when not provided.
 - **`chartWidth`** (`int | None`) - Width of the chart in pixels, used to compute text x positions. Auto-detected from ``ds.theme()`` when not set.
