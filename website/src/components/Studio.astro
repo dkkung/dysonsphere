@@ -618,14 +618,9 @@ high,100,26.4,6`;
 					boxplot: 'mark_boxplot',
 				};
 				const yt = type === 'bar' ? `mean(${y})` : y;
-				// A layered correlation's fit line carries private _x/_y fields; without explicit
-				// base titles Vega-Lite CONCATENATES them into the shared axis titles (", _x").
-				const wantsCorrelation =
-					type === 'point' && xtype === 'Q' && el<HTMLSelectElement>('st-correlation').value !== '';
-				const titled = (col: string) => (wantsCorrelation ? `, title=${q(col)}` : '');
 				const enc = [
-					`        x=alt.X("${x}:${type === 'boxplot' ? 'N' : xtype}"${titled(x)}),`,
-					`        y=alt.Y("${yt}:Q"${titled(y)}),`,
+					`        x=alt.X("${x}:${type === 'boxplot' ? 'N' : xtype}"),`,
+					`        y=alt.Y("${yt}:Q"),`,
 				];
 				if (color && type !== 'boxplot') enc.push(`        color=alt.Color("${color}:${colorType}"),`);
 				body.push(`chart = (`, `    alt.Chart(df)`, `    .${marks[type]}()`, `    .encode(`, ...enc, `    )`, `)`);
