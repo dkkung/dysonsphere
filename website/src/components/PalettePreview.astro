@@ -29,6 +29,8 @@
 	const BASE = import.meta.env.BASE_URL;
 	const specCache = new Map<string, Promise<any>>();
 	const views = new WeakMap<HTMLElement, { finalize: () => void }>();
+	// Per-chart fit factors (rowWidth / natural svg width); the applied zoom is their minimum.
+	const fits = new Map<HTMLElement, number>();
 
 	let current: { name: string; kind: string; colors: string[] } = {
 		name: 'ember',
@@ -70,18 +72,24 @@
 		views.get(el)?.finalize();
 		el.innerHTML = '';
 		views.set(el, await vegaEmbed(el, spec, { actions: false, renderer: 'svg', background: 'transparent' }));
-		// Auto-fit: zoom each chart so it fills its column. With actions:false vega-embed makes
+		// Auto-fit: zoom the charts to fill the column. With actions:false vega-embed makes
 		// the container itself the .vega-embed with the <svg> directly inside - there is NO
 		// .chart-wrapper child - so the site-wide wrapper zoom rule (theme.css) never applies
-		// here and the chart paints at its natural ~140px unless the container is zoomed
-		// directly. Charts differ in natural width (legends, angled labels), so the zoom is
-		// per-chart; the row is measured (not the container - its own zoom would skew it).
+		// here and the chart paints at its natural ~180px unless the container is zoomed
+		// directly. The zoom is SHARED (the minimum fit across the charts) so every chart
+		// renders at the same scale - a per-chart fit made the narrower ones look blown up.
+		// The chart sources are authored to near-equal natural widths (the legend-less
+		// bars/heatmap get wider chartWidths), so the shared fit still fills the column.
+		// The row is measured, not the container - its own zoom would skew it.
 		const svg = el.querySelector('svg');
 		const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
 		const rowWidth = el.closest('.palprev__row')?.getBoundingClientRect().width ?? 0;
 		if (natural > 0 && rowWidth > 0) {
-			const z = Math.min(Math.max(rowWidth / natural, 1.2), 3.4);
-			(el.style as CSSStyleDeclaration & { zoom: string }).zoom = z.toFixed(3);
+			fits.set(el, rowWidth / natural);
+			const shared = Math.min(Math.max(Math.min(...fits.values()), 1.2), 3.4).toFixed(3);
+			for (const chartEl of fits.keys()) {
+				(chartEl.style as CSSStyleDeclaration & { zoom: string }).zoom = shared;
+			}
 		}
 	}
 
