@@ -203,7 +203,7 @@ correlation readouts sized to their chartWidth. New beeswarm+brackets homepage h
 dropped, zoom 2.6). "Condition tables" renamed "multilabels" sitewide (library docstring still
 says condition table - core-side edit, not done). Sidebar toggle moved into the header next to
 the wordmark (Sidebar override deleted); docs reordered build->style->export; Open-in-studio
-links hover-only. The palette browser + live preview (five charts - bars/boxplot/scatter/lines/heatmap - restyled
+links hover-only. The palette browser + live preview (four charts - bars/scatter/lines/heatmap - restyled
 on swatch click via client-side config.range patching, each AUTO-FIT to the aside column with a
 per-render --ds-chart-zoom (a shared zoom leaves narrow charts small); `ds-palette-select` CustomEvent from Palettes.astro) live on their own
 `/palettes/` page under Interactive (swatch list = main column, preview charts in a STICKY
