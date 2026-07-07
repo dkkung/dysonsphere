@@ -17,6 +17,8 @@
 	</p>
 	<div class="palprev__row">
 		<div class="palprev__chart" data-preview="preview_bars" data-role="category" data-n="6"></div>
+		<div class="palprev__chart" data-preview="preview_box" data-role="category" data-n="3"></div>
+		<div class="palprev__chart" data-preview="preview_scatter" data-role="category" data-n="3"></div>
 		<div class="palprev__chart" data-preview="preview_lines" data-role="category" data-n="5"></div>
 		<div class="palprev__chart" data-preview="preview_heatmap" data-role="heatmap"></div>
 	</div>
@@ -69,6 +71,15 @@
 		views.get(el)?.finalize();
 		el.innerHTML = '';
 		views.set(el, await vegaEmbed(el, spec, { actions: false, renderer: 'svg', background: 'transparent' }));
+		// Auto-fit: charts have different natural widths (legends, angled labels), so a single
+		// shared zoom leaves the narrow ones small. Scale each render to fill its own column
+		// instead (the container itself is not zoomed, so clientWidth is honest).
+		const svg = el.querySelector('svg');
+		const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
+		if (natural > 0 && el.clientWidth > 0) {
+			const z = Math.min(Math.max(el.clientWidth / natural, 1.2), 3.6);
+			el.style.setProperty('--ds-chart-zoom', z.toFixed(3));
+		}
 	}
 
 	function renderAll() {
@@ -113,19 +124,17 @@
 	.palprev__row {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-		gap: 0.75rem;
+		gap: 1rem;
 		align-items: center;
-		justify-items: center;
+		justify-items: start;
 	}
-	/* The site-wide chart zoom (theme.css) reads this variable off the embed's ancestors -
-	   override it here rather than zooming the container (which would compound with it). */
+	/* Each chart's --ds-chart-zoom is set per render (auto-fit to the column width, see the
+	   script); this is only the pre-render fallback. The site-wide zoom rule in theme.css reads
+	   the variable off the embed's ancestors - never zoom this container itself. */
 	.palprev__chart {
 		--ds-chart-zoom: 2.4;
+		width: 100%;
 		min-height: 8rem;
-	}
-	@media (max-width: 640px) {
-		.palprev__chart {
-			--ds-chart-zoom: 1.8;
-		}
+		overflow: hidden;
 	}
 </style>

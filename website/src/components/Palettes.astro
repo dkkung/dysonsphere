@@ -160,10 +160,16 @@ import palettes from '../generated/palettes.json';
 	.pal__stop {
 		flex: 1;
 	}
+	/* One line always: a wrapping long name would make its grid row taller and bump every row
+	   below it. The full name is still in the title attribute (and copied on click). */
 	.pal__name {
 		font-family: var(--sl-font-mono);
 		font-size: 0.72rem;
 		color: var(--sl-color-gray-3);
+		max-width: 100%;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.pal__item:hover .pal__name {
 		color: var(--sl-color-text-accent);
