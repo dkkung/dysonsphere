@@ -570,13 +570,13 @@ def _fix_superscript_labels(root: ET.Element) -> None:
         el.insert(0, tspan)
 
 
-# Latin statistical symbols that scientific convention (APA/CSE) sets in italic; Greek
-# symbols (ρ, τ, η², ε², χ²) stay upright and are deliberately absent. Matched globally
-# on rendered text - dysonsphere-generated labels and user annotations alike - because
-# the typography is correct regardless of who wrote the text (same policy as
-# _SUP_LABEL_PATTERN above). Each alternative is anchored to the exact context our
-# labels generate, so accidental matches in prose are rare (and typographically right
-# when they do occur).
+# Single-letter Latin statistical symbols, set in italic by scientific convention; Greek
+# symbols (ρ, τ, η², ε², χ²) and multi-letter abbreviations (ns) stay upright and are
+# deliberately absent. Matched globally on rendered text - dysonsphere-generated labels
+# and user annotations alike - because the typography is correct regardless of who wrote
+# the text (same policy as _SUP_LABEL_PATTERN above). Each alternative is anchored to the
+# exact context our labels generate, so accidental matches in prose are rare (and
+# typographically right when they do occur).
 _ITALIC_STAT_PATTERN = re.compile(
     r"(?<![A-Za-z])(?:"
     r"P(?=\s*[=<≈])"  # p-value: P = 0.012 / P < 0.001 / P ≈ 10⁻⁵
