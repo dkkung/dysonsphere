@@ -1,10 +1,9 @@
 ---
-// dysonsphere.toml generator: the exact default config ds.create_config() scaffolds, editable
-// in place, next to a cheat sheet of every ds.theme() parameter with its built-in default
-// (both generated from the library by scripts/gen_config.py). Clicking a cheat-sheet row
-// inserts `key = default` at the cursor; Copy/Download produce the finished file. Pure
-// client-side - no Pyodide.
-import defaultToml from '../generated/default_config.toml?raw';
+// Config generator: the exact default dysonsphere.toml ds.create_config() scaffolds, editable
+// in a CodeMirror TOML editor, next to a cheat sheet of every ds.theme() parameter with its
+// built-in default (both generated from the library by scripts/gen_config.py). Clicking a
+// cheat-sheet row inserts `key = default` on its own line at the cursor; Copy/Download produce
+// the finished file. Pure client-side - no Pyodide.
 import params from '../generated/theme_defaults.json';
 ---
 
@@ -18,7 +17,7 @@ import params from '../generated/theme_defaults.json';
 				<button id="cfg-download" type="button" class="cfg__primary">Download</button>
 			</span>
 		</div>
-		<textarea id="cfg-editor" spellcheck="false" rows={24}>{defaultToml.trimEnd()}</textarea>
+		<div id="cfg-editor"></div>
 		<p class="cfg__hint">
 			Save the file next to your notebook/script (or anywhere up the directory tree), or pass
 			<code>persist=True</code> to <code>ds.create_config()</code> for the user-wide location.
@@ -54,23 +53,46 @@ import params from '../generated/theme_defaults.json';
 </div>
 
 <script>
-	function initConfigGenerator() {
-		const editor = document.getElementById('cfg-editor') as HTMLTextAreaElement | null;
-		if (!editor || editor.dataset.wired) return;
-		editor.dataset.wired = '1';
-		const initial = editor.value;
+	import { EditorView, basicSetup } from 'codemirror';
+	import { Compartment } from '@codemirror/state';
+	import { StreamLanguage } from '@codemirror/language';
+	import { toml } from '@codemirror/legacy-modes/mode/toml';
+	import { githubLight, githubDark } from '@uiw/codemirror-theme-github';
+	import defaultToml from '../generated/default_config.toml?raw';
 
+	function initConfigGenerator() {
+		const host = document.getElementById('cfg-editor');
+		if (!host || host.dataset.wired) return;
+		host.dataset.wired = '1';
+
+		const isDark = () => document.documentElement.dataset.theme === 'dark';
+		const themeCompartment = new Compartment();
+		const cmTheme = () => (isDark() ? githubDark : githubLight);
+		const editor = new EditorView({
+			doc: defaultToml.trimEnd(),
+			extensions: [basicSetup, StreamLanguage.define(toml), themeCompartment.of(cmTheme())],
+			parent: host,
+		});
+		// Late-loading webfonts shift CodeMirror's text metrics (the studio's cursor bug).
+		document.fonts?.ready.then(() => editor.requestMeasure());
+		new MutationObserver(() => {
+			editor.dispatch({ effects: themeCompartment.reconfigure(cmTheme()) });
+		}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+		const text = () => editor.state.doc.toString();
 		document.getElementById('cfg-reset')?.addEventListener('click', () => {
-			editor.value = initial;
+			editor.dispatch({
+				changes: { from: 0, to: editor.state.doc.length, insert: defaultToml.trimEnd() },
+			});
 		});
 		document.getElementById('cfg-copy')?.addEventListener('click', (ev) => {
-			navigator.clipboard?.writeText(editor.value);
+			navigator.clipboard?.writeText(text());
 			const b = ev.currentTarget as HTMLButtonElement;
 			b.textContent = 'Copied!';
 			setTimeout(() => (b.textContent = 'Copy'), 900);
 		});
 		document.getElementById('cfg-download')?.addEventListener('click', () => {
-			const url = URL.createObjectURL(new Blob([editor.value], { type: 'application/toml' }));
+			const url = URL.createObjectURL(new Blob([text()], { type: 'application/toml' }));
 			const a = document.createElement('a');
 			a.href = url;
 			a.download = 'dysonsphere.toml';
@@ -78,7 +100,7 @@ import params from '../generated/theme_defaults.json';
 			URL.revokeObjectURL(url);
 		});
 
-		// Cheat sheet: filter + click-to-insert at the cursor (own line, cursor after the value).
+		// Cheat sheet: filter + click-to-insert on its own line after the cursor's line.
 		const filter = document.getElementById('cfg-filter') as HTMLInputElement;
 		const rows = Array.from(document.querySelectorAll<HTMLElement>('.cfg__row'));
 		filter.addEventListener('input', () => {
@@ -89,17 +111,15 @@ import params from '../generated/theme_defaults.json';
 		});
 		for (const r of rows) {
 			r.addEventListener('click', () => {
-				const line = `${r.dataset.key} = ${r.dataset.default ?? ''}`;
-				const pos = editor.selectionStart ?? editor.value.length;
-				const before = editor.value.slice(0, pos);
-				const after = editor.value.slice(editor.selectionEnd ?? pos);
-				// Land on its own line wherever the cursor is.
-				const prefix = before.length && !before.endsWith('\n') ? '\n' : '';
-				const suffix = after.startsWith('\n') || after.length === 0 ? '' : '\n';
-				editor.value = before + prefix + line + suffix + after;
-				const cursor = (before + prefix + line).length;
+				const snippet = `${r.dataset.key} = ${r.dataset.default ?? ''}`;
+				const line = editor.state.doc.lineAt(editor.state.selection.main.head);
+				const insertion = line.length === 0 ? snippet : `\n${snippet}`;
+				editor.dispatch({
+					changes: { from: line.to, insert: insertion },
+					selection: { anchor: line.to + insertion.length },
+					scrollIntoView: true,
+				});
 				editor.focus();
-				editor.setSelectionRange(cursor, cursor);
 			});
 		}
 	}
@@ -154,7 +174,7 @@ import params from '../generated/theme_defaults.json';
 		position: sticky;
 		top: 0;
 		background: var(--sl-color-bg);
-		z-index: 1;
+		z-index: 2;
 	}
 	.cfg__actions {
 		display: flex;
@@ -177,21 +197,21 @@ import params from '../generated/theme_defaults.json';
 		border-color: var(--sl-color-white);
 		font-weight: 600;
 	}
-	#cfg-editor {
-		display: block;
-		width: 100%;
-		border: 0;
-		padding: 1rem;
-		background: var(--sl-color-bg);
-		color: var(--sl-color-text);
-		font-family: var(--sl-font-mono);
-		font-size: 0.78rem;
-		line-height: 1.55;
-		resize: vertical;
+	/* CodeMirror renders its own DOM - size it with global selectors and pin the mono metrics
+	   (same recipe as the studio editor). */
+	:global(#cfg-editor .cm-editor) {
 		min-height: 24rem;
+		max-height: 38rem;
+		font-size: 0.78rem;
 	}
-	#cfg-editor:focus {
-		outline: none;
+	:global(#cfg-editor .cm-scroller) {
+		overflow: auto;
+		font-family: var(--sl-font-mono) !important;
+		line-height: 1.55;
+	}
+	:global(#cfg-editor .cm-gutters) {
+		font-family: var(--sl-font-mono) !important;
+		line-height: 1.55;
 	}
 	.cfg__hint {
 		margin: 0;

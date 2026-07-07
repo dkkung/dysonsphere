@@ -84,7 +84,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Gallery', slug: 'gallery' },
 						{ label: 'Palette browser', slug: 'palettes' },
-						{ label: 'dysonsphere.toml generator', slug: 'config-generator' },
+						{ label: 'Config generator', slug: 'config-generator' },
 						{ label: 'Chart Studio', slug: 'studio' },
 					],
 				},

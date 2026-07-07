@@ -29,8 +29,8 @@
 	const BASE = import.meta.env.BASE_URL;
 	const specCache = new Map<string, Promise<any>>();
 	const views = new WeakMap<HTMLElement, { finalize: () => void }>();
-	// Per-chart fit factors (rowWidth / natural svg width); the applied zoom is their minimum.
-	const fits = new Map<HTMLElement, number>();
+	// Natural (unzoomed) svg width per chart; the applied zoom is the minimum shared fit.
+	const naturals = new Map<HTMLElement, number>();
 
 	let current: { name: string; kind: string; colors: string[] } = {
 		name: 'ember',
@@ -72,24 +72,35 @@
 		views.get(el)?.finalize();
 		el.innerHTML = '';
 		views.set(el, await vegaEmbed(el, spec, { actions: false, renderer: 'svg', background: 'transparent' }));
-		// Auto-fit: zoom the charts to fill the column. With actions:false vega-embed makes
-		// the container itself the .vega-embed with the <svg> directly inside - there is NO
-		// .chart-wrapper child - so the site-wide wrapper zoom rule (theme.css) never applies
-		// here and the chart paints at its natural ~180px unless the container is zoomed
-		// directly. The zoom is SHARED (the minimum fit across the charts) so every chart
-		// renders at the same scale - a per-chart fit made the narrower ones look blown up.
-		// The chart sources are authored to near-equal natural widths (the legend-less
-		// bars/heatmap get wider chartWidths), so the shared fit still fills the column.
-		// The row is measured, not the container - its own zoom would skew it.
+		// Record the natural width and re-derive the shared zoom (see applyZoom).
 		const svg = el.querySelector('svg');
 		const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
-		const rowWidth = el.closest('.palprev__row')?.getBoundingClientRect().width ?? 0;
-		if (natural > 0 && rowWidth > 0) {
-			fits.set(el, rowWidth / natural);
-			const shared = Math.min(Math.max(Math.min(...fits.values()), 1.2), 3.4).toFixed(3);
-			for (const chartEl of fits.keys()) {
-				(chartEl.style as CSSStyleDeclaration & { zoom: string }).zoom = shared;
-			}
+		if (natural > 0) {
+			naturals.set(el, natural);
+			applyZoom();
+		}
+	}
+
+	// Auto-fit: zoom the charts to fill the column. With actions:false vega-embed makes the
+	// container itself the .vega-embed with the <svg> directly inside - there is NO
+	// .chart-wrapper child - so the site-wide wrapper zoom rule (theme.css) never applies here
+	// and the chart paints at its natural ~180px unless the container is zoomed directly. The
+	// zoom is SHARED (the minimum fit across the charts) so every chart renders at the same
+	// scale - a per-chart fit made the narrower ones look blown up; the chart sources are
+	// authored to near-equal natural widths so the shared fit still fills the column. The row
+	// is measured, not the container (its own zoom would skew it), and a ResizeObserver
+	// re-derives the zoom whenever the row's width settles - on first load the charts can
+	// render before styles/layout do (a dev-server reload showed them small until the next
+	// re-render), so sizing must react to layout, not assume it.
+	function applyZoom() {
+		const row = document.querySelector<HTMLElement>('.palprev__row');
+		if (!row || !naturals.size) return;
+		const rowWidth = row.getBoundingClientRect().width;
+		if (rowWidth <= 0) return;
+		const fits = [...naturals.values()].map((n) => rowWidth / n);
+		const shared = Math.min(Math.max(Math.min(...fits), 1.2), 3.4).toFixed(3);
+		for (const el of naturals.keys()) {
+			(el.style as CSSStyleDeclaration & { zoom: string }).zoom = shared;
 		}
 	}
 
@@ -105,6 +116,11 @@
 	}
 
 	function boot() {
+		// A page swap replaces the chart elements: drop stale ones so they can't skew the
+		// shared-minimum zoom, and re-fit whenever the (new) row's layout width changes.
+		naturals.clear();
+		const row = document.querySelector<HTMLElement>('.palprev__row');
+		if (row) new ResizeObserver(() => applyZoom()).observe(row);
 		// Seed from the palette browser's baked data so the default preview needs no extra fetch.
 		const seedEl = document.querySelector<HTMLElement>(`.pal__item[data-name="${current.name}"]`);
 		if (seedEl && !current.colors.length) {
