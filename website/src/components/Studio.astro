@@ -716,7 +716,10 @@ high,100,26.4,6`;
 			const svg = chartEl.querySelector('svg');
 			const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
 			if (natural <= 0) return;
-			const avail = chartEl.clientWidth - 32; // panel padding
+			// Measure the PARENT panel: the chart div itself is (re)classed .vega-embed and can
+			// shrink-wrap its zoomed content, so its own size follows the thing being fitted.
+			const panel = chartEl.parentElement?.getBoundingClientRect().width ?? 0;
+			const avail = panel - 34; // chart padding + panel border
 			if (avail <= 0) return;
 			const z = Math.min(3.5, Math.max(1, avail / natural));
 			chartEl.style.setProperty('--ds-chart-zoom', z.toFixed(3));
@@ -1102,11 +1105,19 @@ high,100,26.4,6`;
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+		/* Stay inside the grid track: without this, a wide (zoomed) chart inflates the item
+		   past its column (min-width:auto), the panel clips it, and the fit-zoom measures the
+		   inflated width - so the cap never engages. */
+		min-width: 0;
 	}
 	.st__panel {
 		border: 1px solid var(--sl-color-gray-5);
 		border-radius: 0.65rem;
 		overflow: hidden;
+		/* Same track-containment as .st__output: a flex item's min-width:auto floors its
+		   stretched width at the (zoomed) content's min-content size. */
+		min-width: 0;
+		max-width: 100%;
 	}
 	.st__label {
 		display: flex;
@@ -1135,6 +1146,15 @@ high,100,26.4,6`;
 		justify-content: center;
 		align-items: center;
 		overflow: auto;
+	}
+	/* vega-embed tags the chart div itself with .vega-embed { display: inline-block } at
+	   runtime; the scoped rule above compiles to a zero-specificity :where() and loses the
+	   tie, letting the div shrink-wrap its ZOOMED content and overflow the panel. An id
+	   selector outranks it. */
+	:global(#st-chart) {
+		display: flex !important;
+		width: 100%;
+		max-width: 100%;
 	}
 	.st__error {
 		margin: 0;
