@@ -37,8 +37,8 @@ const paletteNames = palettes.map((p) => p.name);
 				<input id="st-export-file" type="file" accept=".json,.svg,.png" />
 			</label>
 			<p class="st__muted">
-				Drop a file saved by <code>ds.save()</code>: a JSON rebuilds the chart via
-				<code>ds.load()</code>; JSON, SVG, and PNG all read their embedded metadata back
+				Drop a file saved by <code>ds.save()</code>: a JSON rebuilds the chart
+				via <code>ds.load()</code>; JSON, SVG, and PNG all read their embedded metadata back
 				(shown below the chart).
 			</p>
 		</section>
@@ -201,7 +201,7 @@ const paletteNames = palettes.map((p) => p.name);
 					<button id="st-copy" class="st__copy" type="button">Copy</button>
 				</span>
 			</div>
-			<pre class="st__code" id="st-code-view"><code id="st-code"></code></pre>
+			<div id="st-code-view"></div>
 			<div id="st-editor" hidden></div>
 			<p class="st__hint" id="st-editor-hint" hidden>
 				Define a variable named <code>chart</code>. Run with the button or
@@ -218,7 +218,7 @@ const paletteNames = palettes.map((p) => p.name);
 	import { keymap } from '@codemirror/view';
 	import { python } from '@codemirror/lang-python';
 	import { githubLight, githubDark } from '@uiw/codemirror-theme-github';
-	import { Compartment } from '@codemirror/state';
+	import { Compartment, EditorState } from '@codemirror/state';
 	import { getRuntime, onRuntimeStatus, type DsRuntime } from '../lib/runtime';
 	import palettes from '../generated/palettes.json';
 
@@ -277,7 +277,6 @@ high,100,26.4,6`;
 
 		const statusEl = el('st-status');
 		const chartEl = el('st-chart');
-		const codeEl = el('st-code');
 		const errorEl = el('st-error');
 		const dataInfo = el('st-data-info');
 
@@ -324,10 +323,30 @@ high,100,26.4,6`;
 			],
 			parent: el('st-editor'),
 		});
+		// The builder's generated snippet gets the same Python highlighting, in a read-only
+		// CodeMirror (no cursor, not editable - it is a view, "Edit as code" is the way in).
+		const builderThemeCompartment = new Compartment();
+		const builderView = new EditorView({
+			doc: '',
+			extensions: [
+				basicSetup,
+				python(),
+				builderThemeCompartment.of(cmTheme()),
+				EditorView.editable.of(false),
+				EditorState.readOnly.of(true),
+			],
+			parent: el('st-code-view'),
+		});
+		const setBuilderCode = (code: string) => {
+			builderView.dispatch({ changes: { from: 0, to: builderView.state.doc.length, insert: code } });
+		};
 		// Web fonts load after CodeMirror measures its text: without a re-measure the cursor
 		// lands visibly off from the click position (the reported playground bug). Re-measure
 		// once the fonts settle.
-		document.fonts?.ready.then(() => editor.requestMeasure());
+		document.fonts?.ready.then(() => {
+			editor.requestMeasure();
+			builderView.requestMeasure();
+		});
 
 		function setMode(next: 'build' | 'code', seed?: string) {
 			mode = next;
@@ -648,7 +667,7 @@ high,100,26.4,6`;
 		async function renderBuild() {
 			if (mode !== 'build') return; // a queued render must never clobber code-mode output
 			const code = buildCode();
-			codeEl.textContent = code;
+			setBuilderCode(code);
 			syncPalettePreview();
 			if (!runtime || !columns.length) return;
 			await renderSpec(code);
@@ -790,7 +809,7 @@ high,100,26.4,6`;
 			el('st-meta-panel').hidden = true;
 		});
 		el('st-copy').addEventListener('click', () => {
-			const text = mode === 'code' ? editor.state.doc.toString() : (codeEl.textContent ?? '');
+			const text = (mode === 'code' ? editor : builderView).state.doc.toString();
 			navigator.clipboard?.writeText(text);
 			const b = el('st-copy');
 			b.textContent = 'Copied!';
@@ -807,6 +826,7 @@ high,100,26.4,6`;
 		// editor's syntax theme.
 		new MutationObserver(() => {
 			editor.dispatch({ effects: themeCompartment.reconfigure(cmTheme()) });
+			builderView.dispatch({ effects: builderThemeCompartment.reconfigure(cmTheme()) });
 			rerenderCurrent();
 		}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
@@ -821,7 +841,7 @@ high,100,26.4,6`;
 		// Initial state: code mode when deep-linked, builder otherwise. The builder shows its
 		// generated snippet immediately; the chart appears once the runtime boots.
 		if (mode === 'code') setMode('code');
-		else codeEl.textContent = buildCode();
+		else setBuilderCode(buildCode());
 		syncVisibility();
 		onRuntimeStatus((msg) => {
 			if (!runtime) setStatus(msg);
@@ -1024,14 +1044,19 @@ high,100,26.4,6`;
 		border-color: var(--sl-color-white);
 		font-weight: 600;
 	}
-	.st__code {
-		margin: 0;
-		padding: 1rem;
-		overflow: auto;
+	/* The builder's read-only snippet view is a CodeMirror too (same look as the editor). */
+	:global(#st-code-view .cm-editor) {
+		max-height: 30rem;
 		font-size: 0.78rem;
+	}
+	:global(#st-code-view .cm-scroller) {
+		overflow: auto;
+		font-family: var(--sl-font-mono) !important;
 		line-height: 1.5;
-		background: var(--sl-color-bg);
-		font-family: var(--sl-font-mono);
+	}
+	:global(#st-code-view .cm-gutters) {
+		font-family: var(--sl-font-mono) !important;
+		line-height: 1.5;
 	}
 	/* CodeMirror renders its own DOM, so size it with global selectors. Pin the exact same
 	   font metrics on content and gutters - mismatched metrics (or a late-loading webfont)
