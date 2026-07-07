@@ -137,18 +137,27 @@ import palettes from '../generated/palettes.json';
 	.pal__grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-		gap: 0.6rem;
+		gap: 0.55rem 0.6rem;
 	}
+	/* Grouping: the name hugs its strip (small inner gap) while items sit clearly apart (grid
+	   gap + chip padding), and hover paints one chip around strip + name - so there is no
+	   ambiguity about which strip a name belongs to. */
 	.pal__item {
 		display: flex;
 		flex-direction: column;
-		gap: 0.3rem;
+		gap: 0.14rem;
 		margin: 0; /* belt-and-suspenders: grid rows must align even if content styling leaks in */
-		padding: 0;
+		padding: 0.32rem 0.4rem;
 		border: 0;
+		border-radius: 0.5rem;
 		background: transparent;
 		cursor: pointer;
 		text-align: left;
+		transition: background-color 0.12s ease;
+	}
+	.pal__item:hover,
+	.pal__item.is-selected {
+		background: var(--sl-color-gray-6);
 	}
 	.pal__strip {
 		display: flex;
