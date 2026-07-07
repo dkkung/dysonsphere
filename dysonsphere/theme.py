@@ -478,16 +478,16 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "opacity": 1,
                 "rule": {
                     "strokeDash": [0, 0],
-                    "strokeWidth": opts["markStrokeWidth"] * 2,
+                    "strokeWidth": opts["markStrokeWidth"],
                 },
                 "ticks": {
                     "color": "white" if opts["darkmode"] else "black",
-                    "cornerRadius": opts["markStrokeWidth"],
+                    "cornerRadius": opts["markStrokeWidth"] / 2,
                     "opacity": 1,
                     "size": opts["markSize"] * 0.6,
-                    "thickness": opts["markStrokeWidth"] * 2,
+                    "thickness": opts["markStrokeWidth"],
                 },
-                "thickness": opts["markStrokeWidth"] * 2,
+                "thickness": opts["markStrokeWidth"],
             },
             "font": opts["font"],
             "geoshape": {

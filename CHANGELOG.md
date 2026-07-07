@@ -2,9 +2,19 @@
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-07-07
+
+### Changes
+
+- **Significance-bracket spacing revised: `yStep` is now `yPad * 1.75` and `yPad` scales to the full data extent.** The `2.0×` gap shipped in 3.2.0 looked airy on charts whose rendered y-domain hugs the data extent; `1.75×` still clears a bracket's label from the bar above it without the extra air. More importantly, `yPad` (and `tickHeight`) now derive from the **full** data extent rather than just the compared groups: bracket positions are data-unit values on the shared y-scale, so the visual gap is `yStep × chartHeight / rendered_domain`, and Vega fits that domain to *every* group. Sizing the gap off only the annotated groups collapsed the stacked brackets into a sub-pixel sliver when an un-annotated group (e.g. a saturating positive control) inflated the domain; the full extent tracks the rendered domain, so spacing stays stable across charts and no longer collapses. `yStart` still anchors above the compared groups. Explicit `yPad`/`yStep`/`yPositions` override the auto values as before.
+
+## [3.2.0] - 2026-07-06
+
 ### Changes
 
 - **Stacked significance brackets breathe: the auto `yStep` is now `yPad * 2` (was `1.5`).** At the old spacing a bracket's p-value label (drawn above its bar) nearly touched the bracket stacked above it - ~4 px of clearance at the default theme, less with superscript exponents. The default gap between stacking levels is now ~16 px (`bracketStyle="line"`) / ~20 px (`"bracket"`), roughly doubling the label clearance. An explicit `yStep=` is unaffected.
+- **Error bars are lighter: the stem, rule, and end-cap thickness drop from `2 x markStrokeWidth` to `markStrokeWidth`.** Error bars now weigh the same as every other mark stroke and the axis line (`markStrokeWidth = axisWidth`), instead of rendering at double weight. The tick-cap `cornerRadius` is halved to `markStrokeWidth / 2` so the caps stay fully rounded at the new height. Affects `mark_strip` mean/error overlays and any `errorbar` mark.
+- **The `colors` palette catalogue is reordered for browsability.** The `colors` dict is now grouped by data type (sequential, then diverging, then qualitative), then by package (dysonsphere, then `mpl_`, then `cmocean_`), then by tier (base names, then `...2`, then `...3` for dysonsphere palettes), alphabetized case-insensitively within each group. External ramps that are conceptually diverging but were resampled to 12 stops (mpl: BrBG, bwr, coolwarm, PiYG, PRGn, PuOr, RdBu, RdGy, RdYlBu, RdYlGn, seismic, Spectral; cmocean: balance, curl, delta, diff, tarn, topo) are hand-placed in the diverging section; cyclic maps (mpl twilight, hsv) stay sequential. No palette is added, removed, or recolored - only the iteration order of `ds.colors` changes (visible if you enumerate it, e.g. in swatch exports or the palette browser).
 
 ## [3.1.0] - 2026-07-06
 
