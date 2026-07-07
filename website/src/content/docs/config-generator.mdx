@@ -1,0 +1,14 @@
+---
+title: Config generator
+description: "Build a dysonsphere.toml interactively - edit the scaffolded default config with a cheat sheet of every theme() parameter and its default."
+tableOfContents: false
+---
+
+import ConfigGenerator from '../../components/ConfigGenerator.astro';
+
+Build your `dysonsphere.toml` here: the editor starts from the exact file `ds.create_config()`
+scaffolds, and the cheat sheet lists **every `ds.theme()` parameter** with its built-in default -
+click a row to insert it, edit the value, then copy or download the result. See
+[Global theme overrides](/guides/configuration/) for where the file lives and how sections merge.
+
+<ConfigGenerator />

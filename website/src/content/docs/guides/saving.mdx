@@ -40,8 +40,9 @@ and log/power minor ticks are snapped to exact positions, and superscript expone
 When `saveMetadata=True` (the default), `save()` writes a `dysonsphere` metadata block into all
 three formats:
 
-- **provenance** - a content checksum, an export identifier, the user, the timestamp, and the
-  versions of Python, Altair, dysonsphere, numpy, scipy, and polars.
+- **provenance** - who/when/what plus the full rendering environment: the OS, the versions of
+  Python, Altair, vl-convert (the renderer), dysonsphere (and any extensions that produced the
+  figure), numpy, scipy, and polars - then the machine-identity checksums.
 - **theme** - the resolved `ds.theme()` arguments, so the look can be reproduced exactly.
 - **statistics** - the structured records from any `add_comparisons()` / `add_correlation()` on the
   chart (exact p-values, effect sizes, descriptives).
@@ -62,28 +63,32 @@ ds.save(chart, "mpg_by_origin", format="json")
 ```
 
 `ds.read("mpg_by_origin.json", what="metadata")` returns a `dict` with four keys - `provenance`,
-`statistics`, `theme`, and `report`. The **provenance** records who/when/what and pins every
-dependency version, so the figure is reproducible:
+`statistics`, `theme`, and `report`. The **provenance** leads with who/when/what, then the full
+rendering environment (the OS and vl-convert pin how text was measured, beyond the library
+versions), and ends with the machine-identity checksums:
 
 ```json
 {
-  "dataChecksum": ["sha256:dcd8d84cfe3b6e5cbcdaca8e43bfd44ef3f466407b862f9f03034bae27da5d4d"],
-  "vegaliteChecksum": "sha256:93014850ee942b65de6b679b18be05aa195bc2d3ee3617f5ad0a9aec5b1ea519",
-  "exportIdentifier": "53ab9835-016b-4600-8ceb-1065cb341417",
   "user": "douglaskung",
-  "script": "-",
-  "timestamp": "2026-07-06T07:25:24Z",
+  "script": "mpg_by_origin.py",
+  "timestamp": "2026-07-06T23:47:54Z",
   "environment": {
-    "python": "3.11.8", "altair": "6.2.1", "dysonsphere": "3.0.0",
-    "numpy": "2.4.6", "scipy": "1.17.1", "polars": "1.41.2"
-  }
+    "os": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.13.12", "altair": "6.2.1", "vl_convert": "1.9.0.post1",
+    "dysonsphere": "3.1.0", "numpy": "2.4.6", "scipy": "1.17.1", "polars": "1.41.2"
+  },
+  "vegaliteChecksum": "sha256:1ea9d534f84a33c6b550d805d9ad967f0e36f415b2aa4b491dc2402cfd57e841",
+  "exportIdentifier": "af751cd3-43cb-4076-8751-02508e54ae38",
+  "dataChecksum": ["sha256:281a94603a8549cda02866679f34c8d0d5ed490d3944c5ab881423ff388b52e8"]
 }
 ```
 
 The three checksums answer different questions: `dataChecksum` (one per dataframe,
 order-independent) is the **data** identity - two charts of the same numbers match even if drawn
 differently; `vegaliteChecksum` is the exact **spec content**; `exportIdentifier` is shared by
-every file from one `save()` call.
+every file from one `save()` call. A figure produced by an extension (say
+`ds.biology.volcano`) additionally records `"dysonsphere-extensions": {"biology": "0.1.0"}` in
+`environment` - only extensions that actually built the chart, not merely installed ones.
 
 The **statistics** entry is a list of structured records - exact p-values and effect sizes, not
 the rounded on-plot labels. One omnibus record from the chart above (trimmed):
@@ -91,23 +96,24 @@ the rounded on-plot labels. One omnibus record from the chart above (trimmed):
 ```json
 {
   "kind": "omnibus",
+  "dataChecksum": "sha256:d99fd99e862f635c276ed548bd0fb28602ba50e51bf7437b3847ea83c241e01c",
   "test": "kruskal",
   "groups": [
-    {"label": "USA", "n": 245, "mean": 20.03, "sd": 6.44, "median": 18.5, "q1": 15.0, "q3": 24.0},
-    {"label": "Europe", "n": 68, "mean": 27.60, "sd": 6.58, "median": 26.0, "q1": 23.75, "q3": 30.13},
-    {"label": "Japan", "n": 79, "mean": 30.45, "sd": 6.09, "median": 31.6, "q1": 25.7, "q3": 34.05}
+    {"label": "Europe", "n": 70, "mean": 27.89, "sd": 6.72, "median": 26.5, "q1": 24.0, "q3": 30.65},
+    {"label": "Japan", "n": 79, "mean": 30.45, "sd": 6.09, "median": 31.6, "q1": 25.7, "q3": 34.05},
+    {"label": "USA", "n": 249, "mean": 20.08, "sd": 6.40, "median": 18.5, "q1": 15.0, "q3": 24.0}
   ],
   "omnibus": {
     "name": "Kruskal-Wallis",
-    "statistic": {"symbol": "H", "value": 132.09, "df": [2]},
-    "pvalue": 2.078e-29,
-    "effect": {"name": "epsilon_squared", "symbol": "ε²", "value": 0.338}
+    "statistic": {"symbol": "H", "value": 134.46, "df": [2]},
+    "pvalue": 6.354e-30,
+    "effect": {"name": "epsilon_squared", "symbol": "ε²", "value": 0.339}
   },
   "comparisons": {
     "test": "dunn", "correction": null,
     "pairs": [
-      {"group1": "USA", "group2": "Europe", "pvalue": 3.99e-13, "effect": {"symbol": "r", "value": 0.606}},
-      {"group1": "USA", "group2": "Japan",  "pvalue": 4.47e-25, "effect": {"symbol": "r", "value": 0.746}}
+      {"group1": "Europe", "group2": "USA", "pvalue": 5.32e-14, "effect": {"symbol": "r", "value": -0.615}},
+      {"group1": "Japan", "group2": "USA", "pvalue": 5.93e-25, "effect": {"symbol": "r", "value": -0.746}}
     ]
   }
 }
@@ -120,31 +126,32 @@ And the **report** key is that same content rendered as the plain-text lab note 
 Statistics | Omnibus | Kruskal-Wallis
 ─────────────────────────────────────
 
-H(2) = 132, P = 2.08e-29
-Effect size: ε² = 0.338
+H(2) = 134, P = 6.35e-30
+Effect size: ε² = 0.339
 
 Group descriptives:
-  USA     n=245  mean=20  sd=6.44  median=18.5  IQR=[15, 24]  range=[9, 39]
-  Europe  n=68   mean=27.6  sd=6.58  median=26  IQR=[23.8, 30.1]  range=[16.2, 44.3]
+  Europe  n=70   mean=27.9  sd=6.72  median=26.5  IQR=[24, 30.6]  range=[16.2, 44.3]
   Japan   n=79   mean=30.5  sd=6.09  median=31.6  IQR=[25.7, 34]  range=[18, 46.6]
+  USA     n=249  mean=20.1  sd=6.4  median=18.5  IQR=[15, 24]  range=[9, 39]
 
 Post-hoc (dunn):
-  USA vs Europe    P = 3.99e-13  r = 0.606
-  USA vs Japan     P = 4.47e-25  r = 0.746
-  Europe vs Japan  P = 0.0377  r = 0.297
+  Europe vs Japan  P = 0.0555  r = 0.267
+  Europe vs USA    P = 5.32e-14  r = -0.615
+  Japan vs USA     P = 5.93e-25  r = -0.746
 
 Provenance
 ──────────
 
-Generated by douglaskung with - on 2026-07-06T07:25:24Z using Python 3.11.8,
-Altair 6.2.1, dysonsphere 3.0.0, NumPy 2.4.6, SciPy 1.17.1, Polars 1.41.2.
-Data checksum: sha256:dcd8d84c…
-Vega-Lite spec checksum: sha256:93014850…
-Export identifier: 53ab9835-016b-4600-8ceb-1065cb341417
+Generated by douglaskung with mpg_by_origin.py on 2026-07-06T23:47:54Z using
+macOS-26.5.2-arm64-arm-64bit-Mach-O, Python 3.13.12, Altair 6.2.1, vl-convert 1.9.0.post1,
+dysonsphere 3.1.0, NumPy 2.4.6, SciPy 1.17.1, Polars 1.41.2.
+Data checksum: sha256:281a9460…
+Vega-Lite spec checksum: sha256:1ea9d534…
+Export identifier: af751cd3-43cb-4076-8751-02508e54ae38
 ```
 
 The **data** itself round-trips too. `ds.read("mpg_by_origin.json", what="data")` returns the
-original 392-row dataframe - every column Altair inlined, including transform columns like
+original 398-row dataframe - every column Altair inlined, including transform columns like
 `jitter_x` (the honest data of record), with dysonsphere's own sidecar layers (bracket
 coordinates, error bars) filtered out.
 

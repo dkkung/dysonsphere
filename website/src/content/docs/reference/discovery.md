@@ -28,7 +28,7 @@ one by name). Both live here; ``__getattr__`` delegates to ``_extension_entry_po
 ## `extensions`
 
 ```python
-extensions() -> list[str]
+def extensions() -> list[str]: ...
 ```
 
 Return the sorted names of installed dysonsphere extensions.
@@ -39,7 +39,7 @@ Each name is also accessible as an attribute of the top-level ``dysonsphere`` mo
 ## `load_extension`
 
 ```python
-load_extension(name: str) -> ModuleType
+def load_extension(name: str) -> ModuleType: ...
 ```
 
 Import and return the extension registered under ``name``.

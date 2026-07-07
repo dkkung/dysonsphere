@@ -4,7 +4,7 @@ from vega_datasets import data
 ds.theme()
 
 cars = data.cars().dropna(subset=["Horsepower"])
-origins = ["USA", "Europe", "Japan"]
+origins = ["Europe", "Japan", "USA"]
 
 # bracketStyle and notation accept per-pair dicts (keys matched regardless of
 # order); the special "test" notation key styles the omnibus/test label.

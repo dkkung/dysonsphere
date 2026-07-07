@@ -2,7 +2,7 @@
 title: "Palettes"
 description: "Perceptually uniform palettes and Adobe Illustrator swatch export."
 sidebar:
-  order: 2
+  order: 9
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -10,7 +10,7 @@ sidebar:
 ## `categorical`
 
 ```python
-categorical(members: int = 1) -> list[str]
+def categorical(members: int = 1) -> list[str]: ...
 ```
 
 Qualitative color palette built from four base hues (blue, pink, yellow, green).
@@ -41,14 +41,14 @@ Paired data, members adjacent within each group::
 ## `palette`
 
 ```python
-palette(
+def palette(
     name: str,
     n: int | None = None,
     start: int = 0,
     end: int | None = None,
     step: int = 1,
     reverse: bool = False,
-) -> list[str]
+) -> list[str]: ...
 ```
 
 Sample colors from a named palette with control over start, stop, and spacing.
@@ -93,11 +93,11 @@ Four evenly-spaced colors, reversed:
 ## `export_swatches`
 
 ```python
-export_swatches(
+def export_swatches(
     directory: str | Path | None = None,
     palettes: list[str] | None = None,
     name: str = 'dysonsphere',
-) -> None
+) -> None: ...
 ```
 
 Write a JSX script and an ASE swatch library for Adobe Illustrator to *directory*

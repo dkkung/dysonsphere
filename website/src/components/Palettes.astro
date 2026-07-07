@@ -1,7 +1,7 @@
 ---
 // Live palette browser: renders every dysonsphere palette as a swatch strip, filterable by name
 // and kind. Pure client-side (data baked from src/generated/palettes.json at build time) - no
-// Pyodide. Click a swatch strip to copy its name.
+// Pyodide. Click a swatch strip to copy its hex codes (as a list) and preview it in the charts.
 import palettes from '../generated/palettes.json';
 ---
 
@@ -21,10 +21,10 @@ import palettes from '../generated/palettes.json';
 	<div id="pal-grid" class="pal__grid">
 		{
 			palettes.map((p) => (
-				<button class="pal__item" data-name={p.name} data-kind={p.kind} title={`Copy "${p.name}"`}>
+				<button class="pal__item" data-name={p.name} data-kind={p.kind} title={`Copy ${p.name} hex codes`}>
 					<span class="pal__strip">
 						{p.colors.map((c) => (
-							<span class="pal__stop" style={`background:${c}`} />
+							<span class="pal__stop" data-color={c} style={`background:${c}`} />
 						))}
 					</span>
 					<span class="pal__name">{p.name}</span>
@@ -70,11 +70,22 @@ import palettes from '../generated/palettes.json';
 		for (const el of items) {
 			el.addEventListener('click', () => {
 				const name = el.dataset.name ?? '';
-				navigator.clipboard?.writeText(name);
+				const colors = Array.from(el.querySelectorAll<HTMLElement>('.pal__stop')).map(
+					(s) => s.dataset.color ?? '',
+				);
+				// Copy the hex codes as a ready-to-paste list (what a scale range wants).
+				navigator.clipboard?.writeText(`[${colors.map((c) => `"${c.toUpperCase()}"`).join(', ')}]`);
 				const label = el.querySelector('.pal__name') as HTMLElement;
 				const prev = label.textContent;
-				label.textContent = 'copied!';
+				label.textContent = 'hex codes copied!';
 				setTimeout(() => (label.textContent = prev), 900);
+				// Tell the live preview (PalettePreview.astro) to restyle its charts.
+				items.forEach((i) => i.classList.toggle('is-selected', i === el));
+				document.dispatchEvent(
+					new CustomEvent('ds-palette-select', {
+						detail: { name, kind: el.dataset.kind ?? 'sequential', colors },
+					}),
+				);
 			});
 		}
 		apply();
@@ -127,18 +138,27 @@ import palettes from '../generated/palettes.json';
 	.pal__grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-		gap: 0.6rem;
+		gap: 0.55rem 0.6rem;
 	}
+	/* Grouping: the name hugs its strip (small inner gap) while items sit clearly apart (grid
+	   gap + chip padding), and hover paints one chip around strip + name - so there is no
+	   ambiguity about which strip a name belongs to. */
 	.pal__item {
 		display: flex;
 		flex-direction: column;
-		gap: 0.3rem;
+		gap: 0.14rem;
 		margin: 0; /* belt-and-suspenders: grid rows must align even if content styling leaks in */
-		padding: 0;
+		padding: 0.32rem 0.4rem;
 		border: 0;
+		border-radius: 0.5rem;
 		background: transparent;
 		cursor: pointer;
 		text-align: left;
+		transition: background-color 0.12s ease;
+	}
+	.pal__item:hover,
+	.pal__item.is-selected {
+		background: var(--sl-color-gray-6);
 	}
 	.pal__strip {
 		display: flex;
@@ -150,12 +170,25 @@ import palettes from '../generated/palettes.json';
 	.pal__stop {
 		flex: 1;
 	}
+	/* One line always: a wrapping long name would make its grid row taller and bump every row
+	   below it. The full name is still in the title attribute (and copied on click). */
 	.pal__name {
 		font-family: var(--sl-font-mono);
 		font-size: 0.72rem;
 		color: var(--sl-color-gray-3);
+		max-width: 100%;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.pal__item:hover .pal__name {
 		color: var(--sl-color-text-accent);
+	}
+	.pal__item.is-selected .pal__strip {
+		outline: 2px solid var(--sl-color-accent);
+		outline-offset: 1px;
+	}
+	.pal__item.is-selected .pal__name {
+		color: var(--sl-color-white);
 	}
 </style>

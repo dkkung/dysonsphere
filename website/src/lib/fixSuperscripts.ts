@@ -1,0 +1,56 @@
+// Client-side port of dysonsphere's `export._fix_superscript_labels()` SVG post-processor.
+//
+// Unicode superscript digits live in two blocks with inconsistent vertical metrics in many
+// fonts (¹²³ in Latin-1, ⁰⁴-⁹ + ⁻ in the Superscripts block), so scientific/power p-value
+// labels like `P = 5.03×10⁻¹⁷` render with a wobbly, collision-prone exponent. The library
+// fixes this at save() time, but the site renders charts live in the browser (vega-embed),
+// which never goes through save() - so the same fix is applied here to the rendered SVG DOM:
+// the exponent is replaced with a <tspan> of plain ASCII digits (and a true minus), raised
+// and shrunk relative to the label's font size (the library's 4px/-2.5px at fontSize 6).
+//
+// Only text content is touched; Vega's aria-label/title attributes keep the original string.
+
+const SUP_MAP: Record<string, string> = {
+	'⁰': '0',
+	'¹': '1',
+	'²': '2',
+	'³': '3',
+	'⁴': '4',
+	'⁵': '5',
+	'⁶': '6',
+	'⁷': '7',
+	'⁸': '8',
+	'⁹': '9',
+	'⁻': '−',
+};
+const EXPONENT = /([×≈]\s*10)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)/;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Re-typeset `×10ⁿ` exponents in every <text> of the rendered chart(s) under `root`. */
+export function fixSuperscripts(root: ParentNode): void {
+	for (const text of root.querySelectorAll('svg text')) {
+		if (text.childElementCount > 0) continue; // has tspans already (or was processed)
+		const s = text.textContent ?? '';
+		const m = s.match(EXPONENT);
+		if (!m || m.index === undefined) continue;
+		const fs = parseFloat(getComputedStyle(text).fontSize) || 7;
+		const supSize = ((fs * 2) / 3).toFixed(2);
+		const shift = ((fs * 5) / 12).toFixed(2);
+		const exponent = [...m[2]].map((c) => SUP_MAP[c] ?? c).join('');
+		const after = s.slice(m.index + m[0].length);
+		text.textContent = s.slice(0, m.index) + m[1];
+		const sup = document.createElementNS(SVG_NS, 'tspan');
+		sup.setAttribute('font-size', supSize);
+		sup.setAttribute('dy', `-${shift}`);
+		sup.textContent = exponent;
+		text.appendChild(sup);
+		if (after) {
+			// Reset the baseline for any trailing text (dy is cumulative within <text>).
+			const rest = document.createElementNS(SVG_NS, 'tspan');
+			rest.setAttribute('font-size', String(fs));
+			rest.setAttribute('dy', shift);
+			rest.textContent = after;
+			text.appendChild(rest);
+		}
+	}
+}

@@ -9,7 +9,9 @@ dissolved 2026-07-06).
 - `src/content/docs/` - pages: `index.mdx` (home; uses the DEFAULT docs template, not `splash`, so
   the sidebar shows on the landing page too), `guides/*` (getting-started, theming, **configuration**
   [the dysonsphere.toml reference], palettes, marks, annotations, statistics, nonlinear, saving),
-  `extensions/*` (index/overview, biology, authoring), `gallery.mdx`, `studio.mdx` (Chart Studio),
+  `extensions/*` (index/overview, biology, authoring), `gallery.mdx`, `palettes.mdx` (the
+  palette browser + live preview, under Interactive), `config-generator.mdx` (the
+  dysonsphere.toml generator, under Interactive), `studio.mdx` (Chart Studio),
   `playground.mdx` (a thin **redirect stub** to `/studio/`, kept for old `#code=` deep links),
   `reference/*` (generated API).
 - `src/components/` - `Chart.astro` (live vega-embed chart from a named spec, light/dark reactive),
@@ -17,10 +19,14 @@ dissolved 2026-07-06).
   live chart + "Open in studio" deep link), `Studio.astro` (the **two-mode Chart Studio**: an
   interactive builder AND an embedded CodeMirror editor - the old Playground was absorbed into it),
   `PlaygroundRedirect.astro` (client-side `/playground/`→`/studio/` redirect preserving `#code=`),
-  `Sidebar.astro` (Starlight Sidebar override adding a desktop collapse toggle), `Palettes.astro`
-  (client-side swatch browser from generated JSON), `SiteTitle.astro` (two-toned header wordmark).
+  `Palettes.astro` (client-side swatch browser from generated JSON; click copies the HEX LIST, not
+  the name - hex rides on data-color attributes since inline style serializes to rgb()),
+  `PalettePreview.astro` (charts restyled live by the selected palette), `ConfigGenerator.astro`
+  (editable default dysonsphere.toml + theme-param cheat sheet, inputs from gen_config.py), `SiteTitle.astro` (two-toned header wordmark +
+  the desktop sidebar-collapse toggle; there is no Sidebar override anymore).
 - `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
-  `onRuntimeStatus()`). Exposes `runChart(code, dark)` and `loadTable(name, text, format)`.
+  `onRuntimeStatus()`). Exposes `runChart(code, dark)`, `loadTable(name, text, format)`,
+  `writeFile(name, data)` (raw FS write, binary-safe), and `readExport(name)` (ds.read metadata).
   `runChart` injects `darkmode`/`transparent` by **monkeypatching `ds.theme` during exec** (same
   technique as `gen_examples.py`), so the site render args apply wherever the snippet calls
   `theme()` and never appear in shown code. `loadTable` also **writes the upload into Pyodide's
@@ -49,7 +55,10 @@ dissolved 2026-07-06).
 - Regenerate the example charts: `uv run --with vega-datasets python website/scripts/gen_examples.py`
   (pass example names to rebuild a subset).
 - Regenerate the palette swatch data: `uv run python website/scripts/gen_palettes.py`.
-- Generated files (`reference/*.md`, `charts/*.json`, `src/generated/palettes.json`) are committed
+- Regenerate the config-generator inputs (default TOML + theme-param cheat sheet):
+  `uv run python website/scripts/gen_config.py`.
+- Generated files (`reference/*.md`, `charts/*.json`, `src/generated/*.json`,
+  `src/generated/default_config.toml`) are committed
   for now; CI regeneration is a deploy TODO.
 
 ## Conventions and gotchas
@@ -69,12 +78,32 @@ dissolved 2026-07-06).
 - **Shared runtime.** Don't boot Pyodide directly; call `getRuntime()` from `src/lib/runtime.ts`.
   It's a singleton, so both studio modes share one boot. The Python bootstrap lives in
   `PY_BOOTSTRAP`; site render args are applied there, never in shown code.
+- **vl-convert has no wasm wheel - install dysonsphere `deps=False`.** dysonsphere >= 3.1.0
+  declares `vl-convert-python` (the `save()` renderer) as a runtime dependency; it ships no
+  emscripten wheel, so a plain `micropip.install("dysonsphere")` FAILS and the studio never boots
+  (this silently broke the live site when 3.1.0 published). `runtime.ts` installs the importable
+  deps explicitly (altair/numpy/polars/pyarrow/scipy/vega-datasets) then
+  `micropip.install("dysonsphere", deps=False)` - safe because `vl_convert` is imported lazily
+  only when `save()` renders, which the browser never does. Keep the explicit list in sync with
+  `[project] dependencies` in the root pyproject.
+- **Studio export import.** The "Import an export" group takes a `ds.save()` file: a Vega-Lite
+  JSON rebuilds the chart via `ds.load()` (seeded + auto-run in the code editor, so shown code =
+  executed code); JSON/SVG/PNG all read their embedded block via `ds.read(what="metadata")`
+  (`_read_export` in runtime.ts) into a metadata panel (report + structured JSON). Uploads land
+  in the Pyodide FS via `writeFile` (binary-safe - PNG works). The export file input is excluded
+  from the generic builder-rerender wiring AND `renderBuild` guards on mode, so the async import
+  can't be clobbered by a queued sample render (that race shipped briefly during development).
 - **Chart Studio codegen.** `Studio.astro` has two modes over one chart panel: a **builder** whose
   emitted snippet reads the upload with `pl.read_csv("file.csv")` (copy-runnable AND executed
   verbatim, since the upload is in the runtime's virtual FS under that name), and a **code editor**
   (the absorbed playground) seeded from the builder via "Edit as code". The builder can layer
-  statistics (`add_comparisons`/`add_correlation`), a condition table (`add_multilabel`), and
+  statistics (`add_comparisons`/`add_correlation`), a multilabel table (`add_multilabel`), and
   annotations (`add_rule`/`add_shade`).
+- **Superscript exponents are re-typeset client-side.** The library's `_fix_superscript_labels`
+  runs only in `save()`, never in the browser - so live charts rendered mixed-metric Unicode
+  superscripts (`P = 5.03×10⁻¹⁷`). `src/lib/fixSuperscripts.ts` ports the fixer to the rendered
+  SVG DOM (raised/shrunk ASCII tspan, same ratios); Chart.astro and the Studio call it after
+  every vegaEmbed. Only text nodes are touched - aria-label attributes keep the original string.
 - **Chart size.** Charts are authored at dysonsphere's publication defaults (100x100 px, small
   fonts/marks); scale them for the web with CSS `zoom` on `.vega-embed .chart-wrapper` (tune
   `--ds-chart-zoom` in theme.css). Do NOT zoom `.vega-embed` (that scales the export menu too) or
@@ -96,6 +125,17 @@ dissolved 2026-07-06).
   EVERY page (landing uses the default docs template, not `splash`) and has a desktop collapse
   toggle (`Sidebar.astro` + `[data-ds-sidebar='collapsed']` in theme.css, persisted in
   localStorage).
+- **Stale Expressive Code assets after styleOverrides changes.** The `.md` reference pages'
+  rendered HTML is cached by Astro's content layer WITH the EC stylesheet link baked in; changing
+  `expressiveCode.styleOverrides` renames the hashed `ec.*.css` asset and the cached pages keep
+  linking the old (now 404) one - those pages then render with NO token colors and a collapsed
+  16x6px copy button. Fix: `rm -rf .astro node_modules/.astro` and rebuild after any EC config
+  change.
+- **Reference signatures render as `def` statements** (`def name(...) -> X: ...`) - a bare
+  call-style signature is almost all plain identifiers and highlights near-monochrome.
+  `gen_api.py` writes extension pages (volcano) into `extensions/`, NOT `reference/` - the
+  autogenerated Documentation sidebar group is core-only; extension API pages nest under their
+  extension in the sidebar config.
 - **Pages that embed a chart must be `.mdx`** (to `import Chart`). Generated API pages are `.md`,
   NOT `.mdx` - docstrings contain `{}`/`<>` that MDX parses as JSX and chokes on.
 - **Quote frontmatter** `title`/`description` values - a colon in the text breaks the YAML parser.
@@ -161,17 +201,39 @@ studio" deep links; the shared Pyodide runtime; full guide set (getting-started,
 **configuration [dysonsphere.toml]**, palettes w/ live swatch browser, marks & transforms,
 annotations [incl. `add_labels`], statistics, nonlinear, saving & reading [with a real
 embedded-metadata prose example]); **extensions section** (overview + biology [volcano] +
-authoring); the **two-mode Chart Studio** (builder w/ statistics + condition table + annotations,
+authoring); the **two-mode Chart Studio** (builder w/ statistics + multilabel + annotations,
 AND an embedded code editor - the Playground was absorbed; `/playground/` redirects); griffe API
 reference (v3 modules, multi-line signatures for wide APIs, ext/discovery/volcano pages);
 persistent collapsible sidebar; "References" renamed "Documentation".
 
-Rework done 2026-07-06 (this pass): regenerated all artifacts against v3.0.0; fixed the x-axis
+Rework done 2026-07-06 (v3.0.0 pass): regenerated all artifacts against v3.0.0; fixed the x-axis
 tick/xOffset misalignment (dropped `scale=None`); fixed the correlation examples' `_x` axis-title
 leak (explicit base title); Studio darkmode re-render + cursor-alignment fix (fonts.ready
 remeasure); Ember swatch alignment (`not-content`); larger flush inline charts (zoom 3.5). All
 verified in a real headless-chromium sweep (charts render on every new page, darkmode inverts the
 hero ink, sidebar+toggle on landing, deep-link redirect preserves `#code=`).
+
+Rework done 2026-07-06/07 (v3.1.0 pass, `website` worktree): regenerated artifacts against v3.1.0
+(API ref gains `ext.tag_extension`; saving guide's metadata example recaptured - new provenance
+order, os/vl-convert env fields, extensions note). Example fixes verified in browser Vega: log
+axes get explicit decade `values=` (browser Vega auto-ticks every log multiple FULL length -
+that's the main axis, not the minor layer; vl-convert differs), comparisons categories now
+alphabetical (the layer scale-merge renders alphabetical band order; pixel-anchored p-labels used
+the passed order - mislabeled brackets), omnibus corner labels need a PADDED y domain + `yStart`
+(the auto domain hugs the top bracket, so the pixel-anchored corner label always collides),
+correlation readouts sized to their chartWidth. New beeswarm+brackets homepage hero (caption
+dropped, zoom 2.6). "Condition tables" renamed "multilabels" sitewide (library docstring still
+says condition table - core-side edit, not done). Sidebar toggle moved into the header next to
+the wordmark (Sidebar override deleted); docs reordered build->style->export; Open-in-studio
+links hover-only. The palette browser + live preview (four charts - bars/scatter/lines/heatmap - restyled
+on swatch click via client-side config.range patching, each AUTO-FIT to the aside column with a
+per-render --ds-chart-zoom (a shared zoom leaves narrow charts small); `ds-palette-select` CustomEvent from Palettes.astro) live on their own
+`/palettes/` page under Interactive (swatch list = main column, preview charts in a STICKY
+aside so they stay visible while scrolling the 300+ palettes; stacks on narrow screens); the
+guide links to it. Studio
+gains "Import an export" (ds.load rebuild + ds.read metadata panel) and the Pyodide boot fix (see
+the deps=False gotcha above). All verified headless (incl. a full Pyodide boot + JSON/PNG import
+round-trip) plus the deploy-equivalent base-path grep.
 
 Deploy wiring: pages.yml builds Node-only (generated artifacts committed) and deploys
 `website/dist` to Pages when `website` merges to main. Studio installs dysonsphere from PyPI at
@@ -179,6 +241,4 @@ runtime - after any library release with API changes, regenerate examples/specs.
 
 TODO: molecular-biology gallery (synthetic gene-expression / dose-response / qPCR datasets); CI
 runs of the three generators; publish `dysonsphere-biology` to PyPI so LIVE studio execution of
-`ds.biology.*` works (its committed specs already render). NOTE: a parallel `release-v3.1.0`
-reorders `save()` provenance and adds an OS/vl-convert field - after it merges, refresh the
-hardcoded metadata JSON in `guides/saving.mdx` (currently accurate for v3.0.0).
+`ds.biology.*` works (its committed specs already render). The `guides/saving.mdx` metadata JSON is accurate for v3.1.0.

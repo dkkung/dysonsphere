@@ -2,7 +2,7 @@
 title: "Display labels"
 description: "Map raw data values to display labels on axes, legends, and headers."
 sidebar:
-  order: 7
+  order: 6
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -12,7 +12,7 @@ Display-label helpers: map raw data values to presentable labels at render time.
 ## `label_expr`
 
 ```python
-label_expr(mapping: Mapping[Any, str | list[str]]) -> str
+def label_expr(mapping: Mapping[Any, str | list[str]]) -> str: ...
 ```
 
 Build a Vega ``labelExpr`` that maps raw data values to display labels.

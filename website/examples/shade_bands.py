@@ -2,7 +2,7 @@ import altair as alt
 import dysonsphere as ds
 from vega_datasets import data
 
-ds.theme(palette="blues")
+ds.theme(palette="blues", xLabelAngle=-45)
 
 barley = data.barley()
 sites = ["Morris", "Duluth", "University Farm", "Waseca", "Crookston", "Grand Rapids"]

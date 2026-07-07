@@ -53,10 +53,29 @@ Surface:
   base instead; that helper (``_datum_base``) is not yet part of this public surface - ask if
   your extension needs faceting.
 
+- **``tag_extension(chart, name)``** - tag a chart your extension built so ``ds.save()`` records
+  your extension's version in the figure's provenance (``environment["dysonsphere-extensions"]``,
+  grouped right under ``dysonsphere``). Call it once on the chart you return:
+  ``return ext.tag_extension(chart, "biology")``. The tag is a durable
+  view-name marker that survives ``+``/layer/concat and is stripped from the written spec, so it
+  only affects provenance - never the rendered output. ``name`` is your extension's registered
+  entry-point name (the ``ds.<name>`` alias); its version is looked up from the installed
+  distribution. Only extensions that actually produced a figure are recorded (not merely installed).
+
+## `tag_extension`
+
+```python
+def tag_extension(chart: _AltairChart, name: str) -> _AltairChart: ...
+```
+
+Tag ``chart`` as produced by the extension ``name`` (e.g. ``"biology"``) so ``save()``
+records that extension's version in provenance. The tag is a view-``name`` marker that
+survives composition (``+``/layer/concat) and is stripped from the written spec.
+
 ## `internal_data`
 
 ```python
-internal_data(data: list[dict] | pl.DataFrame | Any) -> Any
+def internal_data(data: list[dict] | pl.DataFrame | Any) -> Any: ...
 ```
 
 Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
@@ -68,7 +87,7 @@ result straight to ``alt.Chart(...)``.
 ## `opt`
 
 ```python
-opt(key: str) -> Any
+def opt(key: str) -> Any: ...
 ```
 
 Read a theme option, falling back to the (derived) built-in default.

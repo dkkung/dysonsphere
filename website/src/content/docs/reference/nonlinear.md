@@ -2,7 +2,7 @@
 title: "Nonlinear axes"
 description: "Minor ticks and typeset labels for log and power axes."
 sidebar:
-  order: 8
+  order: 7
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -10,7 +10,7 @@ sidebar:
 ## `log_label_expr`
 
 ```python
-log_label_expr(base: int = 10, notation: str = 'power') -> str
+def log_label_expr(base: int = 10, notation: str = 'power') -> str: ...
 ```
 
 Return a Vega ``labelExpr`` string for base-N log-scale axis labels.
@@ -76,7 +76,7 @@ Pass the return value directly to ``alt.Axis(labelExpr=...)``.
 ## `add_log_ticks`
 
 ```python
-add_log_ticks(
+def add_log_ticks(
     chart: alt.Chart | alt.LayerChart,
     df,
     field: str | None = None,
@@ -93,7 +93,7 @@ add_log_ticks(
     yExpMin: int | None = None,
     yExpMax: int | None = None,
     minorTickSize: float | None = None,
-) -> alt.LayerChart
+) -> alt.LayerChart: ...
 ```
 
 Add unlabeled minor ticks to a log-scale axis.
@@ -159,7 +159,7 @@ and ``vconcat`` layouts.
 ## `add_pow_ticks`
 
 ```python
-add_pow_ticks(
+def add_pow_ticks(
     chart: alt.Chart | alt.LayerChart,
     df,
     field: str | None = None,
@@ -173,7 +173,7 @@ add_pow_ticks(
     yField: str | None = None,
     xMajorValues: list[float] | None = None,
     yMajorValues: list[float] | None = None,
-) -> alt.LayerChart
+) -> alt.LayerChart: ...
 ```
 
 Add unlabeled minor ticks to a power- or sqrt-scale axis.

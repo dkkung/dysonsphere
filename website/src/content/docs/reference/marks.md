@@ -2,7 +2,7 @@
 title: "Marks"
 description: "Composite marks: strip and violin plots."
 sidebar:
-  order: 3
+  order: 1
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -10,7 +10,7 @@ sidebar:
 ## `mark_violin`
 
 ```python
-mark_violin(
+def mark_violin(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -29,7 +29,7 @@ mark_violin(
     steps: int = 200,
     yTitle: str | None | _UnsetType = _UNSET,
     xTitle: str | None | _UnsetType = _UNSET,
-) -> alt.LayerChart
+) -> alt.LayerChart: ...
 ```
 
 Build an Altair layer combining a violin plot behind a boxplot.
@@ -88,7 +88,7 @@ scale resolution never squishes the violin shape.
 ## `mark_strip`
 
 ```python
-mark_strip(
+def mark_strip(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -106,7 +106,7 @@ mark_strip(
     errorbarExtent: str = 'sem',
     yTitle: str | None | _UnsetType = _UNSET,
     xTitle: str | None | _UnsetType = _UNSET,
-) -> alt.LayerChart
+) -> alt.LayerChart: ...
 ```
 
 Build an Altair layer combining jittered or beeswarm points with a median indicator.

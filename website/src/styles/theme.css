@@ -53,6 +53,17 @@
 /* Translucent, blurred header over content (border via Starlight's hairline). */
 :root {
   --sl-color-bg-nav: color-mix(in srgb, var(--sl-color-bg) 72%, transparent);
+  /* One uniform surface: the sidebar sits on the page background in both themes (Starlight
+     gives it its own grey by default, which reads as a two-tone layout in dark mode). Code
+     cells are the deliberate exception - see --ds-code-bg below. */
+  --sl-color-bg-sidebar: var(--sl-color-bg);
+  /* Code-cell ground, shared by Expressive Code blocks and the CodeMirror editors. Dark uses
+     the skin's neutral raised-surface tone (gray-6) instead of GitHub-dark's blue-tinted
+     #0d1117, which clashed with the pure-neutral greys ramp. */
+  --ds-code-bg: #1a1a1b;
+}
+:root[data-theme='light'] {
+  --ds-code-bg: #ffffff;
 }
 header.header {
   backdrop-filter: blur(14px);
@@ -130,9 +141,9 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   font-weight: 550;
 }
 
-/* Collapsible sidebar (toggle in src/components/Sidebar.astro). Zeroing the width var is enough
-   to reflow everything - Starlight derives the content inset and header grid from it; the pane
-   itself is hidden with visibility (not display) so the fixed toggle inside can un-hide itself. */
+/* Collapsible sidebar (header toggle in src/components/SiteTitle.astro, next to the wordmark -
+   the same spot as mobile's hamburger). Zeroing the width var is enough to reflow everything -
+   Starlight derives the content inset and header grid from it. */
 @media (min-width: 50rem) {
   [data-ds-sidebar='collapsed'] {
     --sl-sidebar-width: 0rem;
@@ -140,6 +151,13 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   [data-ds-sidebar='collapsed'] #starlight__sidebar {
     visibility: hidden;
   }
+}
+
+/* CodeMirror editors (studio builder view + editor, config generator): retint the GitHub
+   themes' ground onto the skin's code-cell color; the syntax colors stay. */
+.cm-editor,
+.cm-editor .cm-gutters {
+  background-color: var(--ds-code-bg) !important;
 }
 
 /* Inline code: quiet chip. */
@@ -237,8 +255,42 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
    content column. Starlight derives every content panel's max-width from this variable, so
    widening it on the pane that contains these components is enough. */
 .main-pane:has(.landing),
-.main-pane:has(.st) {
+.main-pane:has(.st),
+.main-pane:has(.palpage),
+.main-pane:has(.cfg) {
   --sl-content-width: 72rem;
+}
+
+/* Palette browser page: the swatch list is the main scrolling column; the live preview charts
+   sit beside it in a sticky aside (the standard "pinned preview" pattern), so they stay in view
+   while scrolling the 300+ palettes. On narrow screens the preview stacks above the list. */
+.palpage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28rem;
+  gap: 2rem;
+  align-items: start;
+  margin-top: 1rem;
+}
+.palpage__preview {
+  position: sticky;
+  top: calc(var(--sl-nav-height) + 1rem);
+  max-height: calc(100vh - var(--sl-nav-height) - 2rem);
+  overflow: auto;
+}
+@media (max-width: 72rem) {
+  .palpage {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+  }
+}
+@media (max-width: 56rem) {
+  .palpage {
+    grid-template-columns: 1fr;
+  }
+  .palpage__preview {
+    position: static;
+    order: -1;
+    max-height: none;
+  }
 }
 
 .landing {
@@ -274,9 +326,9 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* This hero chart is a wide composite (6 groups + condition table); dial the zoom back from the
-     site-wide default so it fits the column without horizontal scroll. */
-  --ds-chart-zoom: 2.3;
+  /* This hero chart is wider than the inline examples (3 groups + brackets at chartWidth=140);
+     dial the zoom back from the site-wide default so it fits the column without scroll. */
+  --ds-chart-zoom: 2.6;
   overflow: auto;
 }
 .landing__demo-caption {

@@ -1,11 +1,73 @@
 ---
 // Override of Starlight's SiteTitle: renders the "dysonsphere" wordmark two-tone to match the
 // logo (dyson = blues2[6], sphere = blues2[2]). Logo image block copied from the default so the
-// mark still renders as before.
+// mark still renders as before. Also hosts the desktop sidebar toggle - the header slot puts it
+// exactly where mobile's hamburger lives, so collapsing works the same way on both. The click
+// handler and state application live in Sidebar.astro (event delegation on the button id).
 import { logos } from 'virtual:starlight/user-images';
 import config from 'virtual:starlight/user-config';
 const { siteTitleHref } = Astro.locals.starlightRoute;
 ---
+
+<button
+	id="ds-sidebar-toggle"
+	class="ds-sidebar-toggle"
+	type="button"
+	aria-controls="starlight__sidebar"
+	aria-expanded="true"
+	title="Toggle sidebar"
+>
+	<svg
+		width="16"
+		height="16"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="2"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<rect x="3" y="4" width="18" height="16" rx="2"></rect>
+		<line x1="9" y1="4" x2="9" y2="20"></line>
+	</svg>
+	<span class="sr-only">Toggle sidebar</span>
+</button>
+
+<script is:inline>
+	// Apply the stored collapse state as early as possible (and again after view-transition
+	// swaps, which replace <html>'s attributes with the incoming page's).
+	(() => {
+		const KEY = 'ds-sidebar';
+		const apply = () => {
+			if (localStorage.getItem(KEY) === 'collapsed') {
+				document.documentElement.dataset.dsSidebar = 'collapsed';
+			} else {
+				delete document.documentElement.dataset.dsSidebar;
+			}
+			const btn = document.getElementById('ds-sidebar-toggle');
+			if (btn) {
+				const collapsed = document.documentElement.dataset.dsSidebar === 'collapsed';
+				btn.setAttribute('aria-expanded', String(!collapsed));
+				btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+			}
+		};
+		apply();
+		if (!window._dsSidebarWired) {
+			window._dsSidebarWired = true;
+			document.addEventListener('astro:after-swap', apply);
+			// Event delegation so the handler survives page swaps re-rendering the button.
+			document.addEventListener('click', (ev) => {
+				const btn = ev.target instanceof Element && ev.target.closest('#ds-sidebar-toggle');
+				if (!btn) return;
+				const collapsed = document.documentElement.dataset.dsSidebar === 'collapsed';
+				if (collapsed) localStorage.removeItem(KEY);
+				else localStorage.setItem(KEY, 'collapsed');
+				apply();
+			});
+		}
+	})();
+</script>
 
 <a href={siteTitleHref} class="site-title sl-flex">
 	{
@@ -64,5 +126,45 @@ const { siteTitleHref } = Astro.locals.starlightRoute;
 			object-fit: contain;
 			object-position: 0 50%;
 		}
+	}
+
+	/* Desktop-only: mobile keeps Starlight's hamburger menu. */
+	.ds-sidebar-toggle {
+		display: none;
+	}
+	@media (min-width: 50rem) {
+		.ds-sidebar-toggle {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			flex-shrink: 0;
+			width: 2rem;
+			height: 2rem;
+			margin-inline-end: 0.25rem;
+			padding: 0;
+			border: none;
+			border-radius: 0.5rem;
+			background: transparent;
+			color: var(--sl-color-gray-3);
+			cursor: pointer;
+			transition:
+				color 0.15s ease,
+				background-color 0.15s ease;
+		}
+		.ds-sidebar-toggle:hover {
+			color: var(--sl-color-white);
+			background: var(--sl-color-gray-6);
+		}
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
 	}
 </style>

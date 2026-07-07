@@ -10,15 +10,15 @@ The pages in this section are generated directly from dysonsphere's docstrings (
 
 Browse by area in the sidebar:
 
-- **Theming** - `theme()` and config-file scaffolding (`create_config()`)
-- **Palettes** - `palette()`, `categorical()`, `export_swatches()`, and the `colors` catalogue
 - **Marks** - `mark_strip()`, `mark_violin()`
+- **Transforms** - `add_jitter()`, `add_beeswarm()`
 - **Annotations** - `add_rule()`, `add_text()`, `add_shade()`, `add_labels()`
 - **Statistical annotations** - `add_comparisons()`, `add_correlation()`
-- **Condition tables** - `add_multilabel()`
+- **Multilabels** - `add_multilabel()`
 - **Display labels** - `label_expr()`
 - **Nonlinear axes** - `add_log_ticks()`, `add_pow_ticks()`, `log_label_expr()`
-- **Transforms** - `add_jitter()`, `add_beeswarm()`
+- **Theming** - `theme()` and config-file scaffolding (`create_config()`)
+- **Palettes** - `palette()`, `categorical()`, `export_swatches()`, and the `colors` catalogue
 - **Saving & loading** - `save()`, `load()`, `show()`
 - **Reading exports** - `read()`
 - **Statistics registry** - `clear_stats()`

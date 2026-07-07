@@ -6,7 +6,7 @@ tableOfContents: false
 
 import Studio from '../../components/Studio.astro';
 
-Upload your own data (CSV, TSV, or JSON), choose what to plot, layer on statistics, condition
+Upload your own data (CSV, TSV, or JSON), choose what to plot, layer on statistics, multilabel
 tables, and annotations, tune the theme - and get a live dysonsphere chart plus the exact Python
 that reproduces it. Everything runs in your browser via WebAssembly (Pyodide); **your data never
 leaves the page**.
@@ -15,6 +15,10 @@ When the builder's controls run out, press **Edit as code**: the generated snipp
 live editor where you can keep composing with the full library - the same runtime executes
 whatever you write, and your uploaded file stays available under its own filename. Every example
 in the guides has an *Open in studio* link that lands here too.
+
+You can also **import a figure saved by `ds.save()`**: a Vega-Lite JSON export rebuilds the chart
+right here through `ds.load()` (theme and all), and JSON, SVG, and PNG exports read back their
+embedded provenance, statistics, and report via `ds.read()`.
 
 The controls render instantly; the chart appears once the Python runtime finishes loading (a few
 seconds on first visit, then cached). Start from the bundled sample, or drop in a file of your own.

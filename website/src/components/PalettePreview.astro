@@ -1,0 +1,165 @@
+---
+// Live palette preview: three charts (categorical bars, multi-series lines, continuous heatmap)
+// that re-render with whichever palette is selected in the <Palettes /> browser below - the same
+// idea as the old gallery's "same charts over several palettes", but interactive.
+//
+// Mechanics: the base specs are the generated preview_* charts (authored against the default
+// theme, no baked colors); on selection we patch the spec's `config.range` client-side - the
+// bare `category` array for nominal scales (positional, like the library), `{scheme: [...]}`
+// for the continuous heatmap - and re-embed. Sequential/diverging palettes are sampled to the
+// series count exactly like `ds.palette(name, n)`; qualitative palettes pass through as-is.
+// Listens for the `ds-palette-select` CustomEvent dispatched by Palettes.astro.
+---
+
+<div class="palprev not-content">
+	<p class="palprev__status">
+		Previewing <code id="palprev-name">ember</code>
+	</p>
+	<div class="palprev__row">
+		<div class="palprev__chart" data-preview="preview_bars" data-role="category" data-n="6"></div>
+		<div class="palprev__chart" data-preview="preview_scatter" data-role="category" data-n="3"></div>
+		<div class="palprev__chart" data-preview="preview_lines" data-role="category" data-n="5"></div>
+		<div class="palprev__chart" data-preview="preview_heatmap" data-role="heatmap"></div>
+	</div>
+</div>
+
+<script>
+	import vegaEmbed from 'vega-embed';
+
+	const BASE = import.meta.env.BASE_URL;
+	const specCache = new Map<string, Promise<any>>();
+	const views = new WeakMap<HTMLElement, { finalize: () => void }>();
+	// Natural (unzoomed) svg width per chart; the applied zoom is the minimum shared fit.
+	const naturals = new Map<HTMLElement, number>();
+
+	let current: { name: string; kind: string; colors: string[] } = {
+		name: 'ember',
+		kind: 'sequential',
+		colors: [], // resolved from the palette browser's data on first render
+	};
+
+	function fetchSpec(name: string, theme: string): Promise<any> {
+		const key = `${name}-${theme}`;
+		if (!specCache.has(key)) {
+			specCache.set(
+				key,
+				fetch(`${BASE}charts/${key}.json`).then((r) => r.json()),
+			);
+		}
+		return specCache.get(key)!;
+	}
+
+	/** n evenly spaced stops, like ds.palette(name, n); qualitative palettes pass through. */
+	function sample(colors: string[], n: number, kind: string): string[] {
+		if (kind === 'qualitative' || n >= colors.length) return colors;
+		if (n === 1) return [colors[0]];
+		return Array.from({ length: n }, (_, i) => colors[Math.round((i * (colors.length - 1)) / (n - 1))]);
+	}
+
+	async function renderOne(el: HTMLElement) {
+		const name = el.dataset.preview;
+		if (!name || !current.colors.length) return;
+		const theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+		const spec = structuredClone(await fetchSpec(name, theme));
+		spec.config ??= {};
+		spec.config.range ??= {};
+		if (el.dataset.role === 'heatmap') {
+			spec.config.range.heatmap = { scheme: current.colors };
+		} else {
+			const n = Number(el.dataset.n || '6');
+			spec.config.range.category = sample(current.colors, n, current.kind);
+		}
+		views.get(el)?.finalize();
+		el.innerHTML = '';
+		views.set(el, await vegaEmbed(el, spec, { actions: false, renderer: 'svg', background: 'transparent' }));
+		// Record the natural width and re-derive the shared zoom (see applyZoom).
+		const svg = el.querySelector('svg');
+		const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
+		if (natural > 0) {
+			naturals.set(el, natural);
+			applyZoom();
+		}
+	}
+
+	// Auto-fit: zoom the charts to fill the column. With actions:false vega-embed makes the
+	// container itself the .vega-embed with the <svg> directly inside - there is NO
+	// .chart-wrapper child - so the site-wide wrapper zoom rule (theme.css) never applies here
+	// and the chart paints at its natural ~180px unless the container is zoomed directly. The
+	// zoom is SHARED (the minimum fit across the charts) so every chart renders at the same
+	// scale - a per-chart fit made the narrower ones look blown up; the chart sources are
+	// authored to near-equal natural widths so the shared fit still fills the column. The row
+	// is measured, not the container (its own zoom would skew it), and a ResizeObserver
+	// re-derives the zoom whenever the row's width settles - on first load the charts can
+	// render before styles/layout do (a dev-server reload showed them small until the next
+	// re-render), so sizing must react to layout, not assume it.
+	function applyZoom() {
+		const row = document.querySelector<HTMLElement>('.palprev__row');
+		if (!row || !naturals.size) return;
+		const rowWidth = row.getBoundingClientRect().width;
+		if (rowWidth <= 0) return;
+		const fits = [...naturals.values()].map((n) => rowWidth / n);
+		const shared = Math.min(Math.max(Math.min(...fits), 1.2), 3.4).toFixed(3);
+		for (const el of naturals.keys()) {
+			(el.style as CSSStyleDeclaration & { zoom: string }).zoom = shared;
+		}
+	}
+
+	function renderAll() {
+		document.querySelectorAll<HTMLElement>('.palprev__chart[data-preview]').forEach((el) => renderOne(el));
+	}
+
+	function select(detail: { name: string; kind: string; colors: string[] }) {
+		current = detail;
+		const label = document.getElementById('palprev-name');
+		if (label) label.textContent = detail.name;
+		renderAll();
+	}
+
+	function boot() {
+		// A page swap replaces the chart elements: drop stale ones so they can't skew the
+		// shared-minimum zoom, and re-fit whenever the (new) row's layout width changes.
+		naturals.clear();
+		const row = document.querySelector<HTMLElement>('.palprev__row');
+		if (row) new ResizeObserver(() => applyZoom()).observe(row);
+		// Seed from the palette browser's baked data so the default preview needs no extra fetch.
+		const seedEl = document.querySelector<HTMLElement>(`.pal__item[data-name="${current.name}"]`);
+		if (seedEl && !current.colors.length) {
+			current.colors = Array.from(seedEl.querySelectorAll<HTMLElement>('.pal__stop')).map(
+				(s) => s.dataset.color ?? '',
+			);
+		}
+		renderAll();
+	}
+
+	document.addEventListener('ds-palette-select', ((ev: CustomEvent) => select(ev.detail)) as EventListener);
+	boot();
+	document.addEventListener('astro:page-load', boot);
+	new MutationObserver(renderAll).observe(document.documentElement, {
+		attributes: true,
+		attributeFilter: ['data-theme'],
+	});
+</script>
+
+<style>
+	.palprev__status {
+		font-size: 0.85rem;
+		color: var(--sl-color-gray-3);
+		margin: 1rem 0 0.25rem;
+	}
+	/* One column inside the palette page's sticky aside (~28rem); auto-fit lets the charts sit
+	   side by side when the component gets full width (the narrow-screen stacked layout). */
+	.palprev__row {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+		gap: 1rem;
+		align-items: center;
+		justify-items: start;
+	}
+	/* Each chart's zoom is set inline per render (auto-fit to the row width, see the script) -
+	   the container IS the .vega-embed here (actions:false), so it is zoomed directly; the
+	   site-wide .chart-wrapper rule never matches. */
+	.palprev__chart {
+		width: 100%;
+		min-height: 6rem;
+	}
+</style>

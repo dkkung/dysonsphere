@@ -1,14 +1,15 @@
 ---
-title: "Configuration: dysonsphere.toml"
+title: "Global theme overrides"
 description: "Persistent theme configuration - config file locations, merge order, named styles, custom palettes, and the full key reference."
 ---
 
 Everything `ds.theme()` accepts as a keyword can also live in a **`dysonsphere.toml`** config
 file, so a project (or your whole machine) keeps its look without repeating arguments in every
 notebook. This page is the complete reference for the file: where it lives, how values merge,
-named styles, custom palettes, and every valid key.
+named styles, custom palettes, and every valid key. To put one together interactively, use the
+[dysonsphere.toml generator](/config-generator/).
 
-## Scaffold one
+## Creating a config file
 
 ```python
 import dysonsphere as ds

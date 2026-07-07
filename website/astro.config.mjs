@@ -44,7 +44,6 @@ export default defineConfig({
 			logo: { src: './src/assets/dysonsphere_logo.svg', replacesTitle: false },
 			components: {
 				SiteTitle: './src/components/SiteTitle.astro',
-				Sidebar: './src/components/Sidebar.astro',
 			},
 			description:
 				'An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.',
@@ -55,42 +54,60 @@ export default defineConfig({
 				'./src/styles/theme.css',
 			],
 			expressiveCode: {
-				// GitHub themes match the playground's CodeMirror editor; neutral frames.
+				// GitHub themes match the playground's CodeMirror editor; neutral frames. The
+				// ground comes from --ds-code-bg (theme.css) so code cells share one surface
+				// with the CodeMirror editors - dark uses the skin's neutral raised tone, not
+				// GitHub-dark's blue-tinted #0d1117.
 				themes: ['github-dark', 'github-light'],
 				styleOverrides: {
 					borderRadius: '0.65rem',
 					borderColor: 'var(--sl-color-hairline)',
-					frames: { shadowColor: 'transparent' },
+					codeBackground: 'var(--ds-code-bg)',
+					frames: {
+						shadowColor: 'transparent',
+						terminalBackground: 'var(--ds-code-bg)',
+						terminalTitlebarBackground: 'var(--ds-code-bg)',
+					},
 				},
 			},
+			// Ordered as the reader works: build a chart, annotate it, style it, save it -
+			// then the interactive surfaces, extensions, and the generated reference.
 			sidebar: [
 				{
 					label: 'Guides',
 					items: [
 						{ label: 'Getting started', slug: 'guides/getting-started' },
-						{ label: 'Theming', slug: 'guides/theming' },
-						{ label: 'Configuration (dysonsphere.toml)', slug: 'guides/configuration' },
-						{ label: 'Palettes', slug: 'guides/palettes' },
 						{ label: 'Marks & transforms', slug: 'guides/marks' },
 						{ label: 'Annotations', slug: 'guides/annotations' },
 						{ label: 'Statistical annotations', slug: 'guides/statistics' },
 						{ label: 'Nonlinear axes', slug: 'guides/nonlinear' },
+						{ label: 'Theming', slug: 'guides/theming' },
+						{ label: 'Palettes', slug: 'guides/palettes' },
+						{ label: 'Global theme overrides', slug: 'guides/configuration' },
 						{ label: 'Saving & reading', slug: 'guides/saving' },
-					],
-				},
-				{
-					label: 'Extensions',
-					items: [
-						{ label: 'Overview', slug: 'extensions' },
-						{ label: 'biology', slug: 'extensions/biology' },
-						{ label: 'Writing an extension', slug: 'extensions/authoring' },
 					],
 				},
 				{
 					label: 'Interactive',
 					items: [
 						{ label: 'Gallery', slug: 'gallery' },
+						{ label: 'Palette browser', slug: 'palettes' },
+						{ label: 'Config generator', slug: 'config-generator' },
 						{ label: 'Chart Studio', slug: 'studio' },
+					],
+				},
+				{
+					label: 'Extensions',
+					items: [
+						{ label: 'Overview', slug: 'extensions' },
+						{ label: 'Writing an extension', slug: 'extensions/authoring' },
+						{
+							label: 'dysonsphere-biology',
+							items: [
+								{ label: 'Overview', slug: 'extensions/biology' },
+								{ label: 'volcano()', slug: 'extensions/volcano' },
+							],
+						},
 					],
 				},
 				{

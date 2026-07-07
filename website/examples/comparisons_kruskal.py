@@ -1,17 +1,23 @@
+import altair as alt
 import dysonsphere as ds
 from vega_datasets import data
 
-ds.theme()
+# The verbose omnibus label is long - widen the canvas so it fits.
+ds.theme(chartWidth=200)
 
 cars = data.cars().dropna(subset=["Miles_per_Gallon"])
-origins = ["USA", "Europe", "Japan"]
+origins = ["Europe", "Japan", "USA"]
 
-# Omnibus Kruskal-Wallis with Dunn post-hoc brackets; the corner label reports
-# the omnibus result (verbose adds statistic, df, and effect size).
-chart = ds.mark_strip(
-    cars, "Origin", "Miles_per_Gallon", origins, yTitle="Miles per gallon",
-) + ds.add_comparisons(
+box = alt.Chart(cars).mark_boxplot().encode(
+    x=alt.X("Origin:N", sort=origins, title=None),
+    # Pad the y domain so the corner label clears the stacked brackets below it.
+    y=alt.Y("Miles_per_Gallon:Q", scale=alt.Scale(domain=[0, 75]), title="Miles per gallon"),
+    color=alt.Color("Origin:N"),
+)
+
+chart = box + ds.add_comparisons(
     cars, "Origin", "Miles_per_Gallon",
-    [("USA", "Europe"), ("USA", "Japan")],
+    [("Europe", "USA"), ("Japan", "USA")],
     test="kruskal", omnibusVerbose=True, categories=origins,
+    yStart=50,
 )

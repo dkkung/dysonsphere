@@ -4,13 +4,16 @@
 // the playground warms up Chart Studio and vice versa. The runtime loads dysonsphere (+ polars,
 // scipy, altair) from PyPI via micropip; the browser HTTP cache makes later boots fast.
 //
-// The Python side exposes two entry points:
+// The Python side exposes three entry points:
 //   _run_chart(code, dark)      - exec a user snippet that defines `chart`, return the spec JSON.
 //   _load_table(name, text)     - write an uploaded CSV/TSV/JSON into the runtime's virtual
 //                                 filesystem under its real filename AND parse it, returning the
 //                                 column schema as JSON (used by Chart Studio). Because the file
 //                                 exists in the FS, the emitted `pl.read_csv("file.csv")` snippet
 //                                 runs verbatim - shown code and executed code are the same.
+//   _read_export(name)          - ds.read(name, what="metadata") on a saved JSON/SVG/PNG already
+//                                 written into the FS (the studio's export-import tools); the
+//                                 JS side also exposes a raw FS writeFile for those uploads.
 // Site render args (darkmode / transparent) are applied just before serializing,
 // never shown in user code.
 
@@ -19,6 +22,10 @@ const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v314.0.2/full/';
 export interface DsRuntime {
 	runChart(code: string, dark: boolean): string;
 	loadTable(name: string, text: string, format: 'csv' | 'tsv' | 'json'): string;
+	/** Write a file (text or binary) into the runtime's virtual FS under its real name. */
+	writeFile(name: string, data: Uint8Array | string): void;
+	/** ds.read(name, what="metadata") -> the embedded dysonsphere block as a JSON string. */
+	readExport(name: string): string;
 }
 
 type StatusListener = (message: string) => void;
@@ -84,6 +91,15 @@ def _run_chart(code, dark):
     ds.clear_stats()  # statistics records are per-run; never leak across renders
     return json.dumps(spec)
 
+def _read_export(name):
+    # The embedded dysonsphere block (provenance/statistics/theme/report) from a saved
+    # JSON, SVG, or PNG - ds.read parses all three; the file was written into the FS first.
+    import dysonsphere as ds
+    block = ds.read(name, what="metadata")
+    if not block:
+        raise RuntimeError("No dysonsphere metadata block found in this file.")
+    return json.dumps(block, ensure_ascii=False)
+
 def _load_table(name, text, format):
     import io
     from pathlib import Path
@@ -118,13 +134,21 @@ export function getRuntime(): Promise<DsRuntime> {
 
 		announce('Installing dysonsphere + polars + scipy (first load, tens of MB)…');
 		await pyodide.loadPackage('micropip');
-		const micropip = pyodide.pyimport('micropip');
-		// vega-datasets so example snippets (which use the classic datasets) run unchanged.
-		await micropip.install(['dysonsphere', 'vega-datasets']);
+		// dysonsphere >= 3.1.0 declares vl-convert-python (the save() renderer) as a runtime
+		// dependency, and it has no WebAssembly wheel - a plain `micropip.install("dysonsphere")`
+		// fails outright. Install dysonsphere without deps and pull the importable ones
+		// explicitly; vl_convert is imported lazily only when save() renders, which the studio
+		// never does. vega-datasets so example snippets (the classic datasets) run unchanged.
+		await pyodide.runPythonAsync(`
+import micropip
+await micropip.install(["altair", "numpy", "polars", "pyarrow", "scipy", "vega-datasets"])
+await micropip.install("dysonsphere", deps=False)
+`);
 
 		await pyodide.runPythonAsync(PY_BOOTSTRAP);
 		const runChartPy = pyodide.globals.get('_run_chart');
 		const loadTablePy = pyodide.globals.get('_load_table');
+		const readExportPy = pyodide.globals.get('_read_export');
 
 		ready = true;
 		announce('Ready.');
@@ -132,6 +156,8 @@ export function getRuntime(): Promise<DsRuntime> {
 			runChart: (code: string, dark: boolean) => runChartPy(code, dark) as string,
 			loadTable: (name: string, text: string, format: 'csv' | 'tsv' | 'json') =>
 				loadTablePy(name, text, format) as string,
+			writeFile: (name: string, data: Uint8Array | string) => pyodide.FS.writeFile(name, data),
+			readExport: (name: string) => readExportPy(name) as string,
 		};
 	})();
 	bootPromise.catch(() => {

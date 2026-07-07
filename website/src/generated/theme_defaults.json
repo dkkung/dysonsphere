@@ -1,0 +1,292 @@
+[
+ {
+  "key": "axisOffset",
+  "default": null,
+  "hint": "auto: tickSize * 1.5"
+ },
+ {
+  "key": "axisWidth",
+  "default": "0.25",
+  "hint": null
+ },
+ {
+  "key": "bandPadding",
+  "default": "0.1",
+  "hint": null
+ },
+ {
+  "key": "boxplotOutliers",
+  "default": "false",
+  "hint": null
+ },
+ {
+  "key": "chartFill",
+  "default": null,
+  "hint": "auto: white / black by darkmode"
+ },
+ {
+  "key": "chartHeight",
+  "default": "100",
+  "hint": null
+ },
+ {
+  "key": "chartWidth",
+  "default": "100",
+  "hint": null
+ },
+ {
+  "key": "closed",
+  "default": null,
+  "hint": "auto: True when inwardTicks or viewFill"
+ },
+ {
+  "key": "cornerRadius",
+  "default": "false",
+  "hint": null
+ },
+ {
+  "key": "inwardTicks",
+  "default": "false",
+  "hint": null
+ },
+ {
+  "key": "darkmode",
+  "default": "false",
+  "hint": null
+ },
+ {
+  "key": "dashedGrid",
+  "default": "false",
+  "hint": null
+ },
+ {
+  "key": "dashedLine",
+  "default": "false",
+  "hint": null
+ },
+ {
+  "key": "dashedRule",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "dashedWidth",
+  "default": "[2, 2]",
+  "hint": null
+ },
+ {
+  "key": "font",
+  "default": "\"HelveticaNeue\"",
+  "hint": null
+ },
+ {
+  "key": "fontSize",
+  "default": "7",
+  "hint": null
+ },
+ {
+  "key": "secondaryFontSize",
+  "default": null,
+  "hint": "auto: fontSize - 1 (floored)"
+ },
+ {
+  "key": "smallestFontSize",
+  "default": "5",
+  "hint": null
+ },
+ {
+  "key": "fontStyle",
+  "default": "\"normal\"",
+  "hint": null
+ },
+ {
+  "key": "fontWeight",
+  "default": "400",
+  "hint": null
+ },
+ {
+  "key": "sigFigs",
+  "default": "3",
+  "hint": null
+ },
+ {
+  "key": "grid",
+  "default": "false",
+  "hint": null
+ },
+ {
+  "key": "gridColor",
+  "default": "\"#F1F1F1\"",
+  "hint": null
+ },
+ {
+  "key": "legend",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "legendOffset",
+  "default": null,
+  "hint": "auto: tickSize * 1.5"
+ },
+ {
+  "key": "legendStroke",
+  "default": "false",
+  "hint": null
+ },
+ {
+  "key": "markFill",
+  "default": "\"#DBDBDB\"",
+  "hint": null
+ },
+ {
+  "key": "markFillOpacity",
+  "default": "1.0",
+  "hint": null
+ },
+ {
+  "key": "markMedianFill",
+  "default": "\"black\"",
+  "hint": null
+ },
+ {
+  "key": "markMedianStroke",
+  "default": "\"black\"",
+  "hint": null
+ },
+ {
+  "key": "markSize",
+  "default": null,
+  "hint": "auto: min(chartWidth, chartHeight) / 10"
+ },
+ {
+  "key": "markStroke",
+  "default": "\"black\"",
+  "hint": null
+ },
+ {
+  "key": "markStrokeOpacity",
+  "default": "1",
+  "hint": null
+ },
+ {
+  "key": "markStrokeWidth",
+  "default": null,
+  "hint": "auto: axisWidth"
+ },
+ {
+  "key": "palette",
+  "default": null,
+  "hint": "auto: per-type defaults"
+ },
+ {
+  "key": "categoryPalette",
+  "default": null,
+  "hint": "auto: categorical"
+ },
+ {
+  "key": "divergingPalette",
+  "default": null,
+  "hint": "auto: built-in default"
+ },
+ {
+  "key": "heatmapPalette",
+  "default": null,
+  "hint": "auto: built-in default"
+ },
+ {
+  "key": "ordinalPalette",
+  "default": null,
+  "hint": "auto: greys"
+ },
+ {
+  "key": "rampPalette",
+  "default": null,
+  "hint": "auto: built-in default"
+ },
+ {
+  "key": "saveBackground",
+  "default": "\"light\"",
+  "hint": null
+ },
+ {
+  "key": "saveFormat",
+  "default": "[\"svg\", \"json\"]",
+  "hint": null
+ },
+ {
+  "key": "strokeCap",
+  "default": "\"round\"",
+  "hint": null
+ },
+ {
+  "key": "ticks",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "tickSize",
+  "default": "3",
+  "hint": null
+ },
+ {
+  "key": "transparent",
+  "default": "false",
+  "hint": null
+ },
+ {
+  "key": "viewFill",
+  "default": null,
+  "hint": "auto: none"
+ },
+ {
+  "key": "xAxis",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "xDomain",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "xLabels",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "xLabelAngle",
+  "default": "0",
+  "hint": null
+ },
+ {
+  "key": "xTicks",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "yAxis",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "yDomain",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "yLabels",
+  "default": "true",
+  "hint": null
+ },
+ {
+  "key": "yLabelAngle",
+  "default": "0",
+  "hint": null
+ },
+ {
+  "key": "yTicks",
+  "default": "true",
+  "hint": null
+ }
+]

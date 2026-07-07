@@ -2,7 +2,7 @@
 title: "Annotations"
 description: "Composable annotation layers: reference lines, text, shading, point labels."
 sidebar:
-  order: 4
+  order: 3
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
@@ -18,7 +18,7 @@ engine lives in ``_placement.py``). Statistical annotations (``add_comparisons``
 ## `add_rule`
 
 ```python
-add_rule(
+def add_rule(
     value: float | list[float],
     *,
     axis: str = 'y',
@@ -33,7 +33,7 @@ add_rule(
     opacity: float = 1.0,
     fontSize: float | None = None,
     data: pl.DataFrame | Any | None = None,
-) -> alt.Chart | alt.LayerChart
+) -> alt.Chart | alt.LayerChart: ...
 ```
 
 Add one or more horizontal or vertical reference lines to a chart.
@@ -91,7 +91,7 @@ Returns a layer that the caller composes with ``+``.
 ## `add_text`
 
 ```python
-add_text(
+def add_text(
     text: str | list[str],
     x = None,
     y = None,
@@ -109,7 +109,7 @@ add_text(
     font: str | None = None,
     opacity: float = 1.0,
     data: pl.DataFrame | Any | None = None,
-) -> alt.Chart | alt.LayerChart
+) -> alt.Chart | alt.LayerChart: ...
 ```
 
 Add one or more text annotations to a chart.
@@ -170,7 +170,7 @@ Returns a layer that the caller composes with ``+``.
 ## `add_labels`
 
 ```python
-add_labels(
+def add_labels(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -186,7 +186,7 @@ add_labels(
     connectorStrokeDash: bool | list[int] = False,
     connectorGap: float | None = None,
     alwaysShowConnectors: bool = False,
-) -> alt.LayerChart
+) -> alt.LayerChart: ...
 ```
 
 Auto-place non-overlapping text labels for a set of points, with connector lines.
@@ -223,7 +223,7 @@ round bounds, but without Vega's default ``zero`` - which is required for alignm
 ## `add_shade`
 
 ```python
-add_shade(
+def add_shade(
     categories: list[str] | None = None,
     xCol: str | None = None,
     *,
@@ -238,7 +238,7 @@ add_shade(
     strokeDash: list[float] | bool | None = None,
     flush: bool | None = None,
     data: pl.DataFrame | Any | None = None,
-) -> alt.LayerChart
+) -> alt.LayerChart: ...
 ```
 
 Build a background shading layer as filled ``mark_rect`` bands.

@@ -14,9 +14,10 @@ print it, or `save=True` to write a text file.
 
 `add_comparisons()` classifies `test=` into **pairwise** (`mannwhitneyu`, `ttest_ind`, `ttest_rel`,
 `wilcoxon`, `tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`, `alexandergovern`). Here an
-ANOVA with a corner label plus two pairwise brackets:
+ANOVA with a corner label plus two post-hoc brackets. The corner label sits at the top of the plot,
+so pad the y domain and lift the brackets with `yStart=` to keep everything clear:
 
-<Example name="comparisons" alt="Fuel economy by origin with an ANOVA label and pairwise brackets" />
+<Example name="comparisons" alt="Fuel economy by origin with an ANOVA label and post-hoc brackets" />
 
 ### Pairwise tests and corrections
 
@@ -55,13 +56,14 @@ freedom, and effect size.
 ## Correlation
 
 `add_correlation()` adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
-scatter. `verbose=True` shows the full readout; rank methods report the coefficient only.
+scatter. The default readout is a bare `r = …`; rank methods report the coefficient only.
 
 <Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
 
 The readout is composed from independent parts, so you can show exactly what you want:
 `coefficient="both"` gives r and r², `includePvalue=True` adds P, `includeEquation=True` adds the
-fit line's equation (the default is a bare `r = …`):
+fit line's equation, and `verbose=True` is a shortcut that turns all of them on. The longer the
+readout, the wider the chart should be (`theme(chartWidth=…)`):
 
 <Example name="correlation_both" alt="Scatter with an r, r-squared, and p-value readout" />
 

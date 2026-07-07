@@ -11,4 +11,5 @@ scatter = alt.Chart(cars).mark_point().encode(
     y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon"),
 )
 
-chart = scatter + ds.add_correlation(cars, "Horsepower", "Miles_per_Gallon", verbose=True)
+# The default readout is a bare r = ...; Pearson also draws the OLS fit line.
+chart = scatter + ds.add_correlation(cars, "Horsepower", "Miles_per_Gallon")
