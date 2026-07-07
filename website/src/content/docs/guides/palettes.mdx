@@ -4,8 +4,6 @@ description: Browse all 300+ perceptually uniform dysonsphere palettes and use t
 ---
 
 import Example from '../../../components/Example.astro';
-import Palettes from '../../../components/Palettes.astro';
-import PalettePreview from '../../../components/PalettePreview.astro';
 
 Every dysonsphere palette is built in [Oklab](https://bottosson.github.io/posts/oklab/) and
 resampled by arc length, so sequential ramps step evenly in perceived lightness and diverging ramps
@@ -34,15 +32,10 @@ family:
 
 <Example name="palette_grouped" alt="Paired pre/post bars, each drug a single hue climbing in lightness" />
 
-## Browser
+## Browsing the catalogue
 
-All {' '}palettes below, with a live preview: **click any swatch** to copy its name and restyle the
-three charts - categorical bars and lines take evenly spaced stops (what `ds.palette(name, n)`
-returns; qualitative palettes apply positionally), and the heatmap interpolates the full ramp.
-
-<PalettePreview />
-
-<Palettes />
+The [Palette browser](/palettes/) shows all 300+ palettes as filterable swatch strips, with a
+live preview - click any swatch to copy its name and see three charts restyled with it.
 
 ## Illustrator swatches
 

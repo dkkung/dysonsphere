@@ -83,6 +83,7 @@ export default defineConfig({
 					label: 'Interactive',
 					items: [
 						{ label: 'Gallery', slug: 'gallery' },
+						{ label: 'Palette browser', slug: 'palettes' },
 						{ label: 'Chart Studio', slug: 'studio' },
 					],
 				},

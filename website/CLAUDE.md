@@ -9,7 +9,8 @@ dissolved 2026-07-06).
 - `src/content/docs/` - pages: `index.mdx` (home; uses the DEFAULT docs template, not `splash`, so
   the sidebar shows on the landing page too), `guides/*` (getting-started, theming, **configuration**
   [the dysonsphere.toml reference], palettes, marks, annotations, statistics, nonlinear, saving),
-  `extensions/*` (index/overview, biology, authoring), `gallery.mdx`, `studio.mdx` (Chart Studio),
+  `extensions/*` (index/overview, biology, authoring), `gallery.mdx`, `palettes.mdx` (the
+  palette browser + live preview, under Interactive), `studio.mdx` (Chart Studio),
   `playground.mdx` (a thin **redirect stub** to `/studio/`, kept for old `#code=` deep links),
   `reference/*` (generated API).
 - `src/components/` - `Chart.astro` (live vega-embed chart from a named spec, light/dark reactive),
@@ -202,8 +203,9 @@ correlation readouts sized to their chartWidth. New beeswarm+brackets homepage h
 dropped, zoom 2.6). "Condition tables" renamed "multilabels" sitewide (library docstring still
 says condition table - core-side edit, not done). Sidebar toggle moved into the header next to
 the wordmark (Sidebar override deleted); docs reordered build->style->export; Open-in-studio
-links hover-only. Palettes guide gains a live preview (three charts restyled on swatch click via
-client-side config.range patching; `ds-palette-select` CustomEvent from Palettes.astro). Studio
+links hover-only. The palette browser + live preview (three charts restyled on swatch click via client-side
+config.range patching; `ds-palette-select` CustomEvent from Palettes.astro) live on their own
+`/palettes/` page under Interactive; the guide links to it. Studio
 gains "Import an export" (ds.load rebuild + ds.read metadata panel) and the Pyodide boot fix (see
 the deps=False gotcha above). All verified headless (incl. a full Pyodide boot + JSON/PNG import
 round-trip) plus the deploy-equivalent base-path grep.
