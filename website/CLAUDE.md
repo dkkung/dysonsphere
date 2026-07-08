@@ -271,4 +271,7 @@ runtime - after any library release with API changes, regenerate examples/specs.
 
 TODO: molecular-biology gallery (synthetic gene-expression / dose-response / qPCR datasets); CI
 runs of the three generators; publish `dysonsphere-biology` to PyPI so LIVE studio execution of
-`ds.biology.*` works (its committed specs already render). The `guides/saving.mdx` metadata JSON is accurate for v3.1.0.
+`ds.biology.*` works (its committed specs already render). The `guides/saving.mdx` metadata JSON
+was recaptured 2026-07-08 from the chart-provenance working tree (adds `provenance.chart`, snippet
+now saves `strip + mpg_comparisons`); its environment string reads `dysonsphere 3.4.3` - touch up
+or recapture at the release that ships the feature.
