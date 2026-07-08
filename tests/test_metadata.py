@@ -1,6 +1,7 @@
 import json
 import re
 import struct
+import sys
 import zlib
 
 import altair as alt
@@ -8,12 +9,13 @@ import polars as pl
 import pytest
 
 from dysonsphere.export import save
-from dysonsphere.metadata import _inject_png_metadata
+from dysonsphere.metadata import _call_expression, _inject_png_metadata
 from dysonsphere.theme import theme
 
 _PROV_ORDER = [
     "user",
     "script",
+    "chart",  # best-effort call-site capture; always present here (tests save() from source files)
     "timestamp",
     "environment",
     "vegaliteChecksum",
@@ -241,6 +243,72 @@ class TestSaveUsermeta:
         theme = self._usermeta(tmp_path)["dysonsphere"]["theme"]
         assert theme["chartWidth"] == 180 and theme["sigFigs"] == 2
         assert "tickWidth" not in theme  # only _BUILTIN_DEFAULTS keys (valid ds.theme() kwargs)
+
+
+def _capture(chart=None):
+    # Mimics save()'s capture: reads the CALLER's frame, so the return is the source text of
+    # this helper's first argument at its call site.
+    return _call_expression(sys._getframe(1))
+
+
+class TestCallExpression:
+    # Results are assigned before asserting: pytest's assertion rewriting recompiles `assert`
+    # lines, and a call inside one may carry rewritten source positions. Plain assignments are
+    # untouched, so the captured positions match the file on disk.
+
+    def test_variable_name(self):
+        fig = object()
+        got = _capture(fig)
+        assert got == "fig"
+
+    def test_inline_composition(self):
+        got = _capture(1 + 2 + 3)
+        assert got == "1 + 2 + 3"
+
+    def test_lambda_verbatim(self):
+        got = _capture(lambda: 1 + 2)
+        assert got == "lambda: 1 + 2"
+
+    def test_multiline_argument_kept_verbatim(self):
+        # fmt: off
+        got = _capture(
+            1
+            + 2
+        )
+        # fmt: on
+        assert got == "1\n            + 2"
+
+    def test_keyword_chart_argument(self):
+        fig = object()
+        got = _capture(chart=fig)
+        assert got == "fig"
+
+    def test_source_unavailable_returns_none(self):
+        # exec'd code has filename "<string>" - no linecache source, so capture backs off
+        ns = {"_capture": _capture, "fig": object()}
+        exec("result = _capture(fig)", ns)
+        assert ns["result"] is None
+
+    def test_wrapper_records_wrapper_parameter(self):
+        # Honest limitation: capture reads the DIRECT call site, so a user wrapper's own
+        # parameter name is what gets recorded, not the caller-of-the-wrapper's composition.
+        def wrapper(chart):
+            return _capture(chart)
+
+        fig = object()
+        got = wrapper(fig)
+        assert got == "chart"
+
+    def test_save_embeds_chart_key(self, simple_chart, tmp_path):
+        save(simple_chart, str(tmp_path / "out"), background=["light"], format="json")
+        prov = json.loads((tmp_path / "out.json").read_text())["usermeta"]["dysonsphere"]["provenance"]
+        assert prov["chart"] == "simple_chart"
+
+    def test_chart_key_omitted_without_source(self, simple_chart, tmp_path):
+        ns = {"save": save, "c": simple_chart, "p": str(tmp_path / "out")}
+        exec("save(c, p, background=['light'], format='json')", ns)
+        prov = json.loads((tmp_path / "out.json").read_text())["usermeta"]["dysonsphere"]["provenance"]
+        assert "chart" not in prov
 
 
 class TestReadLoad:

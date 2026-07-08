@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import ast
+import dis
 import getpass
 import hashlib
 import html
 import importlib.metadata
 import json
+import linecache
 import platform
 import re
 import struct
@@ -85,13 +88,71 @@ def _render_provenance(prov: dict) -> str:
     )
 
 
+def _call_expression(frame) -> str | None:
+    """Best-effort source text of the ``chart`` argument at the caller's ``save(...)`` call
+    site — the variable name (``"fig"``) or the inline composition (``"boxplot + points"``,
+    a whole lambda), captured verbatim for ``provenance.chart``.
+
+    How: the caller ``frame``'s currently-executing instruction is the CALL into ``save()``;
+    its PEP 657 fine-grained position (Python 3.11+) spans the exact ``save(...)`` expression
+    in the source. That segment is recovered via ``linecache`` (which also serves Jupyter cell
+    source), parsed with ``ast``, and the first positional argument's (or ``chart=`` keyword's)
+    own source segment is returned.
+
+    Returns ``None`` — the field is then omitted — whenever the source is unavailable (plain
+    REPL, ``exec``'d strings, frozen apps) or anything else fails: this is convenience
+    metadata about the *source code* (a sibling of ``script``), never chart identity (the
+    checksums are), so it fails silently rather than ever failing a save. Known honest
+    limitation: it records the expression *at the call site*, so a wrapper function's
+    ``ds.save(chart, ...)`` records the wrapper's parameter name ``"chart"``, not the
+    caller-of-the-wrapper's composition.
+    """
+    try:
+        # The last instruction at or before f_lasti is the executing CALL: f_lasti can point
+        # into the CALL's inline CACHE entries (3.11 adaptive bytecode), which dis skips.
+        positions = None
+        for instr in dis.get_instructions(frame.f_code):
+            if instr.offset > frame.f_lasti:
+                break
+            positions = instr.positions
+        if positions is None or positions.lineno is None or positions.end_lineno is None:
+            return None
+        lines = linecache.getlines(frame.f_code.co_filename, frame.f_globals)
+        if not lines or positions.end_lineno > len(lines):
+            return None
+        seg_lines = lines[positions.lineno - 1 : positions.end_lineno]
+        seg_lines[-1] = seg_lines[-1][: positions.end_col_offset]
+        seg_lines[0] = seg_lines[0][positions.col_offset :]
+        segment = "".join(seg_lines)
+        node = ast.parse(segment, mode="eval").body
+        if not isinstance(node, ast.Call):
+            return None
+        if node.args:
+            return ast.get_source_segment(segment, node.args[0])
+        for kw in node.keywords:
+            if kw.arg == "chart":
+                return ast.get_source_segment(segment, kw.value)
+        return None
+    except Exception:
+        return None
+
+
 def _build_provenance(
-    *, export_id: str, timestamp: str, checksum: str, data_checksum: list[str], extensions: dict[str, str]
+    *,
+    export_id: str,
+    timestamp: str,
+    checksum: str,
+    data_checksum: list[str],
+    extensions: dict[str, str],
+    chart_expression: str | None,
 ) -> dict:
     """Collect the generation facts for the block.  ``export_id`` and ``timestamp`` are
     generated once per ``save()`` call (so every variant of one export shares them);
     ``checksum`` is per-variant (the SHA-256 of that variant's spec).  Field order is human-first:
-    the readable who/when context (``user``/``script``/``timestamp``) leads, then ``environment`` —
+    the readable who/when context (``user``/``script``/``chart``/``timestamp``) leads —
+    ``chart`` (the best-effort call-site source text of the ``chart`` argument, from
+    ``_call_expression``; omitted when ``None``) sits directly after ``script``, its sibling
+    source-code fact — then ``environment`` —
     the platform + versioned toolchain (``os`` from ``platform.platform()`` first, then
     ``python``/``altair``/``vl_convert``/``dysonsphere``, then ``dysonsphere-extensions``
     ``{name: version}`` **directly after ``dysonsphere`` only when the figure actually used one**
@@ -118,6 +179,9 @@ def _build_provenance(
     return {
         "user": user,
         "script": script,
+        # Best-effort call-site source of the `chart` argument (variable name or inline
+        # composition); omitted when the source is unrecoverable.
+        **({"chart": chart_expression} if chart_expression is not None else {}),
         "timestamp": timestamp,
         "environment": {
             "os": platform.platform(),
@@ -242,6 +306,7 @@ def _build_block(
     checksum: str,
     data_checksum: list[str],
     extensions: dict[str, str],
+    chart_expression: str | None,
     description: str | None,
 ) -> tuple[dict, str, dict[str, str] | None]:
     """Assemble the ``dysonsphere`` metadata block from the drained statistical records.
@@ -273,6 +338,7 @@ def _build_block(
         checksum=checksum,
         data_checksum=data_checksum,
         extensions=extensions,
+        chart_expression=chart_expression,
     )
     ds_block: dict = {"provenance": provenance}
     if records:
