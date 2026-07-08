@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import tempfile
 import uuid
 import xml.etree.ElementTree as ET
@@ -175,9 +176,13 @@ def save(
         ``{"provenance": {...}, "statistics": [...]}`` — in every output format so each
         is self-contained and machine-readable:
 
-        - ``provenance`` — generation facts as fields: ``user``, ``script``,
-          ``timestamp`` (ISO-8601), ``python``, ``altair``, ``dysonsphere``. In Jupyter,
-          ``script`` is ``"<jupyter-notebook>"``; ``user`` falls back to ``"unknown_user"``.
+        - ``provenance`` — generation facts as fields: ``user``, ``script``, ``chart``
+          (best-effort source text of the ``chart`` argument at this call site — the
+          variable name or inline composition, e.g. ``"boxplot + points"``; omitted when
+          the source is unavailable, e.g. in a plain REPL), ``timestamp`` (ISO-8601),
+          ``environment`` (OS + toolchain versions), then the identity fields
+          ``vegaliteChecksum``/``exportIdentifier``/``dataChecksum``. In Jupyter, ``script``
+          is ``"<jupyter-notebook>"``; ``user`` falls back to ``"unknown_user"``.
         - ``statistics`` — the structured records queued by ``add_comparisons`` (groups,
           omnibus result, comparisons with exact p-values and effect sizes); omitted when
           there are none.
@@ -214,6 +219,11 @@ def save(
             background=["light", "dark"],
         )
     """
+    # Best-effort call-site capture for provenance.chart: the source text of the `chart`
+    # argument at THIS call (the variable name or inline composition). The caller's frame
+    # must be read here at save()'s own top level (one frame up); None -> field omitted.
+    _chart_expression = metadata._call_expression(sys._getframe(1)) if saveMetadata else None
+
     if not alt.theme.options:
         raise RuntimeError("ds.theme() must be called before ds.save().")
 
@@ -283,6 +293,7 @@ def save(
                     checksum=metadata._spec_checksum(spec),
                     data_checksum=metadata._data_checksum(spec),
                     extensions=_exts,
+                    chart_expression=_chart_expression,
                     description=description,
                 )
 
