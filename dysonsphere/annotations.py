@@ -1001,6 +1001,10 @@ def add_shade(
         "stroke": axis_stroke_color if stroke else None,
         "strokeWidth": resolved_stroke_width,
         "strokeOpacity": 1 if stroke else 0,
+        # Shade rects are chart annotations, not data marks, so they pin square corners
+        # regardless of theme(cornerRadius=...) - which styles config.rect and would
+        # otherwise round these background bands as an unintended side effect.
+        "cornerRadius": 0,
     }
     if resolved_dash is not None:
         mark_kwargs["strokeDash"] = resolved_dash

@@ -263,7 +263,7 @@ See `## Style conventions` for the `-`-not-em-dashes rule, the 120-character lim
 
 **Naming convention:** All public function parameters use camelCase (e.g. `xCol`, `yCol`, `bracketStyle`, `labelStyle`, `yPad`, `yStep`) to match Altair and Vega-Lite conventions. Private/internal functions (prefixed `_`) retain snake_case (e.g. `_pvalue_layer` uses `x_col`, `y_col`, `bracket_style` internally).
 
-**`add_shade()` modes:** Two modes selected by which parameters are provided.
+**`add_shade()` modes:** Two modes selected by which parameters are provided. **Square corners always:** every shade rect (all modes) pins `cornerRadius: 0` in its `mark_kwargs`, so `theme(cornerRadius=...)` — which styles `config.rect` and would otherwise round these background bands — never affects them. Shade rects are chart annotations, not data marks. Safety-net: `TestAddShadeCornerRadius` in `tests/test_annotations.py`.
 
 *Band mode* (`categories` provided, `positions` omitted): shades every band on the x-axis. Color assignment: `palette[(i // repeat) % len(palette)]`. Consecutive same-color runs are merged into a single wider rect to eliminate the sub-pixel antialiasing seam that vl-convert PNG rasterization produces at coincident edges between adjacent same-color rects (src-over compositing partial coverage). Always operates on `axis='x'`.
 

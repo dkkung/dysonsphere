@@ -516,3 +516,33 @@ class TestAddShadeDatum:
 
         assert rendered("XT")
         assert rendered("YT")
+
+
+class TestAddShadeCornerRadius:
+    """theme(cornerRadius=...) styles config.rect (data marks); shade bands are annotations
+    and must stay square regardless."""
+
+    def _rect_corner_radii(self, layer_chart):
+        # Collect cornerRadius from every mark spec in the composed shade layer.
+        spec = layer_chart.to_dict()
+        return [lyr.get("mark", {}).get("cornerRadius") for lyr in spec.get("layer", [spec])]
+
+    def test_band_mode_square_under_rounded_theme(self):
+        import dysonsphere as ds
+
+        try:
+            ds.theme(cornerRadius=8)
+            radii = self._rect_corner_radii(add_shade(["A", "B", "C"], "g"))
+        finally:
+            ds.theme()
+        assert radii and all(r == 0 for r in radii)
+
+    def test_positions_mode_square_under_rounded_theme(self):
+        import dysonsphere as ds
+
+        try:
+            ds.theme(cornerRadius=8)
+            radii = self._rect_corner_radii(add_shade(positions=[(1.5, 2.5), (4.0, 5.0)], axis="x"))
+        finally:
+            ds.theme()
+        assert radii and all(r == 0 for r in radii)
