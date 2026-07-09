@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixes
+
+- **`add_shade()` bands stay square under `theme(cornerRadius=...)`.** The shade rects are chart annotations but were drawn as `mark_rect`, so they inherited `config.rect.cornerRadius` and got rounded whenever the theme set rounded marks - an unintended side effect. Every shade rect (band mode, positions mode, `axis="both"`) now pins `cornerRadius: 0`, so theme rounding affects data marks only.
+
 ## [3.5.0] - 2026-07-08
 
 ### New features
