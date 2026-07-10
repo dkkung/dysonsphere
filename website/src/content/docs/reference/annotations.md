@@ -183,6 +183,7 @@ def add_labels(
     color: str | None = None,
     connector: bool = True,
     connectorColor: str | None = None,
+    connectorOpacity: float | None = None,
     connectorStrokeDash: bool | list[int] = False,
     connectorGap: float | None = None,
     alwaysShowConnectors: bool = False,
@@ -216,6 +217,7 @@ round bounds, but without Vega's default ``zero`` - which is required for alignm
 - **`color`** (`str | None`) - Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware black/white).
 - **`connector`** (`bool`) - Whether to draw the line connecting each point to its label (default ``True``).
 - **`connectorColor`** (`str | None`) - Connector line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware). Connectors otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke, opaque).
+- **`connectorOpacity`** (`float | None`) - Connector line opacity, ``0``-``1``. ``None`` (default) -> inherits the theme's ``mark_rule`` opacity (opaque). Sets only the mark opacity, leaving the (darkmode-aware) color intact, so a faded leader - e.g. ``connectorOpacity=0.5`` to quiet the leaders relative to the labels - stays legible in both light and dark mode.
 - **`connectorStrokeDash`** (`bool | list[int]`) - Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth`` pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
 - **`connectorGap`** (`float | None`) - Pixel gap left at the MARKER end of the connector so it points at the dot rather than piercing it. ``None`` (default) -> the theme's ``mark_point`` edge radius plus two connector stroke widths of whitespace (``sqrt(markSize/2/pi) + markStrokeWidth + 2*axisWidth``), which clears the default point mark (and the smaller ``mark_circle``) with a visible sliver of daylight at any theme scale; ``0`` -> no marker gap; a float -> that many pixels (set this for unusually large or heavily stroked markers, which the gap can't measure since the base chart isn't visible here). The TEXT end always keeps just the whitespace term (``2*axisWidth`` - there is no marker to clear there, so a symmetric gap would open a hole between line and label). Both gaps are uniform - they never shrink, so every drawn connector sits the same distance off its dot and its label; a connector too short to keep the full gaps is dropped instead (see ``alwaysShowConnectors``).
 - **`alwaysShowConnectors`** (`bool`) - By default (``False``) a connector is omitted when the full end gaps would leave less than four connector stroke widths of visible line (length < ``connectorGap + 6*axisWidth``, i.e. < 1 px of line at the default theme) - the stub is just noise and the adjacent label is unambiguous. This threshold is font-independent (tied to the marker gap), so changing the label font never drops real leaders. ``True`` draws every one (sub-threshold stubs shrink their gaps to fit).
