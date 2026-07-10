@@ -6,6 +6,10 @@
 
 - **`add_labels(labels=...)` accepts a boolean mask (or index array) to select rows positionally.** Previously a list `labels=` matched rows by `labelCol` value, so a non-unique label column (e.g. a `gene` column with several variant rows per gene) could not select the exact rows to annotate while still displaying that column - and pre-filtering the frame instead left the labels blind to the rest of the scatter, so they landed on top of the unlabelled points. You can now pass the full plotted `df` (so the labels dodge EVERY point and the axis domain spans all of it) and select the subset with a boolean mask - `labels=df["is_hit"]` - decoupling selection from the display column. A same-length list of non-boolean values still matches by `labelCol` value as before.
 
+### Changes
+
+- **The `shoal` palette runs dark-to-light** (deep navy `#1B3452` -> mint `#93F2C9`), reversed from its previous light-to-dark order. This is a visual change, not an API one: code using `shoal` still runs, but on a sequential scale the color mapping flips (low values now render dark, high values light). Restore the old orientation with `ds.palette("shoal", reverse=True)`. Affects the bare `colors["shoal"]`, `ds.palette("shoal")`, and swatch exports.
+
 ### Fixes
 
 - **`add_shade()` bands stay square under `theme(cornerRadius=...)`.** The shade rects are chart annotations but were drawn as `mark_rect`, so they inherited `config.rect.cornerRadius` and got rounded whenever the theme set rounded marks - an unintended side effect. Every shade rect (band mode, positions mode, `axis="both"`) now pins `cornerRadius: 0`, so theme rounding affects data marks only.
