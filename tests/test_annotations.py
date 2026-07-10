@@ -163,6 +163,26 @@ class TestAddLabels:
         with pytest.raises(ValueError, match="not a bool"):
             add_labels(df, "x", "y", "g", labels=True)
 
+    def test_labels_bool_mask_selects_rows(self, df):
+        # a per-row boolean mask selects positionally (decoupled from labelCol)
+        got = _text_values(add_labels(df, "x", "y", "g", labels=[True, False, True]).to_dict())
+        assert set(got) == {"a", "c"}
+
+    def test_labels_bool_mask_polars_series(self, df):
+        got = _text_values(add_labels(df, "x", "y", "g", labels=df["x"] > 1.5).to_dict())
+        assert set(got) == {"b", "c"}
+
+    def test_labels_bool_mask_selects_by_row_not_label_value(self):
+        # the whole point: a NON-UNIQUE labelCol still selects the intended rows by position
+        dup = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "g": ["a", "a", "b"]})
+        got = _text_values(add_labels(dup, "x", "y", "g", labels=[False, True, False]).to_dict())
+        assert got == ["a"]  # only the middle row, not both "a" rows
+
+    def test_labels_list_of_values_still_matches_labelcol(self, df):
+        # a same-length list that is NOT all-bool is treated as label VALUES, not a mask
+        got = _text_values(add_labels(df, "x", "y", "g", labels=["a", "b", "c"]).to_dict())
+        assert set(got) == {"a", "b", "c"}
+
     def test_domain_spans_full_df_when_labeling_subset(self, df):
         # even labeling one point, the pinned scale must span the full df (no axis clipping);
         # exactly ONE layer carries the pin ((1, 3) nices to itself, so the extent is unchanged)

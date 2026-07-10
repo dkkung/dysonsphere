@@ -593,13 +593,37 @@ def add_text(
 # Auto-placed point labels (force-repel)
 
 
+def _bool_mask(labels: Any, n_rows: int) -> "list[bool] | None":
+    """Return ``labels`` as a ``list[bool]`` if it is a boolean mask matching ``n_rows``, else ``None``.
+
+    Accepts a pandas/polars ``Series``, a NumPy array, or a plain list - anything array-like whose
+    length equals ``n_rows`` and whose every element is a boolean (native ``bool``, or a NumPy/Arrow
+    boolean that ``to_list``/``tolist`` normalizes to native ``bool``). Anything else - a list of
+    label VALUES (strings/ints), a wrong-length sequence, a non-iterable - returns ``None`` so the
+    caller falls back to matching by ``labelCol`` value. This lets ``add_labels(labels=...)`` select
+    rows positionally (decoupled from the display column), so a non-unique ``labelCol`` can still pick
+    exactly the intended rows.
+    """
+    if hasattr(labels, "to_list"):  # pandas / polars Series -> native bools
+        seq = list(labels.to_list())
+    elif hasattr(labels, "tolist"):  # NumPy array -> native bools
+        seq = list(labels.tolist())
+    elif isinstance(labels, (list, tuple)):
+        seq = list(labels)
+    else:
+        return None
+    if len(seq) != n_rows or not seq or not all(isinstance(v, bool) for v in seq):
+        return None
+    return [bool(v) for v in seq]
+
+
 def add_labels(
     df: "pl.DataFrame | Any",
     xCol: str,
     yCol: str,
     labelCol: str,
     *,
-    labels: int | list | None = None,
+    labels: "int | list | Any | None" = None,
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
@@ -636,10 +660,14 @@ def add_labels(
         Column holding the label text.
     labels:
         Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n`
-        rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **list**
-        labels only the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``).
-        Pass the full plotted ``df`` and let ``labels`` do the selecting - the domain is inferred
-        from all of ``df``, so selecting a subset never clips the axes.
+        rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **boolean
+        mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry per row of
+        ``df``) selects rows **positionally** - decoupled from ``labelCol``, so a non-unique label
+        column still picks exactly the intended rows (e.g. ``labels=df["is_hit"]``); any other
+        **list** labels the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``,
+        which needs a unique ``labelCol``). Pass the full plotted ``df`` and let ``labels`` do the
+        selecting: obstacles and the axis domain both span all of ``df``, so the labels dodge EVERY
+        plotted point (not just the labelled subset) and selecting a subset never clips the axes.
     xDomain, yDomain:
         ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``).
         Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``, rounded outward to nice
@@ -688,18 +716,24 @@ def add_labels(
     from .utils import _nice_domain, ensure_polars
 
     data = ensure_polars(df)
-    # Domain spans the FULL df (so labeling a subset via labels= never clips the axes); the label
-    # positions come from the selected rows. labels=None labels every row; an int auto-selects that
-    # many evenly spread across the plot (unbiased, no cherry-picking); a list selects the rows whose
-    # labelCol value is in it.
+    # Domain and obstacles both span the FULL df (so labeling a subset via labels= never clips the
+    # axes AND the labels dodge every plotted point, not just the labelled ones); the label positions
+    # come from the selected rows. labels=None labels every row; an int auto-selects that many evenly
+    # spread across the plot (unbiased, no cherry-picking); a BOOLEAN MASK selects rows positionally -
+    # decoupling selection from the display column, so a non-unique labelCol still selects exactly the
+    # intended rows; any other list selects the rows whose labelCol value is in it.
     all_x = [float(v) for v in data[xCol].to_list()]
     all_y = [float(v) for v in data[yCol].to_list()]
     if isinstance(labels, bool):  # bool is an int subclass - reject before the int branch
-        raise ValueError("labels must be None, an int, or a list of values - not a bool")
+        raise ValueError("labels must be None, an int, a boolean mask, or a list of values - not a bool")
     if isinstance(labels, int):
         data = data[_sample_spread(all_x, all_y, labels)]
     elif labels is not None:
-        data = data.filter(pl.col(labelCol).is_in(labels))
+        mask = _bool_mask(labels, len(all_x))
+        if mask is not None:
+            data = data.filter(pl.Series(mask))
+        else:
+            data = data.filter(pl.col(labelCol).is_in(labels))
     xs = [float(v) for v in data[xCol].to_list()]
     ys = [float(v) for v in data[yCol].to_list()]
     label_texts = [str(v) for v in data[labelCol].to_list()]
