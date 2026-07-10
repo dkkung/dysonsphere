@@ -356,19 +356,19 @@ colors = {
     #   FRAC=1.0 for *_sat variants.  13 stops (odd) so the white pivot at stop 6
     #   lands exactly on the V-corner, avoiding the mid-palette dip that an even
     #   count introduces.
-    "aurora": [
-        "#100127",
-        "#1A0349",
-        "#1D1369",
-        "#162F80",
-        "#08498B",
-        "#0F6294",
-        "#157B9F",
-        "#1A94A7",
-        "#20ADAD",
-        "#26C5AB",
-        "#5CD99F",
-        "#98E993",
+    "australis": [
+        "#130010",
+        "#27022E",
+        "#370453",
+        "#3D1E76",
+        "#3A3B92",
+        "#2E57AA",
+        "#1374BA",
+        "#1A90BE",
+        "#20ABC1",
+        "#27C6C1",
+        "#48DEB3",
+        "#91EE9F",
     ],
     "bluelagoon": [
         "#1F3D88",
@@ -425,6 +425,20 @@ colors = {
         "#72D0BF",
         "#7DE2C2",
         "#9BF2B7",
+    ],
+    "borealis": [
+        "#100127",
+        "#1A0349",
+        "#1D1369",
+        "#162F80",
+        "#08498B",
+        "#0F6294",
+        "#157B9F",
+        "#1A94A7",
+        "#20ADAD",
+        "#26C5AB",
+        "#5CD99F",
+        "#98E993",
     ],
     "browns": [
         "#F7E6CD",
