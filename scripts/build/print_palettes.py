@@ -18,7 +18,8 @@ sequential and diverging palettes:
        interpolated point compute chroma as in recipe 1.  Same arc-length
        resample.
        Used for: ember, dusk, moss, GnBu, YlGnBu, candy, oranges, lagoon,
-                 bluestgrotto/bluergrotto/bluegrotto ladder.
+                 bluestgrotto/bluergrotto/bluegrotto ladder, nebula (with
+                 an absolute max_chroma cap, see build_multihue).
 
   Recipe 3. Diverging (V-shape with white pivot)
        Two arms meeting at an exact-white centre stop.  Each arm: L sweeps
@@ -292,12 +293,18 @@ def build_single_hue(hue_deg, L_lo, L_hi, *, space="oklab", frac=SEQ_FRAC, n=N_O
 # ── Recipe 2: sequential multi-hue (keyframe path) ───────────────────────
 
 
-def build_multihue(keyframes, *, space="oklab", frac=SEQ_FRAC, n=N_OUT_SEQ):
+def build_multihue(keyframes, *, space="oklab", frac=SEQ_FRAC, n=N_OUT_SEQ, max_chroma=None):
     """
     keyframes: list of (L, hue_deg) tuples ordered along the palette.
     Linear interpolation between consecutive keyframes in both L and hue
     (after hue unwrapping); chroma at each interpolated point as in
     recipe 1.  Equal arc-length resample to n stops.
+
+    max_chroma: optional absolute chroma ceiling applied after the frac
+    rule.  Paths crossing the sRGB blue gamut bulge (hue ~250-280) pick
+    up a chroma spike that bunches the lightness steps under arc-length
+    resampling; a cap flattens the spike so the L ramp stays even
+    (greyscale-safe).  Used for: nebula (0.14).
     """
     _, to_hex, max_c = _space(space)
     kf = _unwrap_hues(keyframes)
@@ -313,6 +320,8 @@ def build_multihue(keyframes, *, space="oklab", frac=SEQ_FRAC, n=N_OUT_SEQ):
         h = kf[i0][1] + t * (kf[i1][1] - kf[i0][1])
         hr = math.radians(h)
         C = frac * max_c(L, hr)
+        if max_chroma is not None:
+            C = min(C, max_chroma)
         Ld.append(L)
         ad.append(C * math.cos(hr))
         bd.append(C * math.sin(hr))
@@ -525,6 +534,22 @@ SEQ_MULTI_OKLAB = {
         (0.80, 178),
         (0.93, 155),
     ],
+    # Viridis alternative: deep slate-teal → indigo → periwinkle → orchid →
+    # pale rose (stored dark-first, viridis polarity).  Chroma capped at
+    # 0.14 to flatten the sRGB blue-gamut spike and keep the L ramp even.
+    "nebula": [
+        (0.21, 208),
+        (0.35, 232),
+        (0.50, 262),
+        (0.65, 300),
+        (0.80, 335),
+        (0.93, 365),
+    ],
+}
+
+# Per-palette max_chroma overrides for build_multihue (see its docstring).
+SEQ_MULTI_MAX_CHROMA = {
+    "nebula": 0.14,
 }
 
 # Diverging arm endpoints.  Format: name → (arm2_dark, arm1_dark) hex.
@@ -667,7 +692,7 @@ def main():
 
     print("\n# ─── Sequential multi-hue (Oklab) ────────────────────────────────")
     for name, kf in SEQ_MULTI_OKLAB.items():
-        _print_palette(name, build_multihue(kf))
+        _print_palette(name, build_multihue(kf, max_chroma=SEQ_MULTI_MAX_CHROMA.get(name)))
 
     print("\n# ─── Diverging (Oklab, FRAC=0.85) ────────────────────────────────")
     for name, (arm2, arm1) in DIVERG_OKLAB.items():
