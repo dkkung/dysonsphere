@@ -67,9 +67,11 @@ def _orient_gradient_titles(spec: dict) -> None:
     ``config.legend`` - ``titleOrient`` there would also rotate symbol-legend titles - so the
     theme option is applied here, per encoding, only where the legend is a gradient: a
     color/fill/stroke channel with a non-binned quantitative/temporal field on a continuous
-    scale. An explicit user ``legend.titleOrient`` (or a disabled legend) is left untouched.
-    Spec-level by design: it travels into the JSON/HTML exports and the SVG/PNG render alike
-    (bare-notebook display bypasses it, like the SVG fixers - use ``ds.show()``/``ds.save()``).
+    scale. (The compact title/label padding, by contrast, IS wanted on every legend, so it
+    stays in ``config.legend``.) An explicit user ``legend.titleOrient`` (or a disabled legend)
+    is left untouched. Spec-level by design: it travels into the JSON/HTML exports and the
+    SVG/PNG render alike (bare-notebook display bypasses it, like the SVG fixers - use
+    ``ds.show()``/``ds.save()``).
     """
     orient = _opt("gradientTitleOrient")
     if not orient:

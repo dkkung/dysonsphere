@@ -517,6 +517,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "legend": {
                 "disable": not opts["legend"],
                 "offset": opts["legendOffset"],
+                # Compact legend text: tighten the title-to-content gap (Vega default 5) and the
+                # symbol/gradient-to-label gap (default 4) so the block reads tight and balanced
+                # at this font. Applies to every legend (symbol + gradient) by design.
+                "titlePadding": 3,
+                "labelOffset": 2,
                 "gradientLength": opts["markSize"] * 5,
                 "gradientThickness": opts["markSize"] * 0.5,
                 "gradientOpacity": opts["markFillOpacity"],
@@ -537,9 +542,6 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "titleFontSize": opts["fontSize"],
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
-                # Gap between the legend title and the gradient bar / symbols (Vega default
-                # is 5, airy at this font). Tightened for the vertical gradient title too.
-                "titlePadding": 3,
             },
             "line": {
                 "color": "white" if opts["darkmode"] else "black",
