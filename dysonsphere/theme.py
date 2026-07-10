@@ -537,6 +537,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "titleFontSize": opts["fontSize"],
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
+                # Gap between the legend title and the gradient bar / symbols (Vega default
+                # is 5, airy at this font). Tightened for the vertical gradient title too.
+                "titlePadding": 3,
             },
             "line": {
                 "color": "white" if opts["darkmode"] else "black",
