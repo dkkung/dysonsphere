@@ -4,7 +4,8 @@
 
 ### New features
 
-- **`add_labels(labels=...)` accepts a boolean mask (or index array) to select rows positionally.** Previously a list `labels=` matched rows by `labelCol` value, so a non-unique label column (e.g. a `gene` column with several variant rows per gene) could not select the exact rows to annotate while still displaying that column - and pre-filtering the frame instead left the labels blind to the rest of the scatter, so they landed on top of the unlabelled points. You can now pass the full plotted `df` (so the labels dodge EVERY point and the axis domain spans all of it) and select the subset with a boolean mask - `labels=df["is_hit"]` - decoupling selection from the display column. A same-length list of non-boolean values still matches by `labelCol` value as before.
+- **`add_labels(labels=...)` accepts a boolean mask to select rows positionally.** Previously a list `labels=` matched rows by `labelCol` value, so a non-unique label column (e.g. a `gene` column with several variant rows per gene) could not select the exact rows to annotate while still displaying that column - and pre-filtering the frame instead left the labels blind to the rest of the scatter, so they landed on top of the unlabelled points. You can now pass the full plotted `df` (so the labels dodge EVERY point and the axis domain spans all of it) and select the subset with a boolean mask - `labels=df["is_hit"]` - decoupling selection from the display column. A same-length list of non-boolean values still matches by `labelCol` value as before.
+- **`add_labels()` gains a `connectorOpacity` parameter.** Fades the leader lines relative to the labels (e.g. `connectorOpacity=0.5`) without touching their color, so the quieted connectors stay legible in both light and dark mode (unlike baking the alpha into an rgba `connectorColor`). `None` (default) inherits the theme's opaque `mark_rule`.
 
 ### Fixes
 

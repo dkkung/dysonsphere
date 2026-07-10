@@ -75,6 +75,18 @@ class TestAddLabels:
         dashes = self._connector_stroke_dashes(add_labels(df, "x", "y", "g", connectorStrokeDash=[4, 2]))
         assert all(d == [4, 2] for d in dashes)
 
+    def _connector_marks(self, chart):
+        return [lyr["mark"] for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rule"]
+
+    def test_connector_opacity_default_inherits_theme(self, df):
+        # None -> no explicit opacity on the mark, so it inherits the theme's mark_rule config
+        assert all("opacity" not in m for m in self._connector_marks(add_labels(df, "x", "y", "g")))
+
+    def test_connector_opacity_sets_mark_opacity(self, df):
+        # a float sets the mark opacity but does NOT touch color (stays darkmode-aware)
+        marks = self._connector_marks(add_labels(df, "x", "y", "g", connectorOpacity=0.25))
+        assert marks and all(m["opacity"] == 0.25 and "color" not in m for m in marks)
+
     def test_connector_gap_shortens_line(self, df):
         import math
 

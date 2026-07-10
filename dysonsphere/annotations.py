@@ -630,6 +630,7 @@ def add_labels(
     color: str | None = None,
     connector: bool = True,
     connectorColor: str | None = None,
+    connectorOpacity: float | None = None,
     connectorStrokeDash: bool | list[int] = False,
     connectorGap: float | None = None,
     alwaysShowConnectors: bool = False,
@@ -688,6 +689,11 @@ def add_labels(
         Connector line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware).
         Connectors otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke,
         opaque).
+    connectorOpacity:
+        Connector line opacity, ``0``-``1``. ``None`` (default) -> inherits the theme's ``mark_rule``
+        opacity (opaque). Sets only the mark opacity, leaving the (darkmode-aware) color intact, so a
+        faded leader - e.g. ``connectorOpacity=0.5`` to quiet the leaders relative to the labels -
+        stays legible in both light and dark mode.
     connectorStrokeDash:
         Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth``
         pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
@@ -752,6 +758,11 @@ def add_labels(
     rule_kwargs: dict = {"strokeDash": _resolve_dash(connectorStrokeDash)}
     if connectorColor is not None:
         rule_kwargs["color"] = connectorColor
+    # connectorOpacity only sets the mark's opacity, leaving color to the (darkmode-aware) default or
+    # connectorColor - so a faded leader stays legible in both light and dark mode, unlike baking the
+    # alpha into an rgba color. None -> inherit the theme's mark_rule opacity (opaque).
+    if connectorOpacity is not None:
+        rule_kwargs["opacity"] = connectorOpacity
 
     if n == 0:
         return cast(alt.LayerChart, alt.layer(_empty_layer()))
