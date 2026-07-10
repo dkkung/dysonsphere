@@ -440,6 +440,20 @@ colors = {
         "#552D7D",
         "#3A2570",
     ],
+    "cosmos": [
+        "#00090B",
+        "#011920",
+        "#032A3A",
+        "#05395A",
+        "#074381",
+        "#2F4A9E",
+        "#5A54AE",
+        "#805DB9",
+        "#A567BD",
+        "#C873BB",
+        "#E684C1",
+        "#FC9BC6",
+    ],
     # ── Showcase multi-hue sequential (Oklab, 65% gamut chroma, equal arc length) ─
     # Curated keyframe paths through Oklab designed to be perceptually uniform AND
     # aesthetically distinct from the mpl viridis/magma/plasma/inferno family.

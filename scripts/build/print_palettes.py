@@ -18,8 +18,9 @@ sequential and diverging palettes:
        interpolated point compute chroma as in recipe 1.  Same arc-length
        resample.
        Used for: ember, dusk, moss, GnBu, YlGnBu, candy, oranges, lagoon,
-                 bluestgrotto/bluergrotto/bluegrotto ladder, nebula (with
-                 an absolute max_chroma cap, see build_multihue).
+                 bluestgrotto/bluergrotto/bluegrotto ladder, nebula and
+                 cosmos (both with an absolute max_chroma cap, see
+                 build_multihue; cosmos also with FRAC=0.95).
 
   Recipe 3. Diverging (V-shape with white pivot)
        Two arms meeting at an exact-white centre stop.  Each arm: L sweeps
@@ -545,11 +546,28 @@ SEQ_MULTI_OKLAB = {
         (0.80, 335),
         (0.93, 365),
     ],
+    # nebula's magma: same hue route shifted darker (near-black floor), so
+    # the light end stops at a saturated pink instead of near-white rose.
+    # FRAC=0.95 supplies the pink's chroma; the 0.14 cap keeps the ramp even.
+    "cosmos": [
+        (0.13, 205),
+        (0.28, 232),
+        (0.42, 262),
+        (0.56, 300),
+        (0.68, 335),
+        (0.80, 352),
+    ],
+}
+
+# Per-palette frac overrides for build_multihue (default SEQ_FRAC).
+SEQ_MULTI_FRAC = {
+    "cosmos": 0.95,
 }
 
 # Per-palette max_chroma overrides for build_multihue (see its docstring).
 SEQ_MULTI_MAX_CHROMA = {
     "nebula": 0.14,
+    "cosmos": 0.14,
 }
 
 # Diverging arm endpoints.  Format: name → (arm2_dark, arm1_dark) hex.
@@ -692,7 +710,14 @@ def main():
 
     print("\n# ─── Sequential multi-hue (Oklab) ────────────────────────────────")
     for name, kf in SEQ_MULTI_OKLAB.items():
-        _print_palette(name, build_multihue(kf, max_chroma=SEQ_MULTI_MAX_CHROMA.get(name)))
+        _print_palette(
+            name,
+            build_multihue(
+                kf,
+                frac=SEQ_MULTI_FRAC.get(name, SEQ_FRAC),
+                max_chroma=SEQ_MULTI_MAX_CHROMA.get(name),
+            ),
+        )
 
     print("\n# ─── Diverging (Oklab, FRAC=0.85) ────────────────────────────────")
     for name, (arm2, arm1) in DIVERG_OKLAB.items():
