@@ -18,9 +18,10 @@ sequential and diverging palettes:
        interpolated point compute chroma as in recipe 1.  Same arc-length
        resample.
        Used for: ember, dusk, moss, GnBu, YlGnBu, candy, oranges, lagoon,
-                 bluestgrotto/bluergrotto/bluegrotto ladder, nebula and
-                 cosmos (both with an absolute max_chroma cap, see
-                 build_multihue; cosmos also with FRAC=0.95).
+                 bluestgrotto/bluergrotto/bluegrotto ladder, and the
+                 celestial family nebula/cosmos/aurora (all three with an
+                 absolute max_chroma cap, see build_multihue; cosmos and
+                 aurora also with FRAC=0.95).
 
   Recipe 3. Diverging (V-shape with white pivot)
        Two arms meeting at an exact-white centre stop.  Each arm: L sweeps
@@ -557,17 +558,31 @@ SEQ_MULTI_OKLAB = {
         (0.68, 335),
         (0.80, 352),
     ],
+    # The viridis analogue (dark-first): rich violet floor → cobalt →
+    # azure-teal → luminous emerald, saturated at both ends.  Matches
+    # viridis's step uniformity (adjacent ΔE ratio 1.06 vs 1.05) and beats
+    # it under protanopia (1.28/min 0.061 vs 2.01/min 0.038, Machado 1.0);
+    # L monotonic under both dichromacies.
+    "aurora": [
+        (0.15, 297),
+        (0.33, 268),
+        (0.52, 235),
+        (0.70, 190),
+        (0.86, 143),
+    ],
 }
 
 # Per-palette frac overrides for build_multihue (default SEQ_FRAC).
 SEQ_MULTI_FRAC = {
     "cosmos": 0.95,
+    "aurora": 0.95,
 }
 
 # Per-palette max_chroma overrides for build_multihue (see its docstring).
 SEQ_MULTI_MAX_CHROMA = {
     "nebula": 0.14,
     "cosmos": 0.14,
+    "aurora": 0.14,
 }
 
 # Diverging arm endpoints.  Format: name → (arm2_dark, arm1_dark) hex.
