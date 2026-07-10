@@ -49,6 +49,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "fontStyle": "normal",
     "fontWeight": 400,
     "sigFigs": 3,
+    "gradientTitleOrient": "right",
     "grid": False,
     "gridColor": colors["greys"][0],
     "legend": True,
@@ -510,6 +511,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "titleFontWeight": opts["fontWeight"],
                 "titlePadding": 0,
             },
+            # gradientTitleOrient is NOT set here: config.legend.titleOrient would rotate
+            # symbol-legend titles too. It is injected per-encoding into continuous
+            # color/fill/stroke channels by export._orient_gradient_titles() at save/show time.
             "legend": {
                 "disable": not opts["legend"],
                 "offset": opts["legendOffset"],
