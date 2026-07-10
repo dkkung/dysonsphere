@@ -288,13 +288,6 @@ def _opt(key: str) -> Any:
 def _dysonsphere_theme() -> dict[str, Any]:
     opts = alt.theme.options
 
-    # One shared gap for every text-to-content offset in the chrome - axis (tick->label,
-    # label->title) and legend (title->content, symbol->label, gradient->label) - so all the
-    # spacing reads uniform and compact. Vega's per-property defaults differ (axis labelPadding 2
-    # / titlePadding 4, legend labelOffset/gradientLabelOffset 2 / titlePadding 5); pinning them
-    # all to one value removes that drift. tickSize (the tick-mark length) is NOT an offset.
-    pad = 2
-
     def _scheme(type_key: str, default: Any) -> Any:
         # Precedence: global `palette` (master override) → per-type `<type>Palette` → default.
         if opts.get("palette") is not None:
@@ -351,7 +344,6 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
-                "labelPadding": pad,  # tick mark -> tick label (shared offset)
                 "offset": 0 if opts["closed"] else opts["axisOffset"],
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
@@ -368,7 +360,6 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "titleFontSize": opts["fontSize"],
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
-                "titlePadding": pad,  # tick labels -> axis title (shared offset)
             },
             "axisX": {
                 "domain": opts["xAxis"] and opts["xDomain"],
@@ -526,12 +517,13 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "legend": {
                 "disable": not opts["legend"],
                 "offset": opts["legendOffset"],
-                # Compact legend text, all on the one shared `pad` offset: title->content,
-                # symbol->label, and gradient-bar->label (gradientLabelOffset - labelOffset does
-                # NOT reach gradient labels). Applies to every legend (symbol + gradient).
-                "titlePadding": pad,
-                "labelOffset": pad,
-                "gradientLabelOffset": pad,
+                # Legend text spacing mirrors the axis defaults: label gap 2, title gap 4.
+                # titlePadding = title->content (default 5); labelOffset = symbol->label (default
+                # 4); gradientLabelOffset = gradient-bar->label (labelOffset does NOT reach
+                # gradient labels). Applies to every legend (symbol + gradient).
+                "titlePadding": 4,
+                "labelOffset": 2,
+                "gradientLabelOffset": 2,
                 "gradientLength": opts["markSize"] * 5,
                 "gradientThickness": opts["markSize"] * 0.5,
                 "gradientOpacity": opts["markFillOpacity"],
