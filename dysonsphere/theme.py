@@ -26,6 +26,8 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
     },
 }
 
+# Keys are alphabetical (case-insensitive), with
+# exception of the palette keys by data type.
 _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisOffset": None,
     "axisWidth": 0.25,
@@ -36,7 +38,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "chartWidth": 100,
     "closed": None,
     "cornerRadius": False,
-    "inwardTicks": False,
     "darkmode": False,
     "dashedGrid": False,
     "dashedLine": False,
@@ -44,16 +45,15 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "dashedWidth": [2, 2],
     "font": "Helvetica Neue",
     "fontSize": 7,
-    "secondaryFontSize": None,
-    "smallestFontSize": 5,
     "fontStyle": "normal",
     "fontWeight": 400,
-    "sigFigs": 3,
     "grid": False,
     "gridColor": colors["greys"][0],
+    "inwardTicks": False,
     "legend": True,
     "legendOffset": None,
     "legendStroke": False,
+    "legendTitleGradientOrientation": "right",
     "markFill": colors["greys"][1],
     "markFillOpacity": 1.0,
     "markMedianFill": "black",
@@ -70,6 +70,9 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "rampPalette": None,
     "saveBackground": "light",
     "saveFormat": ["svg", "json"],
+    "secondaryFontSize": None,
+    "sigFigs": 3,
+    "smallestFontSize": 5,
     "strokeCap": "round",
     "ticks": True,
     "tickSize": 3,
@@ -77,13 +80,13 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "viewFill": None,
     "xAxis": True,
     "xDomain": True,
-    "xLabels": True,
     "xLabelAngle": 0,
+    "xLabels": True,
     "xTicks": True,
     "yAxis": True,
     "yDomain": True,
-    "yLabels": True,
     "yLabelAngle": 0,
+    "yLabels": True,
     "yTicks": True,
 }
 
@@ -510,9 +513,19 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "titleFontWeight": opts["fontWeight"],
                 "titlePadding": 0,
             },
+            # legendTitleGradientOrientation is NOT set here: config.legend.titleOrient would rotate
+            # symbol-legend titles too. It is injected per-encoding into continuous
+            # color/fill/stroke channels by export._orient_gradient_titles() at save/show time.
             "legend": {
                 "disable": not opts["legend"],
                 "offset": opts["legendOffset"],
+                # Legend text spacing mirrors the axis defaults: label gap 2, title gap 4.
+                # titlePadding = title->content (default 5); labelOffset = symbol->label (default
+                # 4); gradientLabelOffset = gradient-bar->label (labelOffset does NOT reach
+                # gradient labels). Applies to every legend (symbol + gradient).
+                "titlePadding": 4,
+                "labelOffset": 2,
+                "gradientLabelOffset": 2,
                 "gradientLength": opts["markSize"] * 5,
                 "gradientThickness": opts["markSize"] * 0.5,
                 "gradientOpacity": opts["markFillOpacity"],

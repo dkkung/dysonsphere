@@ -14,6 +14,7 @@ from dysonsphere.export import (
     _flip_ticks_inward,
     _italicize_stat_symbols,
     _layer_axes_to_front,
+    _orient_gradient_titles,
     _simplify_svg,
     save,
 )
@@ -329,6 +330,105 @@ class TestShow:
         monkeypatch.setitem(sys.modules, "IPython.display", None)  # make the import fail
         with pytest.raises(ImportError, match="ds.show"):
             show(simple_chart)
+
+
+# ── gradient legend titles ───────────────────────────────────────────────────
+
+
+class TestOrientGradientTitles:
+    """theme(legendTitleGradientOrientation=) — right-side, top-to-bottom gradient-legend titles."""
+
+    @pytest.fixture
+    def gradient_chart(self):
+        df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "v": [0.1, 0.5, 0.9]})
+        return alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q")
+
+    def test_injects_into_quantitative_color(self):
+        spec = {"encoding": {"color": {"field": "v", "type": "quantitative"}}}
+        _orient_gradient_titles(spec)
+        assert spec["encoding"]["color"]["legend"] == {"titleOrient": "right"}
+
+    def test_nominal_color_untouched(self):
+        spec = {"encoding": {"color": {"field": "g", "type": "nominal"}}}
+        _orient_gradient_titles(spec)
+        assert "legend" not in spec["encoding"]["color"]
+
+    def test_continuous_size_untouched(self):
+        # continuous size compiles to a symbol legend, not a gradient
+        spec = {"encoding": {"size": {"field": "v", "type": "quantitative"}}}
+        _orient_gradient_titles(spec)
+        assert "legend" not in spec["encoding"]["size"]
+
+    def test_user_title_orient_wins(self):
+        spec = {"encoding": {"color": {"field": "v", "type": "quantitative", "legend": {"titleOrient": "left"}}}}
+        _orient_gradient_titles(spec)
+        assert spec["encoding"]["color"]["legend"] == {"titleOrient": "left"}
+
+    def test_other_legend_props_preserved(self):
+        spec = {"encoding": {"color": {"field": "v", "type": "quantitative", "legend": {"title": "abundance"}}}}
+        _orient_gradient_titles(spec)
+        assert spec["encoding"]["color"]["legend"] == {"title": "abundance", "titleOrient": "right"}
+
+    def test_disabled_legend_untouched(self):
+        spec = {"encoding": {"color": {"field": "v", "type": "quantitative", "legend": None}}}
+        _orient_gradient_titles(spec)
+        assert spec["encoding"]["color"]["legend"] is None
+
+    def test_binned_field_untouched(self):
+        spec = {"encoding": {"color": {"field": "v", "type": "quantitative", "bin": True}}}
+        _orient_gradient_titles(spec)
+        assert "legend" not in spec["encoding"]["color"]
+
+    def test_discrete_scale_type_untouched(self):
+        spec = {"encoding": {"color": {"field": "v", "type": "quantitative", "scale": {"type": "quantize"}}}}
+        _orient_gradient_titles(spec)
+        assert "legend" not in spec["encoding"]["color"]
+
+    def test_theme_none_disables(self):
+        theme(legendTitleGradientOrientation=None)
+        spec = {"encoding": {"color": {"field": "v", "type": "quantitative"}}}
+        _orient_gradient_titles(spec)
+        assert "legend" not in spec["encoding"]["color"]
+
+    def test_recurses_into_layers_and_concat(self):
+        inner = {"encoding": {"color": {"field": "v", "type": "quantitative"}}}
+        spec = {"hconcat": [{"layer": [inner]}]}
+        _orient_gradient_titles(spec)
+        assert inner["encoding"]["color"]["legend"] == {"titleOrient": "right"}
+
+    def test_recurses_into_facet_spec(self):
+        inner = {"encoding": {"fill": {"field": "v", "type": "quantitative"}}}
+        spec = {"facet": {"field": "g"}, "spec": inner}
+        _orient_gradient_titles(spec)
+        assert inner["encoding"]["fill"]["legend"] == {"titleOrient": "right"}
+
+    def test_conditional_field_def_injected(self):
+        cond = {"test": "datum.v > 0", "field": "v", "type": "quantitative"}
+        spec = {"encoding": {"color": {"condition": cond, "value": "grey"}}}
+        _orient_gradient_titles(spec)
+        assert cond["legend"] == {"titleOrient": "right"}
+
+    def test_saved_json_carries_title_orient(self, gradient_chart, tmp_path):
+        save(gradient_chart, str(tmp_path / "grad"), format="json", background="light")
+        spec = json.loads((tmp_path / "grad.json").read_text(encoding="utf-8"))
+        assert spec["encoding"]["color"]["legend"]["titleOrient"] == "right"
+
+    def test_saved_svg_renders_rotated_title(self, gradient_chart, tmp_path):
+        # the legend title text ("v") carries rotate(90) — Vega's vertical top-to-bottom title
+        save(gradient_chart, str(tmp_path / "grad"), format="svg", background="light")
+        svg = (tmp_path / "grad.svg").read_text(encoding="utf-8")
+        title = re.search(r'<text[^>]*transform="([^"]*)"[^>]*>v</text>', svg)
+        assert title and "rotate(90)" in title.group(1)
+
+    def test_symbol_legend_title_not_rotated(self, tmp_path):
+        df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "g": ["a", "b", "c"]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="g:N")
+        save(chart, str(tmp_path / "sym"), format=["svg", "json"], background="light")
+        spec = json.loads((tmp_path / "sym.json").read_text(encoding="utf-8"))
+        assert "legend" not in spec["encoding"]["color"]
+        svg = (tmp_path / "sym.svg").read_text(encoding="utf-8")
+        title = re.search(r"<text[^>]*>g</text>", svg)  # symbol legend title stays horizontal
+        assert title and "rotate" not in title.group(0)
 
 
 # ── save() transparency ──────────────────────────────────────────────────────
