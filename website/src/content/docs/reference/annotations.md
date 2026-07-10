@@ -176,7 +176,7 @@ def add_labels(
     yCol: str,
     labelCol: str,
     *,
-    labels: int | list | None = None,
+    labels: int | list | Any | None = None,
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
@@ -209,7 +209,7 @@ round bounds, but without Vega's default ``zero`` - which is required for alignm
 - **`xCol`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
 - **`yCol`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
 - **`labelCol`** (`str`) - Column holding the label text.
-- **`labels`** (`int | list | None`) - Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n` rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **list** labels only the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``). Pass the full plotted ``df`` and let ``labels`` do the selecting - the domain is inferred from all of ``df``, so selecting a subset never clips the axes.
+- **`labels`** (`int | list | Any | None`) - Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n` rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **boolean mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry per row of ``df``) selects rows **positionally** - decoupled from ``labelCol``, so a non-unique label column still picks exactly the intended rows (e.g. ``labels=df["is_hit"]``); any other **list** labels the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``, which needs a unique ``labelCol``). Pass the full plotted ``df`` and let ``labels`` do the selecting: obstacles and the axis domain both span all of ``df``, so the labels dodge EVERY plotted point (not just the labelled subset) and selecting a subset never clips the axes.
 - **`xDomain`** (`tuple[float, float] | None`) - ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``). Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``, rounded outward to nice tick bounds** (d3-style nice, so the axes end on round numbers; filtering ``df`` just moves the axes with it - always inferred). An explicit value is used exactly as given (no rounding). Pass explicitly only when you want the axes to span a range the passed ``df`` does not cover - i.e. the base chart plots more than you hand ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose extent is tighter than the scatter).
 - **`yDomain`** (`tuple[float, float] | None`) - ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``). Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``, rounded outward to nice tick bounds** (d3-style nice, so the axes end on round numbers; filtering ``df`` just moves the axes with it - always inferred). An explicit value is used exactly as given (no rounding). Pass explicitly only when you want the axes to span a range the passed ``df`` does not cover - i.e. the base chart plots more than you hand ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose extent is tighter than the scatter).
 - **`fontSize`** (`float | None`) - Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
