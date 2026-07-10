@@ -54,6 +54,9 @@ intersection rectangle spanning both axes:
 volcano gene labels, rank-order labels, cluster labels. Placement is deterministic (no RNG, so
 figures are reproducible): each label takes the nearest clear spot, and a thin leader line runs
 from each point to its label. Pass the full plotted `df` and let `labels=` select which points to
-name - an integer picks that many spread evenly across the plot, a list names specific rows.
+name - an integer picks that many spread evenly across the plot, a list names rows by their
+`labelCol` value, and a boolean mask (`labels=df["is_hit"]`) selects rows positionally when the
+label column repeats. Passing the full `df` also lets the labels dodge every plotted point, not
+just the ones being named, so they settle into open space instead of on top of the crowd.
 
 <Example name="labels" alt="Scatter plot with eight auto-placed, connector-linked point labels" />
