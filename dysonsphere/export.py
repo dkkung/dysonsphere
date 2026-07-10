@@ -59,8 +59,8 @@ _DISCRETE_SCALE_TYPES = frozenset({"ordinal", "band", "point", "bin-ordinal", "q
 
 
 def _orient_gradient_titles(spec: dict) -> None:
-    """Inject ``legend.titleOrient`` (the theme's ``gradientTitleOrient``, default ``"right"``)
-    into every encoding that compiles to a gradient legend, mutating *spec* in place.
+    """Inject ``legend.titleOrient`` (the theme's ``legendTitleGradientOrientation``, default
+    ``"right"``) into every encoding that compiles to a gradient legend, mutating *spec* in place.
 
     Vega renders a left/right-oriented legend title rotated 90° alongside the gradient bar
     (matplotlib-colorbar style, reading top-to-bottom). This cannot live in the theme's
@@ -73,7 +73,7 @@ def _orient_gradient_titles(spec: dict) -> None:
     SVG/PNG render alike (bare-notebook display bypasses it, like the SVG fixers - use
     ``ds.show()``/``ds.save()``).
     """
-    orient = _opt("gradientTitleOrient")
+    orient = _opt("legendTitleGradientOrientation")
     if not orient:
         return
 

@@ -336,7 +336,7 @@ class TestShow:
 
 
 class TestOrientGradientTitles:
-    """theme(gradientTitleOrient=) — right-side, top-to-bottom titles on gradient legends only."""
+    """theme(legendTitleGradientOrientation=) — right-side, top-to-bottom gradient-legend titles."""
 
     @pytest.fixture
     def gradient_chart(self):
@@ -385,7 +385,7 @@ class TestOrientGradientTitles:
         assert "legend" not in spec["encoding"]["color"]
 
     def test_theme_none_disables(self):
-        theme(gradientTitleOrient=None)
+        theme(legendTitleGradientOrientation=None)
         spec = {"encoding": {"color": {"field": "v", "type": "quantitative"}}}
         _orient_gradient_titles(spec)
         assert "legend" not in spec["encoding"]["color"]
