@@ -2,7 +2,7 @@
 title: "Extensions"
 description: "Discover and load installed dysonsphere extensions."
 sidebar:
-  order: 4
+  order: 3
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
