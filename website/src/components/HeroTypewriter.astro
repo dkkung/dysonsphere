@@ -85,6 +85,18 @@
 
 {/* is:global - the spans are injected at runtime, so Astro's scoping can't reach them. */}
 <style is:global>
+	/* No flash of the raw static title on fast reloads: the h1 stays invisible until the
+	   script claims it (data-tw, set synchronously at module init) - or after 0.4s, so
+	   no-JS visitors and crawlers still get the plain word. */
+	.hero h1:not([data-tw]) {
+		opacity: 0;
+		animation: tw-appear 0s linear 0.4s forwards;
+	}
+	@keyframes tw-appear {
+		to {
+			opacity: 1;
+		}
+	}
 	.tw {
 		white-space: nowrap;
 		/* Mono suits the typewriter: even caret rhythm, deterministic chip growth, and
