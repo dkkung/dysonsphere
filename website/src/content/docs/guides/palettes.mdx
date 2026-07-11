@@ -17,6 +17,33 @@ finer control. Feed the result into any Altair `scale=alt.Scale(range=...)`:
 
 <Example name="palette_slice" alt="Dose-response bars colored with a sliced ember palette" />
 
+## Choosing a colormap
+
+Every sequential ramp is monotonic in Oklab lightness with near-uniform perceptual step size, so
+value ordering survives greyscale conversion and simulated deuteranopia/protanopia. Which one to
+reach for:
+
+- **`australis`** - the built-in continuous default (`config.range.heatmap` and `.ramp`). Hue
+  335°→148° (~190° rotation) over L 0.13-0.87; adjacent-step ΔE ratio 1.03 (viridis: 1.05).
+- **`borealis`** - hue 297°→143° over L 0.15-0.86 (australis without the magenta segment). The
+  closest viridis analogue; larger minimum adjacent ΔE under protanopia than viridis.
+- **`cosmos`** - L 0.13-0.80, near-black floor to a chroma-0.13 pink top; the widest dynamic
+  range, suited to dark backgrounds.
+- **`nebula`** - L 0.21-0.93 with a low-chroma near-white top; the lowest-contrast member, for
+  figures where color must stay quiet.
+- **`brass` / `pewter`** - navy → near-neutral middle (chroma ≤ 0.035) → gold or platinum. The
+  blue-yellow axis is fully preserved under dichromacy; the most conservative choice for
+  colorblind-critical figures.
+- **Single-hue ramps** (`blues`, `greens`, `pinks`, ...) - fixed hue, lightness-only encoding;
+  use when hue is reserved for another channel.
+
+For signed or reference-centered data use a 13-stop diverging palette (`pinksblues`,
+`redsblues`, ...) and center the scale domain so the white pivot lands on the reference value.
+
+Set the defaults for every chart with `theme(heatmapPalette=..., rampPalette=...)` (see the
+[theming guide](/guides/theming/)), or restyle one chart via
+`scale=alt.Scale(range=ds.palette(...))`.
+
 ## Qualitative categories
 
 `ds.categorical(members=n)` returns the CVD-robust qualitative palette (blue / pink / yellow /
