@@ -474,7 +474,50 @@ def _flip_ticks_inward(root: ET.Element) -> None:
     (``y2="0"``), so negating the non-zero coordinate flips the direction. Covers primary,
     secondary (right/top), major, and minor (log/power) ticks uniformly, since all are
     ``role-axis-tick`` groups.
+
+    Labels and titles follow the ticks in: Vega placed them beyond the outward tick, so once
+    the tick flips, the space it occupied would survive as a dead gap between the domain line
+    and the labels. Every ``<text>`` in each axis's ``role-axis-label`` / ``role-axis-title``
+    group is translated toward the view by that axis's OWN tick vector (read before negation,
+    so per-axis lengths - e.g. half-size log/power minor ticks - shift correctly; those axes
+    have no labels anyway). The shift is baked into each text's own ``translate`` - NOT set on
+    the group - because ``_simplify_svg`` later flattens the ``<g>`` wrappers (a group
+    transform would be dropped); trailing transform parts (label ``rotate``) are preserved.
+    The label -> title gap is preserved since both move together; an axis without tick lines
+    is left untouched.
     """
+    _xlate = re.compile(r"^translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)(.*)$")
+    # Pass 1: pull labels + title in by the tick length, per axis group (pre-negation read).
+    for axis in root.iter(f"{{{_SVG_NS}}}g"):
+        cls = axis.get("class", "")
+        if "mark-group" not in cls or "role-axis" not in cls:
+            continue
+        tick_line = next(
+            (
+                line
+                for g in axis.iter(f"{{{_SVG_NS}}}g")
+                if "role-axis-tick" in g.get("class", "")
+                for line in g.iter(f"{{{_SVG_NS}}}line")
+            ),
+            None,
+        )
+        if tick_line is None:
+            continue
+        dx = -float(tick_line.get("x2") or 0)
+        dy = -float(tick_line.get("y2") or 0)
+        if dx == 0 and dy == 0:
+            continue
+        for g in axis.iter(f"{{{_SVG_NS}}}g"):
+            gcls = g.get("class", "")
+            if "role-axis-label" not in gcls and "role-axis-title" not in gcls:
+                continue
+            for text in g.iter(f"{{{_SVG_NS}}}text"):
+                m = _xlate.match(text.get("transform", ""))
+                if not m:
+                    continue
+                x, y, rest = float(m.group(1)), float(m.group(2)), m.group(3)
+                text.set("transform", f"translate({x + dx:g},{y + dy:g}){rest}")
+    # Pass 2: negate the tick geometry itself.
     for g in root.iter(f"{{{_SVG_NS}}}g"):
         if "role-axis-tick" not in g.get("class", ""):
             continue
