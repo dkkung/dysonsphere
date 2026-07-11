@@ -804,7 +804,7 @@ def add_labels(
     # to the labeled points.
     # padding=0: placement runs in pixel space assuming the domain spans the full
     # [0, chartWidth]/[0, chartHeight] range; the pin wins the shared scale, so a
-    # theme(scalePadding=...) chart with labels renders unpadded rather than misaligned
+    # theme(viewPadding=...) chart with labels renders unpadded rather than misaligned
     x_scale = alt.Scale(domain=[x0, x1], nice=False, zero=False, padding=0)
     y_scale = alt.Scale(domain=[y0, y1], nice=False, zero=False, padding=0)
     pinned = False

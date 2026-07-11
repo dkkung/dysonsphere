@@ -268,7 +268,7 @@ def mark_violin(
         .mark_line(**mark_kwargs)
         .encode(
             # padding=0: the precomputed pixel coordinates assume the full [0, chartWidth]
-            # range - theme(scalePadding=...) must not compress this internal scale
+            # range - theme(viewPadding=...) must not compress this internal scale
             x=alt.X("__x:Q", scale=alt.Scale(domain=[0, chart_width], padding=0), axis=None),
             y=s.y("__y:Q"),
             order=alt.Order("__order:Q"),

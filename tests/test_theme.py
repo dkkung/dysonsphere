@@ -522,40 +522,44 @@ class TestTrailConfig:
         assert _dysonsphere_theme()["config"]["trail"]["color"] == "white"
 
 
-class TestScalePadding:
-    # theme(scalePadding=...) -> config.scale.continuousPadding on CLOSED plots only. Note
-    # Vega-Lite implements it as domain extension + nice-rounding, so the actual inset
-    # quantizes to the next nice boundary (a floor, not an exact px value).
+class TestViewPadding:
+    # theme(viewPadding=...) -> config.scale.continuousPadding on CLOSED plots only.
+    # float | bool like cornerRadius/boxplotOutliers: True (default) -> a 1px request =
+    # the MINIMAL effective inset (Vega-Lite nice-rounds any padding up to one nice step),
+    # False -> flush, a float -> that request (same quantization applies).
 
-    def test_default_omits_key(self):
-        # None -> Vega-Lite's own defaults stay in effect (rendering unchanged vs pre-3.7)
-        theme()
-        assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
+    def test_default_true_requests_minimal_inset_when_closed(self):
         theme(closed=True)
+        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 1
+
+    def test_false_is_flush(self):
+        theme(closed=True, viewPadding=False)
         assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
 
-    def test_value_wired_when_closed(self):
-        theme(scalePadding=8, closed=True)
+    def test_explicit_value_used_as_is(self):
+        theme(closed=True, viewPadding=8)
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 8
 
     def test_ignored_on_open_plots(self):
         # an open plot's detached axes already give the marks room; the inset would double-pad
-        theme(scalePadding=8)
+        theme()
+        assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
+        theme(viewPadding=8)
         assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
 
     def test_applies_under_inward_ticks(self):
-        theme(scalePadding=8, inwardTicks=True)  # inwardTicks implies closed
-        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 8
+        theme(inwardTicks=True)  # implies closed
+        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 1
 
     def test_internal_scales_pinned_against_padding(self):
-        # violin x:Q and add_labels' pinned scales carry padding=0 so scalePadding cannot
+        # violin x:Q and add_labels' pinned scales carry padding=0 so viewPadding cannot
         # compress their pixel math
         import polars as pl
 
         from dysonsphere.annotations import add_labels
         from dysonsphere.marks import mark_violin
 
-        theme(scalePadding=8, closed=True)
+        theme(closed=True)
         df = pl.DataFrame({"g": ["a"] * 8 + ["b"] * 8, "v": [1.0, 2, 3, 4, 5, 6, 7, 8] * 2})
         violin = mark_violin(df, "g", "v", ["a", "b"]).to_dict()
         vx = next(lyr for lyr in violin["layer"] if lyr["encoding"]["x"].get("field") == "__x")

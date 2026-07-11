@@ -69,7 +69,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "rampPalette": None,
     "saveBackground": "light",
     "saveFormat": ["svg", "json"],
-    "scalePadding": None,
     "secondaryFontSize": None,
     "sigFigs": 3,
     "smallestFontSize": 5,
@@ -78,6 +77,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "tickSize": 3,
     "transparent": False,
     "viewFill": None,
+    "viewPadding": True,
     "xAxis": True,
     "xDomain": True,
     "xLabelAngle": 0,
@@ -588,10 +588,12 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "bandPaddingInner": opts["bandPadding"],
                 "bandPaddingOuter": opts["bandPadding"],
                 # Closed plots only (an open plot's detached axes already give the marks
-                # room); None -> omitted, Vega-Lite's own defaults stay in effect.
+                # room). True -> a 1px request, i.e. the MINIMAL effective inset: Vega-Lite
+                # extends the domain and nice-rounds it, so any small request quantizes up
+                # to exactly one nice step. False/0 -> omitted (flush, Vega-Lite defaults).
                 **(
-                    {"continuousPadding": opts["scalePadding"]}
-                    if opts["scalePadding"] is not None and opts["closed"]
+                    {"continuousPadding": 1 if opts["viewPadding"] is True else opts["viewPadding"]}
+                    if opts["viewPadding"] and opts["closed"]
                     else {}
                 ),
                 "round": False,
