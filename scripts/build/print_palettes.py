@@ -549,6 +549,7 @@ SEQ_MULTI_OKLAB = {
     # Viridis alternative: deep slate-teal → indigo → periwinkle → orchid →
     # pale rose (stored dark-first, viridis polarity).  Chroma capped at
     # 0.14 to flatten the sRGB blue-gamut spike and keep the L ramp even.
+    # (Floor already L 0.21 - untouched by the 2026-07-11 floor lift.)
     "nebula": [
         (0.21, 208),
         (0.35, 232),
@@ -557,40 +558,48 @@ SEQ_MULTI_OKLAB = {
         (0.80, 335),
         (0.93, 365),
     ],
-    # nebula's magma: same hue route shifted darker (near-black floor), so
-    # the light end stops at a saturated pink instead of near-white rose.
-    # FRAC=0.95 supplies the pink's chroma; the 0.14 cap keeps the ramp even.
+    # nebula's magma: same hue route shifted darker (deep-teal floor, L
+    # 0.22 since the 2026-07-11 floor lift), so the light end stops at a
+    # saturated pink instead of near-white rose.  FRAC=0.95 supplies the
+    # pink's chroma; the 0.14 cap keeps the ramp even.
+    # pre-3.7 near-black floor, byte-reproducible via these keyframes:
+    #   [(0.13, 205), (0.28, 232), (0.42, 262), (0.56, 300), (0.68, 335), (0.80, 352)]
     "cosmos": [
-        (0.13, 205),
-        (0.28, 232),
-        (0.42, 262),
-        (0.56, 300),
-        (0.68, 335),
+        (0.22, 205),
+        (0.35, 232),
+        (0.471, 262),
+        (0.592, 300),
+        (0.696, 335),
         (0.80, 352),
     ],
     # The viridis analogue (dark-first): rich violet floor → cobalt →
-    # azure-teal → luminous emerald, saturated at both ends.  Matches
-    # viridis's step uniformity (adjacent ΔE ratio 1.06 vs 1.05) and beats
-    # it under protanopia (1.28/min 0.061 vs 2.01/min 0.038, Machado 1.0);
-    # L monotonic under both dichromacies.
+    # azure-teal → luminous emerald, saturated at both ends.  Floor lifted
+    # to L 0.22 (2026-07-11): viridis-level capacity (ΔE arc 0.741 vs
+    # 0.806, L span 0.640 vs 0.633), ratio 1.07, still beats viridis under
+    # protanopia; L monotonic under both dichromacies.
+    # pre-3.7 near-black floor, byte-reproducible via these keyframes:
+    #   [(0.15, 297), (0.33, 268), (0.52, 235), (0.70, 190), (0.86, 143)]
     "borealis": [
-        (0.15, 297),
-        (0.33, 268),
-        (0.52, 235),
-        (0.70, 190),
+        (0.22, 297),
+        (0.382, 268),
+        (0.554, 235),
+        (0.716, 190),
         (0.86, 143),
     ],
     # borealis's journey extended through cosmos's magenta territory: deep
     # magenta-wine fringe → violet → cobalt → azure → teal → the same
     # emerald curtain (~190° of rotation, the widest in the collection).
-    # Adjacent ΔE ratio 1.03 (viridis 1.05); L monotonic under both
-    # dichromacies (deut 1.34/min 0.064, prot 1.33/min 0.065, Machado 1.0).
+    # Floor lifted to L 0.22 (2026-07-11): viridis-parity capacity (ΔE arc
+    # 0.797 vs 0.806, L span 0.651 vs 0.633), ratio 1.08, more capacity
+    # than viridis under BOTH dichromacies; L monotonic under both.
+    # pre-3.7 near-black floor, byte-reproducible via these keyframes:
+    #   [(0.13, 335), (0.28, 305), (0.44, 270), (0.60, 235), (0.74, 195), (0.87, 148)]
     "australis": [
-        (0.13, 335),
-        (0.28, 305),
-        (0.44, 270),
-        (0.60, 235),
-        (0.74, 195),
+        (0.22, 335),
+        (0.352, 305),
+        (0.492, 270),
+        (0.633, 235),
+        (0.756, 195),
         (0.87, 148),
     ],
     # The metal pair (cividis seat, colorblind-bulletproof blue→gold axis):
@@ -598,18 +607,21 @@ SEQ_MULTI_OKLAB = {
     # green crossing never reads olive) → metallic top.  brass tops on
     # vivid gold, pewter on warm platinum.  CVD: L monotonic, adjacent ΔE
     # min ≥ 0.06 under Machado deuteranopia AND protanopia.
+    # pre-3.7 near-black floors, byte-reproducible via these keyframes:
+    #   brass  [(0.13, 255), (0.35, 245), (0.55, 180), (0.72, 115), (0.90, 92)]
+    #   pewter [(0.13, 255), (0.35, 245), (0.55, 180), (0.72, 110), (0.92, 95)]
     "brass": [
-        (0.13, 255),
-        (0.35, 245),
-        (0.55, 180),
-        (0.72, 115),
+        (0.22, 255),
+        (0.414, 245),
+        (0.591, 180),
+        (0.741, 115),
         (0.90, 92),
     ],
     "pewter": [
-        (0.13, 255),
-        (0.35, 245),
-        (0.55, 180),
-        (0.72, 110),
+        (0.22, 255),
+        (0.415, 245),
+        (0.592, 180),
+        (0.743, 110),
         (0.92, 95),
     ],
 }
