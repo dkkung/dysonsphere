@@ -1,3 +1,4 @@
+import math
 import re
 import struct
 
@@ -266,3 +267,87 @@ class TestExportSwatches:
 
         with pytest.raises(ValueError, match="non-empty list"):
             export_swatches(tmp_path, palettes=[])
+
+
+# ── perceptual quality invariants ────────────────────────────────────────────
+# Every dysonsphere-NATIVE palette (mpl_/cmocean_ ship as-is and are exempt) must uphold the
+# perceptual guarantees the build recipes promise. These are safety nets against hand-edits:
+# the bounds are empirical (worst native adjacent-ΔE ratio is bluelagoon at 1.29; viridis-grade
+# is ~1.05), so a failure means a palette regressed, not that the bound is tight.
+
+
+def _srgb_linear(c: float) -> float:
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _srgb_gamma(c: float) -> float:
+    return 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+
+
+def _hex_to_oklab(hx: str) -> tuple[float, float, float]:
+    r, g, b = (_srgb_linear(int(hx[i : i + 2], 16) / 255) for i in (1, 3, 5))
+    lv = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+    m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+    s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+    l_, m_, s_ = lv ** (1 / 3), m ** (1 / 3), s ** (1 / 3)
+    return (
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    )
+
+
+# Machado et al. 2009 severity-1.0 dichromacy matrices, applied in linear sRGB.
+_DEUTERANOPIA = ((0.367322, 0.860646, -0.227968), (0.280085, 0.672501, 0.047413), (-0.011820, 0.042940, 0.968881))
+_PROTANOPIA = ((0.152286, 1.052583, -0.204868), (0.114503, 0.786281, 0.099216), (-0.003882, 0.048116, 0.955765))
+
+
+def _simulate_cvd(hx: str, matrix) -> str:
+    r, g, b = (_srgb_linear(int(hx[i : i + 2], 16) / 255) for i in (1, 3, 5))
+    out = (max(0.0, min(1.0, m0 * r + m1 * g + m2 * b)) for m0, m1, m2 in matrix)
+    return "#" + "".join(f"{round(_srgb_gamma(c) * 255):02X}" for c in out)
+
+
+def _monotonic(values: list[float]) -> bool:
+    ascending = all(values[i + 1] > values[i] for i in range(len(values) - 1))
+    descending = all(values[i + 1] < values[i] for i in range(len(values) - 1))
+    return ascending or descending
+
+
+def _adjacent_delta_e(pal: list[str]) -> list[float]:
+    labs = [_hex_to_oklab(h) for h in pal]
+    return [math.dist(labs[i], labs[i + 1]) for i in range(len(labs) - 1)]
+
+
+def _native(name: str) -> bool:
+    return not name.startswith(("mpl_", "cmocean_"))
+
+
+# `categorical` carries 12 stops but is the QUALITATIVE hue-cycling palette, not a ramp.
+NATIVE_SEQUENTIAL = sorted(n for n, c in colors.items() if _native(n) and len(c) == 12 and n != "categorical")
+NATIVE_DIVERGING = sorted(n for n, c in colors.items() if _native(n) and len(c) == 13)
+
+
+class TestPaletteQuality:
+    @pytest.mark.parametrize("name", NATIVE_SEQUENTIAL)
+    def test_sequential_lightness_monotonic(self, name):
+        Ls = [_hex_to_oklab(h)[0] for h in colors[name]]
+        assert _monotonic(Ls), f"{name}: Oklab lightness is not monotonic (greyscale ordering breaks)"
+
+    @pytest.mark.parametrize("name", NATIVE_SEQUENTIAL)
+    def test_sequential_step_uniformity(self, name):
+        dEs = _adjacent_delta_e(colors[name])
+        ratio = max(dEs) / min(dEs)
+        assert ratio <= 1.5, f"{name}: adjacent-ΔE ratio {ratio:.2f} exceeds 1.5 (uneven perceptual steps)"
+
+    @pytest.mark.parametrize("name", NATIVE_SEQUENTIAL)
+    @pytest.mark.parametrize("matrix", [_DEUTERANOPIA, _PROTANOPIA], ids=["deuteranopia", "protanopia"])
+    def test_sequential_cvd_monotonic(self, name, matrix):
+        Ls = [_hex_to_oklab(_simulate_cvd(h, matrix))[0] for h in colors[name]]
+        assert _monotonic(Ls), f"{name}: lightness not monotonic under simulated dichromacy"
+
+    @pytest.mark.parametrize("name", NATIVE_DIVERGING)
+    def test_diverging_v_shape(self, name):
+        Ls = [_hex_to_oklab(h)[0] for h in colors[name]]
+        assert max(Ls) == Ls[6], f"{name}: the pivot (stop 6) is not the lightest stop"
+        assert _monotonic(Ls[:7]) and _monotonic(Ls[6:]), f"{name}: an arm's lightness is not monotonic"
