@@ -31,6 +31,7 @@ from pathlib import Path
 import altair as alt
 
 import dysonsphere as ds
+from dysonsphere.export import _orient_gradient_titles
 
 EXAMPLES = Path("website/examples")
 OUT = Path("website/public/charts")
@@ -59,6 +60,9 @@ def build(path: Path, dark: bool) -> dict:
         if chart is None:
             raise SystemExit(f"{path}: does not define a variable named 'chart'")
         spec = chart.to_dict()
+        # Same spec-level fixup ds.save() applies: rotated gradient-legend titles
+        # (browser-safe standard Vega-Lite, unlike the SVG-only fixers).
+        _orient_gradient_titles(spec)
         ds.clear_stats()
         return spec
 
@@ -96,6 +100,10 @@ def build(path: Path, dark: bool) -> dict:
     if chart is None:
         raise SystemExit(f"{path}: does not define a variable named 'chart'")
     spec = chart.to_dict()
+    # Same spec-level fixup ds.save() applies: rotated gradient-legend titles (browser-safe
+    # standard Vega-Lite, unlike the SVG-only fixers). Skipped for PLAIN_EXAMPLES above -
+    # the "before" comparison shows Altair defaults untouched.
+    _orient_gradient_titles(spec)
     # The stats registry is per-process; clear between examples so records never cross charts.
     ds.clear_stats()
     return spec
