@@ -1,0 +1,158 @@
+---
+// Homepage-only typewriter for the hero title: a thin-bar caret types the first word,
+// pauses, then types the second inside a contrasting chip - then "rolls" backwards
+// (backspace deletion) to a blank slate and cycles through the word stops
+// (dysonsphere -> publication ready -> uniform palettes -> declarative plotting ->
+// plot provenance -> ...), forever. Progressive enhancement - the static h1 text stays
+// for no-JS/SEO and screen readers read the plain product name via aria-label (the
+// animated spans are aria-hidden). Plays for everyone by explicit user decision (no
+// prefers-reduced-motion skip). Scoped to the homepage by construction: only the
+// landing page has a Starlight hero, so `.hero h1` matches nothing anywhere else.
+---
+
+<script>
+	const START_DELAY_MS = 400;
+	const TYPE_MS = 90;
+	const DELETE_MS = 45;
+	const WORD_PAUSE_MS = 350;
+	const HOLD_MS = 2200;
+	const BLANK_PAUSE_MS = 500;
+
+	// [plain word, chipped word] stops - run together with no space, like dysonsphere.
+	const STOPS: Array<[string, string]> = [
+		['dyson', 'sphere'],
+		['publication', 'ready'],
+		['uniform', 'palettes'],
+		['declarative', 'plotting'],
+		['plot', 'provenance'],
+	];
+
+	function run() {
+		const h1 = document.querySelector<HTMLElement>('.hero h1');
+		if (!h1 || h1.dataset.tw) return;
+		h1.dataset.tw = '1';
+		h1.setAttribute('aria-label', 'dysonsphere');
+		h1.textContent = '';
+		const wrap = document.createElement('span');
+		wrap.className = 'tw';
+		wrap.setAttribute('aria-hidden', 'true');
+		const first = document.createElement('span');
+		first.className = 'tw__dyson';
+		const chip = document.createElement('span');
+		chip.className = 'tw__sphere';
+		const caret = document.createElement('span');
+		caret.className = 'tw__caret';
+		wrap.append(first, chip, caret);
+		h1.append(wrap);
+
+		let stop = 0;
+		let i = 0;
+		let phase: 'type-a' | 'pause' | 'type-b' | 'hold' | 'delete-b' | 'delete-a' | 'blank' = 'type-a';
+
+		const tick = () => {
+			const [a, b] = STOPS[stop];
+			let delay = TYPE_MS;
+			if (phase === 'type-a') {
+				first.textContent = a.slice(0, ++i);
+				if (i >= a.length) (phase = 'pause'), (i = 0), (delay = WORD_PAUSE_MS);
+			} else if (phase === 'pause') {
+				phase = 'type-b';
+			} else if (phase === 'type-b') {
+				chip.textContent = b.slice(0, ++i);
+				if (i >= b.length) (phase = 'hold'), (i = 0), (delay = HOLD_MS);
+			} else if (phase === 'hold') {
+				(phase = 'delete-b'), (i = b.length);
+			} else if (phase === 'delete-b') {
+				chip.textContent = b.slice(0, --i);
+				delay = DELETE_MS;
+				if (i <= 0) (phase = 'delete-a'), (i = a.length);
+			} else if (phase === 'delete-a') {
+				first.textContent = a.slice(0, --i);
+				delay = DELETE_MS;
+				if (i <= 0) (phase = 'blank'), (delay = BLANK_PAUSE_MS);
+			} else {
+				stop = (stop + 1) % STOPS.length; // roll into the next word from the blank slate
+				(phase = 'type-a'), (i = 0);
+			}
+			setTimeout(tick, delay);
+		};
+		setTimeout(tick, START_DELAY_MS);
+	}
+
+	run();
+	document.addEventListener('astro:page-load', run);
+</script>
+
+{/* is:global - the spans are injected at runtime, so Astro's scoping can't reach them. */}
+<style is:global>
+	/* No flash of the raw static title on fast reloads: the h1 stays invisible until the
+	   script claims it (data-tw, set synchronously at module init) - or after 0.4s, so
+	   no-JS visitors and crawlers still get the plain word. */
+	.hero h1:not([data-tw]) {
+		opacity: 0;
+		animation: tw-appear 0s linear 0.4s forwards;
+	}
+	@keyframes tw-appear {
+		to {
+			opacity: 1;
+		}
+	}
+	.tw {
+		white-space: nowrap;
+		/* Mono suits the typewriter: even caret rhythm, deterministic chip growth, and
+		   no proportional-glyph crowding against the chip edge. Slightly reduced - mono
+		   runs wide at hero sizes. */
+		font-family: var(--sl-font-mono);
+		font-size: 0.85em;
+	}
+	/* Black/white monochrome via Starlight's flipping tokens: --sl-color-white is the
+	   high-contrast text colour in BOTH themes (near-black on light, white on dark) and
+	   --sl-color-black is the page ground - so the plain word matches the theme text and
+	   the chip is its exact inverse, with no per-theme overrides needed. */
+	/* First word: a subtle chip from the page's OWN end of the ink ramp - warm off-white
+	   with ink text on light, dark ink with warm off-white text on dark - so the second
+	   chip (always the page's opposite end) carries the contrast in both themes. */
+	.tw__dyson {
+		background: #eeece6;
+		color: #141413;
+		border-radius: 0.12em;
+		padding: 0 0.09em;
+	}
+	:root[data-theme='dark'] .tw__dyson {
+		background: #1d1d1b;
+		color: #eeece6;
+	}
+	.tw__dyson:empty {
+		display: none;
+	}
+	/* The contrast chip; hidden while empty so no bare pill shows pre-typing. */
+	.tw__sphere {
+		background: var(--sl-color-white);
+		color: var(--sl-color-black);
+		border-radius: 0.12em;
+		padding: 0 0.09em;
+	}
+	.tw__sphere:empty {
+		display: none;
+	}
+	/* Thin-bar caret, blinking ahead of the text. */
+	.tw__caret {
+		display: inline-block;
+		width: 0.055em;
+		min-width: 1.5px;
+		height: 0.95em;
+		margin-left: 0.05em;
+		vertical-align: -0.08em;
+		background: currentColor;
+		animation: tw-blink 1s steps(1, end) infinite;
+	}
+	@keyframes tw-blink {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0;
+		}
+	}
+</style>

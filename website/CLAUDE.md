@@ -178,31 +178,33 @@ dissolved 2026-07-06).
 
 ## Logo
 
-`logo/gen_dysonsphere_logo.py` generates the whole logo family (run:
-`uv run --no-project --with fonttools python website/logo/gen_dysonsphere_logo.py`). The panel count,
-tilt, palette range, colors, and font are parameters at the top of the generator.
+`logo/gen_dysonsphere_logo.py` generates the whole logo family in BOTH colour schemes (run:
+`uv run --no-project --with fonttools python website/logo/gen_dysonsphere_logo.py`). Geometry
+(panel count, tilt, lighting) is shared; each scheme in the `SCHEMES` dict maps the light
+intensity onto its own ramp + glow + strokes + wordmark colours.
 
-- `logo/dysonsphere_logo.svg` - the **mark** (no text): a sphere of flat panels shaded across the
-  MID of the **australis** palette (since 2026-07-11; was blues2) - the star-lit side emerald,
-  falling through cobalt into deep violet shadow - with a bright **star glowing inside the shell**
-  (a radial gradient - white-hot -> light yellow -> soft cyan -> turquoise - showing through the
-  panel gaps, plus a turquoise corona; vivid on dark, a soft luminosity on light). A single
-  dual-mode logo - the mid range skips near-white (vanishes on light) and near-black (vanishes on
-  dark), so one transparent SVG works on both backgrounds (no light/dark variants). This is the
-  file the site uses (copied to `src/assets/`; the favicon copy lives at `public/favicon.svg`;
-  the README/PyPI copies live at repo-root `docs/logo_with_text.svg` (the outlined lockup the
-  README shows; outlined because README viewers don't have Graphik) and `docs/logo.svg` (the
-  bare mark, kept for READMEs already published to PyPI) - re-copy ALL FOUR after
-  regenerating). The mark file carries its own
-  TIGHT square viewBox centered on sphere + corona (`mark_viewbox()`; the portrait canvas would
-  leave the wordmark's dead band below and clip the corona top - the sphere sat off-center
-  when sized by height, e.g. the site header).
-- `logo/dysonsphere_logo_portrait_with_text.svg` - mark + wordmark as live `<text>` (Graphik Light,
-  two-tone: dyson = `#1374BA`, sphere = `#48DEB3` - australis stops; SiteTitle.astro's `.ds`/`.sp`
-  colors must match). For editing / where Graphik is installed.
-- `logo/dysonsphere_logo_portrait_with_text_outlined.svg` - the same lockup with the wordmark
-  **outlined to `<path>`** (glyphs baked via fonttools; Graphik = face 6 in the system `Graphik.ttc`),
-  so it's font-independent. Use this wherever a self-contained lockup is needed.
+- **Default scheme = the MONO identity** (2026-07-11; the black/white brand): panels shade a
+  BIMODAL ink ramp - warm off-whites (#FFFFFF..#E4E2DB) on the lit side jumping to deep inks
+  (#3F3F3B..#000000) in shadow, deliberately hard-cut for graphic punch (this is NOT the smooth
+  `eclipse` data palette, which shares the endpoints) - ink strokes (#8F8F89), and a star with a
+  DARK core (#141413) brightening outward to warm paper (#FCFBF7), so the panel gaps read as rim
+  light. Files: `dysonsphere_logo.svg` (mark), `dysonsphere_favicon.svg`,
+  `dysonsphere_logo_portrait_with_text{,_outlined}.svg`. The OUTLINED lockup draws the brand
+  CHIPS behind the two words (warm #EEECE6 chip + ink text for dyson; ink #141413 chip + paper
+  text for sphere - the site wordmark replicated from glyph ink bounds + 0.09em padding).
+- **Heritage scheme (`_australis` prefix)**: the pre-mono australis look kept regenerable -
+  emerald->violet panels (lifted australis, light-first), mid-teal strokes #1D9CCB, warm star
+  core + teal corona, two-tone wordmark #1D83CA/#4DE0B4, no chips. Files:
+  `dysonsphere_australis_logo.svg` etc. Not deployed anywhere; the archive set.
+- **Copy chain (mono files): re-copy ALL FOUR after regenerating** - `src/assets/dysonsphere_logo.svg`
+  (site header + hero), `public/favicon.svg`, repo-root `docs/logo.svg` (bare mark, for READMEs
+  already published to PyPI) and `docs/logo_with_text.svg` (the chipped outlined lockup the README
+  shows; outlined because README viewers don't have Graphik).
+- The mark file carries its own TIGHT square viewBox centered on sphere + corona
+  (`mark_viewbox()`; the portrait canvas would leave the wordmark's dead band below and clip the
+  corona top - the sphere sat off-center when sized by height, e.g. the site header).
+- SiteTitle.astro's `.ds`/`.sp` are the CSS twins of the lockup chips (mono tokens
+  `--sl-color-white`/`--sl-color-black` + the fixed warm chip #EEECE6/#1D1D1B) - keep in sync.
 - `logo/double-dysonsphere/` - the user's archive of the superseded hand-drawn logo (gitignored).
 
 The wordmark is one continuous `<text>` (two colors via an inline `<tspan>`), centered on the panel
