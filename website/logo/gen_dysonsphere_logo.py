@@ -39,7 +39,7 @@ SCHEMES: dict[str, dict] = {
         # dark core, lighter outward: the panel gaps read as rim light
         "starcore": [("0", "#141413"), ("0.30", "#3F3F3B"), ("0.62", "#8F8F89"), ("1", "#FCFBF7")],
         # the wordmark chips (outlined lockup): [dyson chip bg, dyson text], [sphere chip bg, sphere text]
-        "chips": (("#EEECE6", "#141413"), ("#141413", "#FCFBF7")),
+        "chips": (("#EEECE6", "#141413"), ("#2C2C29", "#FCFBF7")),
     },
     # The heritage set: colors["australis"] (lifted) reversed to light-first.
     "_australis": {
@@ -206,10 +206,15 @@ def outlined_text(scheme: dict) -> list[str]:
         y_hi = max(b[3] for b in bounds if b)
         top = BASELINE - y_hi * scale - pad
         height = (y_hi - y_lo) * scale + 2 * pad
-        for lo_i, hi_i, (bg, _text) in ((0, SPLIT, scheme["chips"][0]), (SPLIT, len(WORD), scheme["chips"][1])):
+        # the chips ABUT at the ink midpoint between the words (n|s), like the site's
+        # adjacent CSS spans - outer edges keep the chip padding
+        word_ink = []
+        for lo_i, hi_i in ((0, SPLIT), (SPLIT, len(WORD))):
             wb = [(pu + b[0], pu + b[2]) for pu, b in list(zip(pens, bounds))[lo_i:hi_i] if b]
-            x_lo = min(w[0] for w in wb) * scale + x0 - pad
-            x_hi = max(w[1] for w in wb) * scale + x0 + pad
+            word_ink.append((min(w[0] for w in wb) * scale + x0, max(w[1] for w in wb) * scale + x0))
+        mid = (word_ink[0][1] + word_ink[1][0]) / 2
+        edges = ((word_ink[0][0] - pad, mid), (mid, word_ink[1][1] + pad))
+        for (x_lo, x_hi), (bg, _text) in zip(edges, scheme["chips"]):
             parts.append(
                 f'  <rect x="{x_lo:.2f}" y="{top:.2f}" width="{x_hi - x_lo:.2f}" '
                 f'height="{height:.2f}" rx="{rx:.2f}" fill="{bg}"/>'
