@@ -1,25 +1,32 @@
 ---
-// Live palette preview: three charts (categorical bars, multi-series lines, continuous heatmap)
-// that re-render with whichever palette is selected in the <Palettes /> browser below - the same
-// idea as the old gallery's "same charts over several palettes", but interactive.
+// Live palette preview: six charts (a diagonal ramp surface, categorical bars/scatter/lines, a
+// binned heatmap, and a Gaussian-mixture density surface) that re-render with whichever palette
+// is selected in the <Palettes /> browser below - the same idea as the old gallery's "same
+// charts over several palettes", but interactive.
 //
 // Mechanics: the base specs are the generated preview_* charts (authored against the default
 // theme, no baked colors); on selection we patch the spec's `config.range` client-side - the
 // bare `category` array for nominal scales (positional, like the library), `{scheme: [...]}`
-// for the continuous heatmap - and re-embed. Sequential/diverging palettes are sampled to the
-// series count exactly like `ds.palette(name, n)`; qualitative palettes pass through as-is.
-// Listens for the `ds-palette-select` CustomEvent dispatched by Palettes.astro.
+// for the continuous surfaces (ramp/heatmap/density) - and re-embed. Sequential/diverging
+// palettes are sampled to the series count exactly like `ds.palette(name, n)`; qualitative
+// palettes pass through as-is. Listens for the `ds-palette-select` CustomEvent dispatched by
+// Palettes.astro. The default selection is whatever palette comes FIRST in the generated list
+// (baked server-side for the label, seeded client-side from the first swatch).
+import palettes from '../generated/palettes.json';
+const firstPalette = palettes[0].name;
 ---
 
 <div class="palprev not-content">
 	<p class="palprev__status">
-		Previewing <code id="palprev-name">ember</code>
+		Previewing <code id="palprev-name">{firstPalette}</code>
 	</p>
 	<div class="palprev__row">
+		<div class="palprev__chart" data-preview="preview_ramp" data-role="heatmap"></div>
 		<div class="palprev__chart" data-preview="preview_bars" data-role="category" data-n="6"></div>
-		<div class="palprev__chart" data-preview="preview_scatter" data-role="category" data-n="3"></div>
+		<div class="palprev__chart" data-preview="preview_scatter" data-role="heatmap"></div>
 		<div class="palprev__chart" data-preview="preview_lines" data-role="category" data-n="5"></div>
 		<div class="palprev__chart" data-preview="preview_heatmap" data-role="heatmap"></div>
+		<div class="palprev__chart" data-preview="preview_density" data-role="heatmap"></div>
 	</div>
 </div>
 
@@ -33,9 +40,9 @@
 	const naturals = new Map<HTMLElement, number>();
 
 	let current: { name: string; kind: string; colors: string[] } = {
-		name: 'ember',
+		name: '', // seeded from the first swatch in the palette browser (see boot)
 		kind: 'sequential',
-		colors: [], // resolved from the palette browser's data on first render
+		colors: [],
 	};
 
 	function fetchSpec(name: string, theme: string): Promise<any> {
@@ -65,6 +72,9 @@
 		spec.config.range ??= {};
 		if (el.dataset.role === 'heatmap') {
 			spec.config.range.heatmap = { scheme: current.colors };
+			// Point/line marks draw continuous color from the ramp range (heatmap covers
+			// only rect marks) - patch both so the scatter recolors too.
+			spec.config.range.ramp = { scheme: current.colors };
 		} else {
 			const n = Number(el.dataset.n || '6');
 			spec.config.range.category = sample(current.colors, n, current.kind);
@@ -121,12 +131,20 @@
 		naturals.clear();
 		const row = document.querySelector<HTMLElement>('.palprev__row');
 		if (row) new ResizeObserver(() => applyZoom()).observe(row);
-		// Seed from the palette browser's baked data so the default preview needs no extra fetch.
-		const seedEl = document.querySelector<HTMLElement>(`.pal__item[data-name="${current.name}"]`);
-		if (seedEl && !current.colors.length) {
-			current.colors = Array.from(seedEl.querySelectorAll<HTMLElement>('.pal__stop')).map(
-				(s) => s.dataset.color ?? '',
-			);
+		// Seed from the FIRST swatch in the palette browser (baked data, no extra fetch) so the
+		// default selection always follows whatever leads the generated palette list.
+		if (!current.colors.length) {
+			const seedEl = document.querySelector<HTMLElement>('.pal__item');
+			if (seedEl) {
+				current.name = seedEl.dataset.name ?? '';
+				current.kind = seedEl.dataset.kind ?? 'sequential';
+				current.colors = Array.from(seedEl.querySelectorAll<HTMLElement>('.pal__stop')).map(
+					(s) => s.dataset.color ?? '',
+				);
+				seedEl.classList.add('is-selected');
+				const label = document.getElementById('palprev-name');
+				if (label) label.textContent = current.name;
+			}
 		}
 		renderAll();
 	}
