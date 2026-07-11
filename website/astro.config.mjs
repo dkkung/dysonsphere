@@ -100,7 +100,7 @@ export default defineConfig({
 				{
 					label: 'Extensions',
 					items: [
-						{ label: 'Overview', slug: 'extensions' },
+						{ label: 'Overview on extensions', slug: 'extensions' },
 						{ label: 'Writing an extension', slug: 'extensions/authoring' },
 						{
 							label: 'dysonsphere-biology',
