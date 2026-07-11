@@ -126,6 +126,11 @@ dissolved 2026-07-06).
   superscripts (`P = 5.03×10⁻¹⁷`). `src/lib/fixSuperscripts.ts` ports the fixer to the rendered
   SVG DOM (raised/shrunk ASCII tspan, same ratios); Chart.astro and the Studio call it after
   every vegaEmbed. Only text nodes are touched - aria-label attributes keep the original string.
+- **Grid lines are re-seated client-side.** `alignGridToContent` (fixSuperscripts.ts) ports
+  `export._align_grid_to_content`: on an open plot the grid inherits its axis group's
+  `axisOffset` and renders dragged toward the axis; the fixer translates each line back so the
+  grid spans the plot content. The offset is read from the spec's baked `config.axis.offset`
+  (closed plots bake 0 -> skipped). Chart.astro and the Studio call it after every vegaEmbed.
 - **Chart size.** Charts are authored at dysonsphere's publication defaults (100x100 px, small
   fonts/marks); scale them for the web with CSS `zoom` on `.vega-embed .chart-wrapper` (tune
   `--ds-chart-zoom` in theme.css). Do NOT zoom `.vega-embed` (that scales the export menu too) or
