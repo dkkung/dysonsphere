@@ -18,10 +18,11 @@ sequential and diverging palettes:
        interpolated point compute chroma as in recipe 1.  Same arc-length
        resample.
        Used for: ember, dusk, moss, GnBu, YlGnBu, candy, oranges, lagoon,
-                 bluestgrotto/bluergrotto/bluegrotto ladder, and the
-                 celestial family nebula/cosmos/borealis/australis (all
-                 with an absolute max_chroma cap, see build_multihue;
-                 cosmos/borealis/australis also with FRAC=0.95).
+                 bluestgrotto/bluergrotto/bluegrotto ladder, the celestial
+                 family nebula/cosmos/borealis/australis (all with an
+                 absolute max_chroma cap, see build_multihue;
+                 cosmos/borealis/australis also with FRAC=0.95), and the
+                 metal pair brass/pewter (per-keyframe max_chroma lists).
 
   Recipe 3. Diverging (V-shape with white pivot)
        Two arms meeting at an exact-white centre stop.  Each arm: L sweeps
@@ -303,10 +304,15 @@ def build_multihue(keyframes, *, space="oklab", frac=SEQ_FRAC, n=N_OUT_SEQ, max_
     recipe 1.  Equal arc-length resample to n stops.
 
     max_chroma: optional absolute chroma ceiling applied after the frac
-    rule.  Paths crossing the sRGB blue gamut bulge (hue ~250-280) pick
-    up a chroma spike that bunches the lightness steps under arc-length
-    resampling; a cap flattens the spike so the L ramp stays even
-    (greyscale-safe).  Used for: nebula (0.14).
+    rule.  A scalar caps the whole path: paths crossing the sRGB blue
+    gamut bulge (hue ~250-280) pick up a chroma spike that bunches the
+    lightness steps under arc-length resampling; the cap flattens the
+    spike so the L ramp stays even (greyscale-safe).  A LIST (one value
+    per keyframe, linearly interpolated alongside L and hue) varies the
+    ceiling along the path - the cividis trick: saturated ends with a
+    near-grey middle, so a hue crossing (e.g. green on a blue-to-gold
+    path) passes through neutral instead of lingering as olive.  Used
+    for: brass and pewter (lists; see SEQ_MULTI_MAX_CHROMA).
     """
     _, to_hex, max_c = _space(space)
     kf = _unwrap_hues(keyframes)
@@ -323,7 +329,11 @@ def build_multihue(keyframes, *, space="oklab", frac=SEQ_FRAC, n=N_OUT_SEQ, max_
         hr = math.radians(h)
         C = frac * max_c(L, hr)
         if max_chroma is not None:
-            C = min(C, max_chroma)
+            if isinstance(max_chroma, (list, tuple)):
+                cap = max_chroma[i0] + t * (max_chroma[i1] - max_chroma[i0])
+            else:
+                cap = max_chroma
+            C = min(C, cap)
         Ld.append(L)
         ad.append(C * math.cos(hr))
         bd.append(C * math.sin(hr))
@@ -583,6 +593,25 @@ SEQ_MULTI_OKLAB = {
         (0.74, 195),
         (0.87, 148),
     ],
+    # The metal pair (cividis seat, colorblind-bulletproof blue→gold axis):
+    # deep navy → near-grey petrol middle (variable cap ≈ neutral, so the
+    # green crossing never reads olive) → metallic top.  brass tops on
+    # vivid gold, pewter on warm platinum.  CVD: L monotonic, adjacent ΔE
+    # min ≥ 0.06 under Machado deuteranopia AND protanopia.
+    "brass": [
+        (0.13, 255),
+        (0.35, 245),
+        (0.55, 180),
+        (0.72, 115),
+        (0.90, 92),
+    ],
+    "pewter": [
+        (0.13, 255),
+        (0.35, 245),
+        (0.55, 180),
+        (0.72, 110),
+        (0.92, 95),
+    ],
 }
 
 # Per-palette frac overrides for build_multihue (default SEQ_FRAC).
@@ -590,6 +619,8 @@ SEQ_MULTI_FRAC = {
     "cosmos": 0.95,
     "borealis": 0.95,
     "australis": 0.95,
+    "brass": 0.95,
+    "pewter": 0.95,
 }
 
 # Per-palette max_chroma overrides for build_multihue (see its docstring).
@@ -598,6 +629,8 @@ SEQ_MULTI_MAX_CHROMA = {
     "cosmos": 0.14,
     "borealis": 0.14,
     "australis": 0.14,
+    "brass": [0.12, 0.09, 0.035, 0.09, 0.13],
+    "pewter": [0.12, 0.09, 0.035, 0.045, 0.035],
 }
 
 # Diverging arm endpoints.  Format: name → (arm2_dark, arm1_dark) hex.
