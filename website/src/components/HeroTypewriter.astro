@@ -97,8 +97,21 @@
 	   high-contrast text colour in BOTH themes (near-black on light, white on dark) and
 	   --sl-color-black is the page ground - so the plain word matches the theme text and
 	   the chip is its exact inverse, with no per-theme overrides needed. */
+	/* First word: a subtle chip from the page's OWN end of the ink ramp - warm off-white
+	   with ink text on light, dark ink with warm off-white text on dark - so the second
+	   chip (always the page's opposite end) carries the contrast in both themes. */
 	.tw__dyson {
-		color: var(--sl-color-white);
+		background: #eeece6;
+		color: #141413;
+		border-radius: 0.12em;
+		padding: 0 0.09em;
+	}
+	:root[data-theme='dark'] .tw__dyson {
+		background: #1d1d1b;
+		color: #eeece6;
+	}
+	.tw__dyson:empty {
+		display: none;
 	}
 	/* The contrast chip; hidden while empty so no bare pill shows pre-typing. */
 	.tw__sphere {

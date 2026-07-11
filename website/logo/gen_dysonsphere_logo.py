@@ -1,30 +1,58 @@
 #!/usr/bin/env python
-"""Generate the dysonsphere logo family.
+"""Generate the dysonsphere logo family, in both colour schemes.
 
+Default (mono identity - the black/white brand scheme):
   - dysonsphere_logo.svg                              : the mark alone (no text)
   - dysonsphere_favicon.svg                           : the mark cropped tight for a tab icon
   - dysonsphere_logo_portrait_with_text.svg           : mark + wordmark as live <text> (Graphik Light)
-  - dysonsphere_logo_portrait_with_text_outlined.svg  : mark + wordmark outlined to <path> paths
+  - dysonsphere_logo_portrait_with_text_outlined.svg  : mark + wordmark outlined to <path> paths,
+                                                        with the brand chips behind the two words
                                                         (font-independent; renders anywhere)
+Heritage (australis) set: the same four files with a `dysonsphere_australis_` prefix.
 
-The mark is a sphere of flat panels shaded across the MID of the australis palette (a single
-dual-mode logo: no near-white to vanish on light, no near-black to vanish on dark) - the star-lit
-side emerald, falling through cobalt into deep violet shadow - each facet outlined with a thin
-mid-teal stroke, with a bright star glowing inside the shell (through the panel gaps), transparent
-background. The wordmark is two-tone (dyson / sphere), Graphik Light, centered on the panel group's
-exact horizontal center.
+The mark is a sphere of flat panels shaded by one lighting model; each scheme maps the light
+intensity onto its own ramp. Mono: warm paper on the lit side falling into deep ink shadow
+(bimodal for graphic punch - NOT the smooth `eclipse` data palette, which shares the endpoints),
+ink strokes, a dark core glowing lighter outward through the panel gaps. Australis: emerald lit
+side through cobalt into violet shadow, mid-teal strokes, a warm star core with teal corona.
 
 Run:  uv run --no-project --with fonttools python website/logo/gen_dysonsphere_logo.py
-(fonttools + Graphik installed are needed only for the outlined variant; the other two always build.)
+(fonttools + Graphik installed are needed only for the outlined variants; the rest always build.)
 """
 from __future__ import annotations
+
 import glob
 import math
 from pathlib import Path
 
-# colors["australis"] reversed to light-first (the palette is stored dark-first).
-AUSTRALIS = ["#91EE9F", "#4DE0B4", "#28CDC5", "#23B5C9", "#1D9CCB", "#1D83CA",
-             "#3A68BB", "#484DA6", "#4D338C", "#4C196E", "#43044D", "#32022B"]
+# Per-scheme colour sets. Ramps are light-first (index 0 = brightest); the shader uses
+# MINIDX..MAXIDX so the extremes stay reserved for glow/chip accents.
+SCHEMES: dict[str, dict] = {
+    # The mono identity: warm off-whites jumping to deep inks (bimodal, for punch).
+    "": {
+        "ramp": ["#FFFFFF", "#FCFBF7", "#F5F4EF", "#EEECE6", "#E4E2DB", "#3F3F3B",
+                 "#2C2C29", "#1D1D1B", "#111110", "#070707", "#040404", "#000000"],
+        "pstroke": "#8F8F89",
+        "dyson": "#141413",
+        "sphere": "#8F8F89",
+        "corona": [("0.35", "#EEECE6", "0.5"), ("0.72", "#E4E2DB", "0.3"), ("1", "#E4E2DB", "0")],
+        # dark core, lighter outward: the panel gaps read as rim light
+        "starcore": [("0", "#141413"), ("0.30", "#3F3F3B"), ("0.62", "#8F8F89"), ("1", "#FCFBF7")],
+        # the wordmark chips (outlined lockup): [dyson chip bg, dyson text], [sphere chip bg, sphere text]
+        "chips": (("#EEECE6", "#141413"), ("#141413", "#FCFBF7")),
+    },
+    # The heritage set: colors["australis"] (lifted) reversed to light-first.
+    "_australis": {
+        "ramp": ["#91EE9F", "#4DE0B4", "#28CDC5", "#23B5C9", "#1D9CCB", "#1D83CA",
+                 "#3A68BB", "#484DA6", "#4D338C", "#4C196E", "#43044D", "#32022B"],
+        "pstroke": "#1D9CCB",
+        "dyson": "#1D83CA",
+        "sphere": "#4DE0B4",
+        "corona": [("0.35", "#5ee7d6", "0.55"), ("0.72", "#45e0cf", "0.35"), ("1", "#45e0cf", "0")],
+        "starcore": [("0", "#ffffff"), ("0.28", "#ffe6a3"), ("0.6", "#8fe6df"), ("1", "#45e0cf")],
+        "chips": None,  # two-tone text, no chips (the pre-mono wordmark)
+    },
+}
 
 W, H = 200, 210
 CX, CY, R = 100, 92, 84
@@ -36,7 +64,6 @@ INSET = 0.9
 LIGHT = (-0.42, 0.55, 0.72)
 _l = math.dist((0, 0, 0), LIGHT); LIGHT = tuple(c / _l for c in LIGHT)
 MINIDX, MAXIDX = 1, 9
-DYSON, SPHERE = "#1D83CA", "#4DE0B4"
 FONT = "'Graphik Light', 'Graphik-Light', 'Graphik', sans-serif"
 WORD, SPLIT, SIZE, BASELINE, WEIGHT = "dysonsphere", 5, 29, 200, 300  # split after "dyson"
 HERE = Path(__file__).parent
@@ -47,9 +74,8 @@ def normal(lat, lon):
     return x, y * math.cos(TILT) - z * math.sin(TILT), y * math.sin(TILT) + z * math.cos(TILT)
 
 
-def shade(n):
-    inten = max(0.0, sum(a * b for a, b in zip(n, LIGHT))) ** 0.85
-    return AUSTRALIS[MINIDX + round((1 - inten) * (MAXIDX - MINIDX))]
+def intensity(n) -> float:
+    return max(0.0, sum(a * b for a, b in zip(n, LIGHT))) ** 0.85
 
 
 quads = []
@@ -60,7 +86,7 @@ for i in range(M):
         quads.append([normal(lat0, lo0), normal(lat0, lo1), normal(lat1, lo1), normal(lat1, lo0)])
 quads.append([normal(LATMAX, LON0 + 2 * math.pi * j / N) for j in range(N)])
 
-panels = []
+panels = []  # (depth, points, light intensity) - scheme-independent geometry
 for c in quads:
     cn = [sum(p[k] for p in c) / len(c) for k in range(3)]
     _c = math.dist((0, 0, 0), cn); cn = [v / _c for v in cn]
@@ -69,7 +95,7 @@ for c in quads:
     pts = [(CX + R * x, CY - R * y) for x, y, _ in c]
     mx, my = sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
     pts = [(mx + INSET * (x - mx), my + INSET * (y - my)) for x, y in pts]
-    panels.append((cn[2], pts, shade(cn)))
+    panels.append((cn[2], pts, intensity(cn)))
 panels.sort(key=lambda p: p[0])
 
 xs = [x for _, pts, _ in panels for x, _ in pts]
@@ -77,39 +103,43 @@ ys = [y for _, pts, _ in panels for _, y in pts]
 CENTER_X = (min(xs) + max(xs)) / 2
 CENTER_Y = (min(ys) + max(ys)) / 2
 
-# The star inside the shell: a bright radial-gradient sphere (white-hot -> warm gold -> soft cyan ->
-# turquoise) smaller than the shell, glowing out through the panel gaps, plus a turquoise corona.
-# Centered (cx/cy 50%) on the panel bbox, which coincides with the sphere centre. Vivid on dark; a
-# soft inner luminosity on light.
-STAR = [
-    "  <defs>",
-    '    <radialGradient id="corona" cx="50%" cy="50%" r="50%">',
-    '      <stop offset="0.35" stop-color="#5ee7d6" stop-opacity="0.55"/>',
-    '      <stop offset="0.72" stop-color="#45e0cf" stop-opacity="0.35"/>',
-    '      <stop offset="1" stop-color="#45e0cf" stop-opacity="0"/>',
-    "    </radialGradient>",
-    '    <radialGradient id="starcore" cx="50%" cy="50%" r="60%">',
-    '      <stop offset="0" stop-color="#ffffff"/>',
-    '      <stop offset="0.28" stop-color="#ffe6a3"/>',
-    '      <stop offset="0.6" stop-color="#8fe6df"/>',
-    '      <stop offset="1" stop-color="#45e0cf"/>',
-    "    </radialGradient>",
-    "  </defs>",
-    f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 1.15:.1f}" fill="url(#corona)"/>',
-    f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 0.72:.1f}" fill="url(#starcore)"/>',
-]
-# Panel stroke: a thin mid-teal outline on every facet (an australis stop). Mid-range so it reads
-# on both light and dark (dual-mode, like the fills); it firms up the faceting without competing
-# with the star glow.
-PSTROKE, PWIDTH = "#1D9CCB", 0.5
-POLYS = [f'  <polygon points="{" ".join(f"{x:.2f},{y:.2f}" for x, y in pts)}" fill="{f}" '
-         f'stroke="{PSTROKE}" stroke-width="{PWIDTH}" stroke-linejoin="round"/>'
-         for _, pts, f in panels]
+PWIDTH = 0.5
 
 
-def doc(body: list[str], viewbox: str | None = None) -> str:
+def star_block(scheme: dict) -> list[str]:
+    # The star inside the shell: a radial-gradient sphere glowing through the panel gaps,
+    # plus a soft corona. Centered on the panel bbox, which coincides with the sphere centre.
+    corona = "".join(
+        f'\n      <stop offset="{o}" stop-color="{c}" stop-opacity="{a}"/>' for o, c, a in scheme["corona"]
+    )
+    core = "".join(f'\n      <stop offset="{o}" stop-color="{c}"/>' for o, c in scheme["starcore"])
+    return [
+        "  <defs>",
+        f'    <radialGradient id="corona" cx="50%" cy="50%" r="50%">{corona}',
+        "    </radialGradient>",
+        f'    <radialGradient id="starcore" cx="50%" cy="50%" r="60%">{core}',
+        "    </radialGradient>",
+        "  </defs>",
+        f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 1.15:.1f}" fill="url(#corona)"/>',
+        f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 0.72:.1f}" fill="url(#starcore)"/>',
+    ]
+
+
+def polys(scheme: dict) -> list[str]:
+    ramp = scheme["ramp"]
+    out = []
+    for _, pts, inten in panels:
+        fill = ramp[MINIDX + round((1 - inten) * (MAXIDX - MINIDX))]
+        out.append(
+            f'  <polygon points="{" ".join(f"{x:.2f},{y:.2f}" for x, y in pts)}" fill="{fill}" '
+            f'stroke="{scheme["pstroke"]}" stroke-width="{PWIDTH}" stroke-linejoin="round"/>'
+        )
+    return out
+
+
+def doc(scheme: dict, body: list[str], viewbox: str | None = None) -> str:
     head = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox or f"0 0 {W} {H}"}" fill="none">'
-    return "\n".join([head, *STAR, *POLYS, *body, "</svg>"]) + "\n"
+    return "\n".join([head, *star_block(scheme), *polys(scheme), *body, "</svg>"]) + "\n"
 
 
 def mark_viewbox() -> str:
@@ -120,7 +150,7 @@ def mark_viewbox() -> str:
     return f"{CENTER_X - s:.2f} {CENTER_Y - s:.2f} {2 * s:.2f} {2 * s:.2f}"
 
 
-def favicon_doc() -> str:
+def favicon_doc(scheme: dict) -> str:
     # A tab-icon variant: the mark cropped tight around the sphere (centre CX,CY, radius R) so it
     # fills the tiny canvas. The corona's soft outer edge falls outside the square and is dropped,
     # which reads cleaner at 16-32 px than a fuzzy halo.
@@ -128,18 +158,18 @@ def favicon_doc() -> str:
     side = 2 * (R + pad)
     head = (f'<svg xmlns="http://www.w3.org/2000/svg" '
             f'viewBox="{CX - R - pad} {CY - R - pad} {side} {side}" fill="none">')
-    return "\n".join([head, *STAR, *POLYS, "</svg>"]) + "\n"
+    return "\n".join([head, *star_block(scheme), *polys(scheme), "</svg>"]) + "\n"
 
 
-def live_text() -> list[str]:
+def live_text(scheme: dict) -> list[str]:
     return [
         f'  <text x="{CENTER_X:.4f}" y="{BASELINE}" text-anchor="middle" font-family="{FONT}" '
-        f'font-size="{SIZE}" font-weight="{WEIGHT}" fill="{DYSON}">dyson'
-        f'<tspan fill="{SPHERE}">sphere</tspan></text>',
+        f'font-size="{SIZE}" font-weight="{WEIGHT}" fill="{scheme["dyson"]}">dyson'
+        f'<tspan fill="{scheme["sphere"]}">sphere</tspan></text>',
     ]
 
 
-def outlined_text() -> list[str]:
+def outlined_text(scheme: dict) -> list[str]:
     from fontTools.pens.boundsPen import BoundsPen
     from fontTools.pens.svgPathPen import SVGPathPen
     from fontTools.ttLib import TTFont
@@ -165,26 +195,49 @@ def outlined_text() -> list[str]:
             ink_lo, ink_hi = min(ink_lo, pu + bp.bounds[0]), max(ink_hi, pu + bp.bounds[2])
     x0 = CENTER_X - (ink_lo + ink_hi) / 2 * scale  # center the ink (not the advance) exactly
 
-    paths = []
+    parts: list[str] = []
+    if scheme["chips"]:
+        # The brand chips behind the two words, replicating the site wordmark: each chip spans
+        # its word's ink extents plus the CSS chip padding (0.09em); one shared vertical box
+        # (the union of both words' ink) so the chips align like a CSS line box.
+        pad = 0.09 * SIZE
+        rx = 0.12 * SIZE
+        y_lo = min(b[1] for b in bounds if b)
+        y_hi = max(b[3] for b in bounds if b)
+        top = BASELINE - y_hi * scale - pad
+        height = (y_hi - y_lo) * scale + 2 * pad
+        for lo_i, hi_i, (bg, _text) in ((0, SPLIT, scheme["chips"][0]), (SPLIT, len(WORD), scheme["chips"][1])):
+            wb = [(pu + b[0], pu + b[2]) for pu, b in list(zip(pens, bounds))[lo_i:hi_i] if b]
+            x_lo = min(w[0] for w in wb) * scale + x0 - pad
+            x_hi = max(w[1] for w in wb) * scale + x0 + pad
+            parts.append(
+                f'  <rect x="{x_lo:.2f}" y="{top:.2f}" width="{x_hi - x_lo:.2f}" '
+                f'height="{height:.2f}" rx="{rx:.2f}" fill="{bg}"/>'
+            )
+
     for idx, (g, pu, b) in enumerate(zip(glyphs, pens, bounds)):
         if not b:
             continue
+        if scheme["chips"]:
+            fill = scheme["chips"][0][1] if idx < SPLIT else scheme["chips"][1][1]
+        else:
+            fill = scheme["dyson"] if idx < SPLIT else scheme["sphere"]
         pen = SVGPathPen(gs); gs[g].draw(pen)
-        fill = DYSON if idx < SPLIT else SPHERE
-        paths.append(
+        parts.append(
             f'  <path transform="translate({x0 + pu * scale:.3f} {BASELINE}) '
             f'scale({scale:.6f} {-scale:.6f})" fill="{fill}" d="{pen.getCommands()}"/>'
         )
-    return paths
+    return parts
 
 
-(HERE / "dysonsphere_logo.svg").write_text(doc([], mark_viewbox()))
-(HERE / "dysonsphere_logo_portrait_with_text.svg").write_text(doc(live_text()))
-(HERE / "dysonsphere_favicon.svg").write_text(favicon_doc())
-print(f"wrote dysonsphere_logo.svg (mark) + _portrait_with_text.svg + dysonsphere_favicon.svg "
-      f"(wordmark centered at x={CENTER_X:.4f})")
-try:
-    (HERE / "dysonsphere_logo_portrait_with_text_outlined.svg").write_text(doc(outlined_text()))
-    print("wrote dysonsphere_logo_portrait_with_text_outlined.svg (glyphs -> paths)")
-except Exception as e:  # noqa: BLE001
-    print(f"skipped outlined variant: {e}  (needs `--with fonttools` and Graphik installed)")
+for suffix, scheme in SCHEMES.items():
+    prefix = f"dysonsphere{suffix}"
+    (HERE / f"{prefix}_logo.svg").write_text(doc(scheme, [], mark_viewbox()))
+    (HERE / f"{prefix}_logo_portrait_with_text.svg").write_text(doc(scheme, live_text(scheme)))
+    (HERE / f"{prefix}_favicon.svg").write_text(favicon_doc(scheme))
+    print(f"wrote {prefix}_logo.svg (mark) + _portrait_with_text.svg + {prefix}_favicon.svg")
+    try:
+        (HERE / f"{prefix}_logo_portrait_with_text_outlined.svg").write_text(doc(scheme, outlined_text(scheme)))
+        print(f"wrote {prefix}_logo_portrait_with_text_outlined.svg (glyphs -> paths)")
+    except Exception as e:  # noqa: BLE001
+        print(f"skipped outlined variant: {e}  (needs `--with fonttools` and Graphik installed)")
