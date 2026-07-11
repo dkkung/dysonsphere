@@ -356,10 +356,9 @@ def show(chart: _AltairChart | Callable[[], _AltairChart]):
     inline display in a notebook.
 
     Altair's own inline renderer (used when you just display a chart) does NOT run
-    dysonsphere's SVG post-processors or spec fixups, so its preview is approximate -
-    superscript labels aren't typeset, the axisOffset grid gap remains, with
-    ``inwardTicks=True`` the ticks still point outward, and gradient-legend titles keep
-    Vega's top orientation. ``ds.show(chart)`` renders the *same* corrected SVG that
+    dysonsphere's SVG post-processors, so its preview is approximate - superscript labels
+    aren't typeset, the axisOffset grid gap remains, and with ``inwardTicks=True`` the
+    ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
     :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
     the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
     writes no file.

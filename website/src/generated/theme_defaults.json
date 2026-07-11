@@ -45,11 +45,6 @@
   "hint": null
  },
  {
-  "key": "inwardTicks",
-  "default": "false",
-  "hint": null
- },
- {
   "key": "darkmode",
   "default": "false",
   "hint": null
@@ -85,16 +80,6 @@
   "hint": null
  },
  {
-  "key": "secondaryFontSize",
-  "default": null,
-  "hint": "auto: fontSize - 1 (floored)"
- },
- {
-  "key": "smallestFontSize",
-  "default": "5",
-  "hint": null
- },
- {
   "key": "fontStyle",
   "default": "\"normal\"",
   "hint": null
@@ -105,11 +90,6 @@
   "hint": null
  },
  {
-  "key": "sigFigs",
-  "default": "3",
-  "hint": null
- },
- {
   "key": "grid",
   "default": "false",
   "hint": null
@@ -117,6 +97,11 @@
  {
   "key": "gridColor",
   "default": "\"#F1F1F1\"",
+  "hint": null
+ },
+ {
+  "key": "inwardTicks",
+  "default": "false",
   "hint": null
  },
  {
@@ -215,6 +200,21 @@
   "hint": null
  },
  {
+  "key": "secondaryFontSize",
+  "default": null,
+  "hint": "auto: fontSize - 1 (floored)"
+ },
+ {
+  "key": "sigFigs",
+  "default": "3",
+  "hint": null
+ },
+ {
+  "key": "smallestFontSize",
+  "default": "5",
+  "hint": null
+ },
+ {
   "key": "strokeCap",
   "default": "\"round\"",
   "hint": null
@@ -250,13 +250,13 @@
   "hint": null
  },
  {
-  "key": "xLabels",
-  "default": "true",
+  "key": "xLabelAngle",
+  "default": "0",
   "hint": null
  },
  {
-  "key": "xLabelAngle",
-  "default": "0",
+  "key": "xLabels",
+  "default": "true",
   "hint": null
  },
  {
@@ -275,13 +275,13 @@
   "hint": null
  },
  {
-  "key": "yLabels",
-  "default": "true",
+  "key": "yLabelAngle",
+  "default": "0",
   "hint": null
  },
  {
-  "key": "yLabelAngle",
-  "default": "0",
+  "key": "yLabels",
+  "default": "true",
   "hint": null
  },
  {
