@@ -184,8 +184,10 @@ tilt, palette range, colors, and font are parameters at the top of the generator
   dual-mode logo - the mid range skips near-white (vanishes on light) and near-black (vanishes on
   dark), so one transparent SVG works on both backgrounds (no light/dark variants). This is the
   file the site uses (copied to `src/assets/`; the favicon copy lives at `public/favicon.svg`;
-  the README/PyPI copy lives at repo-root `docs/logo.svg`, referenced by absolute raw URL from
-  the released README - re-copy ALL THREE after regenerating). The mark file carries its own
+  the README/PyPI copies live at repo-root `docs/logo_with_text.svg` (the outlined lockup the
+  README shows; outlined because README viewers don't have Graphik) and `docs/logo.svg` (the
+  bare mark, kept for READMEs already published to PyPI) - re-copy ALL FOUR after
+  regenerating). The mark file carries its own
   TIGHT square viewBox centered on sphere + corona (`mark_viewbox()`; the portrait canvas would
   leave the wordmark's dead band below and clip the corona top - the sphere sat off-center
   when sized by height, e.g. the site header).
