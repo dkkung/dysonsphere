@@ -802,8 +802,11 @@ def add_labels(
     # the domain is the label df's (niced) extent or an explicit xDomain/yDomain - when labeling a
     # SUBSET of a larger scatter, pass xDomain/yDomain covering the full data or the axes will clip
     # to the labeled points.
-    x_scale = alt.Scale(domain=[x0, x1], nice=False, zero=False)
-    y_scale = alt.Scale(domain=[y0, y1], nice=False, zero=False)
+    # padding=0: placement runs in pixel space assuming the domain spans the full
+    # [0, chartWidth]/[0, chartHeight] range; the pin wins the shared scale, so a
+    # theme(scalePadding=...) chart with labels renders unpadded rather than misaligned
+    x_scale = alt.Scale(domain=[x0, x1], nice=False, zero=False, padding=0)
+    y_scale = alt.Scale(domain=[y0, y1], nice=False, zero=False, padding=0)
     pinned = False
 
     def datum_xy(px: float, py: float) -> dict:

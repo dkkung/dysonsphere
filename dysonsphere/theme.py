@@ -69,6 +69,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "rampPalette": None,
     "saveBackground": "light",
     "saveFormat": ["svg", "json"],
+    "scalePadding": None,
     "secondaryFontSize": None,
     "sigFigs": 3,
     "smallestFontSize": 5,
@@ -586,6 +587,13 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "scale": {
                 "bandPaddingInner": opts["bandPadding"],
                 "bandPaddingOuter": opts["bandPadding"],
+                # Closed plots only (an open plot's detached axes already give the marks
+                # room); None -> omitted, Vega-Lite's own defaults stay in effect.
+                **(
+                    {"continuousPadding": opts["scalePadding"]}
+                    if opts["scalePadding"] is not None and opts["closed"]
+                    else {}
+                ),
                 "round": False,
             },
             "rect": {

@@ -522,6 +522,57 @@ class TestTrailConfig:
         assert _dysonsphere_theme()["config"]["trail"]["color"] == "white"
 
 
+class TestScalePadding:
+    # theme(scalePadding=...) -> config.scale.continuousPadding on CLOSED plots only. Note
+    # Vega-Lite implements it as domain extension + nice-rounding, so the actual inset
+    # quantizes to the next nice boundary (a floor, not an exact px value).
+
+    def test_default_omits_key(self):
+        # None -> Vega-Lite's own defaults stay in effect (rendering unchanged vs pre-3.7)
+        theme()
+        assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
+        theme(closed=True)
+        assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
+
+    def test_value_wired_when_closed(self):
+        theme(scalePadding=8, closed=True)
+        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 8
+
+    def test_ignored_on_open_plots(self):
+        # an open plot's detached axes already give the marks room; the inset would double-pad
+        theme(scalePadding=8)
+        assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
+
+    def test_applies_under_inward_ticks(self):
+        theme(scalePadding=8, inwardTicks=True)  # inwardTicks implies closed
+        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 8
+
+    def test_internal_scales_pinned_against_padding(self):
+        # violin x:Q and add_labels' pinned scales carry padding=0 so scalePadding cannot
+        # compress their pixel math
+        import polars as pl
+
+        from dysonsphere.annotations import add_labels
+        from dysonsphere.marks import mark_violin
+
+        theme(scalePadding=8, closed=True)
+        df = pl.DataFrame({"g": ["a"] * 8 + ["b"] * 8, "v": [1.0, 2, 3, 4, 5, 6, 7, 8] * 2})
+        violin = mark_violin(df, "g", "v", ["a", "b"]).to_dict()
+        vx = next(lyr for lyr in violin["layer"] if lyr["encoding"]["x"].get("field") == "__x")
+        assert vx["encoding"]["x"]["scale"]["padding"] == 0
+
+        pts = pl.DataFrame({"x": [1.0, 2, 3], "y": [1.0, 2, 3], "n": ["a", "b", "c"]})
+        labels = add_labels(pts, "x", "y", "n").to_dict()
+        pinned = [
+            lyr["encoding"][ch]["scale"]
+            for lyr in labels["layer"]
+            for ch in ("x", "y")
+            if isinstance(lyr.get("encoding", {}).get(ch), dict) and "scale" in lyr["encoding"][ch]
+            if isinstance(lyr["encoding"][ch]["scale"], dict) and "domain" in lyr["encoding"][ch]["scale"]
+        ]
+        assert pinned and all(sc.get("padding") == 0 for sc in pinned)
+
+
 class TestBoxplotOutliers:
     def test_false_default_hides_outliers(self):
         theme()
