@@ -142,23 +142,14 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
 }
 
 /* Collapsible sidebar (header toggle in src/components/SiteTitle.astro, next to the wordmark -
-   the same spot as mobile's hamburger). Zeroing the width var is enough to reflow everything -
-   Starlight derives the content inset and header grid from it. */
+   the same spot as mobile's hamburger). Collapsing only HIDES the sidebar; the layout
+   variables are untouched, so the content column and the "On this page" TOC keep their
+   exact geometry. (The earlier approach zeroed --sl-sidebar-width, which reflowed the
+   whole page AND collapsed the TOC's text width to 0 - Starlight derives BOTH sidebars'
+   width formulas from that one variable - wrapping every TOC link one letter per line.) */
 @media (min-width: 50rem) {
-  [data-ds-sidebar='collapsed'] {
-    --sl-sidebar-width: 0rem;
-  }
   [data-ds-sidebar='collapsed'] #starlight__sidebar {
     visibility: hidden;
-  }
-  /* Starlight derives EVERY right-sidebar formula from --sl-sidebar-width - the container
-     width (TwoColumnContent) AND the TOC text width + max-width inside it (PageSidebar's
-     .sl-container, whose zeroed width wrapped the "On this page" links one letter per
-     line). Restoring the variable on this subtree fixes all of them at once; the root
-     zeroing above keeps applying to the LEFT sidebar and content inset only. (Value must
-     match Starlight's default --sl-sidebar-width: 18.75rem.) */
-  [data-ds-sidebar='collapsed'] .right-sidebar-container {
-    --sl-sidebar-width: 18.75rem;
   }
 }
 

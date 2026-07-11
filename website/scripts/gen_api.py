@@ -18,12 +18,13 @@ import griffe
 from griffe import ParameterKind
 
 # (module name, page title, sidebar order, one-line description)
-# Alphabetical by page title (the sidebar order mirrors it).
+# Alphabetical by page title (the sidebar order mirrors it), with one deliberate
+# exception: Extensions precedes Extension authoring (discovery before the SDK).
 MODULES = [
     ("annotations", "Annotations", 1, "Composable annotation layers: reference lines, text, shading, point labels."),
     ("labels", "Display labels", 2, "Map raw data values to display labels on axes, legends, and headers."),
-    ("ext", "Extension authoring", 3, "The stable primitive surface for extension authors (dysonsphere.ext)."),
-    ("discovery", "Extensions", 4, "Discover and load installed dysonsphere extensions."),
+    ("discovery", "Extensions", 3, "Discover and load installed dysonsphere extensions."),
+    ("ext", "Extension authoring", 4, "The stable primitive surface for extension authors (dysonsphere.ext)."),
     ("marks", "Marks", 5, "Composite marks: strip and violin plots."),
     ("multilabel", "Multilabels", 6, "Attach a multilabel annotation table below a chart."),
     ("nonlinear", "Nonlinear axes", 7, "Minor ticks and typeset labels for log and power axes."),

@@ -109,7 +109,11 @@ def mark_strip(
 ) -> alt.LayerChart: ...
 ```
 
-Build an Altair layer combining jittered or beeswarm points with a median indicator.
+Build an Altair layer combining jittered or beeswarm points with a centre statistic.
+
+With ``errorbars=True`` (default) the centre tick marks the group MEAN - the same
+statistic the error bars are computed from, so the tick is always centred between
+the caps. With ``errorbars=False`` the tick marks the median instead.
 
 Returns a ``LayerChart`` that can be saved directly or composed with other
 layers (e.g. ``ds.add_comparisons``).
