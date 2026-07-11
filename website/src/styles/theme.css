@@ -151,11 +151,14 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   [data-ds-sidebar='collapsed'] #starlight__sidebar {
     visibility: hidden;
   }
-  /* Starlight reuses --sl-sidebar-width inside the RIGHT sidebar container's width formula,
-     so zeroing it also collapsed the "On this page" TOC - restore that formula with the
-     original width. (Keep in sync with Starlight's default --sl-sidebar-width: 18.75rem.) */
+  /* Starlight derives EVERY right-sidebar formula from --sl-sidebar-width - the container
+     width (TwoColumnContent) AND the TOC text width + max-width inside it (PageSidebar's
+     .sl-container, whose zeroed width wrapped the "On this page" links one letter per
+     line). Restoring the variable on this subtree fixes all of them at once; the root
+     zeroing above keeps applying to the LEFT sidebar and content inset only. (Value must
+     match Starlight's default --sl-sidebar-width: 18.75rem.) */
   [data-ds-sidebar='collapsed'] .right-sidebar-container {
-    width: max(18.75rem, calc(18.75rem + (100% - var(--sl-content-width) - 18.75rem) / 2));
+    --sl-sidebar-width: 18.75rem;
   }
 }
 
