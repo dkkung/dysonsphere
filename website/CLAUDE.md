@@ -183,8 +183,12 @@ tilt, palette range, colors, and font are parameters at the top of the generator
   panel gaps, plus a turquoise corona; vivid on dark, a soft luminosity on light). A single
   dual-mode logo - the mid range skips near-white (vanishes on light) and near-black (vanishes on
   dark), so one transparent SVG works on both backgrounds (no light/dark variants). This is the
-  file the site uses (copied to `src/assets/`; the favicon copy lives at `public/favicon.svg` -
-  re-copy BOTH after regenerating).
+  file the site uses (copied to `src/assets/`; the favicon copy lives at `public/favicon.svg`;
+  the README/PyPI copy lives at repo-root `docs/logo.svg`, referenced by absolute raw URL from
+  the released README - re-copy ALL THREE after regenerating). The mark file carries its own
+  TIGHT square viewBox centered on sphere + corona (`mark_viewbox()`; the portrait canvas would
+  leave the wordmark's dead band below and clip the corona top - the sphere sat off-center
+  when sized by height, e.g. the site header).
 - `logo/dysonsphere_logo_portrait_with_text.svg` - mark + wordmark as live `<text>` (Graphik Light,
   two-tone: dyson = `#1374BA`, sphere = `#48DEB3` - australis stops; SiteTitle.astro's `.ds`/`.sp`
   colors must match). For editing / where Graphik is installed.

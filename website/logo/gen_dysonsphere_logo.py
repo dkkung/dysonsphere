@@ -107,9 +107,17 @@ POLYS = [f'  <polygon points="{" ".join(f"{x:.2f},{y:.2f}" for x, y in pts)}" fi
          for _, pts, f in panels]
 
 
-def doc(body: list[str]) -> str:
-    head = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" fill="none">'
+def doc(body: list[str], viewbox: str | None = None) -> str:
+    head = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox or f"0 0 {W} {H}"}" fill="none">'
     return "\n".join([head, *STAR, *POLYS, *body, "</svg>"]) + "\n"
+
+
+def mark_viewbox() -> str:
+    # The mark alone gets a tight square centered on the sphere + corona (the portrait canvas
+    # would leave the wordmark's dead band below and clip the corona's top edge - the sphere
+    # sat visibly off-center wherever the mark is sized by height, e.g. the site header).
+    s = R * 1.15 + 2  # corona radius + a hair of padding
+    return f"{CENTER_X - s:.2f} {CENTER_Y - s:.2f} {2 * s:.2f} {2 * s:.2f}"
 
 
 def favicon_doc() -> str:
@@ -170,7 +178,7 @@ def outlined_text() -> list[str]:
     return paths
 
 
-(HERE / "dysonsphere_logo.svg").write_text(doc([]))
+(HERE / "dysonsphere_logo.svg").write_text(doc([], mark_viewbox()))
 (HERE / "dysonsphere_logo_portrait_with_text.svg").write_text(doc(live_text()))
 (HERE / "dysonsphere_favicon.svg").write_text(favicon_doc())
 print(f"wrote dysonsphere_logo.svg (mark) + _portrait_with_text.svg + dysonsphere_favicon.svg "
