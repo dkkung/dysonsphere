@@ -456,7 +456,8 @@ class TestExactTickPositions:
 
     def test_strip_violin_hconcat_ticks_exact(self, tmp_path):
         # Capstone: strip (Case 0 band positions) beside violin (Case pi) in one hconcat -
-        # every tick must land exactly on a box centre in its own panel.
+        # every axis tick must land exactly on a band-centred mark in its own panel (the
+        # strip's mean tick; the violin's boxplot box).
         import numpy as np
 
         import dysonsphere as ds
@@ -477,7 +478,7 @@ class TestExactTickPositions:
                 mt = re.search(r"translate\(([-\d.]+)[,\s]", ch.get("transform", ""))
                 if mt:
                     ccx += float(mt.group(1))
-                if ch.get("aria-roledescription") == "box":
+                if ch.get("aria-roledescription") in ("box", "tick"):
                     m = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", ch.get("d", ""))
                     if m:
                         boxes.append(ccx + float(m.group(1)) + float(m.group(2)) / 2)

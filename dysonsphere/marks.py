@@ -312,7 +312,11 @@ def mark_strip(
     xTitle: str | None | _UnsetType = _UNSET,
 ) -> alt.LayerChart:
     """
-    Build an Altair layer combining jittered or beeswarm points with a median indicator.
+    Build an Altair layer combining jittered or beeswarm points with a centre statistic.
+
+    With ``errorbars=True`` (default) the centre tick marks the group MEAN - the same
+    statistic the error bars are computed from, so the tick is always centred between
+    the caps. With ``errorbars=False`` the tick marks the median instead.
 
     Returns a ``LayerChart`` that can be saved directly or composed with other
     layers (e.g. ``ds.add_comparisons``).
@@ -430,21 +434,22 @@ def mark_strip(
         )
     )
 
-    median = (
-        alt.Chart(df)
-        .mark_boxplot(
-            ticks=False,
-            box={"fillOpacity": 0, "strokeOpacity": 0},
-            rule={"strokeOpacity": 0},
-            outliers={"opacity": 0},
-        )
-        .encode(
-            x=x,
-            y=s.y(),
-        )
-    )
-
     if not errorbars:
+        # Median indicator: a boxplot with everything but the median tick hidden, so the
+        # tick inherits the theme's median styling and band placement exactly.
+        median = (
+            alt.Chart(df)
+            .mark_boxplot(
+                ticks=False,
+                box={"fillOpacity": 0, "strokeOpacity": 0},
+                rule={"strokeOpacity": 0},
+                outliers={"opacity": 0},
+            )
+            .encode(
+                x=x,
+                y=s.y(),
+            )
+        )
         return cast(alt.LayerChart, alt.layer(points, median))
 
     if errorbarExtent == "sem":
@@ -456,10 +461,12 @@ def mark_strip(
 
     # maintain_order: group_by is otherwise order-nondeterministic, which changed the
     # inlined summary dataset (and so the spec checksum + mark z-order) run to run.
-    summary = df.group_by(xCol, maintain_order=True).agg([pl.col(yCol).mean().alias("__mean"), error_expr])
+    summary = _internal_data(
+        df.group_by(xCol, maintain_order=True).agg([pl.col(yCol).mean().alias("__mean"), error_expr])
+    )
 
     errorbar_layer = (
-        alt.Chart(_internal_data(summary))
+        alt.Chart(summary)
         .mark_errorbar()
         .encode(
             x=x,
@@ -468,4 +475,24 @@ def mark_strip(
         )
     )
 
-    return cast(alt.LayerChart, alt.layer(points, errorbar_layer, median))
+    # The centre tick draws the MEAN - the statistic the error bars are computed from -
+    # so it always sits centred between the caps (a median tick drifts off-centre on
+    # skewed data). Tick and error bars form one glyph, so the colour follows the
+    # errorbar-caps darkmode convention, not markMedianFill (whose fixed black left
+    # the old median tick invisible on dark renders); there is no config.tick block
+    # to inherit from, so every property is pinned here.
+    mean_tick = (
+        alt.Chart(summary)
+        .mark_tick(
+            color="white" if _opt("darkmode") else "black",
+            size=_opt("markSize") * 0.9,  # span the boxplot box width
+            thickness=_opt("markStrokeWidth"),
+            opacity=_opt("markFillOpacity"),
+        )
+        .encode(
+            x=x,
+            y=s.y("__mean:Q"),
+        )
+    )
+
+    return cast(alt.LayerChart, alt.layer(points, errorbar_layer, mean_tick))
