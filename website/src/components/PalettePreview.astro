@@ -17,12 +17,30 @@ const firstPalette = palettes[0].name;
 ---
 
 <div class="palprev not-content">
-	<p class="palprev__status">
-		Previewing <code id="palprev-name">{firstPalette}</code>
-		<button id="palprev-copy" class="palprev__copy" title="Copy the selected palette's hex codes">
+	<div class="palprev__bar">
+		<button id="palprev-copy-name" class="palprev__btn" title="Copy the selected palette's name">
+			copy name
+		</button>
+		<button id="palprev-copy" class="palprev__btn" title="Copy the selected palette's hex codes">
 			copy hex codes
 		</button>
-	</p>
+		{/* Starlight's own theme iconography (sun/moon); the active mode's icon shows. */}
+		<button
+			id="palprev-theme"
+			class="palprev__btn palprev__theme"
+			data-mode="light"
+			aria-label="Preview theme"
+			title="Preview theme (temporary - leaving the page restores your setting)"
+		>
+			<svg data-icon="light" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+				<path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"></path>
+			</svg>
+			<svg data-icon="dark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+				<path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"></path>
+			</svg>
+		</button>
+	</div>
+	<p class="palprev__status">Previewing <code id="palprev-name">{firstPalette}</code></p>
 	<div class="palprev__row">
 		<div class="palprev__chart" data-preview="preview_ramp" data-role="heatmap"></div>
 		<div class="palprev__chart" data-preview="preview_bars" data-role="category" data-n="6"></div>
@@ -128,18 +146,38 @@ const firstPalette = palettes[0].name;
 		renderAll();
 	}
 
-	// The EXPLICIT copy action (browsing clicks in the palette grid only select - they must
-	// never take over the clipboard). Copies a ready-to-paste hex list, what a scale range wants.
-	function wireCopy() {
-		const btn = document.getElementById('palprev-copy') as HTMLButtonElement | null;
+	// The EXPLICIT copy actions (browsing clicks in the palette grid only select - they must
+	// never take over the clipboard). Hex codes copy as a ready-to-paste list, what a scale
+	// range wants; the name copies bare, what theme(palette=...) wants.
+	function wireCopyButton(id: string, getText: () => string | null) {
+		const btn = document.getElementById(id) as HTMLButtonElement | null;
 		if (!btn || btn.dataset.wired) return;
 		btn.dataset.wired = '1';
 		btn.addEventListener('click', () => {
-			if (!current.colors.length) return;
-			navigator.clipboard?.writeText(`[${current.colors.map((c) => `"${c.toUpperCase()}"`).join(', ')}]`);
+			const text = getText();
+			if (!text) return;
+			navigator.clipboard?.writeText(text);
 			const prev = btn.textContent;
 			btn.textContent = 'copied!';
 			setTimeout(() => (btn.textContent = prev), 900);
+		});
+	}
+
+	// TEMPORARY site-theme toggle (light <-> dark): sets data-theme directly and never touches
+	// Starlight's stored preference, so any navigation (full page load) restores the user's
+	// real setting. Seeded from whatever theme is in effect on arrival. The existing
+	// data-theme MutationObservers re-render every chart; the button shows Starlight's own
+	// sun/moon iconography for the active mode.
+	function wireThemeToggle() {
+		const btn = document.getElementById('palprev-theme') as HTMLButtonElement | null;
+		if (!btn || btn.dataset.wired) return;
+		btn.dataset.wired = '1';
+		let mode = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+		btn.dataset.mode = mode; // reflect the theme in effect; nothing applied yet
+		btn.addEventListener('click', () => {
+			mode = mode === 'light' ? 'dark' : 'light';
+			btn.dataset.mode = mode;
+			document.documentElement.dataset.theme = mode;
 		});
 	}
 
@@ -164,7 +202,11 @@ const firstPalette = palettes[0].name;
 				if (label) label.textContent = current.name;
 			}
 		}
-		wireCopy();
+		wireCopyButton('palprev-copy-name', () => current.name || null);
+		wireCopyButton('palprev-copy', () =>
+			current.colors.length ? `[${current.colors.map((c) => `"${c.toUpperCase()}"`).join(', ')}]` : null,
+		);
+		wireThemeToggle();
 		renderAll();
 	}
 
@@ -178,22 +220,42 @@ const firstPalette = palettes[0].name;
 </script>
 
 <style>
+	/* Mini-toolbar: copy/theme buttons in one row above the charts (visually beside the
+	   browser's search bar in the two-column page layout); the "Previewing ..." status
+	   sits on its own line below. */
+	.palprev__bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem;
+		margin: 1rem 0 0.25rem; /* mirrors .pal__controls: row 1 of both columns */
+	}
 	.palprev__status {
 		font-size: 0.85rem;
 		color: var(--sl-color-gray-3);
-		margin: 1rem 0 0.25rem;
+		margin: 0.25rem 0 0.75rem; /* mirrors .pal__count: row 2 of both columns */
 	}
-	.palprev__copy {
-		margin-left: 0.5rem;
-		padding: 0.15rem 0.55rem;
+	.palprev__theme svg {
+		display: none;
+		width: 0.9rem;
+		height: 0.9rem;
+	}
+	.palprev__theme[data-mode='light'] svg[data-icon='light'],
+	.palprev__theme[data-mode='dark'] svg[data-icon='dark'] {
+		display: block;
+	}
+	/* Same size as the browser's kind-filter buttons (.pal__kinds button). */
+	.palprev__btn {
+		padding: 0.35rem 0.7rem;
 		border: 1px solid var(--sl-color-gray-5);
-		border-radius: 0.4rem;
+		border-radius: 0.5rem;
 		background: transparent;
 		color: var(--sl-color-gray-3);
-		font-size: 0.72rem;
+		font-size: 0.78rem;
 		cursor: pointer;
+		white-space: nowrap;
 	}
-	.palprev__copy:hover {
+	.palprev__btn:hover {
 		color: var(--sl-color-text-accent);
 		border-color: var(--sl-color-gray-4);
 	}

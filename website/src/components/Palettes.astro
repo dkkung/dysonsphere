@@ -128,7 +128,7 @@ import palettes from '../generated/palettes.json';
 		border-color: var(--sl-color-gray-4);
 	}
 	.pal__count {
-		font-size: 0.75rem;
+		font-size: 0.85rem; /* matches the preview's "Previewing ..." status (row 2 pair) */
 		color: var(--sl-color-gray-3);
 		margin: 0.25rem 0 0.75rem;
 	}
@@ -168,7 +168,7 @@ import palettes from '../generated/palettes.json';
 		flex: 1;
 	}
 	/* One line always: a wrapping long name would make its grid row taller and bump every row
-	   below it. The full name is still in the title attribute (and copied on click). */
+	   below it. The full name is still in the title attribute (and the preview toolbar). */
 	.pal__name {
 		font-family: var(--sl-font-mono);
 		font-size: 0.72rem;
