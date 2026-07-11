@@ -42,6 +42,6 @@ chart = (
             axis=alt.Axis(values=[0, 1, 2, 3, 4, 5, 6]),
         ),
         y2="y1",
-        color=alt.Color("z:Q", legend=alt.Legend(title="x + y", titleOrient="top")),
+        color=alt.Color("z:Q", title="x + y"),
     )
 )

@@ -12,6 +12,6 @@ chart = (
     .encode(
         x=alt.X("Horsepower:Q", title="Horsepower"),
         y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon"),
-        color=alt.Color("Miles_per_Gallon:Q", legend=alt.Legend(title="MPG", titleOrient="top")),
+        color=alt.Color("Miles_per_Gallon:Q", title="MPG"),
     )
 )

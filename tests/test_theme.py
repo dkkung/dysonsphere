@@ -172,6 +172,9 @@ class TestRangePalettes:
         assert self._range("category") == categorical(1)  # bare array, positional
         assert self._scheme("ordinal") == colors["greys"]
         assert self._scheme("diverging") == colors["pinksblues"]
+        # continuous defaults: the australis journey (dark-first -> viridis polarity)
+        assert self._scheme("heatmap") == colors["australis"]
+        assert self._scheme("ramp") == colors["australis"]
 
     def test_category_is_bare_array(self):
         # nominal scales map positionally, so category must NOT be {"scheme": ...}

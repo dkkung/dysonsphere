@@ -52,67 +52,6 @@ def _resolve_choice(value, default, valid: tuple[str, ...], name: str) -> list[s
     return items
 
 
-# Channels whose continuous scales compile to a gradient legend (size/opacity stay symbol).
-_GRADIENT_LEGEND_CHANNELS = ("color", "fill", "stroke")
-# Explicit scale types that force a discrete (symbol) legend on an otherwise continuous field.
-_DISCRETE_SCALE_TYPES = frozenset({"ordinal", "band", "point", "bin-ordinal", "quantile", "quantize", "threshold"})
-
-
-def _orient_gradient_titles(spec: dict) -> None:
-    """Inject ``legend.titleOrient`` (the theme's ``legendTitleGradientOrientation``, default
-    ``"right"``) into every encoding that compiles to a gradient legend, mutating *spec* in place.
-
-    Vega renders a left/right-oriented legend title rotated 90° alongside the gradient bar
-    (matplotlib-colorbar style, reading top-to-bottom). This cannot live in the theme's
-    ``config.legend`` - ``titleOrient`` there would also rotate symbol-legend titles - so the
-    theme option is applied here, per encoding, only where the legend is a gradient: a
-    color/fill/stroke channel with a non-binned quantitative/temporal field on a continuous
-    scale. (The compact title/label padding, by contrast, IS wanted on every legend, so it
-    stays in ``config.legend``.) An explicit user ``legend.titleOrient`` (or a disabled legend)
-    is left untouched. Spec-level by design: it travels into the JSON/HTML exports and the
-    SVG/PNG render alike (bare-notebook display bypasses it, like the SVG fixers - use
-    ``ds.show()``/``ds.save()``).
-    """
-    orient = _opt("legendTitleGradientOrientation")
-    if not orient:
-        return
-
-    def _inject(channel_def: dict) -> None:
-        if channel_def.get("type") not in ("quantitative", "temporal") or channel_def.get("bin"):
-            return
-        scale = channel_def.get("scale")
-        if "scale" in channel_def and not isinstance(scale, dict):
-            return  # scale: null — raw values, no legend
-        if isinstance(scale, dict) and scale.get("type") in _DISCRETE_SCALE_TYPES:
-            return
-        legend = channel_def.get("legend")
-        if "legend" in channel_def and not isinstance(legend, dict):
-            return  # legend: null — disabled
-        if isinstance(legend, dict) and "titleOrient" in legend:
-            return  # explicit user choice wins
-        channel_def["legend"] = {**(legend or {}), "titleOrient": orient}
-
-    def _walk(node: dict) -> None:
-        encoding = node.get("encoding")
-        if isinstance(encoding, dict):
-            for ch in _GRADIENT_LEGEND_CHANNELS:
-                channel_def = encoding.get(ch)
-                if isinstance(channel_def, dict):
-                    condition = channel_def.get("condition")
-                    if isinstance(condition, dict):
-                        _inject(condition)  # conditional field defs carry their own legend
-                    _inject(channel_def)
-        for key in ("layer", "hconcat", "vconcat", "concat"):
-            for sub in node.get(key) or []:
-                if isinstance(sub, dict):
-                    _walk(sub)
-        sub = node.get("spec")  # facet / repeat operators
-        if isinstance(sub, dict):
-            _walk(sub)
-
-    _walk(spec)
-
-
 def _render_fixed_svg(base_obj, svg_path: str) -> str:
     """Render an Altair object to SVG at *svg_path*, run every dysonsphere SVG post-processor,
     and return the corrected SVG string.
@@ -133,13 +72,11 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     lifecycle.
 
     Rendering goes through the resolved spec dict (``to_dict()`` + ``vlc.vegalite_to_svg`` -
-    the same engine/spec ``base_obj.save()`` uses) so the spec-level gradient-legend-title
-    injection (:func:`_orient_gradient_titles`) applies before Vega ever sees it.
+    the same engine/spec ``base_obj.save()`` uses).
     """
     import vl_convert as vlc
 
     spec = base_obj.to_dict()  # marker names are in the spec but never render into SVG
-    _orient_gradient_titles(spec)
     root = ET.fromstring(vlc.vegalite_to_svg(spec))  # parsed ONCE; every fixer mutates this tree
     axis_offset = 0 if _opt("closed") else _opt("axisOffset")
     if axis_offset:
@@ -347,7 +284,6 @@ def save(
             alt.theme.options["transparent"] = original_transparent
             base_obj = _resolve_base()
             spec = base_obj.to_dict()
-            _orient_gradient_titles(spec)  # gradient-legend titles per the theme (all formats)
             _hashes = metadata._scan_marker_hashes(spec) if saveMetadata else set()
             _records = _select_reports(_hashes)
             _exts = discovery._used_extensions(spec) if saveMetadata else {}  # extensions that made it

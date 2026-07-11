@@ -53,7 +53,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "legend": True,
     "legendOffset": None,
     "legendStroke": False,
-    "legendTitleGradientOrientation": "right",
     "markFill": colors["greys"][1],
     "markFillOpacity": 1.0,
     "markMedianFill": "black",
@@ -513,9 +512,6 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "titleFontWeight": opts["fontWeight"],
                 "titlePadding": 0,
             },
-            # legendTitleGradientOrientation is NOT set here: config.legend.titleOrient would rotate
-            # symbol-legend titles too. It is injected per-encoding into continuous
-            # color/fill/stroke channels by export._orient_gradient_titles() at save/show time.
             "legend": {
                 "disable": not opts["legend"],
                 "offset": opts["legendOffset"],
@@ -567,9 +563,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "range": {
                 "category": category_range,
                 "diverging": {"scheme": _scheme("divergingPalette", colors["pinksblues"])},
-                "heatmap": {"scheme": _scheme("heatmapPalette", colors["blues"])},
+                "heatmap": {"scheme": _scheme("heatmapPalette", colors["australis"])},
                 "ordinal": {"scheme": _scheme("ordinalPalette", colors["greys"])},
-                "ramp": {"scheme": _scheme("rampPalette", colors["blues"])},
+                "ramp": {"scheme": _scheme("rampPalette", colors["australis"])},
             },
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",

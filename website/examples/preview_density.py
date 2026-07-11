@@ -52,6 +52,6 @@ chart = (
             axis=alt.Axis(values=[-3, -2, -1, 0, 1, 2, 3]),
         ),
         y2="y1",
-        color=alt.Color("density:Q", legend=alt.Legend(title="Density", titleOrient="top")),
+        color=alt.Color("density:Q", title="Density"),
     )
 )
