@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 210" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 227" fill="none">
   <defs>
     <radialGradient id="corona" cx="50%" cy="50%" r="50%">
       <stop offset="0.35" stop-color="#5ee7d6" stop-opacity="0.55"/>
@@ -42,5 +42,5 @@
   <polygon points="122.84,128.23 155.61,123.97 155.61,86.34 122.84,90.59" fill="#3A68BB" stroke="#1D9CCB" stroke-width="0.5" stroke-linejoin="round"/>
   <polygon points="81.08,86.69 118.92,86.69 113.98,49.82 86.02,49.82" fill="#28CDC5" stroke="#1D9CCB" stroke-width="0.5" stroke-linejoin="round"/>
   <polygon points="81.08,128.46 118.92,128.46 118.92,90.83 81.08,90.83" fill="#1D9CCB" stroke="#1D9CCB" stroke-width="0.5" stroke-linejoin="round"/>
-  <text x="100.0000" y="200" text-anchor="middle" font-family="'Graphik Light', 'Graphik-Light', 'Graphik', sans-serif" font-size="29" font-weight="300" fill="#1D83CA">dyson<tspan fill="#4DE0B4">sphere</tspan></text>
+  <text x="100.0000" y="217" text-anchor="middle" font-family="'Graphik Light', 'Graphik-Light', 'Graphik', sans-serif" font-size="29" font-weight="300" fill="#1D83CA">dyson<tspan fill="#4DE0B4">sphere</tspan></text>
 </svg>

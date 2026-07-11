@@ -39,7 +39,7 @@ SCHEMES: dict[str, dict] = {
         # dark core, lighter outward: the panel gaps read as rim light
         "starcore": [("0", "#141413"), ("0.30", "#3F3F3B"), ("0.62", "#8F8F89"), ("1", "#FCFBF7")],
         # the wordmark chips (outlined lockup): [dyson chip bg, dyson text], [sphere chip bg, sphere text]
-        "chips": (("#EEECE6", "#141413"), ("#141413", "#FCFBF7")),
+        "chips": (("#EEECE6", "#141413"), ("#2C2C29", "#FCFBF7")),
     },
     # The heritage set: colors["australis"] (lifted) reversed to light-first.
     "_australis": {
@@ -54,7 +54,7 @@ SCHEMES: dict[str, dict] = {
     },
 }
 
-W, H = 200, 210
+W, H = 200, 227  # tall enough for the wordmark sitting clear below the sphere AND its corona glow
 CX, CY, R = 100, 92, 84
 TILT = math.radians(13)
 M, N = 5, 12
@@ -65,7 +65,7 @@ LIGHT = (-0.42, 0.55, 0.72)
 _l = math.dist((0, 0, 0), LIGHT); LIGHT = tuple(c / _l for c in LIGHT)
 MINIDX, MAXIDX = 1, 9
 FONT = "'Graphik Light', 'Graphik-Light', 'Graphik', sans-serif"
-WORD, SPLIT, SIZE, BASELINE, WEIGHT = "dysonsphere", 5, 29, 200, 300  # split after "dyson"
+WORD, SPLIT, SIZE, BASELINE, WEIGHT = "dysonsphere", 5, 29, 217, 300  # split after "dyson"; chip top clears the corona glow (r = R*1.15 ~ 188.6)
 HERE = Path(__file__).parent
 
 
@@ -206,10 +206,17 @@ def outlined_text(scheme: dict) -> list[str]:
         y_hi = max(b[3] for b in bounds if b)
         top = BASELINE - y_hi * scale - pad
         height = (y_hi - y_lo) * scale + 2 * pad
-        for lo_i, hi_i, (bg, _text) in ((0, SPLIT, scheme["chips"][0]), (SPLIT, len(WORD), scheme["chips"][1])):
+        # the chips ABUT at the words' ADVANCE boundary (the pen position where 's'
+        # begins) - the typographic split, so each word keeps its own side bearing and
+        # the seam reads optically even (an ink midpoint crowded the closed 'n' against
+        # the open 's'); outer edges keep the chip padding
+        word_ink = []
+        for lo_i, hi_i in ((0, SPLIT), (SPLIT, len(WORD))):
             wb = [(pu + b[0], pu + b[2]) for pu, b in list(zip(pens, bounds))[lo_i:hi_i] if b]
-            x_lo = min(w[0] for w in wb) * scale + x0 - pad
-            x_hi = max(w[1] for w in wb) * scale + x0 + pad
+            word_ink.append((min(w[0] for w in wb) * scale + x0, max(w[1] for w in wb) * scale + x0))
+        mid = pens[SPLIT] * scale + x0
+        edges = ((word_ink[0][0] - pad, mid), (mid, word_ink[1][1] + pad))
+        for (x_lo, x_hi), (bg, _text) in zip(edges, scheme["chips"]):
             parts.append(
                 f'  <rect x="{x_lo:.2f}" y="{top:.2f}" width="{x_hi - x_lo:.2f}" '
                 f'height="{height:.2f}" rx="{rx:.2f}" fill="{bg}"/>'
