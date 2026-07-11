@@ -19,26 +19,23 @@ finer control. Feed the result into any Altair `scale=alt.Scale(range=...)`:
 
 ## Choosing a colormap
 
-Every dysonsphere sequential ramp steps evenly in perceived lightness, survives greyscale
-conversion, and stays ordered under simulated deuteranopia and protanopia - invariants the test
-suite enforces, not just properties the recipes promise. Which one to reach for:
+Every sequential ramp is monotonic in Oklab lightness with near-uniform perceptual step size, so
+value ordering survives greyscale conversion and simulated deuteranopia/protanopia. Which one to
+reach for:
 
-- **`australis`** - the built-in default for continuous color (`config.range.heatmap` and
-  `.ramp`): a ~190° journey from deep magenta-wine through violet, cobalt, and teal to luminous
-  emerald. The most uniform ramp in the collection (adjacent-step ratio 1.03; viridis is 1.05).
-- **`borealis`** - australis without the magenta fringe: rich violet floor to cobalt,
-  azure-teal, and emerald. The closest analogue to viridis, and more protanopia-robust than
-  viridis itself.
-- **`cosmos`** - near-black floor rising to a saturated pink: maximum dynamic range, at home on
-  dark backgrounds.
-- **`nebula`** - the gentle sibling: slate-teal to pale rose with an airy near-white top, for
-  figures that shouldn't shout.
-- **`brass` / `pewter`** - deep navy through a near-neutral middle to vivid gold (brass) or warm
-  platinum (pewter). The blue-gold axis survives dichromacy completely, making these the most
-  colorblind-conservative choice - brass when the figure can carry a warm accent, pewter when it
-  can't.
-- **Single-hue ramps** (`blues`, `greens`, `pinks`, ...) - when color encodes only intensity and
-  hue is doing another job elsewhere in the figure.
+- **`australis`** - the built-in continuous default (`config.range.heatmap` and `.ramp`). Hue
+  335°→148° (~190° rotation) over L 0.13-0.87; adjacent-step ΔE ratio 1.03 (viridis: 1.05).
+- **`borealis`** - hue 297°→143° over L 0.15-0.86 (australis without the magenta segment). The
+  closest viridis analogue; larger minimum adjacent ΔE under protanopia than viridis.
+- **`cosmos`** - L 0.13-0.80, near-black floor to a chroma-0.13 pink top; the widest dynamic
+  range, suited to dark backgrounds.
+- **`nebula`** - L 0.21-0.93 with a low-chroma near-white top; the lowest-contrast member, for
+  figures where color must stay quiet.
+- **`brass` / `pewter`** - navy → near-neutral middle (chroma ≤ 0.035) → gold or platinum. The
+  blue-yellow axis is fully preserved under dichromacy; the most conservative choice for
+  colorblind-critical figures.
+- **Single-hue ramps** (`blues`, `greens`, `pinks`, ...) - fixed hue, lightness-only encoding;
+  use when hue is reserved for another channel.
 
 For signed or reference-centered data use a 13-stop diverging palette (`pinksblues`,
 `redsblues`, ...) and center the scale domain so the white pivot lands on the reference value.
