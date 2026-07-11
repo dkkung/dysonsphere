@@ -17,6 +17,36 @@ finer control. Feed the result into any Altair `scale=alt.Scale(range=...)`:
 
 <Example name="palette_slice" alt="Dose-response bars colored with a sliced ember palette" />
 
+## Choosing a colormap
+
+Every dysonsphere sequential ramp steps evenly in perceived lightness, survives greyscale
+conversion, and stays ordered under simulated deuteranopia and protanopia - invariants the test
+suite enforces, not just properties the recipes promise. Which one to reach for:
+
+- **`australis`** - the built-in default for continuous color (`config.range.heatmap` and
+  `.ramp`): a ~190° journey from deep magenta-wine through violet, cobalt, and teal to luminous
+  emerald. The most uniform ramp in the collection (adjacent-step ratio 1.03; viridis is 1.05).
+- **`borealis`** - australis without the magenta fringe: rich violet floor to cobalt,
+  azure-teal, and emerald. The closest analogue to viridis, and more protanopia-robust than
+  viridis itself.
+- **`cosmos`** - near-black floor rising to a saturated pink: maximum dynamic range, at home on
+  dark backgrounds.
+- **`nebula`** - the gentle sibling: slate-teal to pale rose with an airy near-white top, for
+  figures that shouldn't shout.
+- **`brass` / `pewter`** - deep navy through a near-neutral middle to vivid gold (brass) or warm
+  platinum (pewter). The blue-gold axis survives dichromacy completely, making these the most
+  colorblind-conservative choice - brass when the figure can carry a warm accent, pewter when it
+  can't.
+- **Single-hue ramps** (`blues`, `greens`, `pinks`, ...) - when color encodes only intensity and
+  hue is doing another job elsewhere in the figure.
+
+For signed or reference-centered data use a 13-stop diverging palette (`pinksblues`,
+`redsblues`, ...) and center the scale domain so the white pivot lands on the reference value.
+
+Set the defaults for every chart with `theme(heatmapPalette=..., rampPalette=...)` (see the
+[theming guide](/guides/theming/)), or restyle one chart via
+`scale=alt.Scale(range=ds.palette(...))`.
+
 ## Qualitative categories
 
 `ds.categorical(members=n)` returns the CVD-robust qualitative palette (blue / pink / yellow /
