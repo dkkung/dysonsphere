@@ -65,13 +65,19 @@
 	.tw {
 		white-space: nowrap;
 	}
+	/* Monochromatic australis endpoints: "dyson" in the darkest stop, "sphere" in the
+	   lightest ON the darkest. Dark mode flips only the bare "dyson" text (the darkest
+	   stop would vanish on a near-black page); the chip works unchanged on both. */
 	.tw__dyson {
-		color: #1d83ca;
+		color: #32022b;
+	}
+	:root[data-theme='dark'] .tw__dyson {
+		color: #91ee9f;
 	}
 	/* The permanent contrast chip; hidden while empty so no bare pill shows pre-typing. */
 	.tw__sphere {
-		background: #4de0b4;
-		color: #101418;
+		background: #32022b;
+		color: #91ee9f;
 		border-radius: 0.12em;
 		padding: 0 0.09em;
 	}
