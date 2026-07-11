@@ -501,6 +501,13 @@ class TestTickConfig:
         assert tick["thickness"] == 1
         assert tick["cornerRadius"] == pytest.approx(0.5)
 
+    def test_boxplot_median_pins_square_corners(self):
+        # The composite lowering lets config.tick leak into the boxplot's median tick
+        # for any property the median config leaves unset - cornerRadius must stay
+        # pinned to 0 so the median keeps square, box-flush ends.
+        theme()
+        assert _dysonsphere_theme()["config"]["boxplot"]["median"]["cornerRadius"] == 0
+
 
 class TestBoxplotOutliers:
     def test_false_default_hides_outliers(self):
