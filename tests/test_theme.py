@@ -474,6 +474,34 @@ class TestTitleConfig:
         assert spec["config"]["title"]["frame"] == "group"
 
 
+class TestTickConfig:
+    # config.tick: crossbar-style defaults so a bare mark_tick at an aggregate composes
+    # with mark_errorbar as one glyph (and mark_strip's mean tick inherits from it).
+
+    def test_mirrors_errorbar_caps_and_median_span(self):
+        theme()
+        tick = _dysonsphere_theme()["config"]["tick"]
+        eb_ticks = _dysonsphere_theme()["config"]["errorbar"]["ticks"]
+        median = _dysonsphere_theme()["config"]["boxplot"]["median"]
+        assert tick["color"] == eb_ticks["color"]
+        assert tick["cornerRadius"] == eb_ticks["cornerRadius"]
+        assert tick["thickness"] == eb_ticks["thickness"]
+        assert tick["size"] == median["size"]  # markSize * 0.9
+
+    def test_darkmode_flips_color(self):
+        theme(darkmode=True)
+        assert _dysonsphere_theme()["config"]["tick"]["color"] == "white"
+        theme(darkmode=False)
+        assert _dysonsphere_theme()["config"]["tick"]["color"] == "black"
+
+    def test_scales_with_theme_params(self):
+        theme(markSize=20, markStrokeWidth=1)
+        tick = _dysonsphere_theme()["config"]["tick"]
+        assert tick["size"] == pytest.approx(18.0)
+        assert tick["thickness"] == 1
+        assert tick["cornerRadius"] == pytest.approx(0.5)
+
+
 class TestBoxplotOutliers:
     def test_false_default_hides_outliers(self):
         theme()

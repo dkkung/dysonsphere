@@ -603,6 +603,13 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "fontStyle": opts["fontStyle"],
                 "fontWeight": opts["fontWeight"],
             },
+            "tick": {
+                "color": "white" if opts["darkmode"] else "black",
+                "cornerRadius": opts["markStrokeWidth"] / 2,
+                "opacity": opts["markFillOpacity"],
+                "size": opts["markSize"] * 0.9,
+                "thickness": opts["markStrokeWidth"],
+            },
             "title": {
                 "anchor": "middle",
                 "frame": "group",

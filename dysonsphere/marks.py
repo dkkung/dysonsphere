@@ -477,19 +477,12 @@ def mark_strip(
 
     # The centre tick draws the MEAN - the statistic the error bars are computed from -
     # so it always sits centred between the caps (a median tick drifts off-centre on
-    # skewed data). Tick and error bars form one glyph, so the colour follows the
-    # errorbar-caps darkmode convention, not markMedianFill (whose fixed black left
-    # the old median tick invisible on dark renders); there is no config.tick block
-    # to inherit from, so every property is pinned here.
+    # skewed data). All styling inherits config.tick (the crossbar defaults: errorbar-cap
+    # colour/round caps, boxplot-median span), which also resolves darkmode at render
+    # time - no callable needed for correct tick colour across save() backgrounds.
     mean_tick = (
         alt.Chart(summary)
-        .mark_tick(
-            color="white" if _opt("darkmode") else "black",
-            cornerRadius=_opt("markStrokeWidth") / 2,  # round caps, like the errorbar ticks
-            size=_opt("markSize") * 0.9,  # span the boxplot box width
-            thickness=_opt("markStrokeWidth"),
-            opacity=_opt("markFillOpacity"),
-        )
+        .mark_tick()
         .encode(
             x=x,
             y=s.y("__mean:Q"),
