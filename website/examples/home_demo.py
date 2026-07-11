@@ -3,7 +3,7 @@ import numpy as np
 import polars as pl
 import dysonsphere as ds
 
-ds.theme(palette="blues2", chartWidth=140)
+ds.theme(chartWidth=140)  # continuous color defaults to australis
 
 rng = np.random.default_rng(7)
 rep1 = rng.normal(10, 2, 2500)
