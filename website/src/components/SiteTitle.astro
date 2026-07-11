@@ -112,12 +112,21 @@ const { siteTitleHref } = Astro.locals.starlightRoute;
 		span {
 			overflow: hidden;
 		}
-		/* Two-tone wordmark, matching the logo. */
+		/* The hero typewriter's settled typeface, static: mono, plain "dyson" in the
+		   theme's high-contrast text colour, "sphere" in the inverted chip. The tokens
+		   flip with the theme, so no per-theme overrides. */
+		.ds,
+		.sp {
+			font-family: var(--sl-font-mono);
+		}
 		.ds {
-			color: #1D83CA;
+			color: var(--sl-color-white);
 		}
 		.sp {
-			color: #4DE0B4;
+			background: var(--sl-color-white);
+			color: var(--sl-color-black);
+			border-radius: 0.12em;
+			padding: 0 0.09em;
 		}
 		img {
 			height: calc(var(--sl-nav-height) - 2 * var(--sl-nav-pad-y));
