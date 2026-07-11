@@ -617,6 +617,18 @@ SEQ_MULTI_OKLAB = {
         (0.741, 115),
         (0.90, 92),
     ],
+    # The mono identity ramp (the black/white brand scheme as a palette): warm ink ->
+    # warm paper at a whisper of gold (constant hue 90, chroma cap 0.012 - the chip
+    # register, not tan).  Lightness is its ONLY encoding channel, so the span runs
+    # deeper than the lifted celestials (the 0.22 floor rule prevents dark-HUE
+    # confusion, which a monochrome ramp cannot have): L 0.17-0.975 gives exact
+    # viridis-parity capacity (dE arc 0.807 vs 0.806) with ZERO loss under either
+    # dichromacy (deut/prot arcs 0.807/0.806, the best in the collection) and the
+    # best greyscale/print fidelity possible.  Stored dark-first (viridis polarity).
+    "eclipse": [
+        (0.17, 90),
+        (0.975, 90),
+    ],
     "pewter": [
         (0.22, 255),
         (0.415, 245),
@@ -628,6 +640,7 @@ SEQ_MULTI_OKLAB = {
 
 # Per-palette frac overrides for build_multihue (default SEQ_FRAC).
 SEQ_MULTI_FRAC = {
+    "eclipse": 0.95,
     "cosmos": 0.95,
     "borealis": 0.95,
     "australis": 0.95,
@@ -637,6 +650,7 @@ SEQ_MULTI_FRAC = {
 
 # Per-palette max_chroma overrides for build_multihue (see its docstring).
 SEQ_MULTI_MAX_CHROMA = {
+    "eclipse": 0.012,
     "nebula": 0.14,
     "cosmos": 0.14,
     "borealis": 0.14,
