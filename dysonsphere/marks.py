@@ -485,6 +485,7 @@ def mark_strip(
         alt.Chart(summary)
         .mark_tick(
             color="white" if _opt("darkmode") else "black",
+            cornerRadius=_opt("markStrokeWidth") / 2,  # round caps, like the errorbar ticks
             size=_opt("markSize") * 0.9,  # span the boxplot box width
             thickness=_opt("markStrokeWidth"),
             opacity=_opt("markFillOpacity"),
