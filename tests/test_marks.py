@@ -148,6 +148,24 @@ class TestMarkStrip:
         result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, errorbars=False)
         assert isinstance(result, alt.LayerChart)
 
+    def test_errorbars_center_tick_is_mean(self, group_df):
+        # The centre tick must draw the MEAN (the errorbar statistic), not the median -
+        # a median tick sits off-centre between the caps on skewed data.
+        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        spec = result.to_dict()
+        tick_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "tick")
+        errorbar_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "errorbar")
+        assert tick_layer["encoding"]["y"]["field"] == "__mean"
+        assert tick_layer["encoding"]["y"]["field"] == errorbar_layer["encoding"]["y"]["field"]
+        # and no hidden boxplot (the old median source) remains in the errorbar mode
+        assert not any(lyr.get("mark", {}).get("type") == "boxplot" for lyr in spec["layer"])
+
+    def test_errorbars_disabled_keeps_median_boxplot(self, group_df):
+        # Without error bars the centre statistic stays the median (via the hidden boxplot).
+        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, errorbars=False)
+        spec = result.to_dict()
+        assert any(lyr.get("mark", {}).get("type") == "boxplot" for lyr in spec["layer"])
+
     def test_beeswarm_scatter(self, group_df):
         result = mark_strip(
             group_df,

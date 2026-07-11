@@ -456,7 +456,8 @@ class TestExactTickPositions:
 
     def test_strip_violin_hconcat_ticks_exact(self, tmp_path):
         # Capstone: strip (Case 0 band positions) beside violin (Case pi) in one hconcat -
-        # every tick must land exactly on a box centre in its own panel.
+        # every axis tick must land exactly on a band-centred mark in its own panel (the
+        # strip's mean tick; the violin's boxplot box).
         import numpy as np
 
         import dysonsphere as ds
@@ -477,10 +478,17 @@ class TestExactTickPositions:
                 mt = re.search(r"translate\(([-\d.]+)[,\s]", ch.get("transform", ""))
                 if mt:
                     ccx += float(mt.group(1))
-                if ch.get("aria-roledescription") == "box":
-                    m = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", ch.get("d", ""))
+                if ch.get("aria-roledescription") in ("box", "tick"):
+                    d = ch.get("d", "")
+                    # square corners: "M<x>,<y>h<w>…"; rounded (the strip's mean tick,
+                    # cornerRadius): "M<x1>,<y>L<x2>,<y>C…" - centre from the top edge's ends
+                    m = re.match(r"M([-\d.]+),[-\d.eE+]+h([-\d.eE+]+)", d)
                     if m:
                         boxes.append(ccx + float(m.group(1)) + float(m.group(2)) / 2)
+                    else:
+                        m = re.match(r"M([-\d.]+),[-\d.eE+]+L([-\d.]+),", d)
+                        if m:
+                            boxes.append(ccx + (float(m.group(1)) + float(m.group(2))) / 2)
                 y2 = ch.get("y2")
                 if ch.tag == f"{{{NS}}}line" and ch.get("x2") == "0" and y2 and 0 < abs(float(y2)) < 20:
                     if re.match(r"translate\(([-\d.]+),", ch.get("transform", "")):
