@@ -87,6 +87,11 @@
 <style is:global>
 	.tw {
 		white-space: nowrap;
+		/* Mono suits the typewriter: even caret rhythm, deterministic chip growth, and
+		   no proportional-glyph crowding against the chip edge. Slightly reduced - mono
+		   runs wide at hero sizes. */
+		font-family: var(--sl-font-mono);
+		font-size: 0.85em;
 	}
 	/* Black/white monochrome via Starlight's flipping tokens: --sl-color-white is the
 	   high-contrast text colour in BOTH themes (near-black on light, white on dark) and
