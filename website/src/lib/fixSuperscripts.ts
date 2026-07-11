@@ -98,6 +98,35 @@ export function italicizeStatSymbols(root: ParentNode): void {
 }
 
 /**
+ * Client-side port of `export._align_grid_to_content()`: on an open plot each axis is drawn
+ * `axisOffset` px away from the plot, and Vega renders grid lines inside their axis group -
+ * so the grid inherits the offset and renders dragged toward its axis (vertical lines down,
+ * horizontal lines left). Translate each line back (span unchanged) so the grid spans the
+ * plot content exactly, matching save() output. The offset comes from the baked spec config
+ * (`config.axis.offset`); closed plots bake `0`, so they are skipped like in the library.
+ */
+export function alignGridToContent(root: ParentNode, spec: { config?: { axis?: { offset?: number } } }): void {
+	const offset = Number(spec?.config?.axis?.offset ?? 0);
+	if (!offset) return;
+	const XLATE = /translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)/;
+	for (const line of root.querySelectorAll('svg g.mark-rule.role-axis-grid line')) {
+		const m = XLATE.exec(line.getAttribute('transform') ?? '');
+		if (!m) continue;
+		const tx = parseFloat(m[1]);
+		const ty = parseFloat(m[2]);
+		const x2 = parseFloat(line.getAttribute('x2') ?? '0');
+		const y2 = parseFloat(line.getAttribute('y2') ?? '0');
+		if (Math.abs(y2) > Math.abs(x2) && ty < 0) {
+			// vertical grid (x-axis group, offset down): lift up
+			line.setAttribute('transform', `translate(${tx},${ty - offset})`);
+		} else if (Math.abs(x2) > Math.abs(y2)) {
+			// horizontal grid (y-axis group, offset left): shift right
+			line.setAttribute('transform', `translate(${tx + offset},${ty})`);
+		}
+	}
+}
+
+/**
  * Client-side port of `export._flip_ticks_inward()`: negate the non-zero `x2`/`y2` of every
  * axis-tick line so ticks point INTO the plot. Like the superscript fixer, the library applies
  * this only at save() time; the site opts in per chart (theming's inwardTicks example) since
