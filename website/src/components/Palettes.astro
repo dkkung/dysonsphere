@@ -1,7 +1,9 @@
 ---
 // Live palette browser: renders every dysonsphere palette as a swatch strip, filterable by name
 // and kind. Pure client-side (data baked from src/generated/palettes.json at build time) - no
-// Pyodide. Click a swatch strip to copy its hex codes (as a list) and preview it in the charts.
+// Pyodide. Click a swatch strip to SELECT it for the live preview; copying the hex codes is an
+// explicit action (the copy button next to the preview status in PalettePreview.astro) so a
+// browsing click never takes over the clipboard.
 import palettes from '../generated/palettes.json';
 ---
 
@@ -21,7 +23,7 @@ import palettes from '../generated/palettes.json';
 	<div id="pal-grid" class="pal__grid">
 		{
 			palettes.map((p) => (
-				<button class="pal__item" data-name={p.name} data-kind={p.kind} title={`Copy ${p.name} hex codes`}>
+				<button class="pal__item" data-name={p.name} data-kind={p.kind} title={`Preview ${p.name}`}>
 					<span class="pal__strip">
 						{p.colors.map((c) => (
 							<span class="pal__stop" data-color={c} style={`background:${c}`} />
@@ -73,13 +75,8 @@ import palettes from '../generated/palettes.json';
 				const colors = Array.from(el.querySelectorAll<HTMLElement>('.pal__stop')).map(
 					(s) => s.dataset.color ?? '',
 				);
-				// Copy the hex codes as a ready-to-paste list (what a scale range wants).
-				navigator.clipboard?.writeText(`[${colors.map((c) => `"${c.toUpperCase()}"`).join(', ')}]`);
-				const label = el.querySelector('.pal__name') as HTMLElement;
-				const prev = label.textContent;
-				label.textContent = 'hex codes copied!';
-				setTimeout(() => (label.textContent = prev), 900);
-				// Tell the live preview (PalettePreview.astro) to restyle its charts.
+				// Select for the live preview only - copying is the preview's explicit button
+				// (PalettePreview.astro), never a side effect of browsing.
 				items.forEach((i) => i.classList.toggle('is-selected', i === el));
 				document.dispatchEvent(
 					new CustomEvent('ds-palette-select', {

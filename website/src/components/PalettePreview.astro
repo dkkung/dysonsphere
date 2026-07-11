@@ -19,6 +19,9 @@ const firstPalette = palettes[0].name;
 <div class="palprev not-content">
 	<p class="palprev__status">
 		Previewing <code id="palprev-name">{firstPalette}</code>
+		<button id="palprev-copy" class="palprev__copy" title="Copy the selected palette's hex codes">
+			copy hex codes
+		</button>
 	</p>
 	<div class="palprev__row">
 		<div class="palprev__chart" data-preview="preview_ramp" data-role="heatmap"></div>
@@ -125,6 +128,21 @@ const firstPalette = palettes[0].name;
 		renderAll();
 	}
 
+	// The EXPLICIT copy action (browsing clicks in the palette grid only select - they must
+	// never take over the clipboard). Copies a ready-to-paste hex list, what a scale range wants.
+	function wireCopy() {
+		const btn = document.getElementById('palprev-copy') as HTMLButtonElement | null;
+		if (!btn || btn.dataset.wired) return;
+		btn.dataset.wired = '1';
+		btn.addEventListener('click', () => {
+			if (!current.colors.length) return;
+			navigator.clipboard?.writeText(`[${current.colors.map((c) => `"${c.toUpperCase()}"`).join(', ')}]`);
+			const prev = btn.textContent;
+			btn.textContent = 'copied!';
+			setTimeout(() => (btn.textContent = prev), 900);
+		});
+	}
+
 	function boot() {
 		// A page swap replaces the chart elements: drop stale ones so they can't skew the
 		// shared-minimum zoom, and re-fit whenever the (new) row's layout width changes.
@@ -146,6 +164,7 @@ const firstPalette = palettes[0].name;
 				if (label) label.textContent = current.name;
 			}
 		}
+		wireCopy();
 		renderAll();
 	}
 
@@ -163,6 +182,20 @@ const firstPalette = palettes[0].name;
 		font-size: 0.85rem;
 		color: var(--sl-color-gray-3);
 		margin: 1rem 0 0.25rem;
+	}
+	.palprev__copy {
+		margin-left: 0.5rem;
+		padding: 0.15rem 0.55rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.4rem;
+		background: transparent;
+		color: var(--sl-color-gray-3);
+		font-size: 0.72rem;
+		cursor: pointer;
+	}
+	.palprev__copy:hover {
+		color: var(--sl-color-text-accent);
+		border-color: var(--sl-color-gray-4);
 	}
 	/* One column inside the palette page's sticky aside (~28rem); auto-fit lets the charts sit
 	   side by side when the component gets full width (the narrow-screen stacked layout). */
