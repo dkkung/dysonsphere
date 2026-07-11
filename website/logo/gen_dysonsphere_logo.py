@@ -23,8 +23,8 @@ import math
 from pathlib import Path
 
 # colors["australis"] reversed to light-first (the palette is stored dark-first).
-AUSTRALIS = ["#91EE9F", "#48DEB3", "#27C6C1", "#20ABC1", "#1A90BE", "#1374BA",
-             "#2E57AA", "#3A3B92", "#3D1E76", "#370453", "#27022E", "#130010"]
+AUSTRALIS = ["#91EE9F", "#4DE0B4", "#28CDC5", "#23B5C9", "#1D9CCB", "#1D83CA",
+             "#3A68BB", "#484DA6", "#4D338C", "#4C196E", "#43044D", "#32022B"]
 
 W, H = 200, 210
 CX, CY, R = 100, 92, 84
@@ -36,7 +36,7 @@ INSET = 0.9
 LIGHT = (-0.42, 0.55, 0.72)
 _l = math.dist((0, 0, 0), LIGHT); LIGHT = tuple(c / _l for c in LIGHT)
 MINIDX, MAXIDX = 1, 9
-DYSON, SPHERE = "#1374BA", "#48DEB3"
+DYSON, SPHERE = "#1D83CA", "#4DE0B4"
 FONT = "'Graphik Light', 'Graphik-Light', 'Graphik', sans-serif"
 WORD, SPLIT, SIZE, BASELINE, WEIGHT = "dysonsphere", 5, 29, 200, 300  # split after "dyson"
 HERE = Path(__file__).parent
@@ -101,7 +101,7 @@ STAR = [
 # Panel stroke: a thin mid-teal outline on every facet (an australis stop). Mid-range so it reads
 # on both light and dark (dual-mode, like the fills); it firms up the faceting without competing
 # with the star glow.
-PSTROKE, PWIDTH = "#1A90BE", 0.5
+PSTROKE, PWIDTH = "#1D9CCB", 0.5
 POLYS = [f'  <polygon points="{" ".join(f"{x:.2f},{y:.2f}" for x, y in pts)}" fill="{f}" '
          f'stroke="{PSTROKE}" stroke-width="{PWIDTH}" stroke-linejoin="round"/>'
          for _, pts, f in panels]
