@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### New features
+
+- **`config.trail`: bare trail marks render in the house style.** `mark_trail` (a line whose width scales with a `size` encoding) was the last colour-bearing mark left at raw Vega-Lite defaults (steel blue). It now gets a darkmode-aware fill and, when unsized, the same width as the theme's lines - so a bare trail renders exactly like a `mark_line` until a size encoding widens it. Note a Vega-Lite limitation: a *continuous* colour encoding on a trail draws nothing (the trail is grouped by the colour field); colour multiple trails by a nominal id with a sampled palette range (e.g. `ds.palette("australis", n)`) instead.
+
 ## [3.6.0] - 2026-07-09
 
 ### New features
