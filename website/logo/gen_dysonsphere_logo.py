@@ -54,7 +54,7 @@ SCHEMES: dict[str, dict] = {
     },
 }
 
-W, H = 200, 210
+W, H = 200, 217  # tall enough for the wordmark sitting clear below the sphere
 CX, CY, R = 100, 92, 84
 TILT = math.radians(13)
 M, N = 5, 12
@@ -65,7 +65,7 @@ LIGHT = (-0.42, 0.55, 0.72)
 _l = math.dist((0, 0, 0), LIGHT); LIGHT = tuple(c / _l for c in LIGHT)
 MINIDX, MAXIDX = 1, 9
 FONT = "'Graphik Light', 'Graphik-Light', 'Graphik', sans-serif"
-WORD, SPLIT, SIZE, BASELINE, WEIGHT = "dysonsphere", 5, 29, 200, 300  # split after "dyson"
+WORD, SPLIT, SIZE, BASELINE, WEIGHT = "dysonsphere", 5, 29, 207, 300  # split after "dyson"; baseline clears the sphere + chip padding
 HERE = Path(__file__).parent
 
 
