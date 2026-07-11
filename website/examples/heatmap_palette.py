@@ -4,7 +4,7 @@ from vega_datasets import data
 
 # Per-type palettes: heatmapPalette styles only continuous heatmaps, leaving the
 # categorical palette untouched. Any name from ds.colors works.
-ds.theme(heatmapPalette="lagoon")
+ds.theme(heatmapPalette="cosmos")
 
 cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
 
