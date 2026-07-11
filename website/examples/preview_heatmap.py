@@ -12,6 +12,6 @@ chart = (
     .encode(
         x=alt.X("Horsepower:Q", bin=alt.Bin(maxbins=12)),
         y=alt.Y("Miles_per_Gallon:Q", bin=alt.Bin(maxbins=12), title="Miles per gallon"),
-        color=alt.Color("count():Q", legend=alt.Legend(title="Cars", titleOrient="top")),
+        color=alt.Color("count():Q", title="Cars"),
     )
 )
