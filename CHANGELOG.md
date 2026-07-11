@@ -16,6 +16,7 @@
 
 ### Fixes
 
+- **`theme(inwardTicks=True)` no longer leaves a dead gap between the axes and their labels.** Vega places axis labels and titles beyond the outward tick; flipping the ticks inward left the space they had occupied empty, so labels and titles floated `tickSize` too far from the domain lines. The inward-ticks SVG fixer now also pulls each axis's labels and title toward the view by that axis's own tick length, restoring the normal 2 px label / 4 px title spacing. Handles rotated labels, secondary axes, and per-axis tick sizes (log/power minor-tick axes carry no labels).
 - **`mark_strip`'s centre tick draws the mean - the statistic its error bars are computed from.** With `errorbars=True` (the default) the tick was the boxplot *median* between *mean*-based error bars, so it drifted off-centre between the caps on any skewed group (the docstring already promised a mean tick). The tick is now drawn at the group mean from the same summary frame as the error bars - centred by construction - with round caps matching the errorbar caps and a darkmode-aware colour (the old fixed-black median tick was invisible on dark renders). `errorbars=False` still shows the median.
 
 ## [3.6.0] - 2026-07-09

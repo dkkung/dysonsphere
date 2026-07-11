@@ -585,6 +585,68 @@ class TestFlipTicksInward:
                 y2s.append(fv)
         assert y2s and all(v < 0 for v in y2s)  # x-axis ticks point up (into the plot)
 
+    def test_labels_and_title_pulled_in_by_tick_length(self):
+        # The gap the outward tick occupied must not survive the flip: labels + title shift
+        # toward the view by the axis's own tick vector, each text's translate rewritten
+        # (a group transform would be dropped by _simplify_svg). Rotation tails preserved.
+        svg = (
+            f'<svg xmlns="{NS}">'
+            '<g class="mark-group role-axis"><g><g>'
+            '<g class="mark-rule role-axis-tick">'
+            '<line transform="translate(10,0)" x1="0" y1="0" x2="0" y2="3"/>'
+            "</g>"
+            '<g class="mark-text role-axis-label">'
+            '<text transform="translate(10,11)">0</text>'
+            '<text transform="translate(50,2) rotate(315) translate(0,6)">5</text>'
+            "</g>"
+            '<g class="mark-text role-axis-title">'
+            '<text transform="translate(50,20)">x</text>'
+            "</g>"
+            "</g></g></g></svg>"
+        )
+        root = ET.fromstring(svg)
+        _flip_ticks_inward(root)
+        texts = list(root.iter(f"{{{NS}}}text"))
+        assert texts[0].get("transform") == "translate(10,8)"  # up by the 3px tick
+        assert texts[1].get("transform") == "translate(50,-1) rotate(315) translate(0,6)"
+        assert texts[2].get("transform") == "translate(50,17)"  # title follows the labels
+
+    def test_axis_without_ticks_leaves_labels_alone(self):
+        svg = (
+            f'<svg xmlns="{NS}">'
+            '<g class="mark-group role-axis"><g>'
+            '<g class="mark-text role-axis-label">'
+            '<text transform="translate(10,11)">0</text>'
+            "</g>"
+            "</g></g></svg>"
+        )
+        root = ET.fromstring(svg)
+        _flip_ticks_inward(root)
+        assert next(root.iter(f"{{{NS}}}text")).get("transform") == "translate(10,11)"
+
+    def test_save_with_inward_ticks_pulls_labels_in(self, tmp_path):
+        # Rendered end-to-end: x-axis labels sit tickSize closer to the domain than the
+        # outward-tick render of the same chart.
+        df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+
+        def x_label_y(path):
+            root = ET.parse(path).getroot()
+            for text in root.iter(f"{{{NS}}}text"):
+                m = re.match(r"translate\([\d.]+,([\d.]+)\)$", text.get("transform", ""))
+                if m and text.get("text-anchor") == "middle":
+                    return float(m.group(1))
+            raise AssertionError("no x-axis label found")
+
+        theme(inwardTicks=True, closed=True)
+        save(chart, str(tmp_path / "inward"), format=["svg"], background=["light"])
+        theme(inwardTicks=False, closed=True)
+        save(chart, str(tmp_path / "outward"), format=["svg"], background=["light"])
+        tick_size = alt.theme.options["tickSize"]
+        assert x_label_y(str(tmp_path / "inward.svg")) == pytest.approx(
+            x_label_y(str(tmp_path / "outward.svg")) - tick_size
+        )
+
 
 # ── _layer_axes_to_front() ───────────────────────────────────────────────────
 
