@@ -413,6 +413,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ticks": {
                     "cornerRadius": opts["markStrokeWidth"],
                     "fill": "white" if opts["darkmode"] else "black",
+                    # opacity 1 so config.tick's opacity (markFillOpacity) can't leak in
+                    # through the composite lowering and double-dim with fillOpacity
+                    "opacity": 1,
                     "size": opts["markSize"] * 0.45,  # half the box width (markSize * 0.9)
                     "thickness": opts["markStrokeWidth"],
                 },
@@ -424,8 +427,13 @@ def _dysonsphere_theme() -> dict[str, Any]:
                     **({"cornerRadius": opts["cornerRadius"]} if opts["cornerRadius"] else {}),
                 },
                 "median": {
+                    # square ends, flush with the box edges (config.tick's round caps
+                    # would otherwise inherit through the composite lowering)
+                    "cornerRadius": 0,
                     "fill": opts["markMedianFill"],
                     "fillOpacity": opts["markFillOpacity"],
+                    # opacity 1: see the ticks block (fillOpacity alone governs the fade)
+                    "opacity": 1,
                     "size": opts["markSize"] * 0.9,  # spans the box
                     # a single stroke of markStrokeWidth thickness (no competing outline stroke)
                     "thickness": opts["markStrokeWidth"],
@@ -602,6 +610,13 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "fontSize": opts["fontSize"],
                 "fontStyle": opts["fontStyle"],
                 "fontWeight": opts["fontWeight"],
+            },
+            "tick": {
+                "color": "white" if opts["darkmode"] else "black",
+                "cornerRadius": opts["markStrokeWidth"] / 2,
+                "opacity": opts["markFillOpacity"],
+                "size": opts["markSize"] * 0.9,
+                "thickness": opts["markStrokeWidth"],
             },
             "title": {
                 "anchor": "middle",
