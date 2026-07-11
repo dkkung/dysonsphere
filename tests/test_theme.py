@@ -509,6 +509,19 @@ class TestTickConfig:
         assert _dysonsphere_theme()["config"]["boxplot"]["median"]["cornerRadius"] == 0
 
 
+class TestTrailConfig:
+    # config.trail: trail is a FILLED variable-width path (steel blue at Vega defaults);
+    # color supplies the fill, and the unsized width matches config.line's strokeWidth.
+
+    def test_matches_line_width_and_darkmode(self):
+        theme()
+        cfg = _dysonsphere_theme()["config"]
+        assert cfg["trail"]["size"] == cfg["line"]["strokeWidth"]
+        assert cfg["trail"]["color"] == "black"
+        theme(darkmode=True)
+        assert _dysonsphere_theme()["config"]["trail"]["color"] == "white"
+
+
 class TestBoxplotOutliers:
     def test_false_default_hides_outliers(self):
         theme()

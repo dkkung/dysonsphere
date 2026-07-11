@@ -632,6 +632,13 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "subtitleFontStyle": opts["fontStyle"],
                 "subtitleFontWeight": opts["fontWeight"],
             },
+            "trail": {
+                "color": "white" if opts["darkmode"] else "black",
+                "opacity": 1,
+                # default width when there is no size encoding - matches config.line's
+                # strokeWidth so an unsized trail renders exactly like a line
+                "size": opts["axisWidth"] * 1.5,
+            },
             "view": {
                 "continuousWidth": opts["chartWidth"],
                 "continuousHeight": opts["chartHeight"],
