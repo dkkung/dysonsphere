@@ -943,6 +943,14 @@ high,100,26.4,6`;
 		getRuntime()
 			.then(async (rt) => {
 				runtime = rt;
+				// The dropdown is baked from the checked-out library's palettes.json, but the
+				// Studio EXECUTES the PyPI release, which can lag - a palette the runtime lacks
+				// passes through as an invalid Vega scheme and the chart silently fails to
+				// render. Prune to the installed catalogue so every offered option works.
+				const available = new Set(rt.listPalettes());
+				for (const opt of [...el<HTMLSelectElement>('st-palette').options]) {
+					if (opt.value && !available.has(opt.value)) opt.remove();
+				}
 				// Default working set: the classic cars dataset as a weight-vs-economy scatter.
 				applySchema(rt.loadDataset('cars'), 'cars.csv', 'csv');
 				const setSel = (id: string, v: string) => {

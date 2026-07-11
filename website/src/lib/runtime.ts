@@ -28,6 +28,8 @@ export interface DsRuntime {
 	loadDataset(name: string): string;
 	/** ds.read(name, what="metadata") -> the embedded dysonsphere block as a JSON string. */
 	readExport(name: string): string;
+	/** Palette names of the INSTALLED library (the PyPI release, which can lag the site). */
+	listPalettes(): string[];
 }
 
 type StatusListener = (message: string) => void;
@@ -175,6 +177,8 @@ await micropip.install("dysonsphere", deps=False)
 			writeFile: (name: string, data: Uint8Array | string) => pyodide.FS.writeFile(name, data),
 			loadDataset: (name: string) => loadDatasetPy(name) as string,
 			readExport: (name: string) => readExportPy(name) as string,
+			listPalettes: () =>
+				JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.colors))')),
 		};
 	})();
 	bootPromise.catch(() => {
