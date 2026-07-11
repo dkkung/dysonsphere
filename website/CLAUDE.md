@@ -19,9 +19,10 @@ dissolved 2026-07-06).
   live chart + "Open in studio" deep link), `Studio.astro` (the **two-mode Chart Studio**: an
   interactive builder AND an embedded CodeMirror editor - the old Playground was absorbed into it),
   `PlaygroundRedirect.astro` (client-side `/playground/`→`/studio/` redirect preserving `#code=`),
-  `Palettes.astro` (client-side swatch browser from generated JSON; click copies the HEX LIST, not
-  the name - hex rides on data-color attributes since inline style serializes to rgb()),
-  `PalettePreview.astro` (charts restyled live by the selected palette), `ConfigGenerator.astro`
+  `Palettes.astro` (client-side swatch browser from generated JSON; click SELECTS for the live
+  preview only, never touches the clipboard - hex rides on data-color attributes since inline
+  style serializes to rgb()), `PalettePreview.astro` (charts restyled live by the selected
+  palette; holds the explicit "copy hex codes" button - the only clipboard write), `ConfigGenerator.astro`
   (editable default dysonsphere.toml + theme-param cheat sheet, inputs from gen_config.py), `SiteTitle.astro` (two-toned header wordmark +
   the desktop sidebar-collapse toggle; there is no Sidebar override anymore).
 - `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
