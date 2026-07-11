@@ -1,16 +1,32 @@
 ---
-// Homepage-only typewriter for the hero title: a thin-bar caret types "dyson", pauses,
-// then types "sphere" inside a permanent contrasting chip (the wordmark colors). Pure
-// progressive enhancement - the static h1 text stays for no-JS/SEO and screen readers
-// read the plain word via aria-label; prefers-reduced-motion renders the final state
-// instantly. Scoped to the homepage by construction: only the landing page has a
-// Starlight hero, so `.hero h1` matches nothing anywhere else.
+// Homepage-only typewriter for the hero title: a thin-bar caret types the first word,
+// pauses, then types the second inside a contrasting chip - then "rolls" backwards
+// (backspace deletion) to a blank slate and cycles through the word stops
+// (dysonsphere -> publication ready -> uniform palettes -> declarative plotting ->
+// plot provenance -> ...), forever. Progressive enhancement - the static h1 text stays
+// for no-JS/SEO and screen readers read the plain product name via aria-label (the
+// animated spans are aria-hidden). Plays for everyone by explicit user decision (no
+// prefers-reduced-motion skip). Scoped to the homepage by construction: only the
+// landing page has a Starlight hero, so `.hero h1` matches nothing anywhere else.
 ---
 
 <script>
 	const START_DELAY_MS = 400;
 	const TYPE_MS = 90;
+	const DELETE_MS = 45;
 	const WORD_PAUSE_MS = 350;
+	const HOLD_MS = 2200;
+	const BLANK_PAUSE_MS = 500;
+
+	// [plain word, chipped word] stops; a trailing space on the first word separates the
+	// two-word phrases (dysonsphere deliberately has none).
+	const STOPS: Array<[string, string]> = [
+		['dyson', 'sphere'],
+		['publication ', 'ready'],
+		['uniform ', 'palettes'],
+		['declarative ', 'plotting'],
+		['plot ', 'provenance'],
+	];
 
 	function run() {
 		const h1 = document.querySelector<HTMLElement>('.hero h1');
@@ -21,37 +37,45 @@
 		const wrap = document.createElement('span');
 		wrap.className = 'tw';
 		wrap.setAttribute('aria-hidden', 'true');
-		const dyson = document.createElement('span');
-		dyson.className = 'tw__dyson';
-		const sphere = document.createElement('span');
-		sphere.className = 'tw__sphere';
+		const first = document.createElement('span');
+		first.className = 'tw__dyson';
+		const chip = document.createElement('span');
+		chip.className = 'tw__sphere';
 		const caret = document.createElement('span');
 		caret.className = 'tw__caret';
-		wrap.append(dyson, sphere, caret);
+		wrap.append(first, chip, caret);
 		h1.append(wrap);
 
-		if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			dyson.textContent = 'dyson';
-			sphere.textContent = 'sphere';
-			caret.remove();
-			return;
-		}
-
-		// [target, char] steps; the [null] step is the between-words pause.
-		const steps: Array<[HTMLElement | null, string]> = [
-			...[...'dyson'].map((c): [HTMLElement, string] => [dyson, c]),
-			[null, ''],
-			...[...'sphere'].map((c): [HTMLElement, string] => [sphere, c]),
-		];
+		let stop = 0;
 		let i = 0;
+		let phase: 'type-a' | 'pause' | 'type-b' | 'hold' | 'delete-b' | 'delete-a' | 'blank' = 'type-a';
+
 		const tick = () => {
-			const [el, ch] = steps[i++];
-			if (el) el.textContent += ch;
-			if (i < steps.length) {
-				setTimeout(tick, el ? TYPE_MS : WORD_PAUSE_MS);
+			const [a, b] = STOPS[stop];
+			let delay = TYPE_MS;
+			if (phase === 'type-a') {
+				first.textContent = a.slice(0, ++i);
+				if (i >= a.length) (phase = 'pause'), (i = 0), (delay = WORD_PAUSE_MS);
+			} else if (phase === 'pause') {
+				phase = 'type-b';
+			} else if (phase === 'type-b') {
+				chip.textContent = b.slice(0, ++i);
+				if (i >= b.length) (phase = 'hold'), (i = 0), (delay = HOLD_MS);
+			} else if (phase === 'hold') {
+				(phase = 'delete-b'), (i = b.length);
+			} else if (phase === 'delete-b') {
+				chip.textContent = b.slice(0, --i);
+				delay = DELETE_MS;
+				if (i <= 0) (phase = 'delete-a'), (i = a.length);
+			} else if (phase === 'delete-a') {
+				first.textContent = a.slice(0, --i);
+				delay = DELETE_MS;
+				if (i <= 0) (phase = 'blank'), (delay = BLANK_PAUSE_MS);
 			} else {
-				caret.classList.add('tw__caret--done'); // two parting blinks, then fade out
+				stop = (stop + 1) % STOPS.length; // roll into the next word from the blank slate
+				(phase = 'type-a'), (i = 0);
 			}
+			setTimeout(tick, delay);
 		};
 		setTimeout(tick, START_DELAY_MS);
 	}
@@ -95,22 +119,12 @@
 		background: currentColor;
 		animation: tw-blink 1s steps(1, end) infinite;
 	}
-	.tw__caret--done {
-		animation:
-			tw-blink 1s steps(1, end) 2,
-			tw-fade 0.4s ease 2s forwards;
-	}
 	@keyframes tw-blink {
 		0%,
 		100% {
 			opacity: 1;
 		}
 		50% {
-			opacity: 0;
-		}
-	}
-	@keyframes tw-fade {
-		to {
 			opacity: 0;
 		}
 	}
