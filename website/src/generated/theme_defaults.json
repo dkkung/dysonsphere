@@ -240,6 +240,11 @@
   "hint": "auto: none"
  },
  {
+  "key": "viewPadding",
+  "default": "true",
+  "hint": null
+ },
+ {
   "key": "xAxis",
   "default": "true",
   "hint": null
