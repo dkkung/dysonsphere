@@ -563,9 +563,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "range": {
                 "category": category_range,
                 "diverging": {"scheme": _scheme("divergingPalette", colors["pinksblues"])},
-                "heatmap": {"scheme": _scheme("heatmapPalette", colors["blues"])},
+                "heatmap": {"scheme": _scheme("heatmapPalette", colors["australis"])},
                 "ordinal": {"scheme": _scheme("ordinalPalette", colors["greys"])},
-                "ramp": {"scheme": _scheme("rampPalette", colors["blues"])},
+                "ramp": {"scheme": _scheme("rampPalette", colors["australis"])},
             },
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",

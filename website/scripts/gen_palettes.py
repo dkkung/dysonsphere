@@ -26,7 +26,10 @@ def main() -> None:
     for name, colors in ds.colors.items():
         # By stop count: diverging ramps carry 13 (neutral midpoint), sequential ramps 12; the
         # remaining short palettes (nucleotides, proteins, the matplotlib sets) are qualitative.
-        if len(colors) == 13:
+        # `categorical` carries 12 stops but is the hue-cycling qualitative palette, not a ramp.
+        if name == "categorical":
+            kind = "qualitative"
+        elif len(colors) == 13:
             kind = "diverging"
         elif len(colors) == 12:
             kind = "sequential"
