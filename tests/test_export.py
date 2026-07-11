@@ -335,7 +335,7 @@ class TestShow:
 
 
 class TestGradientLegendTitles:
-    """Gradient-legend titles stay at Vega's default (horizontal, on top) — the v3.5 spec-level
+    """Gradient-legend titles stay at Vega's default (horizontal, on top) — the never-released
     ``legendTitleGradientOrientation`` injection was removed; ``save()`` must not touch legends."""
 
     def test_save_does_not_inject_title_orient(self, tmp_path):
