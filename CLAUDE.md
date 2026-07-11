@@ -95,8 +95,9 @@ Then **verify**, iterating (fix, rerun) until green:
 - `uv run pytest tests/` - all pass, zero skips/failures.
 
 Then **document** (prose the checks do not touch):
-4. Update `CLAUDE.md` if architecture, conventions, or design points changed.
-5. Update memories if there is non-obvious context worth persisting.
+4. Add a `CHANGELOG.md` entry under `[Unreleased]` for every user-visible change (features, changes, fixes) - entries land WITH the work, in the same PR; releases only finalize + date the section.
+5. Update `CLAUDE.md` if architecture, conventions, or design points changed.
+6. Update memories if there is non-obvious context worth persisting.
 
 Finally, **commit**.
 
