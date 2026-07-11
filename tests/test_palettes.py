@@ -329,25 +329,36 @@ NATIVE_DIVERGING = sorted(n for n, c in colors.items() if _native(n) and len(c) 
 
 
 class TestPaletteQuality:
-    @pytest.mark.parametrize("name", NATIVE_SEQUENTIAL)
-    def test_sequential_lightness_monotonic(self, name):
-        Ls = [_hex_to_oklab(h)[0] for h in colors[name]]
-        assert _monotonic(Ls), f"{name}: Oklab lightness is not monotonic (greyscale ordering breaks)"
+    """One test per invariant (not per palette); a failure message lists every offender by
+    name. Only the dichromacy axis stays parametrized, so a CVD failure still says WHICH
+    colorblindness type broke."""
 
-    @pytest.mark.parametrize("name", NATIVE_SEQUENTIAL)
-    def test_sequential_step_uniformity(self, name):
-        dEs = _adjacent_delta_e(colors[name])
-        ratio = max(dEs) / min(dEs)
-        assert ratio <= 1.5, f"{name}: adjacent-ΔE ratio {ratio:.2f} exceeds 1.5 (uneven perceptual steps)"
+    def test_sequential_lightness_monotonic(self):
+        bad = [n for n in NATIVE_SEQUENTIAL if not _monotonic([_hex_to_oklab(h)[0] for h in colors[n]])]
+        assert not bad, f"non-monotonic Oklab lightness (greyscale ordering breaks): {bad}"
 
-    @pytest.mark.parametrize("name", NATIVE_SEQUENTIAL)
+    def test_sequential_step_uniformity(self):
+        bad = []
+        for n in NATIVE_SEQUENTIAL:
+            dEs = _adjacent_delta_e(colors[n])
+            ratio = max(dEs) / min(dEs)
+            if ratio > 1.5:
+                bad.append(f"{n} ({ratio:.2f})")
+        assert not bad, f"adjacent-ΔE ratio exceeds 1.5 (uneven perceptual steps): {bad}"
+
     @pytest.mark.parametrize("matrix", [_DEUTERANOPIA, _PROTANOPIA], ids=["deuteranopia", "protanopia"])
-    def test_sequential_cvd_monotonic(self, name, matrix):
-        Ls = [_hex_to_oklab(_simulate_cvd(h, matrix))[0] for h in colors[name]]
-        assert _monotonic(Ls), f"{name}: lightness not monotonic under simulated dichromacy"
+    def test_sequential_cvd_monotonic(self, matrix):
+        bad = [
+            n
+            for n in NATIVE_SEQUENTIAL
+            if not _monotonic([_hex_to_oklab(_simulate_cvd(h, matrix))[0] for h in colors[n]])
+        ]
+        assert not bad, f"lightness not monotonic under this simulated dichromacy: {bad}"
 
-    @pytest.mark.parametrize("name", NATIVE_DIVERGING)
-    def test_diverging_v_shape(self, name):
-        Ls = [_hex_to_oklab(h)[0] for h in colors[name]]
-        assert max(Ls) == Ls[6], f"{name}: the pivot (stop 6) is not the lightest stop"
-        assert _monotonic(Ls[:7]) and _monotonic(Ls[6:]), f"{name}: an arm's lightness is not monotonic"
+    def test_diverging_v_shape(self):
+        bad = []
+        for n in NATIVE_DIVERGING:
+            Ls = [_hex_to_oklab(h)[0] for h in colors[n]]
+            if not (max(Ls) == Ls[6] and _monotonic(Ls[:7]) and _monotonic(Ls[6:])):
+                bad.append(n)
+        assert not bad, f"not V-shaped around the stop-6 pivot: {bad}"
