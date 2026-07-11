@@ -7,9 +7,10 @@
   - dysonsphere_logo_portrait_with_text_outlined.svg  : mark + wordmark outlined to <path> paths
                                                         (font-independent; renders anywhere)
 
-The mark is a sphere of flat panels shaded across the MID of blues2 (a single dual-mode logo: no
-near-white to vanish on light, no near-black to vanish on dark), each facet outlined with a thin
-mid-blue stroke, with a bright star glowing inside the shell (through the panel gaps), transparent
+The mark is a sphere of flat panels shaded across the MID of the australis palette (a single
+dual-mode logo: no near-white to vanish on light, no near-black to vanish on dark) - the star-lit
+side emerald, falling through cobalt into deep violet shadow - each facet outlined with a thin
+mid-teal stroke, with a bright star glowing inside the shell (through the panel gaps), transparent
 background. The wordmark is two-tone (dyson / sphere), Graphik Light, centered on the panel group's
 exact horizontal center.
 
@@ -21,8 +22,9 @@ import glob
 import math
 from pathlib import Path
 
-BLUES2 = ["#bfe6f3", "#9dd2eb", "#7fbde3", "#64a7dc", "#5390d0", "#4579c1",
-          "#3562b9", "#264ac1", "#2b3a9f", "#292c7c", "#231e5b", "#19123d"]
+# colors["australis"] reversed to light-first (the palette is stored dark-first).
+AUSTRALIS = ["#91EE9F", "#48DEB3", "#27C6C1", "#20ABC1", "#1A90BE", "#1374BA",
+             "#2E57AA", "#3A3B92", "#3D1E76", "#370453", "#27022E", "#130010"]
 
 W, H = 200, 210
 CX, CY, R = 100, 92, 84
@@ -34,7 +36,7 @@ INSET = 0.9
 LIGHT = (-0.42, 0.55, 0.72)
 _l = math.dist((0, 0, 0), LIGHT); LIGHT = tuple(c / _l for c in LIGHT)
 MINIDX, MAXIDX = 1, 9
-DYSON, SPHERE = "#3562b9", "#7fbde3"
+DYSON, SPHERE = "#1374BA", "#48DEB3"
 FONT = "'Graphik Light', 'Graphik-Light', 'Graphik', sans-serif"
 WORD, SPLIT, SIZE, BASELINE, WEIGHT = "dysonsphere", 5, 29, 200, 300  # split after "dyson"
 HERE = Path(__file__).parent
@@ -47,7 +49,7 @@ def normal(lat, lon):
 
 def shade(n):
     inten = max(0.0, sum(a * b for a, b in zip(n, LIGHT))) ** 0.85
-    return BLUES2[MINIDX + round((1 - inten) * (MAXIDX - MINIDX))]
+    return AUSTRALIS[MINIDX + round((1 - inten) * (MAXIDX - MINIDX))]
 
 
 quads = []
@@ -96,9 +98,10 @@ STAR = [
     f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 1.15:.1f}" fill="url(#corona)"/>',
     f'  <circle cx="{CENTER_X:.2f}" cy="{CENTER_Y:.2f}" r="{R * 0.72:.1f}" fill="url(#starcore)"/>',
 ]
-# Panel stroke: a thin mid-blue outline on every facet. Mid-range so it reads on both light and
-# dark (dual-mode, like the fills); it firms up the faceting without competing with the star glow.
-PSTROKE, PWIDTH = "#64a7dc", 0.5
+# Panel stroke: a thin mid-teal outline on every facet (an australis stop). Mid-range so it reads
+# on both light and dark (dual-mode, like the fills); it firms up the faceting without competing
+# with the star glow.
+PSTROKE, PWIDTH = "#1A90BE", 0.5
 POLYS = [f'  <polygon points="{" ".join(f"{x:.2f},{y:.2f}" for x, y in pts)}" fill="{f}" '
          f'stroke="{PSTROKE}" stroke-width="{PWIDTH}" stroke-linejoin="round"/>'
          for _, pts, f in panels]
