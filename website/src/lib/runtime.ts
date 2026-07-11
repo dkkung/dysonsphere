@@ -56,6 +56,8 @@ export function runtimeReady(): boolean {
 }
 let ready = false;
 
+import sitePalettes from '../generated/palettes.json';
+
 const PY_BOOTSTRAP = `
 import json
 import altair as alt
@@ -163,6 +165,23 @@ await micropip.install("dysonsphere", deps=False)
 `);
 
 		await pyodide.runPythonAsync(PY_BOOTSTRAP);
+		// Bridge the release gap: palettes the site knows but the installed PyPI release
+		// lacks are registered through dysonsphere's own custom-palette mechanism (a
+		// [palettes] table in dysonsphere.toml in the FS cwd), then loaded with a theme()
+		// call - so the Studio renders them exactly like built-ins until the release
+		// catches up, and the dropdown pruning keeps them.
+		const installed = new Set<string>(
+			JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.colors))')),
+		);
+		const missing = (sitePalettes as { name: string; colors: string[] }[]).filter((p) => !installed.has(p.name));
+		if (missing.length) {
+			const toml =
+				'[palettes]\n' +
+				missing.map((p) => `${p.name} = [${p.colors.map((c) => `"${c}"`).join(', ')}]`).join('\n') +
+				'\n';
+			pyodide.FS.writeFile('dysonsphere.toml', toml);
+			pyodide.runPython('import dysonsphere; dysonsphere.theme()');
+		}
 		const runChartPy = pyodide.globals.get('_run_chart');
 		const loadTablePy = pyodide.globals.get('_load_table');
 		const readExportPy = pyodide.globals.get('_read_export');
