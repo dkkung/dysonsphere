@@ -1,0 +1,111 @@
+---
+// Homepage-only typewriter for the hero title: a thin-bar caret types "dyson", pauses,
+// then types "sphere" inside a permanent contrasting chip (the wordmark colors). Pure
+// progressive enhancement - the static h1 text stays for no-JS/SEO and screen readers
+// read the plain word via aria-label; prefers-reduced-motion renders the final state
+// instantly. Scoped to the homepage by construction: only the landing page has a
+// Starlight hero, so `.hero h1` matches nothing anywhere else.
+---
+
+<script>
+	const START_DELAY_MS = 400;
+	const TYPE_MS = 90;
+	const WORD_PAUSE_MS = 350;
+
+	function run() {
+		const h1 = document.querySelector<HTMLElement>('.hero h1');
+		if (!h1 || h1.dataset.tw) return;
+		h1.dataset.tw = '1';
+		h1.setAttribute('aria-label', 'dysonsphere');
+		h1.textContent = '';
+		const wrap = document.createElement('span');
+		wrap.className = 'tw';
+		wrap.setAttribute('aria-hidden', 'true');
+		const dyson = document.createElement('span');
+		dyson.className = 'tw__dyson';
+		const sphere = document.createElement('span');
+		sphere.className = 'tw__sphere';
+		const caret = document.createElement('span');
+		caret.className = 'tw__caret';
+		wrap.append(dyson, sphere, caret);
+		h1.append(wrap);
+
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			dyson.textContent = 'dyson';
+			sphere.textContent = 'sphere';
+			caret.remove();
+			return;
+		}
+
+		// [target, char] steps; the [null] step is the between-words pause.
+		const steps: Array<[HTMLElement | null, string]> = [
+			...[...'dyson'].map((c): [HTMLElement, string] => [dyson, c]),
+			[null, ''],
+			...[...'sphere'].map((c): [HTMLElement, string] => [sphere, c]),
+		];
+		let i = 0;
+		const tick = () => {
+			const [el, ch] = steps[i++];
+			if (el) el.textContent += ch;
+			if (i < steps.length) {
+				setTimeout(tick, el ? TYPE_MS : WORD_PAUSE_MS);
+			} else {
+				caret.classList.add('tw__caret--done'); // two parting blinks, then fade out
+			}
+		};
+		setTimeout(tick, START_DELAY_MS);
+	}
+
+	run();
+	document.addEventListener('astro:page-load', run);
+</script>
+
+{/* is:global - the spans are injected at runtime, so Astro's scoping can't reach them. */}
+<style is:global>
+	.tw {
+		white-space: nowrap;
+	}
+	.tw__dyson {
+		color: #1d83ca;
+	}
+	/* The permanent contrast chip; hidden while empty so no bare pill shows pre-typing. */
+	.tw__sphere {
+		background: #4de0b4;
+		color: #101418;
+		border-radius: 0.12em;
+		padding: 0 0.09em;
+	}
+	.tw__sphere:empty {
+		display: none;
+	}
+	/* Thin-bar caret, blinking ahead of the text. */
+	.tw__caret {
+		display: inline-block;
+		width: 0.055em;
+		min-width: 1.5px;
+		height: 0.95em;
+		margin-left: 0.05em;
+		vertical-align: -0.08em;
+		background: currentColor;
+		animation: tw-blink 1s steps(1, end) infinite;
+	}
+	.tw__caret--done {
+		animation:
+			tw-blink 1s steps(1, end) 2,
+			tw-fade 0.4s ease 2s forwards;
+	}
+	@keyframes tw-blink {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0;
+		}
+	}
+	@keyframes tw-fade {
+		to {
+			opacity: 0;
+		}
+	}
+</style>
