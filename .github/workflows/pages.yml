@@ -1,11 +1,13 @@
 name: Deploy to GitHub Pages
 
 # Builds the Astro docs site (website/) and deploys it to the project Pages URL
-# (dkkung.github.io/dysonsphere). The generated chart specs / palette data under
-# website/public and website/src/generated are committed (regenerated locally via
-# website/scripts/gen_*.py when the library changes), so the build needs only Node.
-# site/base are passed here rather than baked into astro.config.mjs so local dev
-# and preview keep serving at "/".
+# (dkkung.github.io/dysonsphere). The site's generated inputs (API reference pages,
+# chart specs, palette/config data) are REGENERATED here from the checked-out library
+# before the Astro build, so the deployed docs can never drift from the code on main.
+# The committed copies under website/public and website/src remain for local dev
+# (`npm run dev` needs no Python) - regenerate them via website/scripts/gen_*.py when
+# working on the site. site/base are passed here rather than baked into
+# astro.config.mjs so local dev and preview keep serving at "/".
 
 on:
   push:
@@ -29,6 +31,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Regenerate site inputs from the library
+        # The same commands documented in website/CLAUDE.md; uv resolves the workspace
+        # (dysonsphere + dysonsphere-biology, needed by the volcano example) on demand.
+        run: |
+          uv run --no-project --with griffe python website/scripts/gen_api.py
+          uv run --with vega-datasets python website/scripts/gen_examples.py
+          uv run python website/scripts/gen_palettes.py
+          uv run python website/scripts/gen_config.py
 
       - uses: actions/setup-node@v4
         with:

@@ -58,8 +58,10 @@ dissolved 2026-07-06).
 - Regenerate the config-generator inputs (default TOML + theme-param cheat sheet):
   `uv run python website/scripts/gen_config.py`.
 - Generated files (`reference/*.md`, `charts/*.json`, `src/generated/*.json`,
-  `src/generated/default_config.toml`) are committed
-  for now; CI regeneration is a deploy TODO.
+  `src/generated/default_config.toml`) are committed for LOCAL DEV (`npm run dev` needs no
+  Python), but the deploy does not trust them: `pages.yml` reruns all four generators against
+  the checked-out library before the Astro build (since 2026-07-11), so the LIVE site can't
+  drift from main. Still regenerate + commit when working on the site locally.
 
 ## Conventions and gotchas
 
@@ -265,12 +267,14 @@ gains "Import an export" (ds.load rebuild + ds.read metadata panel) and the Pyod
 the deps=False gotcha above). All verified headless (incl. a full Pyodide boot + JSON/PNG import
 round-trip) plus the deploy-equivalent base-path grep.
 
-Deploy wiring: pages.yml builds Node-only (generated artifacts committed) and deploys
-`website/dist` to Pages when `website` merges to main. Studio installs dysonsphere from PyPI at
-runtime - after any library release with API changes, regenerate examples/specs.
+Deploy wiring (since 2026-07-11): pages.yml regenerates ALL site inputs from the checked-out
+library (uv + the four gen_*.py scripts) before the Astro build, then deploys `website/dist` to
+Pages on every push to main - the live site cannot drift from the code. Committed artifacts
+remain for local dev only. Studio still installs dysonsphere from PyPI at runtime, so LIVE
+studio execution of new APIs waits on a release even though the docs/specs are already current.
 
-TODO: molecular-biology gallery (synthetic gene-expression / dose-response / qPCR datasets); CI
-runs of the three generators; publish `dysonsphere-biology` to PyPI so LIVE studio execution of
+TODO: molecular-biology gallery (synthetic gene-expression / dose-response / qPCR datasets);
+publish `dysonsphere-biology` to PyPI so LIVE studio execution of
 `ds.biology.*` works (its committed specs already render). The `guides/saving.mdx` metadata JSON
 is a real capture, accurate for v3.5.0 (adds `provenance.chart`; snippet saves
 `strip + mpg_comparisons`).
