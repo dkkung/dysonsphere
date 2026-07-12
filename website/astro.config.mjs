@@ -32,6 +32,30 @@ function remarkBaseLinks() {
 	};
 }
 
+// geist-australis code themes: a grayscale scaffold with australis-palette accents on the
+// meaningful tokens (keywords / strings / function calls), so code cells quietly wear the
+// brand palette. Backgrounds are overridden by --ds-code-bg (theme.css) - only tokens matter.
+const geistAustralis = (name, type, c) => ({
+	name,
+	type,
+	colors: { 'editor.background': c.bg, 'editor.foreground': c.fg },
+	settings: [
+		{ scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: c.cmt, fontStyle: 'italic' } },
+		{ scope: ['keyword', 'storage', 'storage.type', 'keyword.control'], settings: { foreground: c.kw, fontStyle: 'bold' } },
+		{ scope: ['string', 'string.quoted', 'punctuation.definition.string'], settings: { foreground: c.str } },
+		{ scope: ['constant.numeric', 'constant.language'], settings: { foreground: c.num } },
+		{ scope: ['entity.name.function', 'support.function', 'meta.function-call'], settings: { foreground: c.fn } },
+		{ scope: ['keyword.operator'], settings: { foreground: c.op } },
+	],
+});
+// stops sampled from the australis ramp: darker stops read on the light ground, lighter on dark.
+const geistAustralisLight = geistAustralis('geist-australis-light', 'light', {
+	bg: '#ffffff', fg: '#171717', cmt: '#a3a3a3', kw: '#43044D', str: '#1D83CA', num: '#4D338C', fn: '#3A68BB', op: '#737373',
+});
+const geistAustralisDark = geistAustralis('geist-australis-dark', 'dark', {
+	bg: '#1a1a1b', fg: '#ededed', cmt: '#6e6e6e', kw: '#4DE0B4', str: '#1D9CCB', num: '#3A68BB', fn: '#23B5C9', op: '#8f8f8f',
+});
+
 // https://astro.build/config
 export default defineConfig({
 	site,
@@ -54,11 +78,10 @@ export default defineConfig({
 				'./src/styles/theme.css',
 			],
 			expressiveCode: {
-				// GitHub themes match the playground's CodeMirror editor; neutral frames. The
-				// ground comes from --ds-code-bg (theme.css) so code cells share one surface
-				// with the CodeMirror editors - dark uses the skin's neutral raised tone, not
-				// GitHub-dark's blue-tinted #0d1117.
-				themes: ['github-dark', 'github-light'],
+				// geist-australis (custom, defined above): grayscale scaffold + australis accents.
+				// The ground comes from --ds-code-bg (theme.css) so code cells share one surface
+				// with the CodeMirror editors; the theme only supplies token colors.
+				themes: [geistAustralisDark, geistAustralisLight],
 				styleOverrides: {
 					borderRadius: '0.65rem',
 					borderColor: 'var(--sl-color-hairline)',

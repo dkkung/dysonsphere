@@ -10,10 +10,12 @@ entirely with the library - the data is synthetic, chosen to show what dysonsphe
 figure, press **`</> code`** to read the exact code that made it, or **Open in studio** to run and
 edit it live.
 
+{/* LinkCard does NOT base-prefix its href (unlike Starlight's own chrome + the remarkBaseLinks
+    markdown plugin), so a bare /gallery/... 404s on the project-pages deploy - prefix with BASE_URL. */}
 <CardGrid>
-	<LinkCard title="Fields & imaging" href="/gallery/imaging/" description="Microscopy, cosmology, wave physics, and materials - continuous scalar fields." />
-	<LinkCard title="Structure & chemistry" href="/gallery/chemistry/" description="Orbitals, diffraction, protein dihedrals, spectra, and reaction energetics." />
-	<LinkCard title="Signals & dynamics" href="/gallery/signals/" description="Spectrograms, phase portraits, and chaotic maps." />
-	<LinkCard title="Data science" href="/gallery/data-science/" description="Embeddings, decision surfaces, confusion matrices, and rotation fields." />
-	<LinkCard title="Distributions & statistics" href="/gallery/distributions/" description="Rainclouds, ridgelines, and genome-wide association plots." />
+	<LinkCard title="Fields & imaging" href={`${import.meta.env.BASE_URL}gallery/imaging/`} description="Microscopy, cosmology, wave physics, and materials - continuous scalar fields." />
+	<LinkCard title="Structure & chemistry" href={`${import.meta.env.BASE_URL}gallery/chemistry/`} description="Orbitals, diffraction, protein dihedrals, spectra, and reaction energetics." />
+	<LinkCard title="Signals & dynamics" href={`${import.meta.env.BASE_URL}gallery/signals/`} description="Spectrograms, phase portraits, and chaotic maps." />
+	<LinkCard title="Data science" href={`${import.meta.env.BASE_URL}gallery/data-science/`} description="Embeddings, decision surfaces, confusion matrices, and rotation fields." />
+	<LinkCard title="Distributions & statistics" href={`${import.meta.env.BASE_URL}gallery/distributions/`} description="Rainclouds, ridgelines, and genome-wide association plots." />
 </CardGrid>
