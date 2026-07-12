@@ -3,57 +3,17 @@ title: Gallery
 description: A tour of dysonsphere across the sciences - live, interactive, and beautiful by default.
 ---
 
-import Example from '../../components/Example.astro';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-Every figure below is **live and interactive** and built entirely with dysonsphere - the data is
-synthetic, chosen to show the library across scientific domains. Hover for tooltips; use the
-actions menu (top-right of a chart) to export SVG, PNG, or Vega-Lite JSON. Press **`</> code`** on
-any figure to read the exact code that made it, or **Open in studio** to run and edit it live.
+A tour of dysonsphere across the sciences. Every figure is **live and interactive** and built
+entirely with the library - the data is synthetic, chosen to show what dysonsphere can do. On any
+figure, press **`</> code`** to read the exact code that made it, or **Open in studio** to run and
+edit it live.
 
-## Fields & imaging
-
-<Example name="microscopy" codeToggle caption="Fluorescence microscopy - a traced cytoskeletal filament network on the default <code>australis</code> continuous scale." alt="Filament-network fluorescence microscopy image" />
-
-<Example name="cosmic_web" codeToggle caption="Large-scale structure - the cosmic web's filaments, voids, and cluster nodes in <code>borealis</code>." alt="Cosmic web density field" />
-
-<Example name="interference" codeToggle caption="Two-source wave interference - the coherent fringe field, <code>australis</code>." alt="Two-source interference fringe pattern" />
-
-<Example name="grain_map" codeToggle caption="Materials - a polycrystalline grain map (Voronoi domains) colored by crystal orientation." alt="Polycrystalline grain orientation map" />
-
-## Structure & chemistry
-
-<Example name="orbital" codeToggle caption="A signed 3d atomic orbital cross-section - four alternating-sign lobes on the <code>pinksblues</code> diverging scale." alt="Atomic orbital wavefunction cross-section" />
-
-<Example name="diffraction" codeToggle caption="Electron diffraction - a hexagonal reciprocal lattice of Bragg spots in monochrome <code>eclipse</code>." alt="Electron diffraction pattern" />
-
-<Example name="ramachandran" codeToggle caption="Structural biology - a Ramachandran plot: backbone φ/ψ dihedral density with α-helix and β-sheet basins." alt="Ramachandran dihedral density plot" />
-
-<Example name="mass_spectrum" codeToggle caption="A mass spectrum with an isotope envelope - fragment peaks labeled with <code>add_text</code>." alt="Mass spectrum stick plot with labeled peaks" />
-
-<Example name="reaction_energy" codeToggle caption="A reaction free-energy profile - transition states and the intermediate annotated with <code>add_text</code>." alt="Reaction free-energy profile" />
-
-## Signals & dynamics
-
-<Example name="spectrogram" codeToggle caption="A chirp spectrogram - time-frequency power of a frequency sweep with harmonics, <code>brass</code>." alt="Spectrogram of a frequency-swept chirp" />
-
-<Example name="phase_portrait" codeToggle caption="A Van der Pol phase portrait - trajectories onto the limit cycle, drawn with <code>mark_trail</code> (width = speed)." alt="Van der Pol oscillator phase portrait" />
-
-<Example name="attractor" codeToggle caption="A Clifford strange attractor - the chaotic map's point cloud, colored by local speed." alt="Clifford strange attractor point cloud" />
-
-## Data science
-
-<Example name="umap" codeToggle caption="A single-cell UMAP embedding - clusters in the categorical palette, each labeled at its centroid with <code>add_labels</code>." alt="Single-cell UMAP cluster embedding" />
-
-<Example name="decision_surface" codeToggle caption="A classifier's decision surface - a kernel probability field behind the two-moons data." alt="Classifier decision boundary over two-moons data" />
-
-<Example name="confusion_matrix" codeToggle caption="A confusion matrix - cell counts placed on the band scale with <code>add_text</code>." alt="Confusion matrix heatmap with counts" />
-
-<Example name="spiral_galaxy" codeToggle caption="Astronomy - a spiral galaxy's stars colored by line-of-sight velocity (the rotation field), <code>redsblues</code> diverging." alt="Spiral galaxy rotation velocity field" />
-
-## Distributions & statistics
-
-<Example name="raincloud" codeToggle caption="A raincloud - <code>mark_violin</code> (KDE + boxplot) over <code>mark_strip</code>'s raw points, across three conditions." alt="Raincloud plot of three conditions" />
-
-<Example name="ridgeline" codeToggle caption="A ridgeline plot - stacked kernel densities across the year, in the categorical palette." alt="Ridgeline plot of monthly distributions" />
-
-<Example name="manhattan" codeToggle caption="A GWAS Manhattan plot - alternating chromosome colors, a genome-wide significance <code>add_rule</code>, and top hits labeled by <code>add_labels</code>." alt="GWAS Manhattan plot with labeled hits" />
+<CardGrid>
+	<LinkCard title="Fields & imaging" href="/gallery/imaging/" description="Microscopy, cosmology, wave physics, and materials - continuous scalar fields." />
+	<LinkCard title="Structure & chemistry" href="/gallery/chemistry/" description="Orbitals, diffraction, protein dihedrals, spectra, and reaction energetics." />
+	<LinkCard title="Signals & dynamics" href="/gallery/signals/" description="Spectrograms, phase portraits, and chaotic maps." />
+	<LinkCard title="Data science" href="/gallery/data-science/" description="Embeddings, decision surfaces, confusion matrices, and rotation fields." />
+	<LinkCard title="Distributions & statistics" href="/gallery/distributions/" description="Rainclouds, ridgelines, and genome-wide association plots." />
+</CardGrid>

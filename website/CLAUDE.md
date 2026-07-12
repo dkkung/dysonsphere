@@ -9,7 +9,8 @@ dissolved 2026-07-06).
 - `src/content/docs/` - pages: `index.mdx` (home; uses the DEFAULT docs template, not `splash`, so
   the sidebar shows on the landing page too), `guides/*` (getting-started, theming, **configuration**
   [the dysonsphere.toml reference], palettes, marks, annotations, statistics, nonlinear, saving),
-  `extensions/*` (index/overview, biology, authoring), `gallery.mdx`, `palettes.mdx` (the
+  `extensions/*` (index/overview, biology, authoring), `gallery.mdx` + `gallery/*` (per-domain
+  showpiece pages), `palettes.mdx` (the
   palette browser + live preview, under Interactive), `config-generator.mdx` (the
   dysonsphere.toml generator, under Interactive), `studio.mdx` (Chart Studio),
   `playground.mdx` (a thin **redirect stub** to `/studio/`, kept for old `#code=` deep links),
@@ -78,8 +79,10 @@ dissolved 2026-07-06).
   **`codeToggle`** (the gallery) renders a clean figure with a small `</> code` button that swaps
   the verbatim source INTO the chart's footprint (code hidden by default, chart/code panes toggled
   via `hidden`); still carries the Open-in-studio link. Use `codeToggle` for showpieces.
-- **The gallery (`gallery.mdx`) is all-synthetic showpieces** (2026-07-11 rebuild): ~19 examples
-  generating their own data (numpy/scipy/polars - all in the Pyodide runtime, so Open-in-studio
+- **The gallery is all-synthetic showpieces** (2026-07-11 rebuild), SPLIT one domain per page
+  under `content/docs/gallery/` (imaging/chemistry/signals/data-science/distributions), with
+  `gallery.mdx` an overview of LinkCards and a NESTED sidebar group (astro.config.mjs) - a single
+  page of all ~19 live vega-embed charts was slow, so ~4/page. ~19 examples generating their own data (numpy/scipy/polars - all in the Pyodide runtime, so Open-in-studio
   works), spanning scientific domains, each `codeToggle`. **Dense heatmaps:** encode `x`/`x2` +
   `y`/`y2` CELL EDGES (not a single binned `x`) with the far edge overhanging the next by ~30% of
   a cell (`+ step * 0.3`) - the overlap hides the sub-pixel rasterization seams (the transparent

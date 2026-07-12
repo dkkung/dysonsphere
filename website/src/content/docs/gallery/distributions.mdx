@@ -1,0 +1,15 @@
+---
+title: Distributions & statistics
+description: Rainclouds, ridgelines, and genome-wide association plots.
+---
+
+import Example from '../../../components/Example.astro';
+
+Distributions and statistical annotations. Press **`</> code`** on any figure to read the code that
+made it, or **Open in studio** to run and edit it live.
+
+<Example name="raincloud" codeToggle caption="A raincloud - <code>mark_violin</code> (KDE + boxplot) over jittered raw points, across three conditions." alt="Raincloud plot of three conditions" />
+
+<Example name="ridgeline" codeToggle caption="A ridgeline plot - stacked kernel densities across the year, in the categorical palette." alt="Ridgeline plot of monthly distributions" />
+
+<Example name="manhattan" codeToggle caption="A GWAS Manhattan plot - alternating chromosome colors, a genome-wide significance <code>add_rule</code>, and top hits labeled by <code>add_labels</code>." alt="GWAS Manhattan plot with labeled hits" />

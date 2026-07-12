@@ -91,7 +91,19 @@ export default defineConfig({
 				{
 					label: 'Interactive',
 					items: [
-						{ label: 'Gallery', slug: 'gallery' },
+						{
+							// Gallery split per domain so each page loads only ~4 live charts (one page
+							// of all ~19 was slow); the overview links the sections.
+							label: 'Gallery',
+							items: [
+								{ label: 'Overview', slug: 'gallery' },
+								{ label: 'Fields & imaging', slug: 'gallery/imaging' },
+								{ label: 'Structure & chemistry', slug: 'gallery/chemistry' },
+								{ label: 'Signals & dynamics', slug: 'gallery/signals' },
+								{ label: 'Data science', slug: 'gallery/data-science' },
+								{ label: 'Distributions & statistics', slug: 'gallery/distributions' },
+							],
+						},
 						{ label: 'Palette browser', slug: 'palettes' },
 						{ label: 'Config generator', slug: 'config-generator' },
 						{ label: 'Chart Studio', slug: 'studio' },
