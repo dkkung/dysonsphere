@@ -20,10 +20,13 @@ interface Tokens {
 function build(dark: boolean, c: Tokens): Extension {
 	const view = EditorView.theme(
 		{
-			'&': { color: c.fg, backgroundColor: 'var(--ds-code-bg)' },
+			// Transparent so the editor blends with its panel/page instead of being its own raised
+			// box (github's dark theme painted an off-black #0d1117 here); the container supplies any
+			// surface. Syntax colours are tuned to read on both the light and dark page grounds.
+			'&': { color: c.fg, backgroundColor: 'transparent' },
 			'.cm-content': { caretColor: c.fg },
 			'.cm-cursor, .cm-dropCursor': { borderLeftColor: c.fg },
-			'.cm-gutters': { backgroundColor: 'var(--ds-code-bg)', color: c.op, border: 'none' },
+			'.cm-gutters': { backgroundColor: 'transparent', color: c.op, border: 'none' },
 			'.cm-activeLine': { backgroundColor: dark ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.035)' },
 			'.cm-activeLineGutter': { backgroundColor: 'transparent', color: c.fg },
 			'.cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection': {
