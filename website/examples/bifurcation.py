@@ -26,8 +26,8 @@ chart = (
     alt.Chart(df)
     .mark_circle(size=0.6, opacity=0.5)
     .encode(
-        x=alt.X("r:Q", title="growth rate  r", scale=alt.Scale(domain=[2.8, 4.0], nice=False)),
-        y=alt.Y("x:Q", title="population  x", scale=alt.Scale(domain=[0, 1], nice=False)),
+        x=alt.X("r:Q", title="Growth rate  r", scale=alt.Scale(domain=[2.8, 4.0], nice=False)),
+        y=alt.Y("x:Q", title="Population  x", scale=alt.Scale(domain=[0, 1], nice=False)),
         color=alt.Color("x:Q", legend=None),
     )
 )

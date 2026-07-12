@@ -7,7 +7,7 @@ import polars as pl
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=160, chartHeight=160, divergingPalette="pinksblues")
+ds.theme(chartWidth=160, chartHeight=160, divergingPalette="pinksblues", closed=True, viewPadding=False)
 
 N = 95
 L = 9.0

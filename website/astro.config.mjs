@@ -134,6 +134,7 @@ export default defineConfig({
 								{ label: 'Structure & chemistry', slug: 'gallery/chemistry' },
 								{ label: 'Signals & dynamics', slug: 'gallery/signals' },
 								{ label: 'Data science', slug: 'gallery/data-science' },
+								{ label: 'Molecular biology', slug: 'gallery/biology' },
 								{ label: 'Distributions & statistics', slug: 'gallery/distributions' },
 							],
 						},

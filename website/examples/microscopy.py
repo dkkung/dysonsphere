@@ -70,6 +70,6 @@ chart = (
         x2="x1",
         y=alt.Y("y0:Q", title="y (µm)", scale=alt.Scale(domain=[0, FOV], nice=False)),
         y2="y1",
-        color=alt.Color("intensity:Q", title="intensity (a.u.)"),
+        color=alt.Color("intensity:Q", title="Intensity (a.u.)"),
     )
 )

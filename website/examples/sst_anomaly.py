@@ -39,9 +39,9 @@ chart = (
     alt.Chart(df)
     .mark_rect(stroke=None, clip=True)
     .encode(
-        x=alt.X("lon:Q", title="longitude (°E)", scale=alt.Scale(domain=[0, LONW], nice=False)),
+        x=alt.X("lon:Q", title="Longitude (°E)", scale=alt.Scale(domain=[0, LONW], nice=False)),
         x2="lon2",
-        y=alt.Y("lat:Q", title="latitude (°N)", scale=alt.Scale(domain=[0, LATW], nice=False)),
+        y=alt.Y("lat:Q", title="Latitude (°N)", scale=alt.Scale(domain=[0, LATW], nice=False)),
         y2="lat2",
         # reversed redsblues so warm anomalies read red, cool read blue
         color=alt.Color("anom:Q", title="ΔT (°C)", scale=alt.Scale(range=colors["redsblues"][::-1], domain=[-4, 4])),

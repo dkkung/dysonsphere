@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=180, chartHeight=150)
+ds.theme(chartWidth=180, chartHeight=150, closed=True, viewPadding=False)
 
 Tt, Pt = 216.6, 5.18  # triple point (K, bar)
 Tc, Pc = 304.1, 73.8  # critical point
@@ -26,9 +26,9 @@ rows += [{"T": float(t), "P": float(np.exp(as_ - bs / t)), "boundary": "sublimat
 rows += [{"T": Tt + (p - Pt) * 0.006, "P": float(p), "boundary": "fusion"} for p in Pfus]
 bounds = pl.DataFrame(rows)
 lines = alt.Chart(bounds).mark_line().encode(
-    x=alt.X("T:Q", title="temperature (K)", scale=alt.Scale(domain=[185, 320], nice=False)),
+    x=alt.X("T:Q", title="Temperature (K)", scale=alt.Scale(domain=[185, 320], nice=False)),
     y=alt.Y(
-        "P:Q", title="pressure (bar)", scale=alt.Scale(type="log", domain=[1, 300], nice=False),
+        "P:Q", title="Pressure (bar)", scale=alt.Scale(type="log", domain=[1, 300], nice=False),
         axis=alt.Axis(values=[1, 10, 100]),  # decades only; add_log_ticks() fills the half-size minors
     ),
     detail="boundary:N",
@@ -40,11 +40,11 @@ pts = alt.Chart(pl.DataFrame({"T": [Tt, Tc], "P": [Pt, Pc]})).mark_point(
 visual = (
     lines
     + pts
-    + ds.add_text("solid", x=200.0, y=40.0)
-    + ds.add_text("liquid", x=268.0, y=120.0)
-    + ds.add_text("gas", x=250.0, y=2.0)
-    + ds.add_text("supercritical", x=312.0, y=140.0, align="right")
-    + ds.add_text("triple", x=Tt, y=Pt, offsetX=-4, align="right")
-    + ds.add_text("critical", x=Tc, y=Pc, offsetX=6, align="left")
+    + ds.add_text("Solid", x=200.0, y=40.0)
+    + ds.add_text("Liquid", x=248.0, y=120.0)
+    + ds.add_text("Gas", x=250.0, y=2.0)
+    + ds.add_text("Supercritical", x=312.0, y=140.0, align="right")
+    + ds.add_text("Triple", x=Tt, y=Pt, offsetX=-4, align="right")
+    + ds.add_text("Critical", x=Tc, y=34.0, offsetX=4, align="right")
 )
 chart = ds.add_log_ticks(visual, bounds, axis="y", field="P")

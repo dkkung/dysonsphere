@@ -1,4 +1,4 @@
-"""Spectrogram of a frequency-swept chirp with harmonics - time-frequency power, brass."""
+"""Spectrogram of a frequency-swept chirp with harmonics - time-frequency power, australis."""
 
 import altair as alt
 import numpy as np
@@ -7,7 +7,7 @@ import polars as pl
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=180, chartHeight=130, heatmapPalette="brass")
+ds.theme(chartWidth=180, chartHeight=130, heatmapPalette="australis", closed=True, viewPadding=False)
 
 rng = np.random.default_rng(3)
 fs = 2000
@@ -54,9 +54,9 @@ chart = (
     alt.Chart(df)
     .mark_rect(stroke=None, clip=True)
     .encode(
-        x=alt.X("t0:Q", title="time (s)", scale=alt.Scale(domain=[float(centers[0] - dt / 2), float(centers[-1] + dt / 2)], nice=False)),
+        x=alt.X("t0:Q", title="Time (s)", scale=alt.Scale(domain=[float(centers[0] - dt / 2), float(centers[-1] + dt / 2)], nice=False)),
         x2="t1",
-        y=alt.Y("f0:Q", title="frequency (Hz)", scale=alt.Scale(domain=[0, float(fr[-1])], nice=False)),
+        y=alt.Y("f0:Q", title="Frequency (Hz)", scale=alt.Scale(domain=[0, float(fr[-1])], nice=False)),
         y2="f1",
         color=alt.Color("power:Q", title="dB"),
     )

@@ -39,7 +39,7 @@ points = (
     alt.Chart(df)
     .mark_circle(size=7, opacity=0.85)
     .encode(
-        x=alt.X("pos:Q", title="chromosome", axis=alt.Axis(labels=False, ticks=False)),
+        x=alt.X("pos:Q", title="Chromosome", axis=alt.Axis(labels=False, ticks=False)),
         y=alt.Y("logp:Q", title="−log₁₀ p", scale=alt.Scale(domain=[0, 13])),
         color=alt.Color("parity:N", scale=alt.Scale(range=["#3A68BB", "#28CDC5"]), legend=None),
     )
@@ -50,7 +50,7 @@ sig = ds.add_rule(7.3, label="P = 5×10⁻⁸", strokeDash=True, labelAlign="rig
 hits_df = pl.DataFrame(hit_rows)
 gene_labels = ds.add_labels(
     hits_df, "pos", "logp", "gene",
-    xDomain=[0, offset], yDomain=[0, 13], fontSize=6, fontStyle="italic",  # gene names in italic
+    xDomain=[0, offset], yDomain=[0, 13], fontStyle="italic",  # gene names in italic
     fill=True,  # a background chip keeps each label legible over the point cloud
 )
 
