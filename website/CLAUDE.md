@@ -74,6 +74,23 @@ dissolved 2026-07-06).
   snippet. **xOffset gotcha:** for beeswarm/jitter, encode `alt.XOffset("beeswarm_x:Q")` WITHOUT
   `scale=None` - the default (band) scale centers the swarm on its tick; `scale=None` shifts it
   left (was the visible x-axis misalignment on the site).
+- **`Example.astro` modes.** Default shows code block + chart. `chartOnly` hides the code.
+  **`codeToggle`** (the gallery) renders a clean figure with a small `</> code` button that swaps
+  the verbatim source INTO the chart's footprint (code hidden by default, chart/code panes toggled
+  via `hidden`); still carries the Open-in-studio link. Use `codeToggle` for showpieces.
+- **The gallery (`gallery.mdx`) is all-synthetic showpieces** (2026-07-11 rebuild): ~19 examples
+  generating their own data (numpy/scipy/polars - all in the Pyodide runtime, so Open-in-studio
+  works), spanning scientific domains, each `codeToggle`. **Dense heatmaps:** encode `x`/`x2` +
+  `y`/`y2` CELL EDGES (not a single binned `x`) with the far edge overhanging the next by ~30% of
+  a cell (`+ step * 0.3`) - the overlap hides the sub-pixel rasterization seams (the transparent
+  page showing through cell gaps) that are invisible in the raw render but appear at the site's
+  chart zoom. Also `mark_rect(stroke=None, clip=True)` and `alt.data_transformers.enable("default",
+  max_rows=None)` (the grids exceed Altair's 5000-row cap). Keep grids ~90-110/side: specs inline
+  the data, so resolution drives spec size (the whole gallery adds ~15 MB of committed JSON; CI
+  regenerates on deploy, so these are the local-dev copies). **Layering two composite marks**
+  (e.g. raincloud = `mark_violin` + points) double-draws the x-axis because `mark_violin` resolves
+  x independently - overlay the raw points as a plain `mark_circle` with `axis=None` instead of a
+  second `mark_strip`, so only the violin draws the axis.
 - **The volcano example** (`examples/volcano.py`) calls `ds.biology.volcano`, which needs the
   `dysonsphere-biology` workspace member installed (it is, in the uv venv) - `gen_examples.py`
   builds its spec fine. Its committed spec renders in the gallery/biology page like any other; only
