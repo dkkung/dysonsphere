@@ -8,7 +8,7 @@ import dysonsphere as ds
 
 from dysonsphere.palettes import colors
 
-ds.theme(chartWidth=150, chartHeight=150)
+ds.theme(chartWidth=150, chartHeight=150, xDomain=False, yDomain=False, axisOffset=0, viewPadding=0)
 
 rng = np.random.default_rng(8)
 feats = ["Age", "BMI", "SBP", "Glucose", "HbA1c", "LDL", "HDL"]
@@ -23,7 +23,7 @@ df = pl.DataFrame(
     [{"a": feats[i], "b": feats[j], "r": round(float(C[i, j]), 2)} for i in range(p) for j in range(p)]
 )
 enc = dict(
-    x=alt.X("a:N", title=None, sort=feats, axis=alt.Axis(labelAngle=-45)),
+    x=alt.X("a:N", title=None, sort=feats, axis=alt.Axis(labelAngle=-45, labelAlign="right")),
     y=alt.Y("b:N", title=None, sort=feats),
 )
 rect = alt.Chart(df).mark_rect().encode(

@@ -69,10 +69,11 @@ gene_labels = ds.add_labels(
     fill=True,  # a background chip keeps each label legible over the point cloud
 )
 
-# chromosome numbers under the axis (mark_text so all 22 always render; see the axis note above)
+# chromosome numbers under the axis (mark_text so all 22 always render; see the axis note above),
+# vertical + right-aligned so the crowded small chromosomes (17-22) stay legible
 chrom_nums = (
     alt.Chart(chrom_df)
-    .mark_text(baseline="top", dy=4, fontSize=6)
+    .mark_text(angle=270, align="right", baseline="middle", dy=4, fontSize=6)
     .encode(x=alt.X("pos:Q", axis=None), y=alt.value(115), text="chrom:N")
 )
 

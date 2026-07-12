@@ -21,11 +21,11 @@ base = alt.Chart(df).mark_line().encode(
     # decade-only values, Vega draws its own full-size ticks at 2-9 and they double up)
     x=alt.X(
         "f:Q", title="Frequency (Hz)", scale=alt.Scale(type="log", domain=[1, 2000], nice=False),
-        axis=alt.Axis(values=[1, 10, 100, 1000]),
+        axis=alt.Axis(values=[1, 10, 100, 1000], labelExpr=ds.log_label_expr(notation="power")),
     ),
     y=alt.Y(
         "psd:Q", title="Power (a.u.)", scale=alt.Scale(type="log", nice=False),
-        axis=alt.Axis(values=[1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]),
+        axis=alt.Axis(values=[1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1], labelExpr=ds.log_label_expr(notation="power")),
     ),
 )
 
