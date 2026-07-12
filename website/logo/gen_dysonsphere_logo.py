@@ -10,9 +10,13 @@ Default (mono identity - the black/white brand scheme):
                                                         (font-independent; renders anywhere)
   - dysonsphere_logo_horizontal_with_text.svg         : mark LEFT, wordmark RIGHT, vertically centred
                                                         (a hero/lockup title), as live <text>
-  - dysonsphere_logo_horizontal_with_text_outlined.svg: the same horizontal lockup, glyphs -> <path>
-                                                        (font-independent; the README/OG-image asset)
-Heritage (australis) set: the same six files with a `dysonsphere_australis_` prefix.
+  - dysonsphere_logo_horizontal_with_text_outlined.svg: the same horizontal lockup, plain two-tone
+                                                        wordmark, glyphs -> <path> (font-independent;
+                                                        for known-light contexts / professional use)
+  - dysonsphere_logo_horizontal_with_text_chips.svg   : the horizontal lockup with brand CHIPS behind
+                                                        the words - reads on any page colour (light OR
+                                                        dark); the README / social-preview asset
+Heritage (australis) set: the same seven files with a `dysonsphere_australis_` prefix.
 
 The mark is a sphere of flat panels shaded by one lighting model; each scheme maps the light
 intensity onto its own ramp. Mono: warm paper on the lit side falling into deep ink shadow
@@ -321,6 +325,55 @@ def horizontal_outlined_text(scheme: dict) -> str:
     return doc(scheme, parts, viewbox)
 
 
+def horizontal_chipped_text(scheme: dict) -> str:
+    """The horizontal lockup with the brand CHIPS behind the two words (the two-tone plain wordmark
+    reversed to chip-on-text): a warm chip + ink text for ``dyson``, an ink chip + paper text for
+    ``sphere``. The chips give each word its own background, so the lockup reads on ANY page colour
+    (light OR GitHub-dark) - this is the README / social-preview asset, where the plain wordmark's
+    near-black ``dyson`` would vanish on a dark theme. Outlined (font-independent), like the chipped
+    portrait lockup. Falls back to the plain outlined lockup for a scheme with no chips (australis).
+    """
+    if not scheme["chips"]:
+        return horizontal_outlined_text(scheme)
+    from fontTools.pens.svgPathPen import SVGPathPen
+
+    scale, x0, baseline, pens, bounds, glyphs, gs, viewbox = _horizontal_layout(_graphik_font())
+    pad = 0.09 * H_SIZE  # chip padding, matching the portrait chips (0.09em)
+    rx = 0.12 * H_SIZE
+    y_lo = min(b[1] for b in bounds if b)
+    y_hi = max(b[3] for b in bounds if b)
+    top = baseline - y_hi * scale - pad
+    height = (y_hi - y_lo) * scale + 2 * pad
+    # per-word ink extents; the chips abut at the words' ADVANCE split (the 's' pen origin), each
+    # outer edge padded - the same construction as the portrait chips
+    word_ink = []
+    for lo_i, hi_i in ((0, SPLIT), (SPLIT, len(WORD))):
+        wb = [(pu + b[0], pu + b[2]) for pu, b in list(zip(pens, bounds))[lo_i:hi_i] if b]
+        word_ink.append((min(w[0] for w in wb) * scale + x0, max(w[1] for w in wb) * scale + x0))
+    mid = pens[SPLIT] * scale + x0
+    edges = ((word_ink[0][0] - pad, mid), (mid, word_ink[1][1] + pad))
+    parts = [
+        f'  <rect x="{x_lo:.2f}" y="{top:.2f}" width="{x_hi - x_lo:.2f}" '
+        f'height="{height:.2f}" rx="{rx:.2f}" fill="{bg}"/>'
+        for (x_lo, x_hi), (bg, _t) in zip(edges, scheme["chips"])
+    ]
+    for idx, (g, pu, b) in enumerate(zip(glyphs, pens, bounds)):
+        if not b:
+            continue
+        fill = scheme["chips"][0][1] if idx < SPLIT else scheme["chips"][1][1]
+        pen = SVGPathPen(gs)
+        gs[g].draw(pen)
+        parts.append(
+            f'  <path transform="translate({x0 + pu * scale:.3f} {baseline:.3f}) '
+            f'scale({scale:.6f} {-scale:.6f})" fill="{fill}" d="{pen.getCommands()}"/>'
+        )
+    # widen the viewBox right so the padded 'sphere' chip is not clipped (it overhangs the plain
+    # text_right the base viewBox stopped at)
+    vx, vy, vw, vh = (float(t) for t in viewbox.split())
+    vw = max(vw, (edges[1][1] + H_VPAD) - vx)
+    return doc(scheme, parts, f"{vx:.2f} {vy:.2f} {vw:.2f} {vh:.2f}")
+
+
 for suffix, scheme in SCHEMES.items():
     prefix = f"dysonsphere{suffix}"
     (HERE / f"{prefix}_logo.svg").write_text(doc(scheme, [], mark_viewbox()))
@@ -331,6 +384,7 @@ for suffix, scheme in SCHEMES.items():
         (HERE / f"{prefix}_logo_portrait_with_text_outlined.svg").write_text(doc(scheme, outlined_text(scheme)))
         (HERE / f"{prefix}_logo_horizontal_with_text.svg").write_text(horizontal_live_text(scheme))
         (HERE / f"{prefix}_logo_horizontal_with_text_outlined.svg").write_text(horizontal_outlined_text(scheme))
-        print(f"wrote {prefix}_logo_portrait_with_text_outlined.svg + _horizontal_with_text{{,_outlined}}.svg")
+        (HERE / f"{prefix}_logo_horizontal_with_text_chips.svg").write_text(horizontal_chipped_text(scheme))
+        print(f"wrote {prefix}_logo_portrait_with_text_outlined.svg + _horizontal_with_text{{,_outlined,_chips}}.svg")
     except Exception as e:  # noqa: BLE001
         print(f"skipped outlined/horizontal variants: {e}  (needs `--with fonttools` and Graphik installed)")
