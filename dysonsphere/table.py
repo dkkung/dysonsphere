@@ -145,8 +145,11 @@ def mark_table(
     striping: bool = True,
     nStripes: int = 2,
     cellColor: dict[str, str] | None = None,
+    textColor: "str | dict[str, str] | None" = None,
     fontSize: float | None = None,
     headerFontStyle: str = "bold",
+    headerColor: str | None = None,
+    headerFill: str | bool = False,
     cellPadding: float | None = None,
     rowHeight: float | None = None,
     columnWidths: "list[float] | dict[str, float] | None" = None,
@@ -210,11 +213,25 @@ def mark_table(
         across the palette (a 13-stop diverging palette is centred on 0; otherwise the domain is
         the column's ``[min, max]``), and each cell's text switches to black or white for
         contrast. Overrides striping within that column.
+    textColor:
+        Body cell text colour. ``None`` (default) inherits the theme's darkmode-aware text
+        colour. A single string colours every body cell; a ``{column: colour}`` dict colours
+        per column (unlisted columns inherit). A ``cellColor`` (value-shaded) column keeps its
+        automatic black/white contrast unless you give it an explicit **dict** entry here (a
+        per-column colour is taken as deliberate; a global string does not override the
+        heatmap's contrast).
     fontSize:
         Cell font size. ``None`` (default) reads ``theme(fontSize=…)``.
     headerFontStyle:
         Font style for header labels (e.g. ``"bold"``, ``"normal"``, ``"italic"``). Default
         ``"bold"``.
+    headerColor:
+        Header text colour. ``None`` (default) inherits the theme's text colour, or - when
+        ``headerFill`` is set - auto-contrasts (black/white) against the fill. A string sets a
+        fixed colour.
+    headerFill:
+        Background band behind the header row, following the ``bool | str`` pattern: ``False``
+        (default) → none; ``True`` → a darkmode-aware default grey band; a string → that colour.
     cellPadding:
         Horizontal padding inside a cell, in px. ``None`` (default) → ``fontSize * 0.6``.
     rowHeight:
@@ -286,6 +303,22 @@ def mark_table(
     dark = _opt("darkmode")
     stroke_c = ("white" if dark else "black") if strokeColor is None else strokeColor
 
+    # Header background band + text colour (darkmode-aware, resolved at build like add_shade).
+    if headerFill is True:
+        from .palettes import colors
+
+        header_fill_c: str | None = colors["greys"][9 if dark else 3]
+    elif isinstance(headerFill, str):
+        header_fill_c = headerFill
+    else:
+        header_fill_c = None
+    if headerColor is not None:
+        header_text_c: str | None = headerColor
+    elif header_fill_c is not None:
+        header_text_c = "black" if _rel_luminance(header_fill_c) > 0.4 else "white"
+    else:
+        header_text_c = None  # inherit the theme text colour
+
     headerLabels = headerLabels or {}
     columnFormat = columnFormat or {}
 
@@ -295,6 +328,19 @@ def mark_table(
         if isinstance(align, dict) and col in align:
             return align[col]
         return "left"
+
+    def _text_color(col: str) -> tuple[str, str | None]:
+        # ("fixed", colour) | ("contrast", None) | ("inherit", None).
+        # A per-column dict entry wins everywhere (deliberate override, even on a heatmap
+        # column); otherwise a cellColor column auto-contrasts; a global string colours the
+        # rest; None inherits the theme text colour.
+        if isinstance(textColor, dict) and col in textColor:
+            return ("fixed", textColor[col])
+        if col in cellColor:
+            return ("contrast", None)
+        if isinstance(textColor, str):
+            return ("fixed", textColor)
+        return ("inherit", None)
 
     # Per-column plan: display strings (for width), render method, alignment.
     n_rows = df.height
@@ -382,8 +428,17 @@ def mark_table(
         return alt.Chart(df).transform_window(__rowidx="row_number()")
 
     layers: list[alt.Chart] = []
+    one = _internal_data([{}])  # 1-row sidecar for the pixel-positioned chrome (band, strokes, header)
 
-    # --- row striping (bottom) ---
+    # --- header background band (bottom) ---
+    if header and header_fill_c is not None:
+        layers.append(
+            alt.Chart(one)
+            .mark_rect(fill=header_fill_c, stroke=None, strokeWidth=0)
+            .encode(x=alt.value(0), x2=alt.value(total_w), y=alt.value(0), y2=alt.value(header_h))
+        )
+
+    # --- row striping ---
     if striping:
         pal = _resolve_palette(palette)
         stripe_cols = pal[-nStripes:] if dark else pal[:nStripes]
@@ -440,7 +495,6 @@ def mark_table(
         rules.append({"o": 0, "x1": 0, "x2": total_w, "y": total_h})
         rules.append({"o": 1, "x": 0, "y1": 0, "y2": total_h})
         rules.append({"o": 1, "x": total_w, "y1": 0, "y2": total_h})
-    one = _internal_data([{}])
     for r in rules:
         rule = alt.Chart(one).mark_rule(color=stroke_c, strokeWidth=stroke_w, strokeDash=[0, 0])
         if r["o"] == 0:  # horizontal
@@ -462,20 +516,27 @@ def mark_table(
         else:
             text = alt.Text(field=col, type="nominal")
         enc: dict[str, Any] = {"x": alt.value(_anchor(i, a)), "y": _band_y(0.5), "text": text}
-        if col in cellColor:
+        mark_kwargs: dict[str, Any] = {"fontSize": fs, "align": a, "baseline": "middle"}
+        kind, color_val = _text_color(col)
+        if kind == "contrast":
             tc_field = f"__tc_{i}"
             base = base.transform_calculate(**{tc_field: _contrast_expr(col, p["hexes"], p["domain"])})
             enc["color"] = alt.Color(field=tc_field, type="nominal", scale=None)
-        layers.append(base.mark_text(fontSize=fs, align=a, baseline="middle").encode(**enc))
+        elif kind == "fixed":
+            mark_kwargs["color"] = color_val
+        layers.append(base.mark_text(**mark_kwargs).encode(**enc))
 
     # --- header text (per column) ---
     if header:
         header_center = header_h / 2
+        hdr_kwargs: dict[str, Any] = {"fontSize": fs, "fontStyle": headerFontStyle, "baseline": "middle"}
+        if header_text_c is not None:
+            hdr_kwargs["color"] = header_text_c
         for i, p in enumerate(plans):
             a = p["align"]
             layers.append(
                 alt.Chart(one)
-                .mark_text(fontSize=fs, fontStyle=headerFontStyle, align=a, baseline="middle")
+                .mark_text(align=a, **hdr_kwargs)
                 .encode(x=alt.value(_anchor(i, a)), y=alt.value(header_center), text=alt.value(p["label"]))
             )
 

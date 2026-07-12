@@ -166,6 +166,78 @@ class TestCellColor:
         assert _rel_luminance("#ffffff") == pytest.approx(1.0, abs=1e-6)
 
 
+class TestColors:
+    def _text_marks(self, spec):
+        return [
+            layer
+            for layer in spec["layer"]
+            if isinstance(layer.get("mark"), dict) and layer["mark"].get("type") == "text"
+        ]
+
+    def test_text_color_global(self, df):
+        spec = mark_table(df, textColor="#555555").to_dict()
+        colors = {layer["mark"].get("color") for layer in self._text_marks(spec)}
+        assert "#555555" in colors
+
+    def test_text_color_per_column_dict(self, df):
+        # Cell text marks carry a text FIELD (headers carry a literal text value); key on field.
+        spec = mark_table(df, columns=["gene", "hits"], textColor={"gene": "#aa0000"}).to_dict()
+        by_field = {
+            layer.get("encoding", {}).get("text", {}).get("field"): layer["mark"].get("color")
+            for layer in self._text_marks(spec)
+            if layer.get("encoding", {}).get("text", {}).get("field")
+        }
+        assert by_field.get("gene") == "#aa0000"
+        assert by_field.get("hits") is None  # unlisted inherits (no explicit color)
+
+    def test_global_text_color_does_not_override_heatmap_contrast(self, df):
+        # A cellColor column keeps its auto-contrast color-scale even under a global textColor.
+        spec = mark_table(df, textColor="#555555", cellColor={"log2FC": "pinksblues"}).to_dict()
+        has_contrast = any(
+            "color" in layer.get("encoding", {}) and layer.get("encoding", {})["color"].get("scale") is None
+            for layer in self._text_marks(spec)
+        )
+        assert has_contrast
+
+    def test_dict_text_color_overrides_heatmap(self, df):
+        # An explicit per-column entry is deliberate: it wins over the heatmap auto-contrast.
+        spec = mark_table(df, textColor={"log2FC": "#000000"}, cellColor={"log2FC": "pinksblues"}).to_dict()
+        log2fc_mark = next(
+            layer
+            for layer in self._text_marks(spec)
+            if layer.get("encoding", {}).get("text", {}).get("field") == "log2FC"
+        )
+        assert log2fc_mark["mark"].get("color") == "#000000"
+        assert "color" not in log2fc_mark.get("encoding", {})
+
+    def test_header_color(self, df):
+        spec = mark_table(df, headerColor="#123456").to_dict()
+        # Header labels ride as literal text values with fontStyle bold.
+        header_colors = {
+            layer["mark"].get("color") for layer in self._text_marks(spec) if layer["mark"].get("fontStyle") == "bold"
+        }
+        assert "#123456" in header_colors
+
+    def test_header_fill_string_draws_band(self, df):
+        n_off = len(mark_table(df, headerFill=False).to_dict()["layer"])
+        spec_on = mark_table(df, headerFill="#eeeeee").to_dict()
+        assert len(spec_on["layer"]) == n_off + 1
+        fills = {
+            layer["mark"].get("fill")
+            for layer in spec_on["layer"]
+            if isinstance(layer.get("mark"), dict) and layer["mark"].get("type") == "rect"
+        }
+        assert "#eeeeee" in fills
+
+    def test_header_fill_true_auto_contrasts_text(self, df):
+        # With a fill and no explicit headerColor, header text auto-contrasts (a color is set).
+        spec = mark_table(df, headerFill=True).to_dict()
+        header_colors = {
+            layer["mark"].get("color") for layer in self._text_marks(spec) if layer["mark"].get("fontStyle") == "bold"
+        }
+        assert header_colors <= {"black", "white"} and header_colors  # exactly black or white
+
+
 class TestAlign:
     def test_default_all_left(self, df):
         spec = mark_table(df, columns=["gene", "hits"]).to_dict()

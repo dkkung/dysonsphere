@@ -27,14 +27,14 @@ df = pl.DataFrame(
     }
 )
 
-ds.theme()
+ds.theme(fontSize=5)
 
 table = ds.mark_table(
     df,
     columnFormat={"log2FC": ".2f", "padj": "scientific", "hits": "d"},
-    headerLabels={"log2FC": "log₂FC", "padj": "p (adj)"},
-    cellColor={"log2FC": "pinksblues"},
-    strokes=("outer", "header", "rows"),
+    headerLabels={"gene": "Gene", "log2FC": "log₂FC", "padj": "p (adj)"},
+    # cellColor={"log2FC": "pinksblues"},
+    strokes=("outer", "header", "rows", "cols"),
 )
 
 out_png = ROOT / "docs" / "table_example.png"
