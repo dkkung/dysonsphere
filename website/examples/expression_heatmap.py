@@ -7,7 +7,8 @@ import polars as pl
 import dysonsphere as ds
 from dysonsphere.palettes import colors
 
-ds.theme(chartWidth=165, chartHeight=180, closed=True, viewPadding=0)
+# bandPadding=0 makes the band scales' cells sit flush (config.scale.bandPaddingInner/Outer)
+ds.theme(chartWidth=165, chartHeight=180, closed=True, viewPadding=0, bandPadding=0)
 
 rng = np.random.default_rng(4)
 n_rep = 6  # replicates per condition
@@ -38,12 +39,9 @@ chart = (
     alt.Chart(df)
     .mark_rect()
     .encode(
-        # paddingInner/Outer=0 so the cells sit flush (no band gaps) and reach the closed frame
-        x=alt.X("sample:N", title=None, sort=samples, scale=alt.Scale(paddingInner=0, paddingOuter=0)),
-        y=alt.Y(
-            "gene:N", title=None, sort=genes, scale=alt.Scale(paddingInner=0, paddingOuter=0),
-            axis=alt.Axis(labelFontStyle="italic"),  # gene symbols are italicized by convention
-        ),
+        x=alt.X("sample:N", title=None, sort=samples),
+        # gene symbols are italicized by convention; cells sit flush via theme(bandPadding=0)
+        y=alt.Y("gene:N", title=None, sort=genes, axis=alt.Axis(labelFontStyle="italic")),
         color=alt.Color("z:Q", title="z-score", scale=alt.Scale(range=colors["redsblues"], domain=[-2, 2])),
     )
 )
