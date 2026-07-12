@@ -1,4 +1,4 @@
-"""Spectrogram of a frequency-swept chirp with harmonics - time-frequency power, brass."""
+"""Spectrogram of a frequency-swept chirp with harmonics - time-frequency power, australis."""
 
 import altair as alt
 import numpy as np

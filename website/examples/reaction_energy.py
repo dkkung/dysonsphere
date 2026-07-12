@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=240, chartHeight=150)
+ds.theme(chartWidth=240, chartHeight=150, axisOffset=0)
 
 # control points along the reaction coordinate: R -> TS1 -> Int -> TS2 -> P
 xk = np.array([0.0, 1.0, 2.0, 3.0, 4.0])

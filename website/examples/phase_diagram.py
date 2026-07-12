@@ -45,6 +45,6 @@ visual = (
     + ds.add_text("Gas", x=250.0, y=2.0)
     + ds.add_text("Supercritical", x=312.0, y=140.0, align="right")
     + ds.add_text("Triple", x=Tt, y=Pt, offsetX=-4, align="right")
-    + ds.add_text("Critical", x=Tc, y=Pc, offsetX=6, align="left")
+    + ds.add_text("Critical", x=Tc, y=Pc, offsetX=-6, align="right")
 )
 chart = ds.add_log_ticks(visual, bounds, axis="y", field="P")

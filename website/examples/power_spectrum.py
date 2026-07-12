@@ -29,4 +29,7 @@ base = alt.Chart(df).mark_line().encode(
     ),
 )
 
-chart = ds.add_log_ticks(base, df, axis="both", xField="f", yField="psd")
+# cap the top decade on each axis (x at 10^3, y at 10^0) so add_log_ticks does not round the
+# shared minor-tick domain OUT to the next full decade (10^4 / 10^1) and leave whitespace past
+# where the data ends
+chart = ds.add_log_ticks(base, df, axis="both", xField="f", yField="psd", xExpMax=3, yExpMax=0)
