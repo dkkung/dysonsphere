@@ -167,14 +167,23 @@ class TestCellColor:
 
 
 class TestAlign:
-    def test_default_numeric_right_text_left(self, df):
+    def test_default_all_left(self, df):
         spec = mark_table(df, columns=["gene", "hits"]).to_dict()
+        text_aligns = {
+            layer["mark"].get("align")
+            for layer in spec["layer"]
+            if isinstance(layer.get("mark"), dict) and layer["mark"].get("type") == "text"
+        }
+        assert text_aligns == {"left"}
+
+    def test_dict_align_override(self, df):
+        spec = mark_table(df, columns=["gene", "hits"], align={"hits": "right"}).to_dict()
         aligns = {
             layer.get("encoding", {}).get("text", {}).get("value"): layer["mark"].get("align")
             for layer in spec["layer"]
             if isinstance(layer.get("mark"), dict) and layer["mark"].get("type") == "text"
         }
-        assert aligns.get("gene") == "left"
+        assert aligns.get("gene") == "left"  # unlisted stays left
         assert aligns.get("hits") == "right"
 
     def test_global_align_string(self, df):

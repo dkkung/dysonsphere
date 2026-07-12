@@ -191,8 +191,8 @@ def mark_table(
         reads ``theme(sigFigs=…)``.
     align:
         Text alignment. A single ``"left"``/``"center"``/``"right"`` applies to all columns; a
-        ``{column: side}`` dict overrides per column. Default: numeric columns right-aligned,
-        everything else left.
+        ``{column: side}`` dict overrides per column (unlisted columns stay left). Default: every
+        column left-aligned.
     strokes:
         Which rules to draw, as any combination of ``"outer"`` (the border), ``"header"`` (the
         header/body separator), ``"rows"`` (between data rows), ``"cols"`` (between columns), and
@@ -289,12 +289,12 @@ def mark_table(
     headerLabels = headerLabels or {}
     columnFormat = columnFormat or {}
 
-    def _col_align(col: str, numeric: bool) -> str:
+    def _col_align(col: str) -> str:
         if isinstance(align, str):
             return align
         if isinstance(align, dict) and col in align:
             return align[col]
-        return "right" if numeric else "left"
+        return "left"
 
     # Per-column plan: display strings (for width), render method, alignment.
     n_rows = df.height
@@ -338,7 +338,7 @@ def mark_table(
                 "col": col,
                 "numeric": numeric,
                 "render": render,
-                "align": _col_align(col, numeric),
+                "align": _col_align(col),
                 "label": label,
                 "longest": longest,
             }
