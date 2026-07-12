@@ -659,6 +659,58 @@ SEQ_MULTI_MAX_CHROMA = {
     "pewter": [0.12, 0.09, 0.035, 0.045, 0.035],
 }
 
+# Baked magma Oklab L, sampled at the 12 output positions (matplotlib magma).
+# The lightness benchmark for `condensates`: magma's front-loaded black->near-white
+# curve is what lets a true-black-floored map keep low-signal (dark) detail.
+CONDENSATES_MAGMA_L = [
+    0.0482, 0.1917, 0.2908, 0.3681, 0.4399, 0.5076,
+    0.5769, 0.6488, 0.7272, 0.8069, 0.8899, 0.9785,
+]  # fmt: skip
+
+
+def build_condensates():
+    """The `condensates` imaging colormap - australis's hue journey rendered for
+    maximum low-signal detail on a true-black floor (fluorescence micrographs,
+    astronomy).  A 25/75 Oklab blend of two constructions of the australis hues:
+      V1 - the hues placed on magma's front-loaded lightness curve (CONDENSATES_MAGMA_L),
+      V2 - the australis keyframes lightness-stretched to the full [0, 0.97] range,
+    with stop 0 forced to pure #000000.  25% V1 keeps V2's crisp puncta-on-black
+    look while lifting the dim mid-tones; the result stays Oklab-uniform (ratio
+    ~1.28) and CVD-monotonic.  See the palettes.py condensates design point.
+    """
+    to_ok, to_hex, max_c = _space("oklab")
+    base = SEQ_MULTI_OKLAB["australis"]
+    frac = SEQ_MULTI_FRAC["australis"]
+    cap = SEQ_MULTI_MAX_CHROMA["australis"]
+    hues = [h for _, h in base]
+    floor_L, top_L = base[0][0], base[-1][0]
+    n = N_OUT_SEQ
+
+    # V1: australis hues (linearly interpolated over position) on magma's lightness
+    v1 = []
+    for i, L in enumerate(CONDENSATES_MAGMA_L):
+        pos = (i / (n - 1)) * (len(hues) - 1)
+        i0 = int(pos)
+        i1 = min(i0 + 1, len(hues) - 1)
+        h = hues[i0] + (pos - i0) * (hues[i1] - hues[i0])
+        hr = math.radians(h)
+        C = min(frac * max_c(L, hr), cap)
+        v1.append(to_hex(L, C * math.cos(hr), C * math.sin(hr)))
+    v1[0] = "#000000"
+
+    # V2: the australis keyframes, lightness-stretched to the full [0, 0.97] range
+    stretched = [((L - floor_L) / (top_L - floor_L) * 0.97, h) for L, h in base]
+    v2 = build_multihue(stretched, frac=frac, max_chroma=cap)
+
+    # 25% V1 / 75% V2, blended in Oklab; stop 0 stays pure black
+    out = []
+    for a, b in zip(v1, v2):
+        la, lb = to_ok(a), to_ok(b)
+        out.append(to_hex(*[0.25 * x + 0.75 * y for x, y in zip(la, lb)]))
+    out[0] = "#000000"
+    return out
+
+
 # Diverging arm endpoints.  Format: name → (arm2_dark, arm1_dark) hex.
 # Center is always #F6F6F6.  Both the base and _sat variants share these
 # endpoints; the difference is FRAC (0.85 vs 1.0).
@@ -807,6 +859,9 @@ def main():
                 max_chroma=SEQ_MULTI_MAX_CHROMA.get(name),
             ),
         )
+
+    print("\n# ─── Sequential imaging colormap (true-black floor) ──────────────")
+    _print_palette("condensates", build_condensates())
 
     print("\n# ─── Diverging (Oklab, FRAC=0.85) ────────────────────────────────")
     for name, (arm2, arm1) in DIVERG_OKLAB.items():
