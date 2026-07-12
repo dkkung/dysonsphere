@@ -1,48 +1,59 @@
 ---
 title: Gallery
-description: Live, interactive charts built with dysonsphere on the standard vega-datasets.
+description: A tour of dysonsphere across the sciences - live, interactive, and beautiful by default.
 ---
 
 import Example from '../../components/Example.astro';
 
-Every chart below is **live and interactive** - hover for tooltips, use the actions menu
-(top-right) to export SVG, PNG, or the Vega-Lite JSON, and follow **Open in studio** to edit the
-code. All are built with dysonsphere on the standard
-[vega-datasets](https://github.com/vega/vega-datasets), except the volcano, which comes from the
-[biology extension](/extensions/biology/).
+Every figure below is **live and interactive** and built entirely with dysonsphere - the data is
+synthetic, chosen to show the library across scientific domains. Hover for tooltips; use the
+actions menu (top-right of a chart) to export SVG, PNG, or Vega-Lite JSON. Press **`</> code`** on
+any figure to read the exact code that made it, or **Open in studio** to run and edit it live.
 
-## Distributions
+## Fields & imaging
 
-<Example name="strip_beeswarm" caption="Beeswarm strip of fuel economy by origin - <code>mark_strip(scatter=&quot;beeswarm&quot;)</code> packs points analytically, with a median tick and SEM bars." alt="Beeswarm strip plot of miles per gallon by car origin" chartOnly />
+<Example name="microscopy" codeToggle caption="Fluorescence microscopy - a traced cytoskeletal filament network on the default <code>australis</code> continuous scale." alt="Filament-network fluorescence microscopy image" />
 
-<Example name="violin_styled" caption="Violin plot of horsepower by origin - <code>mark_violin()</code> (KDE + embedded boxplot) with a custom palette." alt="Styled violin plot of horsepower by car origin" chartOnly />
+<Example name="cosmic_web" codeToggle caption="Large-scale structure - the cosmic web's filaments, voids, and cluster nodes in <code>borealis</code>." alt="Cosmic web density field" />
 
-## Statistics
+<Example name="interference" codeToggle caption="Two-source wave interference - the coherent fringe field, <code>australis</code>." alt="Two-source interference fringe pattern" />
 
-<Example name="comparisons_kruskal" caption="Kruskal-Wallis omnibus with Dunn post-hoc brackets - <code>add_comparisons(test=&quot;kruskal&quot;, omnibusVerbose=True)</code> layered onto a boxplot." alt="Kruskal-Wallis omnibus with Dunn post-hoc brackets" chartOnly />
+<Example name="grain_map" codeToggle caption="Materials - a polycrystalline grain map (Voronoi domains) colored by crystal orientation." alt="Polycrystalline grain orientation map" />
 
-<Example name="correlation" caption="Pearson correlation with an OLS fit line - <code>add_correlation()</code> layered onto a scatter." alt="Horsepower versus miles per gallon with an OLS fit line" chartOnly />
+## Structure & chemistry
 
-## Color
+<Example name="orbital" codeToggle caption="A signed 3d atomic orbital cross-section - four alternating-sign lobes on the <code>pinksblues</code> diverging scale." alt="Atomic orbital wavefunction cross-section" />
 
-<Example name="heatmap_palette" caption="Binned 2D histogram - a plain Altair <code>mark_rect</code> heatmap, colored by <code>theme(heatmapPalette=&quot;cosmos&quot;)</code>." alt="2D histogram heatmap with the cosmos palette" chartOnly />
+<Example name="diffraction" codeToggle caption="Electron diffraction - a hexagonal reciprocal lattice of Bragg spots in monochrome <code>eclipse</code>." alt="Electron diffraction pattern" />
 
-<Example name="palette_grouped" caption="Paired pre/post bars - <code>categorical(members=2)</code>, each drug one hue climbing in lightness." alt="Paired pre/post bars colored by the grouped categorical palette" chartOnly />
+<Example name="ramachandran" codeToggle caption="Structural biology - a Ramachandran plot: backbone φ/ψ dihedral density with α-helix and β-sheet basins." alt="Ramachandran dihedral density plot" />
 
-## Annotation
+<Example name="mass_spectrum" codeToggle caption="A mass spectrum with an isotope envelope - fragment peaks labeled with <code>add_text</code>." alt="Mass spectrum stick plot with labeled peaks" />
 
-<Example name="shade_bands" caption="Mean barley yield by site - <code>add_shade(categories=...)</code> alternates band shading behind a bar chart." alt="Bar chart with alternating band shading" chartOnly />
+<Example name="reaction_energy" codeToggle caption="A reaction free-energy profile - transition states and the intermediate annotated with <code>add_text</code>." alt="Reaction free-energy profile" />
 
-<Example name="labels" caption="Auto-placed point labels - <code>add_labels()</code> repels labels into clear space and draws connectors, deterministically." alt="Scatter with auto-placed, connector-linked point labels" chartOnly />
+## Signals & dynamics
 
-<Example name="multilabel_sample_size" caption="A multilabel table - <code>add_multilabel(showSampleSize=True, categoryLabel=True)</code> replaces the x-axis labels below a strip plot." alt="Strip plot with sample size and category-label rows" chartOnly />
+<Example name="spectrogram" codeToggle caption="A chirp spectrogram - time-frequency power of a frequency sweep with harmonics, <code>brass</code>." alt="Spectrogram of a frequency-swept chirp" />
 
-## Nonlinear axes
+<Example name="phase_portrait" codeToggle caption="A Van der Pol phase portrait - trajectories onto the limit cycle, drawn with <code>mark_trail</code> (width = speed)." alt="Van der Pol oscillator phase portrait" />
 
-<Example name="log" caption="Log-scale stock prices - <code>add_log_ticks()</code> adds correctly spaced minor ticks between the decade majors." alt="Log-scale line chart of stock prices with minor ticks" chartOnly />
+<Example name="attractor" codeToggle caption="A Clifford strange attractor - the chaotic map's point cloud, colored by local speed." alt="Clifford strange attractor point cloud" />
 
-<Example name="nonlinear_pow" caption="Square-root y axis - <code>add_pow_ticks()</code> interpolates minor ticks evenly in transformed space." alt="Square-root axis scatter with evenly spaced minor ticks" chartOnly />
+## Data science
 
-## Extensions
+<Example name="umap" codeToggle caption="A single-cell UMAP embedding - clusters in the categorical palette, each labeled at its centroid with <code>add_labels</code>." alt="Single-cell UMAP cluster embedding" />
 
-<Example name="volcano" caption="Differential expression volcano - <code>ds.biology.volcano(df, label=8)</code> from the biology extension: classification, guides, and labeled top genes in one call." alt="Volcano plot of differential expression with labeled top genes" chartOnly />
+<Example name="decision_surface" codeToggle caption="A classifier's decision surface - a kernel probability field behind the two-moons data." alt="Classifier decision boundary over two-moons data" />
+
+<Example name="confusion_matrix" codeToggle caption="A confusion matrix - cell counts placed on the band scale with <code>add_text</code>." alt="Confusion matrix heatmap with counts" />
+
+<Example name="spiral_galaxy" codeToggle caption="Astronomy - a spiral galaxy's stars colored by line-of-sight velocity (the rotation field), <code>redsblues</code> diverging." alt="Spiral galaxy rotation velocity field" />
+
+## Distributions & statistics
+
+<Example name="raincloud" codeToggle caption="A raincloud - <code>mark_violin</code> (KDE + boxplot) over <code>mark_strip</code>'s raw points, across three conditions." alt="Raincloud plot of three conditions" />
+
+<Example name="ridgeline" codeToggle caption="A ridgeline plot - stacked kernel densities across the year, in the categorical palette." alt="Ridgeline plot of monthly distributions" />
+
+<Example name="manhattan" codeToggle caption="A GWAS Manhattan plot - alternating chromosome colors, a genome-wide significance <code>add_rule</code>, and top hits labeled by <code>add_labels</code>." alt="GWAS Manhattan plot with labeled hits" />
