@@ -96,6 +96,14 @@ dissolved 2026-07-06).
   (e.g. raincloud = `mark_violin` + points) double-draws the x-axis because `mark_violin` resolves
   x independently - overlay the raw points as a plain `mark_circle` with `axis=None` instead of a
   second `mark_strip`, so only the violin draws the axis.
+- **Real raster images (the condensate micrograph)** ride as a `mark_image` example: the source
+  intensity is recolored to a chosen LUT OFFLINE (a full-res LOSSLESS PNG in `public/gallery/`,
+  never downsampled - a 1000x1000 per-pixel `mark_rect` heatmap is infeasible), then displayed with
+  `mark_image(url=..., aspect=False)` over `x`/`x2`/`y`/`y2` = the physical FOV (real µm axes from
+  the OME `PhysicalSizeX`), plus an invisible `mark_point(opacity=0)` layer whose continuous color
+  scale (`range=colors["australis"]`) draws the matching colorbar. **Chart.astro base-prefixes any
+  `url` in the spec** (`fixUrls`) so the root-relative asset resolves under the project-pages base.
+
 - **The volcano example** (`examples/volcano.py`) calls `ds.biology.volcano`, which needs the
   `dysonsphere-biology` workspace member installed (it is, in the uv venv) - `gen_examples.py`
   builds its spec fine. Its committed spec renders in the gallery/biology page like any other; only
