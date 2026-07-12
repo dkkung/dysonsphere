@@ -627,8 +627,8 @@ def add_labels(
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
-    color: str | None = None,
     fontStyle: str | None = None,
+    color: str | None = None,
     connector: bool = True,
     connectorColor: str | None = None,
     connectorOpacity: float | None = None,
@@ -681,12 +681,12 @@ def add_labels(
         scatter).
     fontSize:
         Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
-    color:
-        Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware
-        black/white).
     fontStyle:
         Label font style, e.g. ``"italic"`` (gene / species names) or ``"bold"``. ``None`` (default)
         inherits the theme's ``mark_text`` (upright). Applies to every label.
+    color:
+        Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware
+        black/white).
     connector:
         Whether to draw the line connecting each point to its label (default ``True``).
     connectorColor:

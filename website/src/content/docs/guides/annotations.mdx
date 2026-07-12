@@ -57,6 +57,8 @@ from each point to its label. Pass the full plotted `df` and let `labels=` selec
 name - an integer picks that many spread evenly across the plot, a list names rows by their
 `labelCol` value, and a boolean mask (`labels=df["is_hit"]`) selects rows positionally when the
 label column repeats. Passing the full `df` also lets the labels dodge every plotted point, not
-just the ones being named, so they settle into open space instead of on top of the crowd.
+just the ones being named, so they settle into open space instead of on top of the crowd. Style
+the labels with `fontSize`, `color`, and `fontStyle` - e.g. `fontStyle="italic"` for gene or
+species names.
 
 <Example name="labels" alt="Scatter plot with eight auto-placed, connector-linked point labels" />
