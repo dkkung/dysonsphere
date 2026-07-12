@@ -54,7 +54,7 @@ chart = (
     alt.Chart(df)
     .mark_rect(stroke=None, clip=True)
     .encode(
-        x=alt.X("t0:Q", title="time (s)", scale=alt.Scale(domain=[0, T], nice=False)),
+        x=alt.X("t0:Q", title="time (s)", scale=alt.Scale(domain=[float(centers[0] - dt / 2), float(centers[-1] + dt / 2)], nice=False)),
         x2="t1",
         y=alt.Y("f0:Q", title="frequency (Hz)", scale=alt.Scale(domain=[0, float(fr[-1])], nice=False)),
         y2="f1",
