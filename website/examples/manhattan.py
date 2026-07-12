@@ -51,6 +51,7 @@ hits_df = pl.DataFrame(hit_rows)
 gene_labels = ds.add_labels(
     hits_df, "pos", "logp", "gene",
     xDomain=[0, offset], yDomain=[0, 13], fontSize=6, fontStyle="italic",  # gene names in italic
+    fill=True,  # a background chip keeps each label legible over the point cloud
 )
 
 chart = points + sig + gene_labels
