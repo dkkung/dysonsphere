@@ -23,7 +23,9 @@ dissolved 2026-07-06).
   `Palettes.astro` (client-side swatch browser from generated JSON; click SELECTS for the live
   preview only, never touches the clipboard - hex rides on data-color attributes since inline
   style serializes to rgb()), `PalettePreview.astro` (charts restyled live by the selected
-  palette; holds the explicit "copy hex codes" button - the only clipboard write), `ConfigGenerator.astro`
+  palette; holds the copy buttons, the temporary theme toggle, and the COLORBLINDNESS SIMULATOR -
+  an feColorMatrix Machado-2009 filter, applied to `.pal__grid` + `.palprev__row` [not the toolbar,
+  so controls stay true-color], simulating swatches AND preview charts under deuter/prot/tritanopia), `ConfigGenerator.astro`
   (editable default dysonsphere.toml + theme-param cheat sheet, inputs from gen_config.py), `SiteTitle.astro` (two-toned header wordmark +
   the desktop sidebar-collapse toggle; there is no Sidebar override anymore).
 - `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
