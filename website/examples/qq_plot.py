@@ -7,7 +7,7 @@ from scipy import stats
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=150, chartHeight=150)
+ds.theme(chartWidth=150, chartHeight=150, axisOffset=0)
 
 rng = np.random.default_rng(15)
 n = 220

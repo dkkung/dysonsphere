@@ -8,7 +8,7 @@ from scipy.ndimage import gaussian_filter
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=160, chartHeight=160)
+ds.theme(chartWidth=160, chartHeight=160, closed=True, viewPadding=False)
 
 rng = np.random.default_rng(4)
 # residues from a mixture: right-handed alpha helix, beta sheet, left-handed alpha

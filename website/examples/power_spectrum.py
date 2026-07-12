@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=185, chartHeight=140)
+ds.theme(chartWidth=185, chartHeight=140, axisOffset=0)
 
 rng = np.random.default_rng(2)
 f = np.logspace(0, 3.3, 600)  # 1 Hz .. ~2 kHz

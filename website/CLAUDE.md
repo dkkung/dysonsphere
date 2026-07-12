@@ -95,12 +95,13 @@ dissolved 2026-07-06).
   regenerates on deploy, so these are the local-dev copies). **Layering two composite marks**
   (e.g. raincloud = `mark_violin` + points) double-draws the x-axis because `mark_violin` resolves
   x independently - overlay the raw points as a plain `mark_circle` with `axis=None` instead of a
-  second `mark_strip`, so only the violin draws the axis. **`add_labels` culls axis labels:** once
-  `add_labels` pins the shared position scale, Vega thins that axis's labels to a subset even with
-  `labelOverlap=False` (confirmed in BOTH browser Vega and vl-convert) - so the manhattan chromosome
-  numbers are drawn as a `mark_text` layer (marks are never culled), NOT axis labels; the axis keeps
-  ticks + a title whose `titlePadding` reserves the vertical room the numbers sit in (else they clip
-  below the plot). Any "N labels under a scale that `add_labels` shares" case needs the same trick.
+  second `mark_strip`, so only the violin draws the axis. **`add_labels` culls axis labels (gotcha):**
+  once `add_labels` pins the shared position scale, Vega thins that axis's labels to a subset even
+  with `labelOverlap=False` (confirmed in BOTH browser Vega and vl-convert). So if you need every
+  label on an axis whose scale `add_labels` shares, draw them as a `mark_text` layer (marks are never
+  culled), NOT axis labels - and let the axis title's `titlePadding` reserve the room they sit in
+  (else they clip below the plot). (The manhattan tried per-chromosome numbers this way, then
+  reverted to a plain `Chromosome` title with no labels.)
 - **Real raster images (the condensate micrograph)** ride as a `mark_image` example: the source
   intensity is recolored to a chosen LUT OFFLINE (a full-res LOSSLESS PNG in `public/gallery/`,
   never downsampled - a 1000x1000 per-pixel `mark_rect` heatmap is infeasible), then displayed with
