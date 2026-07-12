@@ -172,6 +172,9 @@ const firstPalette = palettes[0].name;
 		const btn = document.getElementById(id) as HTMLButtonElement | null;
 		if (!btn || btn.dataset.wired) return;
 		btn.dataset.wired = '1';
+		// Pin the button to its label width so the shorter "copied!" swap can't shrink it and
+		// reflow the toolbar (measured once, includes padding/border via the rendered rect).
+		btn.style.minWidth = `${btn.getBoundingClientRect().width}px`;
 		btn.addEventListener('click', () => {
 			const text = getText();
 			if (!text) return;
