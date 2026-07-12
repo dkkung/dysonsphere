@@ -44,7 +44,6 @@ label_layer = ds.add_labels(
     "cx",
     "cy",
     "cell type",
-    fontSize=7,
     fill=True,  # a chip behind each cell-type label keeps it legible over the point cloud
     xDomain=[df["UMAP1"].min() - 1, df["UMAP1"].max() + 1],
     yDomain=[df["UMAP2"].min() - 1, df["UMAP2"].max() + 1],

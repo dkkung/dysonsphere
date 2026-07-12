@@ -40,10 +40,10 @@ sticks = (
     )
 )
 
-labels = ds.add_text([f[2] for f in frags if f[2]][0], x=71.0, y=104.0, fontSize=6)
+labels = ds.add_text([f[2] for f in frags if f[2]][0], x=71.0, y=104.0)
 for m, h, lab in frags:
     if lab and m != 71:
-        labels = labels + ds.add_text(lab, x=float(m), y=float(h + 6), fontSize=6)
+        labels = labels + ds.add_text(lab, x=float(m), y=float(h + 6))
 
 chart = sticks + labels
 
