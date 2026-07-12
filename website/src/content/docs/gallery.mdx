@@ -1,48 +1,19 @@
 ---
 title: Gallery
-description: Live, interactive charts built with dysonsphere on the standard vega-datasets.
+description: A tour of dysonsphere across the sciences - live, interactive, and beautiful by default.
 ---
 
-import Example from '../../components/Example.astro';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-Every chart below is **live and interactive** - hover for tooltips, use the actions menu
-(top-right) to export SVG, PNG, or the Vega-Lite JSON, and follow **Open in studio** to edit the
-code. All are built with dysonsphere on the standard
-[vega-datasets](https://github.com/vega/vega-datasets), except the volcano, which comes from the
-[biology extension](/extensions/biology/).
+A tour of dysonsphere across the sciences. Every figure is **live and interactive** and built
+entirely with the library - the data is synthetic, chosen to show what dysonsphere can do. On any
+figure, press **`</> code`** to read the exact code that made it, or **Open in studio** to run and
+edit it live.
 
-## Distributions
-
-<Example name="strip_beeswarm" caption="Beeswarm strip of fuel economy by origin - <code>mark_strip(scatter=&quot;beeswarm&quot;)</code> packs points analytically, with a median tick and SEM bars." alt="Beeswarm strip plot of miles per gallon by car origin" chartOnly />
-
-<Example name="violin_styled" caption="Violin plot of horsepower by origin - <code>mark_violin()</code> (KDE + embedded boxplot) with a custom palette." alt="Styled violin plot of horsepower by car origin" chartOnly />
-
-## Statistics
-
-<Example name="comparisons_kruskal" caption="Kruskal-Wallis omnibus with Dunn post-hoc brackets - <code>add_comparisons(test=&quot;kruskal&quot;, omnibusVerbose=True)</code> layered onto a boxplot." alt="Kruskal-Wallis omnibus with Dunn post-hoc brackets" chartOnly />
-
-<Example name="correlation" caption="Pearson correlation with an OLS fit line - <code>add_correlation()</code> layered onto a scatter." alt="Horsepower versus miles per gallon with an OLS fit line" chartOnly />
-
-## Color
-
-<Example name="heatmap_palette" caption="Binned 2D histogram - a plain Altair <code>mark_rect</code> heatmap, colored by <code>theme(heatmapPalette=&quot;cosmos&quot;)</code>." alt="2D histogram heatmap with the cosmos palette" chartOnly />
-
-<Example name="palette_grouped" caption="Paired pre/post bars - <code>categorical(members=2)</code>, each drug one hue climbing in lightness." alt="Paired pre/post bars colored by the grouped categorical palette" chartOnly />
-
-## Annotation
-
-<Example name="shade_bands" caption="Mean barley yield by site - <code>add_shade(categories=...)</code> alternates band shading behind a bar chart." alt="Bar chart with alternating band shading" chartOnly />
-
-<Example name="labels" caption="Auto-placed point labels - <code>add_labels()</code> repels labels into clear space and draws connectors, deterministically." alt="Scatter with auto-placed, connector-linked point labels" chartOnly />
-
-<Example name="multilabel_sample_size" caption="A multilabel table - <code>add_multilabel(showSampleSize=True, categoryLabel=True)</code> replaces the x-axis labels below a strip plot." alt="Strip plot with sample size and category-label rows" chartOnly />
-
-## Nonlinear axes
-
-<Example name="log" caption="Log-scale stock prices - <code>add_log_ticks()</code> adds correctly spaced minor ticks between the decade majors." alt="Log-scale line chart of stock prices with minor ticks" chartOnly />
-
-<Example name="nonlinear_pow" caption="Square-root y axis - <code>add_pow_ticks()</code> interpolates minor ticks evenly in transformed space." alt="Square-root axis scatter with evenly spaced minor ticks" chartOnly />
-
-## Extensions
-
-<Example name="volcano" caption="Differential expression volcano - <code>ds.biology.volcano(df, label=8)</code> from the biology extension: classification, guides, and labeled top genes in one call." alt="Volcano plot of differential expression with labeled top genes" chartOnly />
+<CardGrid>
+	<LinkCard title="Fields & imaging" href="/gallery/imaging/" description="Microscopy, cosmology, wave physics, and materials - continuous scalar fields." />
+	<LinkCard title="Structure & chemistry" href="/gallery/chemistry/" description="Orbitals, diffraction, protein dihedrals, spectra, and reaction energetics." />
+	<LinkCard title="Signals & dynamics" href="/gallery/signals/" description="Spectrograms, phase portraits, and chaotic maps." />
+	<LinkCard title="Data science" href="/gallery/data-science/" description="Embeddings, decision surfaces, confusion matrices, and rotation fields." />
+	<LinkCard title="Distributions & statistics" href="/gallery/distributions/" description="Rainclouds, ridgelines, and genome-wide association plots." />
+</CardGrid>

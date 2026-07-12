@@ -9,7 +9,8 @@ dissolved 2026-07-06).
 - `src/content/docs/` - pages: `index.mdx` (home; uses the DEFAULT docs template, not `splash`, so
   the sidebar shows on the landing page too), `guides/*` (getting-started, theming, **configuration**
   [the dysonsphere.toml reference], palettes, marks, annotations, statistics, nonlinear, saving),
-  `extensions/*` (index/overview, biology, authoring), `gallery.mdx`, `palettes.mdx` (the
+  `extensions/*` (index/overview, biology, authoring), `gallery.mdx` + `gallery/*` (per-domain
+  showpiece pages), `palettes.mdx` (the
   palette browser + live preview, under Interactive), `config-generator.mdx` (the
   dysonsphere.toml generator, under Interactive), `studio.mdx` (Chart Studio),
   `playground.mdx` (a thin **redirect stub** to `/studio/`, kept for old `#code=` deep links),
@@ -22,7 +23,9 @@ dissolved 2026-07-06).
   `Palettes.astro` (client-side swatch browser from generated JSON; click SELECTS for the live
   preview only, never touches the clipboard - hex rides on data-color attributes since inline
   style serializes to rgb()), `PalettePreview.astro` (charts restyled live by the selected
-  palette; holds the explicit "copy hex codes" button - the only clipboard write), `ConfigGenerator.astro`
+  palette; holds the copy buttons, the temporary theme toggle, and the COLORBLINDNESS SIMULATOR -
+  an feColorMatrix Machado-2009 filter, applied to `.pal__grid` + `.palprev__row` [not the toolbar,
+  so controls stay true-color], simulating swatches AND preview charts under deuter/prot/tritanopia), `ConfigGenerator.astro`
   (editable default dysonsphere.toml + theme-param cheat sheet, inputs from gen_config.py), `SiteTitle.astro` (two-toned header wordmark +
   the desktop sidebar-collapse toggle; there is no Sidebar override anymore).
 - `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
@@ -74,6 +77,33 @@ dissolved 2026-07-06).
   snippet. **xOffset gotcha:** for beeswarm/jitter, encode `alt.XOffset("beeswarm_x:Q")` WITHOUT
   `scale=None` - the default (band) scale centers the swarm on its tick; `scale=None` shifts it
   left (was the visible x-axis misalignment on the site).
+- **`Example.astro` modes.** Default shows code block + chart. `chartOnly` hides the code.
+  **`codeToggle`** (the gallery) renders a clean figure with a small `</> code` button that swaps
+  the verbatim source INTO the chart's footprint (code hidden by default, chart/code panes toggled
+  via `hidden`); still carries the Open-in-studio link. Use `codeToggle` for showpieces.
+- **The gallery is all-synthetic showpieces** (2026-07-11 rebuild), SPLIT one domain per page
+  under `content/docs/gallery/` (imaging/chemistry/signals/data-science/distributions), with
+  `gallery.mdx` an overview of LinkCards and a NESTED sidebar group (astro.config.mjs) - a single
+  page of all ~19 live vega-embed charts was slow, so ~4/page. ~19 examples generating their own data (numpy/scipy/polars - all in the Pyodide runtime, so Open-in-studio
+  works), spanning scientific domains, each `codeToggle`. **Dense heatmaps:** encode `x`/`x2` +
+  `y`/`y2` CELL EDGES (not a single binned `x`) with the far edge overhanging the next by ~30% of
+  a cell (`+ step * 0.3`) - the overlap hides the sub-pixel rasterization seams (the transparent
+  page showing through cell gaps) that are invisible in the raw render but appear at the site's
+  chart zoom. Also `mark_rect(stroke=None, clip=True)` and `alt.data_transformers.enable("default",
+  max_rows=None)` (the grids exceed Altair's 5000-row cap). Keep grids ~90-110/side: specs inline
+  the data, so resolution drives spec size (the whole gallery adds ~15 MB of committed JSON; CI
+  regenerates on deploy, so these are the local-dev copies). **Layering two composite marks**
+  (e.g. raincloud = `mark_violin` + points) double-draws the x-axis because `mark_violin` resolves
+  x independently - overlay the raw points as a plain `mark_circle` with `axis=None` instead of a
+  second `mark_strip`, so only the violin draws the axis.
+- **Real raster images (the condensate micrograph)** ride as a `mark_image` example: the source
+  intensity is recolored to a chosen LUT OFFLINE (a full-res LOSSLESS PNG in `public/gallery/`,
+  never downsampled - a 1000x1000 per-pixel `mark_rect` heatmap is infeasible), then displayed with
+  `mark_image(url=..., aspect=False)` over `x`/`x2`/`y`/`y2` = the physical FOV (real µm axes from
+  the OME `PhysicalSizeX`), plus an invisible `mark_point(opacity=0)` layer whose continuous color
+  scale (`range=colors["australis"]`) draws the matching colorbar. **Chart.astro base-prefixes any
+  `url` in the spec** (`fixUrls`) so the root-relative asset resolves under the project-pages base.
+
 - **The volcano example** (`examples/volcano.py`) calls `ds.biology.volcano`, which needs the
   `dysonsphere-biology` workspace member installed (it is, in the uv venv) - `gen_examples.py`
   builds its spec fine. Its committed spec renders in the gallery/biology page like any other; only

@@ -39,6 +39,20 @@ const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false }
 		const theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 		try {
 			const spec = await (await fetch(`${BASE}charts/${name}-${theme}.json`)).json();
+			// Image marks reference a root-relative asset (e.g. /gallery/x.png); prefix the deploy
+			// BASE so it resolves on project-pages (/dysonsphere/...) as well as locally.
+			const baseNoSlash = BASE.replace(/\/$/, '');
+			const fixUrls = (o: unknown): void => {
+				if (Array.isArray(o)) o.forEach(fixUrls);
+				else if (o && typeof o === 'object') {
+					const rec = o as Record<string, unknown>;
+					if (typeof rec.url === 'string' && rec.url.startsWith('/') && !rec.url.startsWith(BASE)) {
+						rec.url = baseNoSlash + rec.url;
+					}
+					Object.values(rec).forEach(fixUrls);
+				}
+			};
+			fixUrls(spec);
 			views.get(el)?.finalize();
 			el.innerHTML = '';
 			// A spec that bakes its own background (chartFill comparisons, the default-theme

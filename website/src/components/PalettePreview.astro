@@ -39,7 +39,26 @@ const firstPalette = palettes[0].name;
 				<path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"></path>
 			</svg>
 		</button>
+		{/* Colorblindness simulator: an feColorMatrix (Machado 2009, severity 1.0) applied to the
+		    swatches AND the live preview charts, so a palette can be judged under each deficiency. */}
+		<select id="palprev-cvd" class="palprev__btn" title="Simulate color vision deficiency">
+			<option value="">normal vision</option>
+			<option value="deuteranopia">deuteranopia</option>
+			<option value="protanopia">protanopia</option>
+			<option value="tritanopia">tritanopia</option>
+		</select>
 	</div>
+	<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+		<filter id="cvd-deuteranopia" color-interpolation-filters="linearRGB">
+			<feColorMatrix type="matrix" values="0.367322 0.860646 -0.227968 0 0  0.280085 0.672501 0.047413 0 0  -0.011820 0.042940 0.968881 0 0  0 0 0 1 0" />
+		</filter>
+		<filter id="cvd-protanopia" color-interpolation-filters="linearRGB">
+			<feColorMatrix type="matrix" values="0.152286 1.052583 -0.204868 0 0  0.114503 0.786281 0.099216 0 0  -0.003882 0.048116 0.955765 0 0  0 0 0 1 0" />
+		</filter>
+		<filter id="cvd-tritanopia" color-interpolation-filters="linearRGB">
+			<feColorMatrix type="matrix" values="1.255528 -0.076749 -0.178779 0 0  -0.078411 0.930809 0.147602 0 0  0.004733 0.691367 0.303900 0 0  0 0 0 1 0" />
+		</filter>
+	</svg>
 	<p class="palprev__status">Previewing <code id="palprev-name">{firstPalette}</code></p>
 	<div class="palprev__row">
 		<div class="palprev__chart" data-preview="preview_ramp" data-role="heatmap"></div>
@@ -153,6 +172,9 @@ const firstPalette = palettes[0].name;
 		const btn = document.getElementById(id) as HTMLButtonElement | null;
 		if (!btn || btn.dataset.wired) return;
 		btn.dataset.wired = '1';
+		// Pin the button to its label width so the shorter "copied!" swap can't shrink it and
+		// reflow the toolbar (measured once, includes padding/border via the rendered rect).
+		btn.style.minWidth = `${btn.getBoundingClientRect().width}px`;
 		btn.addEventListener('click', () => {
 			const text = getText();
 			if (!text) return;
@@ -161,6 +183,23 @@ const firstPalette = palettes[0].name;
 			btn.textContent = 'copied!';
 			setTimeout(() => (btn.textContent = prev), 900);
 		});
+	}
+
+	// Colorblindness simulator: apply the chosen feColorMatrix filter to the palette browser's
+	// swatch grid AND the live preview charts (not the toolbar, so the controls stay true-color),
+	// so a palette is judged as a CVD viewer would see it. Re-applies after page swaps.
+	function applyCvd(value: string) {
+		const filter = value ? `url(#cvd-${value})` : '';
+		document.querySelectorAll<HTMLElement>('.pal__grid, .palprev__row').forEach((el) => {
+			el.style.filter = filter;
+		});
+	}
+	function wireCvd() {
+		const sel = document.getElementById('palprev-cvd') as HTMLSelectElement | null;
+		if (!sel || sel.dataset.wired) return;
+		sel.dataset.wired = '1';
+		sel.addEventListener('change', () => applyCvd(sel.value));
+		applyCvd(sel.value); // re-assert on boot (a page swap keeps the selection)
 	}
 
 	// TEMPORARY site-theme toggle (light <-> dark): sets data-theme directly and never touches
@@ -207,6 +246,7 @@ const firstPalette = palettes[0].name;
 			current.colors.length ? `[${current.colors.map((c) => `"${c.toUpperCase()}"`).join(', ')}]` : null,
 		);
 		wireThemeToggle();
+		wireCvd();
 		renderAll();
 	}
 

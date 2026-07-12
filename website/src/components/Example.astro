@@ -11,12 +11,15 @@ interface Props {
 	alt?: string;
 	/** Hide the code block (chart only) - for gallery-style pages. */
 	chartOnly?: boolean;
+	/** Chart with a toggle button that swaps the source INTO the chart's footprint (code
+	    hidden by default). For the gallery: a clean figure that reveals its code on demand. */
+	codeToggle?: boolean;
 	/** Short note under the chart (what it is / the calls that made it) - for gallery pages. */
 	caption?: string;
 	/** Apply the save()-time inward-ticks SVG fix (theme(inwardTicks=True) charts). */
 	inwardTicks?: boolean;
 }
-const { name, alt, chartOnly = false, caption, inwardTicks = false } = Astro.props;
+const { name, alt, chartOnly = false, codeToggle = false, caption, inwardTicks = false } = Astro.props;
 
 const sources = import.meta.glob('../../examples/*.py', {
 	query: '?raw',
@@ -32,18 +35,65 @@ const code = source.trimEnd();
 const studioHref = `${import.meta.env.BASE_URL}studio/#code=${encodeURIComponent(
 	Buffer.from(code, 'utf-8').toString('base64'),
 )}`;
+const chartAlt = alt ?? `dysonsphere example: ${name}`;
 ---
 
-<div class="example">
-	{!chartOnly && <Code lang="python" code={code} />}
-	<div class="example__row">
-		<Chart name={name} alt={alt ?? `dysonsphere example: ${name}`} inwardTicks={inwardTicks} />
-	</div>
-	{caption && <p class="example__caption" set:html={caption} />}
-	<div class="example__actions">
-		<a href={studioHref}>Open in studio &rarr;</a>
-	</div>
-</div>
+{
+	codeToggle ? (
+		<figure class="example example--toggle" data-code-toggle>
+			<button class="example__codebtn" data-role="toggle" type="button" aria-pressed="false">
+				<span data-when="chart">&lt;/&gt; code</span>
+				<span data-when="code" hidden>← chart</span>
+			</button>
+			<div class="example__pane" data-pane="chart">
+				<div class="example__row">
+					<Chart name={name} alt={chartAlt} inwardTicks={inwardTicks} />
+				</div>
+			</div>
+			<div class="example__pane" data-pane="code" hidden>
+				<Code lang="python" code={code} />
+			</div>
+			{caption && <figcaption class="example__caption" set:html={caption} />}
+			<div class="example__actions">
+				<a href={studioHref}>Open in studio &rarr;</a>
+			</div>
+		</figure>
+	) : (
+		<div class="example">
+			{!chartOnly && <Code lang="python" code={code} />}
+			<div class="example__row">
+				<Chart name={name} alt={chartAlt} inwardTicks={inwardTicks} />
+			</div>
+			{caption && <p class="example__caption" set:html={caption} />}
+			<div class="example__actions">
+				<a href={studioHref}>Open in studio &rarr;</a>
+			</div>
+		</div>
+	)
+}
+
+<script>
+	function wireToggles() {
+		document.querySelectorAll<HTMLElement>('[data-code-toggle]').forEach((el) => {
+			if (el.dataset.wired) return;
+			el.dataset.wired = '1';
+			const btn = el.querySelector<HTMLButtonElement>('[data-role="toggle"]');
+			const chartPane = el.querySelector<HTMLElement>('[data-pane="chart"]');
+			const codePane = el.querySelector<HTMLElement>('[data-pane="code"]');
+			if (!btn || !chartPane || !codePane) return;
+			btn.addEventListener('click', () => {
+				const showCode = codePane.hidden;
+				codePane.hidden = !showCode;
+				chartPane.hidden = showCode;
+				btn.setAttribute('aria-pressed', String(showCode));
+				btn.querySelector<HTMLElement>('[data-when="chart"]')!.hidden = showCode;
+				btn.querySelector<HTMLElement>('[data-when="code"]')!.hidden = !showCode;
+			});
+		});
+	}
+	wireToggles();
+	document.addEventListener('astro:page-load', wireToggles);
+</script>
 
 <style>
 	.example {
@@ -93,5 +143,43 @@ const studioHref = `${import.meta.env.BASE_URL}studio/#code=${encodeURIComponent
 	}
 	.example__actions a:hover {
 		color: var(--sl-color-text-accent);
+	}
+
+	/* --- Code-toggle (gallery) variant --- */
+	.example--toggle {
+		position: relative;
+		margin: 0;
+	}
+	/* A subtle always-visible affordance in the figure's top-right; brightens on hover so it
+	   reads as interactive without competing with the chart. */
+	/* Top-LEFT: clear of Vega's action menu (top-right of the chart) and the code cell's own
+	   copy button (top-right of the code block). */
+	.example__codebtn {
+		position: absolute;
+		top: 0.1rem;
+		left: 0.1rem;
+		z-index: 2;
+		padding: 0.1rem 0.45rem;
+		border: 1px solid var(--sl-color-hairline);
+		border-radius: 0.4rem;
+		background: var(--sl-color-bg);
+		color: var(--sl-color-gray-3);
+		font-family: var(--sl-font-mono);
+		font-size: 0.68rem;
+		line-height: 1.5;
+		cursor: pointer;
+		opacity: 0.55;
+		transition: opacity 0.12s ease, color 0.12s ease;
+	}
+	.example--toggle:hover .example__codebtn,
+	.example__codebtn:focus-visible {
+		opacity: 1;
+		color: var(--sl-color-text-accent);
+	}
+	/* The code pane fills the chart's footprint when revealed; padded down so its first line
+	   clears the top-left toggle button (pane padding, not an inner margin Expressive Code
+	   would override). */
+	.example__pane[data-pane='code'] {
+		padding-top: 1.9rem;
 	}
 </style>
