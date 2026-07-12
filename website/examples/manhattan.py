@@ -50,7 +50,7 @@ sig = ds.add_rule(7.3, label="P = 5×10⁻⁸", strokeDash=True, labelAlign="rig
 hits_df = pl.DataFrame(hit_rows)
 gene_labels = ds.add_labels(
     hits_df, "pos", "logp", "gene",
-    xDomain=[0, offset], yDomain=[0, 13], fontSize=6,
+    xDomain=[0, offset], yDomain=[0, 13], fontSize=6, fontStyle="italic",  # gene names in italic
 )
 
 chart = points + sig + gene_labels
