@@ -39,12 +39,22 @@ const geistAustralis = (name, type, c) => ({
 	name,
 	type,
 	colors: { 'editor.background': c.bg, 'editor.foreground': c.fg },
-	settings: [
+	tokenColors: [
 		{ scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: c.cmt, fontStyle: 'italic' } },
-		{ scope: ['keyword', 'storage', 'storage.type', 'keyword.control'], settings: { foreground: c.kw, fontStyle: 'bold' } },
-		{ scope: ['string', 'string.quoted', 'punctuation.definition.string'], settings: { foreground: c.str } },
-		{ scope: ['constant.numeric', 'constant.language'], settings: { foreground: c.num } },
+		{
+			scope: ['keyword', 'storage', 'storage.type', 'storage.modifier', 'keyword.control', 'keyword.operator.logical', 'keyword.operator.expression', 'variable.language'],
+			settings: { foreground: c.kw, fontStyle: 'bold' },
+		},
+		{ scope: ['string', 'string.quoted', 'string.template', 'punctuation.definition.string', 'constant.character'], settings: { foreground: c.str } },
+		{ scope: ['constant.numeric', 'constant.language', 'constant.other', 'support.constant'], settings: { foreground: c.num } },
 		{ scope: ['entity.name.function', 'support.function', 'meta.function-call'], settings: { foreground: c.fn } },
+		{
+			// types/classes share the name accent. Uses the BROAD single-segment `support` scope
+			// (as github-light does) - EC didn't honor the two-segment `support.type` here, so
+			// type-heavy reference signatures (float/str/int/...) rendered mostly plain.
+			scope: ['support', 'entity.name.type', 'entity.name.class', 'entity.other.inherited-class'],
+			settings: { foreground: c.fn },
+		},
 		{ scope: ['keyword.operator'], settings: { foreground: c.op } },
 	],
 });
