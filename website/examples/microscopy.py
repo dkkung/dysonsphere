@@ -7,7 +7,7 @@ import dysonsphere as ds
 
 # Continuous color defaults to australis - the viridis-analogue journey.
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=150, chartHeight=150)
+ds.theme(chartWidth=150, chartHeight=150, closed=True, viewPadding=False)
 
 rng = np.random.default_rng(11)
 N = 90

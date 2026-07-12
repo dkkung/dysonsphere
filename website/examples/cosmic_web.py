@@ -8,7 +8,7 @@ from scipy.ndimage import gaussian_filter
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=165, chartHeight=165, heatmapPalette="borealis")
+ds.theme(chartWidth=165, chartHeight=165, heatmapPalette="borealis", closed=True, viewPadding=False)
 
 rng = np.random.default_rng(19)
 N = 100

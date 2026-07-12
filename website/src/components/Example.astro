@@ -152,10 +152,12 @@ const chartAlt = alt ?? `dysonsphere example: ${name}`;
 	}
 	/* A subtle always-visible affordance in the figure's top-right; brightens on hover so it
 	   reads as interactive without competing with the chart. */
+	/* Top-LEFT: clear of Vega's action menu (top-right of the chart) and the code cell's own
+	   copy button (top-right of the code block). */
 	.example__codebtn {
 		position: absolute;
 		top: 0.1rem;
-		right: 0.1rem;
+		left: 0.1rem;
 		z-index: 2;
 		padding: 0.1rem 0.45rem;
 		border: 1px solid var(--sl-color-hairline);
