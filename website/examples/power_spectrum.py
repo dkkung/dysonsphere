@@ -17,8 +17,16 @@ psd *= np.exp(rng.normal(0, 0.18, f.size))  # multiplicative jitter
 
 df = pl.DataFrame({"f": f, "psd": psd})
 base = alt.Chart(df).mark_line().encode(
-    x=alt.X("f:Q", title="frequency (Hz)", scale=alt.Scale(type="log", domain=[1, 2000], nice=False)),
-    y=alt.Y("psd:Q", title="power (a.u.)", scale=alt.Scale(type="log", nice=False)),
+    # major ticks on the decades only; add_log_ticks() supplies the half-size minors (without
+    # decade-only values, Vega draws its own full-size ticks at 2-9 and they double up)
+    x=alt.X(
+        "f:Q", title="frequency (Hz)", scale=alt.Scale(type="log", domain=[1, 2000], nice=False),
+        axis=alt.Axis(values=[1, 10, 100, 1000]),
+    ),
+    y=alt.Y(
+        "psd:Q", title="power (a.u.)", scale=alt.Scale(type="log", nice=False),
+        axis=alt.Axis(values=[1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]),
+    ),
 )
 
-chart = ds.add_log_ticks(base, df, axis="x", field="f")
+chart = ds.add_log_ticks(base, df, axis="both", xField="f", yField="psd")

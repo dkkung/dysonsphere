@@ -24,16 +24,20 @@ Pfus = np.linspace(Pt, 300, 40)
 rows = [{"T": float(t), "P": float(np.exp(a - b / t)), "boundary": "vaporization"} for t in Tvap]
 rows += [{"T": float(t), "P": float(np.exp(as_ - bs / t)), "boundary": "sublimation"} for t in Tsub]
 rows += [{"T": Tt + (p - Pt) * 0.006, "P": float(p), "boundary": "fusion"} for p in Pfus]
-lines = alt.Chart(pl.DataFrame(rows)).mark_line().encode(
+bounds = pl.DataFrame(rows)
+lines = alt.Chart(bounds).mark_line().encode(
     x=alt.X("T:Q", title="temperature (K)", scale=alt.Scale(domain=[185, 320], nice=False)),
-    y=alt.Y("P:Q", title="pressure (bar)", scale=alt.Scale(type="log", domain=[1, 300], nice=False)),
+    y=alt.Y(
+        "P:Q", title="pressure (bar)", scale=alt.Scale(type="log", domain=[1, 300], nice=False),
+        axis=alt.Axis(values=[1, 10, 100]),  # decades only; add_log_ticks() fills the half-size minors
+    ),
     detail="boundary:N",
 )
 pts = alt.Chart(pl.DataFrame({"T": [Tt, Tc], "P": [Pt, Pc]})).mark_point(
     size=28, filled=True, opacity=1
 ).encode(x="T:Q", y="P:Q")
 
-chart = (
+visual = (
     lines
     + pts
     + ds.add_text("solid", x=200.0, y=40.0)
@@ -43,3 +47,4 @@ chart = (
     + ds.add_text("triple", x=Tt, y=Pt, offsetX=-4, align="right")
     + ds.add_text("critical", x=Tc, y=Pc, offsetX=6, align="left")
 )
+chart = ds.add_log_ticks(visual, bounds, axis="y", field="P")
