@@ -153,13 +153,6 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   }
 }
 
-/* CodeMirror editors (studio builder view + editor, config generator): retint the GitHub
-   themes' ground onto the skin's code-cell color; the syntax colors stay. */
-.cm-editor,
-.cm-editor .cm-gutters {
-  background-color: var(--ds-code-bg) !important;
-}
-
 /* Inline code: quiet chip. */
 .sl-markdown-content code:not(:where(.not-content *, pre *)) {
   background: var(--sl-color-gray-6);

@@ -256,7 +256,7 @@ const paletteGroups = [
 	import { EditorView, basicSetup } from 'codemirror';
 	import { keymap } from '@codemirror/view';
 	import { python } from '@codemirror/lang-python';
-	import { githubLight, githubDark } from '@uiw/codemirror-theme-github';
+	import { geistLight, geistDark } from '../lib/cmTheme';
 	import { Compartment, EditorState } from '@codemirror/state';
 	import { getRuntime, onRuntimeStatus, type DsRuntime } from '../lib/runtime';
 	import palettes from '../generated/palettes.json';
@@ -343,7 +343,7 @@ high,100,26.4,6`;
 		// ------------------------------------------------------------------ editor (code mode)
 
 		const themeCompartment = new Compartment();
-		const cmTheme = () => (isDark() ? githubDark : githubLight);
+		const cmTheme = () => (isDark() ? geistDark : geistLight);
 		const editor = new EditorView({
 			doc: hashCode() ?? '',
 			extensions: [
