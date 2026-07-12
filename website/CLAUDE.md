@@ -219,9 +219,21 @@ intensity onto its own ramp + glow + strokes + wordmark colours.
   `eclipse` data palette, which shares the endpoints) - ink strokes (#8F8F89), and a star with a
   DARK core (#141413) brightening outward to warm paper (#FCFBF7), so the panel gaps read as rim
   light. Files: `dysonsphere_logo.svg` (mark), `dysonsphere_favicon.svg`,
-  `dysonsphere_logo_portrait_with_text{,_outlined}.svg`. The OUTLINED lockup draws the brand
-  CHIPS behind the two words (warm #EEECE6 chip + ink text for dyson; ink #141413 chip + paper
+  `dysonsphere_logo_portrait_with_text{,_outlined}.svg`, and
+  `dysonsphere_logo_horizontal_with_text{,_outlined}.svg`. The OUTLINED portrait lockup draws the
+  brand CHIPS behind the two words (warm #EEECE6 chip + ink text for dyson; ink #141413 chip + paper
   text for sphere - the site wordmark replicated from glyph ink bounds + 0.09em padding).
+- **Horizontal lockup (`_horizontal_with_text{,_outlined}`, the hero title)**: mark LEFT, wordmark
+  RIGHT, vertically centred - the icon+wordmark form used by big-company logos. `H_SIZE=110` (a
+  larger wordmark than the portrait's `SIZE=29`, to read proportionate beside the sphere), tucked
+  in tight: the mark is cropped to `R+H_MARK_PAD` (6) - the favicon crop that drops most of the
+  soft corona air - with `H_GAP` (10) px between the mark and the wordmark ink, the wordmark's
+  baseline->cap body centred on the sphere. Two-tone wordmark (no chips - the plain hero form).
+  `_horizontal_layout()` uses fonttools to measure the wordmark for a tight viewBox, so BOTH
+  horizontal variants (live-text AND outlined) are fonttools-gated (unlike the portrait live-text,
+  which always builds). The OUTLINED horizontal is the font-independent README/OG-image asset;
+  NOT wired into the site chrome (the header/hero keep live HTML text - responsive, accessible, no
+  Graphik dependency).
 - **Heritage scheme (`_australis` prefix)**: the pre-mono australis look kept regenerable -
   emerald->violet panels (lifted australis, light-first), mid-teal strokes #1D9CCB, warm star
   core + teal corona, two-tone wordmark #1D83CA/#4DE0B4, no chips. Files:

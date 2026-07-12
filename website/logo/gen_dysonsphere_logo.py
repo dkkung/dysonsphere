@@ -8,7 +8,11 @@ Default (mono identity - the black/white brand scheme):
   - dysonsphere_logo_portrait_with_text_outlined.svg  : mark + wordmark outlined to <path> paths,
                                                         with the brand chips behind the two words
                                                         (font-independent; renders anywhere)
-Heritage (australis) set: the same four files with a `dysonsphere_australis_` prefix.
+  - dysonsphere_logo_horizontal_with_text.svg         : mark LEFT, wordmark RIGHT, vertically centred
+                                                        (a hero/lockup title), as live <text>
+  - dysonsphere_logo_horizontal_with_text_outlined.svg: the same horizontal lockup, glyphs -> <path>
+                                                        (font-independent; the README/OG-image asset)
+Heritage (australis) set: the same six files with a `dysonsphere_australis_` prefix.
 
 The mark is a sphere of flat panels shaded by one lighting model; each scheme maps the light
 intensity onto its own ramp. Mono: warm paper on the lit side falling into deep ink shadow
@@ -17,7 +21,9 @@ ink strokes, a dark core glowing lighter outward through the panel gaps. Austral
 side through cobalt into violet shadow, mid-teal strokes, a warm star core with teal corona.
 
 Run:  uv run --no-project --with fonttools python website/logo/gen_dysonsphere_logo.py
-(fonttools + Graphik installed are needed only for the outlined variants; the rest always build.)
+(fonttools + Graphik installed are needed for the outlined variants AND both horizontal variants -
+the horizontal live-text one measures the wordmark to size its tight viewBox; the mark/favicon/
+portrait-live-text always build.)
 """
 from __future__ import annotations
 
@@ -66,6 +72,10 @@ _l = math.dist((0, 0, 0), LIGHT); LIGHT = tuple(c / _l for c in LIGHT)
 MINIDX, MAXIDX = 1, 9
 FONT = "'Graphik Light', 'Graphik-Light', 'Graphik', sans-serif"
 WORD, SPLIT, SIZE, BASELINE, WEIGHT = "dysonsphere", 5, 29, 217, 300  # split after "dyson"; chip top clears the corona glow (r = R*1.15 ~ 188.6)
+# The horizontal lockup (mark left, wordmark right): a larger wordmark than the portrait's SIZE
+# so it reads proportionate beside the sphere, tucked in tight (mark cropped to R+H_MARK_PAD like
+# the favicon, so most of the soft corona air is dropped; H_GAP px between the mark and the ink).
+H_SIZE, H_GAP, H_MARK_PAD, H_VPAD = 110, 10, 6, 3
 HERE = Path(__file__).parent
 
 
@@ -237,6 +247,80 @@ def outlined_text(scheme: dict) -> list[str]:
     return parts
 
 
+def _graphik_font():
+    from fontTools.ttLib import TTFont
+
+    ttc = next(iter(glob.glob("/System/Library/AssetsV2/com_apple_MobileAsset_Font*/*/AssetData/Graphik.ttc")), None)
+    if not ttc:
+        raise FileNotFoundError("Graphik.ttc not found")
+    return TTFont(ttc, fontNumber=6)  # 6 = Graphik Light
+
+
+def _horizontal_layout(font):
+    """Shared geometry for the horizontal lockup - mark left, wordmark right, vertically centred.
+
+    Returns ``(scale, x0, baseline, pens, bounds, glyphs, gs, viewbox)``: the wordmark's glyph
+    origins (``pens``, font units), ink ``bounds``, the font-unit->px ``scale``, the left origin
+    ``x0`` and ``baseline`` px positions, and the tight ``viewbox`` (mark cropped to R+H_MARK_PAD,
+    the wordmark ink starting H_GAP px right of it, its baseline->cap body centred on the sphere).
+    Shared so the live-text and outlined horizontal variants lay out identically.
+    """
+    from fontTools.pens.boundsPen import BoundsPen
+
+    scale = H_SIZE / font["head"].unitsPerEm
+    cmap, gs, hmtx = font.getBestCmap(), font.getGlyphSet(), font["hmtx"]
+    glyphs = [cmap[ord(c)] for c in WORD]
+    pens, acc = [], 0
+    for g in glyphs:
+        pens.append(acc)
+        acc += hmtx[g][0]
+    bounds = []
+    for g in glyphs:
+        bp = BoundsPen(gs)
+        gs[g].draw(bp)
+        bounds.append(bp.bounds)
+    ink_lo = min(pu + b[0] for pu, b in zip(pens, bounds) if b)
+    ink_hi = max(pu + b[2] for pu, b in zip(pens, bounds) if b)
+    y_hi = max(b[3] for b in bounds if b)  # ascender/cap top (font units)
+
+    mh = R + H_MARK_PAD  # mark half-extent: crop to the sphere, drop most of the soft corona air
+    x0 = (CENTER_X + mh + H_GAP) - ink_lo * scale  # leftmost ink sits H_GAP px right of the mark
+    baseline = CENTER_Y + y_hi / 2 * scale  # centre the baseline->cap body on the sphere centre
+    text_right = x0 + ink_hi * scale
+    vb_x, vb_y = CENTER_X - mh - H_VPAD, CENTER_Y - mh - H_VPAD
+    vb_w, vb_h = (text_right + H_VPAD) - vb_x, 2 * mh + 2 * H_VPAD
+    viewbox = f"{vb_x:.2f} {vb_y:.2f} {vb_w:.2f} {vb_h:.2f}"
+    return scale, x0, baseline, pens, bounds, glyphs, gs, viewbox
+
+
+def horizontal_live_text(scheme: dict) -> str:
+    _s, x0, baseline, *_rest, viewbox = _horizontal_layout(_graphik_font())
+    text = [
+        f'  <text x="{x0:.4f}" y="{baseline:.4f}" text-anchor="start" font-family="{FONT}" '
+        f'font-size="{H_SIZE}" font-weight="{WEIGHT}" fill="{scheme["dyson"]}">dyson'
+        f'<tspan fill="{scheme["sphere"]}">sphere</tspan></text>',
+    ]
+    return doc(scheme, text, viewbox)
+
+
+def horizontal_outlined_text(scheme: dict) -> str:
+    from fontTools.pens.svgPathPen import SVGPathPen
+
+    scale, x0, baseline, pens, bounds, glyphs, gs, viewbox = _horizontal_layout(_graphik_font())
+    parts = []
+    for idx, (g, pu, b) in enumerate(zip(glyphs, pens, bounds)):
+        if not b:
+            continue
+        fill = scheme["dyson"] if idx < SPLIT else scheme["sphere"]
+        pen = SVGPathPen(gs)
+        gs[g].draw(pen)
+        parts.append(
+            f'  <path transform="translate({x0 + pu * scale:.3f} {baseline:.3f}) '
+            f'scale({scale:.6f} {-scale:.6f})" fill="{fill}" d="{pen.getCommands()}"/>'
+        )
+    return doc(scheme, parts, viewbox)
+
+
 for suffix, scheme in SCHEMES.items():
     prefix = f"dysonsphere{suffix}"
     (HERE / f"{prefix}_logo.svg").write_text(doc(scheme, [], mark_viewbox()))
@@ -245,6 +329,8 @@ for suffix, scheme in SCHEMES.items():
     print(f"wrote {prefix}_logo.svg (mark) + _portrait_with_text.svg + {prefix}_favicon.svg")
     try:
         (HERE / f"{prefix}_logo_portrait_with_text_outlined.svg").write_text(doc(scheme, outlined_text(scheme)))
-        print(f"wrote {prefix}_logo_portrait_with_text_outlined.svg (glyphs -> paths)")
+        (HERE / f"{prefix}_logo_horizontal_with_text.svg").write_text(horizontal_live_text(scheme))
+        (HERE / f"{prefix}_logo_horizontal_with_text_outlined.svg").write_text(horizontal_outlined_text(scheme))
+        print(f"wrote {prefix}_logo_portrait_with_text_outlined.svg + _horizontal_with_text{{,_outlined}}.svg")
     except Exception as e:  # noqa: BLE001
-        print(f"skipped outlined variant: {e}  (needs `--with fonttools` and Graphik installed)")
+        print(f"skipped outlined/horizontal variants: {e}  (needs `--with fonttools` and Graphik installed)")
