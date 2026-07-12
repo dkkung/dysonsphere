@@ -59,7 +59,7 @@ import params from '../generated/theme_defaults.json';
 	import { Compartment } from '@codemirror/state';
 	import { StreamLanguage } from '@codemirror/language';
 	import { toml } from '@codemirror/legacy-modes/mode/toml';
-	import { githubLight, githubDark } from '@uiw/codemirror-theme-github';
+	import { geistLight, geistDark } from '../lib/cmTheme';
 	import defaultToml from '../generated/default_config.toml?raw';
 
 	function initConfigGenerator() {
@@ -69,7 +69,7 @@ import params from '../generated/theme_defaults.json';
 
 		const isDark = () => document.documentElement.dataset.theme === 'dark';
 		const themeCompartment = new Compartment();
-		const cmTheme = () => (isDark() ? githubDark : githubLight);
+		const cmTheme = () => (isDark() ? geistDark : geistLight);
 		const editor = new EditorView({
 			doc: defaultToml.trimEnd(),
 			extensions: [basicSetup, StreamLanguage.define(toml), themeCompartment.of(cmTheme())],
