@@ -22,7 +22,7 @@ sig += 0.15 * rng.standard_normal(t.size)
 win = 256
 hop = 40
 freqs = np.fft.rfftfreq(win, 1 / fs)
-fmask = freqs <= 1400
+fmask = freqs <= 1000  # Nyquist (fs/2) is the true ceiling
 hann = np.hanning(win)
 frames = []
 centers = []
@@ -56,7 +56,7 @@ chart = (
     .encode(
         x=alt.X("t0:Q", title="time (s)", scale=alt.Scale(domain=[0, T], nice=False)),
         x2="t1",
-        y=alt.Y("f0:Q", title="frequency (Hz)", scale=alt.Scale(domain=[0, 1400], nice=False)),
+        y=alt.Y("f0:Q", title="frequency (Hz)", scale=alt.Scale(domain=[0, float(fr[-1])], nice=False)),
         y2="f1",
         color=alt.Color("power:Q", title="dB"),
     )
