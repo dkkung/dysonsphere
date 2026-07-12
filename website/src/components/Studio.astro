@@ -252,7 +252,7 @@ const paletteGroups = [
 
 <script>
 	import vegaEmbed from 'vega-embed';
-	import { alignGridToContent, fixSuperscripts, italicizeStatSymbols } from '../lib/fixSuperscripts';
+	import { alignGridToContent, fixSubscripts, fixSuperscripts, italicizeStatSymbols } from '../lib/fixSuperscripts';
 	import { EditorView, basicSetup } from 'codemirror';
 	import { keymap } from '@codemirror/view';
 	import { python } from '@codemirror/lang-python';
@@ -729,6 +729,7 @@ high,100,26.4,6`;
 				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
 				alignGridToContent(chartEl, spec);
 				fixSuperscripts(chartEl);
+				fixSubscripts(chartEl);
 				italicizeStatSymbols(chartEl);
 				fitChartZoom();
 				clearError();

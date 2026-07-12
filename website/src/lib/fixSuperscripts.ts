@@ -55,6 +55,41 @@ export function fixSuperscripts(root: ParentNode): void {
 	}
 }
 
+// Subscript typesetting for axis titles like `q_x` / `q_y`. Unicode has a subscript x (ₓ) but NO
+// subscript y (the Subscripts block is missing most letters), so a `q_y` label can only be written
+// with a literal underscore, which renders as an ugly `q_y`. This lowers + shrinks the token after
+// a single-letter base and its underscore into a <tspan> (mirroring fixSuperscripts, opposite dy),
+// so `q_x`/`q_y` read as true subscripts. Matches a standalone `letter _ 1-2 alphanumerics` token
+// (the subscript notation), which does not occur in prose chart text.
+const SUBSCRIPT = /(?<![A-Za-z0-9])([A-Za-z])_([A-Za-z0-9]{1,2})(?![A-Za-z0-9])/;
+
+/** Re-typeset `base_sub` subscripts in every <text> of the rendered chart(s) under `root`. */
+export function fixSubscripts(root: ParentNode): void {
+	for (const text of root.querySelectorAll('svg text')) {
+		if (text.childElementCount > 0) continue; // already split into tspans
+		const s = text.textContent ?? '';
+		const m = s.match(SUBSCRIPT);
+		if (!m || m.index === undefined) continue;
+		const fs = parseFloat(getComputedStyle(text).fontSize) || 7;
+		const subSize = ((fs * 2) / 3).toFixed(2);
+		const shift = (fs * 0.3).toFixed(2);
+		const after = s.slice(m.index + m[0].length);
+		text.textContent = s.slice(0, m.index) + m[1]; // up to and including the base letter
+		const sub = document.createElementNS(SVG_NS, 'tspan');
+		sub.setAttribute('font-size', subSize);
+		sub.setAttribute('dy', shift); // lower (dy is cumulative within <text>)
+		sub.textContent = m[2];
+		text.appendChild(sub);
+		if (after) {
+			const rest = document.createElementNS(SVG_NS, 'tspan');
+			rest.setAttribute('font-size', String(fs));
+			rest.setAttribute('dy', `-${shift}`); // reset the baseline for trailing text
+			rest.textContent = after;
+			text.appendChild(rest);
+		}
+	}
+}
+
 // Client-side port of `export._italicize_stat_symbols()` (dysonsphere >= 3.4.2): single-letter
 // Latin statistical symbols are set in italic per scientific convention while digits, operators,
 // Greek symbols (η², ε², χ², ρ, τ), and multi-letter abbreviations (`ns`) stay upright. The

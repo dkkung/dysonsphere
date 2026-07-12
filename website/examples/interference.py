@@ -47,7 +47,7 @@ chart = (
         x2="x1",
         y=alt.Y("y0:Q", title="y (mm)", scale=alt.Scale(domain=[0, H], nice=False)),
         y2="y1",
-        color=alt.Color("I:Q", title="intensity"),
+        color=alt.Color("I:Q", title="Intensity"),
     )
 )
 

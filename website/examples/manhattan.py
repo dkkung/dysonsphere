@@ -35,11 +35,26 @@ for c, size in enumerate(chrom_sizes, start=1):
 
 df = pl.DataFrame({"pos": x, "logp": y, "parity": parity})
 
+# Standard GWAS Manhattan x-axis: a tick under each chromosome with its number centered on the
+# chromosome's span. The numbers are drawn as a mark_text layer, NOT axis labels - once add_labels
+# pins the shared x-scale, Vega culls axis labels to a thinned subset even with labelOverlap=False
+# (confirmed in both browser Vega and vl-convert), whereas mark_text marks are never culled. The
+# axis keeps only ticks + the "Chromosome" title, whose titlePadding reserves the room the numbers
+# sit in (so they are not clipped below the plot).
+chrom_ticks = [round(t, 2) for t in tick_pos]
+chrom_labels = [str(c) for c in range(1, len(chrom_sizes) + 1)]
+chrom_df = pl.DataFrame({"pos": chrom_ticks, "chrom": chrom_labels})
+
 points = (
     alt.Chart(df)
     .mark_circle(size=7, opacity=0.85)
     .encode(
-        x=alt.X("pos:Q", title="chromosome", axis=alt.Axis(labels=False, ticks=False)),
+        x=alt.X(
+            "pos:Q",
+            title="Chromosome",
+            scale=alt.Scale(domain=[0, offset], nice=False),
+            axis=alt.Axis(values=chrom_ticks, ticks=True, labels=False, titlePadding=13),
+        ),
         y=alt.Y("logp:Q", title="−log₁₀ p", scale=alt.Scale(domain=[0, 13])),
         color=alt.Color("parity:N", scale=alt.Scale(range=["#3A68BB", "#28CDC5"]), legend=None),
     )
@@ -54,5 +69,12 @@ gene_labels = ds.add_labels(
     fill=True,  # a background chip keeps each label legible over the point cloud
 )
 
-chart = points + sig + gene_labels
+# chromosome numbers under the axis (mark_text so all 22 always render; see the axis note above)
+chrom_nums = (
+    alt.Chart(chrom_df)
+    .mark_text(baseline="top", dy=4, fontSize=6)
+    .encode(x=alt.X("pos:Q", axis=None), y=alt.value(115), text="chrom:N")
+)
+
+chart = points + sig + gene_labels + chrom_nums
 

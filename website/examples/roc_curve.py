@@ -26,8 +26,8 @@ for name, sep in [("strong", 2.0), ("medium", 1.1), ("weak", 0.5)]:
     rows += [{"fpr": float(a), "tpr": float(b), "model": f"{name}  (AUC {auc:.2f})"} for a, b in zip(fpr, tpr)]
 
 curves = alt.Chart(pl.DataFrame(rows)).mark_line(interpolate="step-after").encode(
-    x=alt.X("fpr:Q", title="false positive rate", scale=alt.Scale(domain=[0, 1], nice=False)),
-    y=alt.Y("tpr:Q", title="true positive rate", scale=alt.Scale(domain=[0, 1], nice=False)),
+    x=alt.X("fpr:Q", title="False positive rate", scale=alt.Scale(domain=[0, 1], nice=False)),
+    y=alt.Y("tpr:Q", title="True positive rate", scale=alt.Scale(domain=[0, 1], nice=False)),
     color=alt.Color("model:N", title=None),
 )
 chance = alt.Chart(pl.DataFrame({"fpr": [0.0, 1.0], "tpr": [0.0, 1.0]})).mark_line(

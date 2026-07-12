@@ -20,8 +20,8 @@ chart = (
     alt.Chart(pl.DataFrame(rows))
     .mark_line(interpolate="step-after")
     .encode(
-        x=alt.X("x:Q", title="value"),
-        y=alt.Y("cdf:Q", title="cumulative probability", scale=alt.Scale(domain=[0, 1], nice=False)),
+        x=alt.X("x:Q", title="Value"),
+        y=alt.Y("cdf:Q", title="Cumulative probability", scale=alt.Scale(domain=[0, 1], nice=False)),
         color=alt.Color("group:N", title=None),
     )
 )

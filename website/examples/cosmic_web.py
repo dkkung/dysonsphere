@@ -52,11 +52,11 @@ chart = (
     alt.Chart(df)
     .mark_rect(stroke=None, clip=True)
     .encode(
-        x=alt.X("x0:Q", title="comoving distance (Mpc)", scale=alt.Scale(domain=[0, 100], nice=False)),
+        x=alt.X("x0:Q", title="Comoving distance (Mpc)", scale=alt.Scale(domain=[0, 100], nice=False)),
         x2="x1",
         y=alt.Y("y0:Q", title=None, scale=alt.Scale(domain=[0, 100], nice=False)),
         y2="y1",
-        color=alt.Color("delta:Q", title="overdensity δ"),
+        color=alt.Color("delta:Q", title="Overdensity δ"),
     )
 )
 

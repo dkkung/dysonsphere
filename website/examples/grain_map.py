@@ -43,7 +43,7 @@ chart = (
         x2="x1",
         y=alt.Y("y0:Q", title="y (µm)", scale=alt.Scale(domain=[0, 100], nice=False)),
         y2="y1",
-        color=alt.Color("theta:Q", title="orientation (°)"),
+        color=alt.Color("theta:Q", title="Orientation (°)"),
     )
 )
 

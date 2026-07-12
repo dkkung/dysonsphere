@@ -25,17 +25,17 @@ line = (
     alt.Chart(df)
     .mark_line(strokeWidth=1.0)
     .encode(
-        x=alt.X("rc:Q", title="reaction coordinate", axis=alt.Axis(labels=False, ticks=False)),
+        x=alt.X("rc:Q", title="Reaction coordinate", axis=alt.Axis(labels=False, ticks=False)),
         y=alt.Y("G:Q", title="ΔG (kcal/mol)", scale=alt.Scale(domain=[-12, 20])),
     )
 )
 
 ann = (
-    ds.add_text("reactants", x=0.0, y=-2.5, fontSize=6, align="left")
+    ds.add_text("Reactants", x=0.0, y=-2.5, fontSize=6, align="left")
     + ds.add_text("TS1", x=1.0, y=18.0, fontSize=6)
-    + ds.add_text("intermediate", x=2.0, y=3.0, fontSize=6)
+    + ds.add_text("Intermediate", x=2.0, y=3.0, fontSize=6)
     + ds.add_text("TS2", x=3.0, y=13.5, fontSize=6)
-    + ds.add_text("product", x=4.0, y=-10.5, fontSize=6, align="right")
+    + ds.add_text("Product", x=4.0, y=-10.5, fontSize=6, align="right")
 )
 
 chart = line + ann

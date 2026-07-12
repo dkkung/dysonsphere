@@ -25,7 +25,7 @@ pH = -np.log10(np.sqrt(lo * hi))
 
 df = pl.DataFrame({"Vb": Vb, "pH": pH})
 curve = alt.Chart(df).mark_line().encode(
-    x=alt.X("Vb:Q", title="base added (mL)", scale=alt.Scale(domain=[0, 50], nice=False)),
+    x=alt.X("Vb:Q", title="Base added (mL)", scale=alt.Scale(domain=[0, 50], nice=False)),
     y=alt.Y("pH:Q", title="pH", scale=alt.Scale(domain=[2, 13], nice=False)),
 )
 

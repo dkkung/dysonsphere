@@ -29,7 +29,7 @@ colorbar = (
     .encode(
         x="x:Q",
         y="y:Q",
-        color=alt.Color("intensity:Q", title="intensity (a.u.)", scale=alt.Scale(range=colors["condensates"])),
+        color=alt.Color("intensity:Q", title="Intensity (a.u.)", scale=alt.Scale(range=colors["condensates"])),
     )
 )
 

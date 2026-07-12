@@ -34,7 +34,7 @@ for i in reversed(range(len(months))):  # back-to-front so ridges overlap correc
         alt.Chart(sub)
         .mark_area(interpolate="monotone", opacity=0.9, stroke="white", strokeWidth=0.4)
         .encode(
-            x=alt.X("temp:Q", title="temperature (°C)"),
+            x=alt.X("temp:Q", title="Temperature (°C)"),
             y=alt.Y("top:Q", axis=None, scale=alt.Scale(domain=[-len(months), overlap + 0.5])),
             y2="base:Q",
             color=alt.Color("month:N", sort=months, legend=None),

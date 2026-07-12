@@ -95,7 +95,12 @@ dissolved 2026-07-06).
   regenerates on deploy, so these are the local-dev copies). **Layering two composite marks**
   (e.g. raincloud = `mark_violin` + points) double-draws the x-axis because `mark_violin` resolves
   x independently - overlay the raw points as a plain `mark_circle` with `axis=None` instead of a
-  second `mark_strip`, so only the violin draws the axis.
+  second `mark_strip`, so only the violin draws the axis. **`add_labels` culls axis labels:** once
+  `add_labels` pins the shared position scale, Vega thins that axis's labels to a subset even with
+  `labelOverlap=False` (confirmed in BOTH browser Vega and vl-convert) - so the manhattan chromosome
+  numbers are drawn as a `mark_text` layer (marks are never culled), NOT axis labels; the axis keeps
+  ticks + a title whose `titlePadding` reserves the vertical room the numbers sit in (else they clip
+  below the plot). Any "N labels under a scale that `add_labels` shares" case needs the same trick.
 - **Real raster images (the condensate micrograph)** ride as a `mark_image` example: the source
   intensity is recolored to a chosen LUT OFFLINE (a full-res LOSSLESS PNG in `public/gallery/`,
   never downsampled - a 1000x1000 per-pixel `mark_rect` heatmap is infeasible), then displayed with
@@ -156,6 +161,15 @@ dissolved 2026-07-06).
   superscripts (`P = 5.03×10⁻¹⁷`). `src/lib/fixSuperscripts.ts` ports the fixer to the rendered
   SVG DOM (raised/shrunk ASCII tspan, same ratios); Chart.astro and the Studio call it after
   every vegaEmbed. Only text nodes are touched - aria-label attributes keep the original string.
+- **Subscripts are typeset client-side too (`fixSubscripts`, site-only).** Unicode has a subscript
+  x (ₓ) but NO subscript y (most letters are missing from the Subscripts block), so a `q_y`-style
+  axis title can only be written with a literal underscore that renders as an ugly `q_y`.
+  `fixSubscripts` (fixSuperscripts.ts, called after `fixSuperscripts` in Chart.astro + Studio)
+  lowers+shrinks the token after a `letter_` into a `<tspan>` (mirrors the superscript fixer,
+  opposite dy). It matches only a standalone `letter _ 1-2 alphanumerics` token (subscript
+  notation, absent from prose), so it is safe to run globally. Used by the diffraction example
+  (`q_x`/`q_y`). NOTE: there is NO library-side subscript fixer, so an example using `q_x`/`q_y`
+  would show literal underscores if exported via `ds.save()` - this is a site-render-only feature.
 - **Grid lines are re-seated client-side.** `alignGridToContent` (fixSuperscripts.ts) ports
   `export._align_grid_to_content`: on an open plot the grid inherits its axis group's
   `axisOffset` and renders dragged toward the axis; the fixer translates each line back so the

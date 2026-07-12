@@ -36,7 +36,7 @@ sticks = (
     .mark_rule(strokeWidth=0.9, strokeDash=[0, 0])
     .encode(
         x=alt.X("mz:Q", title="m/z", scale=alt.Scale(domain=[25, 190])),
-        y=alt.Y("intensity:Q", title="relative intensity", scale=alt.Scale(domain=[0, 108])),
+        y=alt.Y("intensity:Q", title="Relative intensity", scale=alt.Scale(domain=[0, 108])),
     )
 )
 
