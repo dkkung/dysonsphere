@@ -176,8 +176,10 @@ const chartAlt = alt ?? `dysonsphere example: ${name}`;
 		opacity: 1;
 		color: var(--sl-color-text-accent);
 	}
-	/* The code pane fills the chart's footprint when revealed; its own scroll if long. */
-	.example__pane[data-pane='code'] :global(.expressive-code) {
-		margin: 0.2rem 0 0;
+	/* The code pane fills the chart's footprint when revealed; padded down so its first line
+	   clears the top-left toggle button (pane padding, not an inner margin Expressive Code
+	   would override). */
+	.example__pane[data-pane='code'] {
+		padding-top: 1.9rem;
 	}
 </style>
