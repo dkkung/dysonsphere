@@ -171,6 +171,15 @@ def mark_table(
     ``chartHeight``. Column widths are proportional-font estimates (Vega cannot measure text at
     build time); pass ``columnWidths`` for exact control.
 
+    **Darkmode** is resolved at BUILD time (like ``add_shade`` / ``add_multilabel``): the stripe
+    fills sample the dark end of the palette and the strokes / auto-contrast colours flip when the
+    table is built under ``theme(darkmode=True)`` (cell text with no explicit colour follows the
+    theme's darkmode-aware ``config.text`` at render). So set the theme before building, or - to
+    export light AND dark from one call - pass a **callable** to ``ds.save()`` so the table is
+    rebuilt per background::
+
+        ds.save(lambda: ds.mark_table(df, ...), "table", background=["light", "dark"])
+
     Parameters
     ----------
     df:
