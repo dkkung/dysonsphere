@@ -8,7 +8,56 @@
 // animated spans are aria-hidden). Plays for everyone by explicit user decision (no
 // prefers-reduced-motion skip). Scoped to the homepage by construction: only the
 // landing page has a Starlight hero, so `.hero h1` matches nothing anywhere else.
+//
+// The FIRST stop keeps its eclipse chips (theme-flipping, via CSS). Every later stop draws
+// its two chip backgrounds from ONE dysonsphere palette (both from the same palette, never
+// mixed) - a light stop with ink text + a dark stop with paper text. The build precomputes,
+// per NATIVE palette (mpl_/cmocean_ excluded), the max-Oklab-separation legible [inkBg, paperBg]
+// pair; the client picks a palette at random each stop (never repeating the last).
+import palettes from '../generated/palettes.json';
+
+const INK = '#141413';
+const PAPER = '#eeece6';
+const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const lum = (h: string) => {
+	const [r, g, b] = rgb(h).map(lin);
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (a: string, b: string) => {
+	const [l1, l2] = [lum(a), lum(b)].sort((x, y) => y - x);
+	return (l1 + 0.05) / (l2 + 0.05);
+};
+const oklab = (h: string) => {
+	const [r, g, b] = rgb(h).map(lin);
+	const l = Math.cbrt(0.4122 * r + 0.5363 * g + 0.0514 * b);
+	const m = Math.cbrt(0.2119 * r + 0.6807 * g + 0.1074 * b);
+	const s = Math.cbrt(0.0883 * r + 0.2817 * g + 0.63 * b);
+	return [0.2105 * l + 0.7936 * m - 0.0041 * s, 1.978 * l - 2.4286 * m + 0.4506 * s, 0.0259 * l + 0.7828 * m - 0.8087 * s];
+};
+const dist = (a: string, b: string) => {
+	const [A, B] = [oklab(a), oklab(b)];
+	return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]);
+};
+// [inkBg, paperBg] per native palette that has a stop readable under ink AND under paper (AA)
+const chipPairs = (palettes as { name: string; colors: string[] }[])
+	.filter((p) => !/^(mpl_|cmocean_)/.test(p.name))
+	.map((p) => {
+		const light = p.colors.filter((c) => contrast(c, INK) >= 4.5);
+		const dark = p.colors.filter((c) => contrast(c, PAPER) >= 4.5);
+		let best: [string, string] | null = null;
+		let bestD = 0;
+		for (const L of light)
+			for (const D of dark) {
+				const d = dist(L, D);
+				if (d > bestD) [bestD, best] = [d, [L, D]];
+			}
+		return best;
+	})
+	.filter((x): x is [string, string] => x !== null);
 ---
+
+<script type="application/json" id="tw-chip-pairs" set:html={JSON.stringify(chipPairs)}></script>
 
 <script>
 	const START_DELAY_MS = 400;
@@ -17,6 +66,37 @@
 	const WORD_PAUSE_MS = 350;
 	const HOLD_MS = 2200;
 	const BLANK_PAUSE_MS = 500;
+
+	const INK = '#141413';
+	const PAPER = '#eeece6';
+	// [inkBg, paperBg] chip pairs baked per native palette at build time (see frontmatter)
+	let chipPairs: [string, string][] = [];
+	try {
+		chipPairs = JSON.parse(document.getElementById('tw-chip-pairs')?.textContent || '[]');
+	} catch {
+		chipPairs = [];
+	}
+	let lastPaletteIdx = -1;
+
+	// Colour a stop's two chips: stop 0 keeps eclipse (clear inline styles -> the theme-flipping
+	// CSS wins); later stops draw both chips from ONE random native palette (never the last one),
+	// a light stop with ink text + a dark stop with paper text, sides randomised.
+	function styleStop(stop: number, first: HTMLElement, chip: HTMLElement) {
+		if (stop === 0 || !chipPairs.length) {
+			first.style.cssText = '';
+			chip.style.cssText = '';
+			return;
+		}
+		let idx = Math.floor(Math.random() * chipPairs.length);
+		if (chipPairs.length > 1 && idx === lastPaletteIdx) idx = (idx + 1) % chipPairs.length;
+		lastPaletteIdx = idx;
+		const [inkBg, paperBg] = chipPairs[idx];
+		const [c1, c2] = Math.random() < 0.5 ? [inkBg, paperBg] : [paperBg, inkBg];
+		first.style.background = c1;
+		first.style.color = c1 === inkBg ? INK : PAPER;
+		chip.style.background = c2;
+		chip.style.color = c2 === inkBg ? INK : PAPER;
+	}
 
 	// [plain word, chipped word] stops - run together with no space, like dysonsphere.
 	const STOPS: Array<[string, string]> = [
@@ -72,6 +152,7 @@
 				if (i <= 0) (phase = 'blank'), (delay = BLANK_PAUSE_MS);
 			} else {
 				stop = (stop + 1) % STOPS.length; // roll into the next word from the blank slate
+				styleStop(stop, first, chip); // sample this word's chip palette before it types
 				(phase = 'type-a'), (i = 0);
 			}
 			setTimeout(tick, delay);
