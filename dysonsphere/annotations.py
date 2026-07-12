@@ -337,14 +337,14 @@ def _resolve_text_bg(fill: "str | bool", stroke: "str | bool") -> "tuple[str | N
     """Resolve the text-background fill/stroke to concrete colours (or ``None`` -> not drawn).
 
     ``fill``/``stroke`` follow the ``bool | str`` pattern: ``False`` -> off; ``True`` -> a
-    darkmode-aware default (fill: ``greys[1]`` light / ``greys[11]`` dark; stroke: ``black`` light /
+    darkmode-aware default (fill: ``greys[0]`` light / ``greys[11]`` dark; stroke: ``black`` light /
     ``white`` dark); a string -> that colour. Read ``darkmode`` at build time (like ``add_shade``),
     so a ``save()`` across backgrounds needs a callable to re-resolve it.
     """
     from .palettes import colors
 
     dark = _opt("darkmode")
-    fill_c = colors["greys"][11 if dark else 1] if fill is True else (fill if isinstance(fill, str) else None)
+    fill_c = colors["greys"][11 if dark else 0] if fill is True else (fill if isinstance(fill, str) else None)
     stroke_c = ("white" if dark else "black") if stroke is True else (stroke if isinstance(stroke, str) else None)
     return fill_c, stroke_c
 
@@ -359,6 +359,7 @@ def _text_bg_props(
     fill_c: "str | None",
     stroke_c: "str | None",
     fillOpacity: float,
+    cornerRadius: "float | bool",
 ) -> "tuple[dict, float, float]":
     """Background-rect ``mark_rect`` kwargs + pixel (xOffset, yOffset) for one text.
 
@@ -366,18 +367,26 @@ def _text_bg_props(
     it is not exact) plus padding, and the offsets recentre the pixel-sized rect from the datum
     onto the text per its ``align``/``baseline`` (and any ``dx``/``dy``), so it sits behind the
     glyphs without needing the scale - works for both datum (data) and value (pixel) positions.
+    ``cornerRadius`` follows the ``float | bool`` pattern: ``True`` -> ``fs * 0.25`` (the default
+    rounding), ``False`` -> ``0`` (square), an explicit float -> that radius in px.
     """
     w = len(text) * fs * 0.6 + fs * 0.7  # text width estimate + horizontal padding
     h = fs * 1.4
     x_shift = {"left": w / 2, "right": -w / 2}.get(align, 0.0) + dx
     y_shift = {"top": h / 2, "bottom": -h / 2, "alphabetic": -h / 2}.get(baseline, 0.0) + dy
-    rk: dict = {"width": round(w, 2), "height": round(h, 2), "cornerRadius": round(fs * 0.25, 2)}
+    cr = fs * 0.25 if cornerRadius is True else (0.0 if cornerRadius is False else cornerRadius)
+    rk: dict = {"width": round(w, 2), "height": round(h, 2), "cornerRadius": round(cr, 2)}
     rk["fill"] = fill_c  # None -> transparent fill (stroke-only)
     if fill_c is not None:
         rk["fillOpacity"] = fillOpacity
     if stroke_c is not None:
         rk["stroke"] = stroke_c
         rk["strokeWidth"] = _opt("markStrokeWidth")
+    else:
+        # The theme styles config.rect with a black stroke, which a mark_rect inherits (same
+        # config-leak as config.bar.fill); pin it off so stroke=False means no border.
+        rk["stroke"] = None
+        rk["strokeWidth"] = 0
     return rk, round(x_shift, 2), round(y_shift, 2)
 
 
@@ -387,7 +396,7 @@ def _text_datum_layers(
     xs: list,
     ys: list,
     mark_kwargs: dict,
-    bg: "tuple[str | None, str | None, float] | None" = None,
+    bg: "tuple[str | None, str | None, float, float | bool] | None" = None,
 ) -> list[alt.Chart]:
     """Datum/value-positioned text layers: one per annotation, each on a fresh ``base_factory``
     base. Positions come from ``alt.datum`` (data coords) or ``alt.value`` (pixels) - never a data
@@ -436,7 +445,8 @@ def add_text(
     opacity: float = 1.0,
     fill: str | bool = False,
     fillOpacity: float = 1.0,
-    stroke: str | bool = False,
+    stroke: str | bool = True,
+    cornerRadius: float | bool = True,
     data: "pl.DataFrame | Any | None" = None,
 ) -> alt.Chart | alt.LayerChart:
     """
@@ -525,16 +535,20 @@ def add_text(
         Text opacity. Defaults to ``1.0``.
     fill:
         Background fill behind the text (a rect chip). ``False`` (default) -> none; ``True`` -> a
-        darkmode-aware default (``greys[1]`` light / ``greys[11]`` dark); a string -> that color.
+        darkmode-aware default (``greys[0]`` light / ``greys[11]`` dark); a string -> that color.
         Read at build time (like ``add_shade``), so a ``save()`` across backgrounds needs a callable
         to re-resolve it. The chip is sized from a rough text estimate (proportional fonts vary, so
         it is approximate) plus padding.
     fillOpacity:
         Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
     stroke:
-        Background border. ``False`` (default) -> none; ``True`` -> a darkmode-aware default
-        (``"black"`` light / ``"white"`` dark); a string -> that color. Independent of ``fill`` (set
-        ``stroke`` with ``fill=False`` for an outlined, transparent-filled chip).
+        Border of the background chip. ``True`` (default) -> a darkmode-aware default (``"black"``
+        light / ``"white"`` dark); ``False`` -> no border; a string -> that color. Only takes effect
+        when a chip is drawn (i.e. when ``fill`` is set) - it borders the fill, it does not create a
+        chip on its own.
+    cornerRadius:
+        Corner rounding of the background chip. ``True`` (default) -> ``fontSize * 0.25``; ``False``
+        -> ``0`` (square); an explicit float -> that radius in px. Ignored when no chip is drawn.
     data:
         Facet-safe (datum) mode. ``None`` (default) builds the annotation from its own internal
         dataset — the normal behavior, but **incompatible with faceting**. Pass the **same
@@ -661,7 +675,7 @@ def add_text(
             return alt.Chart(_internal_data([{}]))
 
     fill_c, stroke_c = _resolve_text_bg(fill, stroke)
-    bg = (fill_c, stroke_c, fillOpacity) if (fill_c is not None or stroke_c is not None) else None
+    bg = (fill_c, stroke_c, fillOpacity, cornerRadius) if fill_c is not None else None  # chip gated on fill
 
     layers = _text_datum_layers(base_factory, texts, xs, ys, mark_kwargs, bg)
     return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
@@ -708,7 +722,8 @@ def add_labels(
     color: str | None = None,
     fill: str | bool = False,
     fillOpacity: float = 1.0,
-    stroke: str | bool = False,
+    stroke: str | bool = True,
+    cornerRadius: float | bool = True,
     connector: bool = True,
     connectorColor: str | None = None,
     connectorOpacity: float | None = None,
@@ -769,14 +784,18 @@ def add_labels(
         black/white).
     fill:
         Background fill behind each label (a rect chip - useful over a dense scatter). ``False``
-        (default) -> none; ``True`` -> a darkmode-aware default (``greys[1]`` light / ``greys[11]``
+        (default) -> none; ``True`` -> a darkmode-aware default (``greys[0]`` light / ``greys[11]``
         dark); a string -> that color. Read at build time (like ``add_shade``), so a ``save()``
         across backgrounds needs a callable. The connector meets the chip's edge.
     fillOpacity:
         Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
     stroke:
-        Background border. ``False`` (default) -> none; ``True`` -> a darkmode-aware default
-        (``"black"`` light / ``"white"`` dark); a string -> that color. Independent of ``fill``.
+        Border of the background chip. ``True`` (default) -> a darkmode-aware default (``"black"``
+        light / ``"white"`` dark); ``False`` -> no border; a string -> that color. Only takes effect
+        when a chip is drawn (i.e. when ``fill`` is set).
+    cornerRadius:
+        Corner rounding of the background chip. ``True`` (default) -> ``fontSize * 0.25``; ``False``
+        -> ``0`` (square); an explicit float -> that radius in px. Ignored when no chip is drawn.
     connector:
         Whether to draw the line connecting each point to its label (default ``True``).
     connectorColor:
@@ -914,7 +933,7 @@ def add_labels(
         return {"x": alt.XDatum(px_to_x(px), scale=x_scale), "y": alt.YDatum(px_to_y(py), scale=y_scale)}
 
     fill_c, stroke_c = _resolve_text_bg(fill, stroke)
-    bg = (fill_c, stroke_c, fillOpacity) if (fill_c is not None or stroke_c is not None) else None
+    bg = (fill_c, stroke_c, fillOpacity, cornerRadius) if fill_c is not None else None  # chip gated on fill
 
     layers: list[alt.Chart] = []
     for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, label_texts):

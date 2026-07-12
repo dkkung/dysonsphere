@@ -61,13 +61,14 @@ class TestAddLabels:
         return [lyr["mark"] for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rect"]
 
     def test_fill_false_no_rects(self, df):
+        # the chip is gated on fill: default (fill=False) draws no rect even though stroke defaults True
         assert not self._rects(add_labels(df, "x", "y", "g"))
 
     def test_fill_true_rect_per_label(self, df):
         from dysonsphere.palettes import colors
 
         rects = self._rects(add_labels(df, "x", "y", "g", fill=True, connector=False))
-        assert len(rects) == 3 and all(r["fill"] == colors["greys"][1] for r in rects)  # light default
+        assert len(rects) == 3 and all(r["fill"] == colors["greys"][0] for r in rects)  # light default
 
     def test_fill_darkmode_uses_greys11(self, df):
         from dysonsphere.palettes import colors
@@ -76,9 +77,23 @@ class TestAddLabels:
         rects = self._rects(add_labels(df, "x", "y", "g", fill=True, connector=False))
         assert rects and all(r["fill"] == colors["greys"][11] for r in rects)
 
-    def test_stroke_true_adds_stroke_transparent_fill(self, df):
-        rects = self._rects(add_labels(df, "x", "y", "g", stroke=True, connector=False))
-        assert rects and all(r["stroke"] == "black" and r["fill"] is None for r in rects)
+    def test_fill_true_default_stroke_borders_the_chip(self, df):
+        # stroke defaults True, so a fill chip gets a darkmode-aware border
+        rects = self._rects(add_labels(df, "x", "y", "g", fill=True, connector=False))
+        assert rects and all(r["stroke"] == "black" for r in rects)
+
+    def test_stroke_false_pins_off_config_rect_border(self, df):
+        # the theme styles config.rect with a black stroke; stroke=False must pin it off, not leak it
+        rects = self._rects(add_labels(df, "x", "y", "g", fill=True, stroke=False, connector=False))
+        assert rects and all(r["stroke"] is None and r["strokeWidth"] == 0 for r in rects)
+
+    def test_corner_radius_bool_and_float(self, df):
+        rounded = self._rects(add_labels(df, "x", "y", "g", fill=True, fontSize=8, connector=False))
+        square = self._rects(add_labels(df, "x", "y", "g", fill=True, cornerRadius=False, connector=False))
+        px = self._rects(add_labels(df, "x", "y", "g", fill=True, cornerRadius=3.0, connector=False))
+        assert all(r["cornerRadius"] == 2.0 for r in rounded)  # True -> fontSize * 0.25
+        assert all(r["cornerRadius"] == 0.0 for r in square)
+        assert all(r["cornerRadius"] == 3.0 for r in px)
 
     def test_no_invisible_pin_mark(self, df):
         # the scale pin must ride on the label marks themselves - no invisible point may land in
@@ -442,7 +457,7 @@ class TestAddText:
         assert isinstance(add_text("a", x=1.0, y=1.0), alt.Chart)
 
     def test_fill_false_bare_text(self):
-        # no fill/stroke -> a single text mark, no background rect
+        # the chip is gated on fill: default (fill=False) draws no rect even though stroke defaults True
         assert add_text("hi", x=1.0, y=1.0).to_dict()["mark"]["type"] == "text"
 
     def test_fill_true_adds_background_rect(self):
@@ -450,7 +465,7 @@ class TestAddText:
 
         spec = add_text("hi", x=1.0, y=1.0, fill=True).to_dict()
         assert [lyr["mark"]["type"] for lyr in spec["layer"]] == ["rect", "text"]  # rect behind text
-        assert spec["layer"][0]["mark"]["fill"] == colors["greys"][1]  # light default
+        assert spec["layer"][0]["mark"]["fill"] == colors["greys"][0]  # light default
 
     def test_fill_darkmode_uses_greys11(self):
         from dysonsphere.palettes import colors
@@ -463,9 +478,25 @@ class TestAddText:
         rect = add_text("hi", x=1.0, y=1.0, fill="#123456", fillOpacity=0.5).to_dict()["layer"][0]["mark"]
         assert rect["fill"] == "#123456" and rect["fillOpacity"] == pytest.approx(0.5)
 
-    def test_stroke_true_adds_stroke_transparent_fill(self):
-        rect = add_text("hi", x=1.0, y=1.0, stroke=True).to_dict()["layer"][0]["mark"]
-        assert rect["stroke"] == "black" and rect["fill"] is None  # light default, stroke-only
+    def test_fill_true_default_stroke_borders_the_chip(self):
+        # stroke defaults True, so a fill chip gets a darkmode-aware border
+        rect = add_text("hi", x=1.0, y=1.0, fill=True).to_dict()["layer"][0]["mark"]
+        assert rect["stroke"] == "black"  # light default
+
+    def test_stroke_false_pins_off_config_rect_border(self):
+        # the theme styles config.rect with a black stroke; stroke=False must pin it off, not leak it
+        rect = add_text("hi", x=1.0, y=1.0, fill=True, stroke=False).to_dict()["layer"][0]["mark"]
+        assert rect["stroke"] is None and rect["strokeWidth"] == 0
+
+    def test_corner_radius_bool_and_float(self):
+        def cr(**kw):
+            return add_text("hi", x=1.0, y=1.0, fill=True, fontSize=8, **kw).to_dict()["layer"][0]["mark"][
+                "cornerRadius"
+            ]
+
+        assert cr() == 2.0  # True -> fontSize * 0.25
+        assert cr(cornerRadius=False) == 0.0
+        assert cr(cornerRadius=3.0) == 3.0
 
     def test_multiple_annotations_return_layer(self):
         # One datum layer per annotation (single stays a bare Chart).

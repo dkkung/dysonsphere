@@ -30,7 +30,8 @@ Pass a list of values (and a matching list of labels) for several lines in one c
 `add_text()` places annotations at data coordinates (numbers share the quantitative scale, strings
 snap to categories) or at frame positions via nine presets (`topLeft`, `middleCenter`, …). Add a
 background chip behind the text with `fill` (`True` for a darkmode-aware grey, or a color),
-`fillOpacity`, and `stroke` - useful for keeping the text legible over a busy field.
+`fillOpacity`, `stroke`, and `cornerRadius` - useful for keeping the text legible over a busy
+field. The chip is drawn only when `fill` is set.
 
 <Example name="text" alt="Scatter plot with a frame-anchored sample-size annotation" />
 
@@ -61,7 +62,7 @@ name - an integer picks that many spread evenly across the plot, a list names ro
 label column repeats. Passing the full `df` also lets the labels dodge every plotted point, not
 just the ones being named, so they settle into open space instead of on top of the crowd. Style
 the labels with `fontSize`, `color`, and `fontStyle` (e.g. `fontStyle="italic"` for gene or
-species names), and give them a background chip with `fill` / `fillOpacity` / `stroke` to keep them
-readable over a dense scatter.
+species names), and give them a background chip with `fill` / `fillOpacity` / `stroke` /
+`cornerRadius` (drawn only when `fill` is set) to keep them readable over a dense scatter.
 
 <Example name="labels" alt="Scatter plot with eight auto-placed, connector-linked point labels" />
