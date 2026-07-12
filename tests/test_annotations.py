@@ -44,6 +44,18 @@ class TestAddLabels:
         # 1 text per label, no pin layer
         assert len(add_labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 3
 
+    @staticmethod
+    def _text_marks(chart):
+        return [lyr["mark"] for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "text"]
+
+    def test_font_style_default_absent(self, df):
+        marks = self._text_marks(add_labels(df, "x", "y", "g"))
+        assert marks and all("fontStyle" not in m for m in marks)
+
+    def test_font_style_italic_applied(self, df):
+        marks = self._text_marks(add_labels(df, "x", "y", "g", fontStyle="italic"))
+        assert marks and all(m["fontStyle"] == "italic" for m in marks)
+
     def test_no_invisible_pin_mark(self, df):
         # the scale pin must ride on the label marks themselves - no invisible point may land in
         # the spec (it used to show up as a phantom element in the exported SVG)

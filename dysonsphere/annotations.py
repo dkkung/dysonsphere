@@ -627,6 +627,7 @@ def add_labels(
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
+    fontStyle: str | None = None,
     color: str | None = None,
     connector: bool = True,
     connectorColor: str | None = None,
@@ -680,6 +681,9 @@ def add_labels(
         scatter).
     fontSize:
         Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
+    fontStyle:
+        Label font style, e.g. ``"italic"`` (gene / species names) or ``"bold"``. ``None`` (default)
+        inherits the theme's ``mark_text`` (upright). Applies to every label.
     color:
         Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware
         black/white).
@@ -754,6 +758,8 @@ def add_labels(
     text_kwargs: dict = {"fontSize": fs, "baseline": "middle"}
     if color is not None:
         text_kwargs["color"] = color
+    if fontStyle is not None:
+        text_kwargs["fontStyle"] = fontStyle
     # connectorStrokeDash: False -> solid ([0, 0]); True -> the theme's dashedWidth; a list -> as given.
     rule_kwargs: dict = {"strokeDash": _resolve_dash(connectorStrokeDash)}
     if connectorColor is not None:

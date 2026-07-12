@@ -180,6 +180,7 @@ def add_labels(
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
+    fontStyle: str | None = None,
     color: str | None = None,
     connector: bool = True,
     connectorColor: str | None = None,
@@ -214,6 +215,7 @@ round bounds, but without Vega's default ``zero`` - which is required for alignm
 - **`xDomain`** (`tuple[float, float] | None`) - ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``). Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``, rounded outward to nice tick bounds** (d3-style nice, so the axes end on round numbers; filtering ``df`` just moves the axes with it - always inferred). An explicit value is used exactly as given (no rounding). Pass explicitly only when you want the axes to span a range the passed ``df`` does not cover - i.e. the base chart plots more than you hand ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose extent is tighter than the scatter).
 - **`yDomain`** (`tuple[float, float] | None`) - ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``). Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``, rounded outward to nice tick bounds** (d3-style nice, so the axes end on round numbers; filtering ``df`` just moves the axes with it - always inferred). An explicit value is used exactly as given (no rounding). Pass explicitly only when you want the axes to span a range the passed ``df`` does not cover - i.e. the base chart plots more than you hand ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose extent is tighter than the scatter).
 - **`fontSize`** (`float | None`) - Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
+- **`fontStyle`** (`str | None`) - Label font style, e.g. ``"italic"`` (gene / species names) or ``"bold"``. ``None`` (default) inherits the theme's ``mark_text`` (upright). Applies to every label.
 - **`color`** (`str | None`) - Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware black/white).
 - **`connector`** (`bool`) - Whether to draw the line connecting each point to its label (default ``True``).
 - **`connectorColor`** (`str | None`) - Connector line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware). Connectors otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke, opaque).
