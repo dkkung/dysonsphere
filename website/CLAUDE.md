@@ -219,17 +219,35 @@ intensity onto its own ramp + glow + strokes + wordmark colours.
   `eclipse` data palette, which shares the endpoints) - ink strokes (#8F8F89), and a star with a
   DARK core (#141413) brightening outward to warm paper (#FCFBF7), so the panel gaps read as rim
   light. Files: `dysonsphere_logo.svg` (mark), `dysonsphere_favicon.svg`,
-  `dysonsphere_logo_portrait_with_text{,_outlined}.svg`. The OUTLINED lockup draws the brand
-  CHIPS behind the two words (warm #EEECE6 chip + ink text for dyson; ink #141413 chip + paper
+  `dysonsphere_logo_portrait_with_text{,_outlined}.svg`, and
+  `dysonsphere_logo_horizontal_with_text{,_outlined}.svg`. The OUTLINED portrait lockup draws the
+  brand CHIPS behind the two words (warm #EEECE6 chip + ink text for dyson; ink #141413 chip + paper
   text for sphere - the site wordmark replicated from glyph ink bounds + 0.09em padding).
+- **Horizontal lockup (`_horizontal_with_text{,_outlined,_chips}`, the hero title)**: mark LEFT,
+  wordmark RIGHT, vertically centred - the icon+wordmark form used by big-company logos. `H_SIZE=110`
+  (a larger wordmark than the portrait's `SIZE=29`, to read proportionate beside the sphere), tucked
+  in tight: the mark is cropped to `R+H_MARK_PAD` (6) - the favicon crop that drops most of the
+  soft corona air - with `H_GAP` (10) px between the mark and the wordmark ink, the wordmark's
+  baseline->cap body centred on the sphere. `_horizontal_layout()` uses fonttools to measure the
+  wordmark for a tight viewBox, so ALL THREE horizontal variants are fonttools-gated (unlike the
+  portrait live-text, which always builds). THREE variants: **live-text** (plain two-tone) and
+  **outlined** (plain two-tone, glyphs->paths) are for KNOWN-LIGHT / professional contexts; the
+  **chips** variant (brand chips behind the words, `horizontal_chipped_text()`) reads on ANY page
+  colour (light OR GitHub-dark - the plain wordmark's near-black `dyson` VANISHES on a dark theme),
+  so it is the README / social-preview asset. Chips reuse the portrait chip construction (abut at
+  the advance split, 0.09em pad, 0.12em radius) and widen the viewBox right so the padded `sphere`
+  chip isn't clipped; australis (no chips) falls back to the plain outlined. NONE are wired into the
+  site chrome (the header/hero keep live HTML text - responsive, accessible, no Graphik dependency).
 - **Heritage scheme (`_australis` prefix)**: the pre-mono australis look kept regenerable -
   emerald->violet panels (lifted australis, light-first), mid-teal strokes #1D9CCB, warm star
   core + teal corona, two-tone wordmark #1D83CA/#4DE0B4, no chips. Files:
   `dysonsphere_australis_logo.svg` etc. Not deployed anywhere; the archive set.
 - **Copy chain (mono files): re-copy ALL FOUR after regenerating** - `src/assets/dysonsphere_logo.svg`
   (site header + hero), `public/favicon.svg`, repo-root `docs/logo.svg` (bare mark, for READMEs
-  already published to PyPI) and `docs/logo_with_text.svg` (the chipped outlined lockup the README
-  shows; outlined because README viewers don't have Graphik).
+  already published to PyPI) and `docs/logo_with_text.svg` (the chipped HORIZONTAL lockup the README
+  shows - copied from `dysonsphere_logo_horizontal_with_text_chips.svg`; chipped so it reads on
+  GitHub light AND dark, outlined because README viewers don't have Graphik. The README `<img>` is
+  `width="360"` for the ~4.5:1 banner. Was the chipped PORTRAIT lockup through 2026-07-11).
 - The mark file carries its own TIGHT square viewBox centered on sphere + corona
   (`mark_viewbox()`; the portrait canvas would leave the wordmark's dead band below and clip the
   corona top - the sphere sat off-center when sized by height, e.g. the site header).

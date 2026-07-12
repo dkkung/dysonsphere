@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/logo_with_text.svg" width="220" alt="dysonsphere" />
+  <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/logo_with_text.svg" width="360" alt="dysonsphere" />
 </p>
 
 # dysonsphere
