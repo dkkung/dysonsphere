@@ -7,7 +7,7 @@ import polars as pl
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=160, chartHeight=160, heatmapPalette="eclipse")
+ds.theme(chartWidth=160, chartHeight=160, heatmapPalette="eclipse", closed=True, viewPadding=False)
 
 N = 92
 L = 10.0
