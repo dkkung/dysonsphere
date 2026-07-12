@@ -108,6 +108,9 @@ def add_text(
     fontStyle: str | None = None,
     font: str | None = None,
     opacity: float = 1.0,
+    fill: str | bool = False,
+    fillOpacity: float = 1.0,
+    stroke: str | bool = False,
     data: pl.DataFrame | Any | None = None,
 ) -> alt.Chart | alt.LayerChart: ...
 ```
@@ -133,6 +136,9 @@ Returns a layer that the caller composes with ``+``.
 - **`fontStyle`** (`str | None`) - ``"normal"`` or ``"italic"``. ``None`` inherits from the active theme.
 - **`font`** (`str | None`) - Font family name (e.g. ``"sans-serif"``, ``"Georgia"``). ``None`` inherits from the active theme.
 - **`opacity`** (`float`) - Text opacity. Defaults to ``1.0``.
+- **`fill`** (`str | bool`) - Background fill behind the text (a rect chip). ``False`` (default) -> none; ``True`` -> a darkmode-aware default (``greys[1]`` light / ``greys[11]`` dark); a string -> that color. Read at build time (like ``add_shade``), so a ``save()`` across backgrounds needs a callable to re-resolve it. The chip is sized from a rough text estimate (proportional fonts vary, so it is approximate) plus padding.
+- **`fillOpacity`** (`float`) - Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
+- **`stroke`** (`str | bool`) - Background border. ``False`` (default) -> none; ``True`` -> a darkmode-aware default (``"black"`` light / ``"white"`` dark); a string -> that color. Independent of ``fill`` (set ``stroke`` with ``fill=False`` for an outlined, transparent-filled chip).
 - **`data`** (`pl.DataFrame | Any | None`) - Facet-safe (datum) mode. ``None`` (default) builds the annotation from its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass the **same DataFrame you gave the base chart** to share its data and position the text by ``alt.datum`` (data coordinates) / ``alt.value`` (pixels), so ``(base + add_text(..., data=df))`` can be faceted and the text repeats in every panel. Accepts a polars or pandas DataFrame.
 
 **Examples**
@@ -182,6 +188,9 @@ def add_labels(
     fontSize: float | None = None,
     fontStyle: str | None = None,
     color: str | None = None,
+    fill: str | bool = False,
+    fillOpacity: float = 1.0,
+    stroke: str | bool = False,
     connector: bool = True,
     connectorColor: str | None = None,
     connectorOpacity: float | None = None,
@@ -217,6 +226,9 @@ round bounds, but without Vega's default ``zero`` - which is required for alignm
 - **`fontSize`** (`float | None`) - Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
 - **`fontStyle`** (`str | None`) - Label font style, e.g. ``"italic"`` (gene / species names) or ``"bold"``. ``None`` (default) inherits the theme's ``mark_text`` (upright). Applies to every label.
 - **`color`** (`str | None`) - Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware black/white).
+- **`fill`** (`str | bool`) - Background fill behind each label (a rect chip - useful over a dense scatter). ``False`` (default) -> none; ``True`` -> a darkmode-aware default (``greys[1]`` light / ``greys[11]`` dark); a string -> that color. Read at build time (like ``add_shade``), so a ``save()`` across backgrounds needs a callable. The connector meets the chip's edge.
+- **`fillOpacity`** (`float`) - Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
+- **`stroke`** (`str | bool`) - Background border. ``False`` (default) -> none; ``True`` -> a darkmode-aware default (``"black"`` light / ``"white"`` dark); a string -> that color. Independent of ``fill``.
 - **`connector`** (`bool`) - Whether to draw the line connecting each point to its label (default ``True``).
 - **`connectorColor`** (`str | None`) - Connector line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware). Connectors otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke, opaque).
 - **`connectorOpacity`** (`float | None`) - Connector line opacity, ``0``-``1``. ``None`` (default) -> inherits the theme's ``mark_rule`` opacity (opaque). Sets only the mark opacity, leaving the (darkmode-aware) color intact, so a faded leader - e.g. ``connectorOpacity=0.5`` to quiet the leaders relative to the labels - stays legible in both light and dark mode.

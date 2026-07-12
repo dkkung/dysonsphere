@@ -333,12 +333,61 @@ def _is_alt_value(v) -> bool:
     return isinstance(v, dict) and "value" in v
 
 
+def _resolve_text_bg(fill: "str | bool", stroke: "str | bool") -> "tuple[str | None, str | None]":
+    """Resolve the text-background fill/stroke to concrete colours (or ``None`` -> not drawn).
+
+    ``fill``/``stroke`` follow the ``bool | str`` pattern: ``False`` -> off; ``True`` -> a
+    darkmode-aware default (fill: ``greys[1]`` light / ``greys[11]`` dark; stroke: ``black`` light /
+    ``white`` dark); a string -> that colour. Read ``darkmode`` at build time (like ``add_shade``),
+    so a ``save()`` across backgrounds needs a callable to re-resolve it.
+    """
+    from .palettes import colors
+
+    dark = _opt("darkmode")
+    fill_c = colors["greys"][11 if dark else 1] if fill is True else (fill if isinstance(fill, str) else None)
+    stroke_c = ("white" if dark else "black") if stroke is True else (stroke if isinstance(stroke, str) else None)
+    return fill_c, stroke_c
+
+
+def _text_bg_props(
+    text: str,
+    fs: float,
+    align: str,
+    baseline: str,
+    dx: float,
+    dy: float,
+    fill_c: "str | None",
+    stroke_c: "str | None",
+    fillOpacity: float,
+) -> "tuple[dict, float, float]":
+    """Background-rect ``mark_rect`` kwargs + pixel (xOffset, yOffset) for one text.
+
+    The box is sized from a rough text estimate (``len*fs*0.6`` wide, proportional fonts vary so
+    it is not exact) plus padding, and the offsets recentre the pixel-sized rect from the datum
+    onto the text per its ``align``/``baseline`` (and any ``dx``/``dy``), so it sits behind the
+    glyphs without needing the scale - works for both datum (data) and value (pixel) positions.
+    """
+    w = len(text) * fs * 0.6 + fs * 0.7  # text width estimate + horizontal padding
+    h = fs * 1.4
+    x_shift = {"left": w / 2, "right": -w / 2}.get(align, 0.0) + dx
+    y_shift = {"top": h / 2, "bottom": -h / 2, "alphabetic": -h / 2}.get(baseline, 0.0) + dy
+    rk: dict = {"width": round(w, 2), "height": round(h, 2), "cornerRadius": round(fs * 0.25, 2)}
+    rk["fill"] = fill_c  # None -> transparent fill (stroke-only)
+    if fill_c is not None:
+        rk["fillOpacity"] = fillOpacity
+    if stroke_c is not None:
+        rk["stroke"] = stroke_c
+        rk["strokeWidth"] = _opt("markStrokeWidth")
+    return rk, round(x_shift, 2), round(y_shift, 2)
+
+
 def _text_datum_layers(
     base_factory: "Callable[[], alt.Chart]",
     texts: list[str],
     xs: list,
     ys: list,
     mark_kwargs: dict,
+    bg: "tuple[str | None, str | None, float] | None" = None,
 ) -> list[alt.Chart]:
     """Datum/value-positioned text layers: one per annotation, each on a fresh ``base_factory``
     base. Positions come from ``alt.datum`` (data coords) or ``alt.value`` (pixels) - never a data
@@ -352,10 +401,20 @@ def _text_datum_layers(
             return alt.value(v["value"])
         return alt.datum(float(v) if isinstance(v, (int, float)) else str(v))
 
-    return [
-        base_factory().mark_text(**mark_kwargs).encode(text=alt.value(t), x=_pos(xv), y=_pos(yv))
-        for t, xv, yv in zip(texts, xs, ys)
-    ]
+    fs = mark_kwargs.get("fontSize") or _opt("fontSize")
+    layers: list[alt.Chart] = []
+    for t, xv, yv in zip(texts, xs, ys):
+        if bg is not None:  # background rect BEHIND the text (drawn first)
+            rk, xsh, ysh = _text_bg_props(
+                t, fs, mark_kwargs["align"], mark_kwargs["baseline"], mark_kwargs["dx"], mark_kwargs["dy"], *bg
+            )
+            layers.append(
+                base_factory()
+                .mark_rect(**rk)
+                .encode(x=_pos(xv), y=_pos(yv), xOffset=alt.value(xsh), yOffset=alt.value(ysh))
+            )
+        layers.append(base_factory().mark_text(**mark_kwargs).encode(text=alt.value(t), x=_pos(xv), y=_pos(yv)))
+    return layers
 
 
 def add_text(
@@ -375,6 +434,9 @@ def add_text(
     fontStyle: str | None = None,
     font: str | None = None,
     opacity: float = 1.0,
+    fill: str | bool = False,
+    fillOpacity: float = 1.0,
+    stroke: str | bool = False,
     data: "pl.DataFrame | Any | None" = None,
 ) -> alt.Chart | alt.LayerChart:
     """
@@ -461,6 +523,18 @@ def add_text(
         inherits from the active theme.
     opacity:
         Text opacity. Defaults to ``1.0``.
+    fill:
+        Background fill behind the text (a rect chip). ``False`` (default) -> none; ``True`` -> a
+        darkmode-aware default (``greys[1]`` light / ``greys[11]`` dark); a string -> that color.
+        Read at build time (like ``add_shade``), so a ``save()`` across backgrounds needs a callable
+        to re-resolve it. The chip is sized from a rough text estimate (proportional fonts vary, so
+        it is approximate) plus padding.
+    fillOpacity:
+        Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
+    stroke:
+        Background border. ``False`` (default) -> none; ``True`` -> a darkmode-aware default
+        (``"black"`` light / ``"white"`` dark); a string -> that color. Independent of ``fill`` (set
+        ``stroke`` with ``fill=False`` for an outlined, transparent-filled chip).
     data:
         Facet-safe (datum) mode. ``None`` (default) builds the annotation from its own internal
         dataset — the normal behavior, but **incompatible with faceting**. Pass the **same
@@ -586,7 +660,10 @@ def add_text(
         def base_factory() -> alt.Chart:
             return alt.Chart(_internal_data([{}]))
 
-    layers = _text_datum_layers(base_factory, texts, xs, ys, mark_kwargs)
+    fill_c, stroke_c = _resolve_text_bg(fill, stroke)
+    bg = (fill_c, stroke_c, fillOpacity) if (fill_c is not None or stroke_c is not None) else None
+
+    layers = _text_datum_layers(base_factory, texts, xs, ys, mark_kwargs, bg)
     return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
 
@@ -629,6 +706,9 @@ def add_labels(
     fontSize: float | None = None,
     fontStyle: str | None = None,
     color: str | None = None,
+    fill: str | bool = False,
+    fillOpacity: float = 1.0,
+    stroke: str | bool = False,
     connector: bool = True,
     connectorColor: str | None = None,
     connectorOpacity: float | None = None,
@@ -687,6 +767,16 @@ def add_labels(
     color:
         Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware
         black/white).
+    fill:
+        Background fill behind each label (a rect chip - useful over a dense scatter). ``False``
+        (default) -> none; ``True`` -> a darkmode-aware default (``greys[1]`` light / ``greys[11]``
+        dark); a string -> that color. Read at build time (like ``add_shade``), so a ``save()``
+        across backgrounds needs a callable. The connector meets the chip's edge.
+    fillOpacity:
+        Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
+    stroke:
+        Background border. ``False`` (default) -> none; ``True`` -> a darkmode-aware default
+        (``"black"`` light / ``"white"`` dark); a string -> that color. Independent of ``fill``.
     connector:
         Whether to draw the line connecting each point to its label (default ``True``).
     connectorColor:
@@ -823,6 +913,9 @@ def add_labels(
         pinned = True
         return {"x": alt.XDatum(px_to_x(px), scale=x_scale), "y": alt.YDatum(px_to_y(py), scale=y_scale)}
 
+    fill_c, stroke_c = _resolve_text_bg(fill, stroke)
+    bg = (fill_c, stroke_c, fillOpacity) if (fill_c is not None or stroke_c is not None) else None
+
     layers: list[alt.Chart] = []
     for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, label_texts):
         hw, hh = w / 2, h / 2
@@ -897,6 +990,13 @@ def add_labels(
                     .mark_rule(**rule_kwargs)
                     .encode(**datum_xy(sx, sy), x2=alt.X2Datum(px_to_x(tx)), y2=alt.Y2Datum(px_to_y(ty)))
                 )
+        if bg is not None:  # background rect behind the label (drawn after its connector, under the text)
+            rk, xsh, ysh = _text_bg_props(text, fs, align, "middle", 0, 0, *bg)
+            layers.append(
+                alt.Chart(_internal_data([{}]))
+                .mark_rect(**rk)
+                .encode(**datum_xy(text_x, ly), xOffset=alt.value(xsh), yOffset=alt.value(ysh))
+            )
         layers.append(
             alt.Chart(_internal_data([{}]))
             .mark_text(align=align, **text_kwargs)
