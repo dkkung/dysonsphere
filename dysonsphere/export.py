@@ -645,6 +645,7 @@ _ITALIC_STAT_PATTERN = re.compile(
     r"|n(?=\s*=)"  # sample size: n =
     r"|y(?=\s*=)"  # fit equation: y = 0.84x + 0.27
     r"|t(?=-test)"  # Student's t-test / Paired t-test
+    r"|[Pp](?=[ \-]value)"  # p-value / P-value / p value (the p is italic by convention)
     r")"
     r"|(?<=Mann-Whitney )U(?![A-Za-z])"  # Mann-Whitney U test label
     r"|(?<=[\d.])x(?=\s*[+\-−]\s*\d)"  # fit equation slope term: 0.84x + 0.27

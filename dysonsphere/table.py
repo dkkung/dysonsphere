@@ -146,6 +146,7 @@ def mark_table(
     nStripes: int = 2,
     cellColor: dict[str, str] | None = None,
     textColor: "str | dict[str, str] | None" = None,
+    fontStyle: "str | dict[str, str] | None" = None,
     fontSize: float | None = None,
     headerFontStyle: str = "bold",
     headerColor: str | None = None,
@@ -229,6 +230,10 @@ def mark_table(
         automatic black/white contrast unless you give it an explicit **dict** entry here (a
         per-column colour is taken as deliberate; a global string does not override the
         heatmap's contrast).
+    fontStyle:
+        Body cell font style (e.g. ``"italic"``, ``"bold"``, ``"normal"``). ``None`` (default)
+        inherits. A single string styles every body cell; a ``{column: style}`` dict styles per
+        column (unlisted columns inherit) - e.g. ``{"gene": "italic"}`` for italic gene names.
     fontSize:
         Cell font size. ``None`` (default) reads ``theme(fontSize=…)``.
     headerFontStyle:
@@ -351,6 +356,12 @@ def mark_table(
             return ("fixed", textColor)
         return ("inherit", None)
 
+    def _font_style(col: str) -> str | None:
+        # Body cell font style: a per-column dict entry, else a global string, else None.
+        if isinstance(fontStyle, dict):
+            return fontStyle.get(col)
+        return fontStyle
+
     # Per-column plan: display strings (for width), render method, alignment.
     n_rows = df.height
     plans: list[dict[str, Any]] = []
@@ -423,18 +434,31 @@ def mark_table(
             return left + w - pad
         return left + w / 2  # center
 
-    # Shared row-band scale: one band per data row, flush (no padding). All df-driven layers
-    # share this identical scale so they align; the pixel range matches the header/stroke math.
-    band_scale = alt.Scale(domain=list(range(1, n_rows + 1)), range=[header_h, total_h], paddingInner=0, paddingOuter=0)
+    # Row positions in PIXELS (not a band scale): abutting per-cell rects otherwise leave a
+    # sub-pixel gap that shows the page through at the browser's chart zoom (invisible at print
+    # DPI, so a PNG looks clean - the same seam the gallery heatmaps avoid). Each rect spans
+    # [__ytop, __ybot] where __ybot overhangs the next row by `_seam`, and _cell_x2 overhangs the
+    # next column the same way, so the cell backgrounds are gapless in BOTH directions -
+    # invisible between same-colour stripe cells, a value-coloured cell bleeds <=`_seam` px into
+    # its neighbours (hidden under any cell stroke). Text sits at __ymid (the row centre). An
+    # identity linear y scale (range == domain) maps the pixel field straight through, shared by
+    # every df-driven layer so they align; the header/stroke marks use alt.value pixels directly.
+    _seam = 0.5
+    y_scale = alt.Scale(domain=[0, total_h], range=[0, total_h], nice=False, zero=False)
 
-    def _band_y(band_position: float | None = None) -> alt.Y:
-        kw: dict[str, Any] = {"field": "__rowidx", "type": "ordinal", "scale": band_scale, "axis": None}
-        if band_position is not None:
-            kw["bandPosition"] = band_position
-        return alt.Y(**kw)
+    def _y(field: str) -> alt.Y:
+        return alt.Y(field=field, type="quantitative", scale=y_scale, axis=None)
 
     def _df_base() -> alt.Chart:
-        return alt.Chart(df).transform_window(__rowidx="row_number()")
+        return (
+            alt.Chart(df)
+            .transform_window(__rowidx="row_number()")
+            .transform_calculate(
+                __ytop=f"{header_h} + (datum.__rowidx - 1) * {row_h}",
+                __ybot=f"min({header_h} + datum.__rowidx * {row_h} + {_seam}, {total_h})",  # clamp last row
+                __ymid=f"{header_h} + (datum.__rowidx - 0.5) * {row_h}",
+            )
+        )
 
     layers: list[alt.Chart] = []
     one = _internal_data([{}])  # 1-row sidecar for the pixel-positioned chrome (band, strokes, header)
@@ -447,10 +471,14 @@ def mark_table(
             .encode(x=alt.value(0), x2=alt.value(total_w), y=alt.value(0), y2=alt.value(header_h))
         )
 
+    # Each cell's right edge overhangs the next column by `_seam` (see the row-position note);
+    # the last column clamps to the table edge.
+    def _cell_x2(i: int) -> float:
+        return min(lefts[i] + widths[i] + _seam, total_w)
+
     # --- row striping ---
     # One rect PER CELL (per column span), never a full-width per-row rect, so every cell
-    # background is an independent <rect> - individually editable in Illustrator. (Verified
-    # seam-free at render DPI even for saturated fills with no column strokes.)
+    # background is an independent <rect> - individually editable in Illustrator.
     if striping:
         pal = _resolve_palette(palette)
         stripe_cols = pal[-nStripes:] if dark else pal[:nStripes]
@@ -461,7 +489,7 @@ def mark_table(
                     .transform_filter(f"(datum.__rowidx - 1) % {nStripes} == {k}")
                     # stroke pinned off: config.rect leaks a black border onto mark_rect otherwise.
                     .mark_rect(fill=color, stroke=None, strokeWidth=0)
-                    .encode(x=alt.value(lefts[i]), x2=alt.value(lefts[i] + widths[i]), y=_band_y())
+                    .encode(x=alt.value(lefts[i]), x2=alt.value(_cell_x2(i)), y=_y("__ytop"), y2=alt.Y2("__ybot"))
                 )
 
     # --- value-coloured cells ---
@@ -485,8 +513,9 @@ def mark_table(
             .mark_rect(stroke=None, strokeWidth=0)
             .encode(
                 x=alt.value(lefts[i]),
-                x2=alt.value(lefts[i] + widths[i]),
-                y=_band_y(),
+                x2=alt.value(_cell_x2(i)),
+                y=_y("__ytop"),
+                y2=alt.Y2("__ybot"),
                 color=alt.Color(
                     field=col, type="quantitative", scale=alt.Scale(range=list(hexes), domain=list(domain)), legend=None
                 ),
@@ -528,8 +557,11 @@ def mark_table(
             text = alt.Text(field=col, type="quantitative" if render[2] else "nominal", format=render[1])
         else:
             text = alt.Text(field=col, type="nominal")
-        enc: dict[str, Any] = {"x": alt.value(_anchor(i, a)), "y": _band_y(0.5), "text": text}
+        enc: dict[str, Any] = {"x": alt.value(_anchor(i, a)), "y": _y("__ymid"), "text": text}
         mark_kwargs: dict[str, Any] = {"fontSize": fs, "align": a, "baseline": "middle"}
+        style = _font_style(col)
+        if style is not None:
+            mark_kwargs["fontStyle"] = style
         kind, color_val = _text_color(col)
         if kind == "contrast":
             tc_field = f"__tc_{i}"

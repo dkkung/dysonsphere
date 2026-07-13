@@ -859,6 +859,21 @@ class TestItalicizeStatSymbols:
             assert text_el is not None
             assert self._flat_text(text_el) == label  # content preserved, only markup added
 
+    def test_pvalue_word_forms(self):
+        # The "p" in "p-value" / "P-value" / "p value" is italic by convention; "power" is not.
+        for label, expect in (
+            ("adj. p-value", ["p"]),
+            ("P-value", ["P"]),
+            ("uncorrected p value", ["p"]),
+            ("power output", []),
+        ):
+            root = self._root_with_text(label)
+            _italicize_stat_symbols(root)
+            assert self._italic_runs(root) == expect, label
+            text_el = root.find(f"{{{NS}}}text")
+            assert text_el is not None
+            assert self._flat_text(text_el) == label
+
     def test_verbose_omnibus_latin_italic_greek_upright(self):
         root = self._root_with_text("ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18")
         _italicize_stat_symbols(root)

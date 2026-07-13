@@ -33,9 +33,10 @@ MODULES = [
     ("export", "Saving & loading", 10, "Export charts to files and rebuild them from the Vega-Lite JSON."),
     ("inference", "Statistical annotations", 11, "Pairwise/omnibus comparisons and correlation layers."),
     ("statistics", "Statistics registry", 12, "Statistics report queue management."),
-    ("theme", "Theming", 13, "Register the dysonsphere Altair theme and scaffold config files."),
-    ("transforms", "Transforms", 14, "Data transforms for jittered and beeswarm x-offsets."),
-    ("utils", "Utilities", 15, "Shared helpers: DataFrame handling, counts, band geometry, checksums."),
+    ("table", "Tables", 13, "Render a DataFrame as a publication-styled table."),
+    ("theme", "Theming", 14, "Register the dysonsphere Altair theme and scaffold config files."),
+    ("transforms", "Transforms", 15, "Data transforms for jittered and beeswarm x-offsets."),
+    ("utils", "Utilities", 16, "Shared helpers: DataFrame handling, counts, band geometry, checksums."),
 ]
 
 # Extension modules documented from a separate distribution's package (not part of core's
