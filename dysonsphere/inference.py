@@ -261,7 +261,7 @@ def _bracket_pvalues(
             "wilcoxon": lambda a, b: _stats.wilcoxon(a, b).pvalue,
         }
         raw = [float(funcs[method](groups[idx[g1]], groups[idx[g2]])) for g1, g2 in pairs]
-        if correction in ("bonferroni", "holm"):
+        if correction is not None:
             m = nComparisons if nComparisons is not None else len(pairs)
             raw = _adjust(raw, correction, m)
         return raw
@@ -356,12 +356,16 @@ def add_comparisons(
         Pre-computed p-values, one per pair in the same order. Skips all
         statistical tests for the brackets when provided.
     correction:
-        Multiple comparison correction: ``'bonferroni'``, ``'holm'``, or
-        ``None``. For pairwise/post-hoc bracket p-values; ignored for
-        ``tukey_hsd`` (correction is built in) and when ``pvalues`` is provided.
+        Multiple comparison correction: ``'bonferroni'``, ``'holm'``,
+        ``'fdr_bh'`` (Benjamini-Hochberg), ``'fdr_by'`` (Benjamini-Yekutieli),
+        or ``None``. The two ``fdr_*`` methods control the false discovery rate
+        (BH assumes independence / positive dependence; BY is valid under
+        arbitrary dependence but more conservative). For pairwise/post-hoc
+        bracket p-values; ignored for ``tukey_hsd`` (correction is built in) and
+        when ``pvalues`` is provided.
     nComparisons:
-        Total number of comparisons for Bonferroni correction. Defaults to
-        ``len(pairs)`` when ``correction='bonferroni'`` and not set explicitly.
+        Total family size for the correction (the denominator ``m``). Defaults
+        to ``len(pairs)`` when a ``correction`` is set and not given explicitly.
     yPositions:
         Explicit y positions (data units) for each bracket, one per pair in
         the same order. When provided, overrides all auto-stacking logic

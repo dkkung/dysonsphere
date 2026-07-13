@@ -585,6 +585,14 @@ class TestCorrectionMetadata:
         rec = next(iter(_st._REPORTS.values()))
         assert rec["comparisons"]["correction"] is None  # tukey carries its own correction
 
+    def test_fdr_correction_recorded(self, tri_df):
+        from dysonsphere import statistics as _st
+
+        _st._REPORTS.clear()
+        add_comparisons(tri_df, "g", "v", [("A", "B"), ("A", "C")], categories=MULTI, correction="fdr_bh")
+        rec = next(iter(_st._REPORTS.values()))
+        assert rec["comparisons"]["correction"] == "fdr_bh"
+
 
 # ── Pure statistics module (dysonsphere.statistics) ─────────────────────────
 from dysonsphere import statistics as st  # noqa: E402
@@ -664,6 +672,45 @@ class TestAdjust:
         out = st._adjust([0.01, 0.02, 0.03], "holm", 3)
         assert out == sorted(out)  # non-decreasing in p order
         assert all(p <= 1.0 for p in out)
+
+    def test_fdr_bh_matches_scipy(self):
+        # scipy's false_discovery_control is the reference (m == len case).
+        from scipy.stats import false_discovery_control as fdc
+
+        pvals = [0.01, 0.02, 0.03, 0.005, 0.5]
+        expected = fdc(pvals, method="bh").tolist()
+        assert st._adjust(pvals, "fdr_bh", len(pvals)) == pytest.approx(expected)
+
+    def test_fdr_by_matches_scipy(self):
+        from scipy.stats import false_discovery_control as fdc
+
+        pvals = [0.01, 0.02, 0.03, 0.005, 0.5]
+        expected = fdc(pvals, method="by").tolist()
+        assert st._adjust(pvals, "fdr_by", len(pvals)) == pytest.approx(expected)
+
+    def test_fdr_bh_monotone_in_p_order_and_capped(self):
+        pvals = [0.04, 0.01, 0.2, 0.005, 0.03]
+        out = st._adjust(pvals, "fdr_bh", len(pvals))
+        # Adjusted p-values are non-decreasing when sorted by the raw p-value.
+        by_rank = [out[i] for i in sorted(range(len(pvals)), key=lambda i: pvals[i])]
+        assert by_rank == sorted(by_rank)
+        assert all(0.0 <= p <= 1.0 for p in out)
+
+    def test_fdr_by_more_conservative_than_bh(self):
+        pvals = [0.01, 0.02, 0.03, 0.005, 0.5]
+        bh = st._adjust(pvals, "fdr_bh", len(pvals))
+        by = st._adjust(pvals, "fdr_by", len(pvals))
+        assert all(b >= h for b, h in zip(by, bh))
+
+    def test_fdr_bh_honors_larger_family_size(self):
+        # m (total family) may exceed len(pvals) via nComparisons; the denominator
+        # and BY factor both use m, so a larger family inflates the adjusted values.
+        pvals = [0.01, 0.02]
+        small = st._adjust(pvals, "fdr_bh", 2)
+        large = st._adjust(pvals, "fdr_bh", 10)
+        assert all(g >= s for g, s in zip(large, small))
+        # p(i) * m / i, then running min from the top: [0.01*10/1, 0.02*10/2] = [0.1, 0.1].
+        assert large == pytest.approx([0.1, 0.1])
 
     def test_unknown(self):
         with pytest.raises(ValueError, match="correction"):
