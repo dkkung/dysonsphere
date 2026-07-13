@@ -3,8 +3,8 @@ import polars as pl
 import dysonsphere as ds
 
 # mark_table() renders a DataFrame as a styled table: per-column number formatting
-# (here scientific notation, typeset with real superscripts), a value-shaded column
-# (cellColor), alternating row stripes, and composable strokes.
+# (adjusted p-values in scientific notation, typeset with real superscripts and an
+# italic "p"), italic gene names via fontStyle, and strokes between every cell.
 ds.theme()
 
 df = pl.DataFrame(
@@ -18,7 +18,7 @@ df = pl.DataFrame(
 chart = ds.mark_table(
     df,
     columnFormat={"log2FC": ".2f", "padj": "scientific"},
-    headerLabels={"log2FC": "log₂FC", "padj": "p (adj)"},
-    cellColor={"log2FC": "pinksblues"},
-    strokes=("outer", "header", "rows"),
+    headerLabels={"gene": "Gene", "log2FC": "log₂FC", "padj": "adj. p-value"},
+    fontStyle={"gene": "italic"},
+    strokes=("outer", "header", "all"),
 )

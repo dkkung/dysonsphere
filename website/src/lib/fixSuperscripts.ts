@@ -97,7 +97,7 @@ export function fixSubscripts(root: ParentNode): void {
 // vega-embed SVG so the site's charts match exported figures. The pattern mirrors
 // export._ITALIC_STAT_PATTERN exactly.
 const ITALIC_STAT =
-	/(?<![A-Za-z])(?:P(?=\s*[=<≈])|[FHA](?=\()|W(?=\s*=)|r(?=²?\s*=)|n(?=\s*=)|y(?=\s*=)|t(?=-test))|(?<=Mann-Whitney )U(?![A-Za-z])|(?<=[\d.])x(?=\s*[+\-−]\s*\d)/g;
+	/(?<![A-Za-z])(?:P(?=\s*[=<≈])|[FHA](?=\()|W(?=\s*=)|r(?=²?\s*=)|n(?=\s*=)|y(?=\s*=)|t(?=-test)|[Pp](?=[ \-]value))|(?<=Mann-Whitney )U(?![A-Za-z])|(?<=[\d.])x(?=\s*[+\-−]\s*\d)/g;
 
 /**
  * Italicize Latin statistical symbols (`P n F H A W r y x t U`) in every `<text>` of the

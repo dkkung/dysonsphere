@@ -195,6 +195,24 @@ class TestColors:
             if isinstance(layer.get("mark"), dict) and layer["mark"].get("type") == "text"
         ]
 
+    def _cell_by_field(self, spec, prop):
+        # Map each body cell layer's text field -> a mark property (headers carry no field).
+        return {
+            layer.get("encoding", {}).get("text", {}).get("field"): layer["mark"].get(prop)
+            for layer in self._text_marks(spec)
+            if layer.get("encoding", {}).get("text", {}).get("field")
+        }
+
+    def test_font_style_per_column_dict(self, df):
+        spec = mark_table(df, columns=["gene", "hits"], fontStyle={"gene": "italic"}).to_dict()
+        by_field = self._cell_by_field(spec, "fontStyle")
+        assert by_field.get("gene") == "italic"
+        assert by_field.get("hits") is None  # unlisted inherits
+
+    def test_font_style_global(self, df):
+        spec = mark_table(df, columns=["gene", "hits"], fontStyle="italic").to_dict()
+        assert set(self._cell_by_field(spec, "fontStyle").values()) == {"italic"}
+
     def test_text_color_global(self, df):
         spec = mark_table(df, textColor="#555555").to_dict()
         colors = {layer["mark"].get("color") for layer in self._text_marks(spec)}

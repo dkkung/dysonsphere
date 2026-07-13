@@ -146,6 +146,7 @@ def mark_table(
     nStripes: int = 2,
     cellColor: dict[str, str] | None = None,
     textColor: "str | dict[str, str] | None" = None,
+    fontStyle: "str | dict[str, str] | None" = None,
     fontSize: float | None = None,
     headerFontStyle: str = "bold",
     headerColor: str | None = None,
@@ -229,6 +230,10 @@ def mark_table(
         automatic black/white contrast unless you give it an explicit **dict** entry here (a
         per-column colour is taken as deliberate; a global string does not override the
         heatmap's contrast).
+    fontStyle:
+        Body cell font style (e.g. ``"italic"``, ``"bold"``, ``"normal"``). ``None`` (default)
+        inherits. A single string styles every body cell; a ``{column: style}`` dict styles per
+        column (unlisted columns inherit) - e.g. ``{"gene": "italic"}`` for italic gene names.
     fontSize:
         Cell font size. ``None`` (default) reads ``theme(fontSize=…)``.
     headerFontStyle:
@@ -350,6 +355,12 @@ def mark_table(
         if isinstance(textColor, str):
             return ("fixed", textColor)
         return ("inherit", None)
+
+    def _font_style(col: str) -> str | None:
+        # Body cell font style: a per-column dict entry, else a global string, else None.
+        if isinstance(fontStyle, dict):
+            return fontStyle.get(col)
+        return fontStyle
 
     # Per-column plan: display strings (for width), render method, alignment.
     n_rows = df.height
@@ -530,6 +541,9 @@ def mark_table(
             text = alt.Text(field=col, type="nominal")
         enc: dict[str, Any] = {"x": alt.value(_anchor(i, a)), "y": _band_y(0.5), "text": text}
         mark_kwargs: dict[str, Any] = {"fontSize": fs, "align": a, "baseline": "middle"}
+        style = _font_style(col)
+        if style is not None:
+            mark_kwargs["fontStyle"] = style
         kind, color_val = _text_color(col)
         if kind == "contrast":
             tc_field = f"__tc_{i}"

@@ -27,6 +27,7 @@ def mark_table(
     nStripes: int = 2,
     cellColor: dict[str, str] | None = None,
     textColor: str | dict[str, str] | None = None,
+    fontStyle: str | dict[str, str] | None = None,
     fontSize: float | None = None,
     headerFontStyle: str = 'bold',
     headerColor: str | None = None,
@@ -77,6 +78,7 @@ rebuilt per background::
 - **`nStripes`** (`int`) - Number of stripe colours to alternate through. Default ``2``.
 - **`cellColor`** (`dict[str, str] | None`) - ``{column: palette}`` to shade cells by value (a heatmap column). The column's values map across the palette (a 13-stop diverging palette is centred on 0; otherwise the domain is the column's ``[min, max]``), and each cell's text switches to black or white for contrast. Overrides striping within that column.
 - **`textColor`** (`str | dict[str, str] | None`) - Body cell text colour. ``None`` (default) inherits the theme's darkmode-aware text colour. A single string colours every body cell; a ``{column: colour}`` dict colours per column (unlisted columns inherit). A ``cellColor`` (value-shaded) column keeps its automatic black/white contrast unless you give it an explicit **dict** entry here (a per-column colour is taken as deliberate; a global string does not override the heatmap's contrast).
+- **`fontStyle`** (`str | dict[str, str] | None`) - Body cell font style (e.g. ``"italic"``, ``"bold"``, ``"normal"``). ``None`` (default) inherits. A single string styles every body cell; a ``{column: style}`` dict styles per column (unlisted columns inherit) - e.g. ``{"gene": "italic"}`` for italic gene names.
 - **`fontSize`** (`float | None`) - Cell font size. ``None`` (default) reads ``theme(fontSize=…)``.
 - **`headerFontStyle`** (`str`) - Font style for header labels (e.g. ``"bold"``, ``"normal"``, ``"italic"``). Default ``"bold"``.
 - **`headerColor`** (`str | None`) - Header text colour. ``None`` (default) inherits the theme's text colour, or - when ``headerFill`` is set - auto-contrasts (black/white) against the fill. A string sets a fixed colour.
