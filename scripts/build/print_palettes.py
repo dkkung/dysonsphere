@@ -682,6 +682,7 @@ def build_condensates():
     base = SEQ_MULTI_OKLAB["australis"]
     frac = SEQ_MULTI_FRAC["australis"]
     cap = SEQ_MULTI_MAX_CHROMA["australis"]
+    assert not isinstance(cap, list)  # australis's cap is a scalar; narrows float | list -> float
     hues = [h for _, h in base]
     floor_L, top_L = base[0][0], base[-1][0]
     n = N_OUT_SEQ
