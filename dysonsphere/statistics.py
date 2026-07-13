@@ -400,7 +400,24 @@ def _adjust(pvals: list[float], method: str | None, m: int) -> list[float]:
             running = max(running, min(pvals[i] * (m - rank), 1.0))
             out[i] = running
         return out
-    raise ValueError(f"correction must be None, 'bonferroni', or 'holm', got {method!r}")
+    if method in ("fdr_bh", "fdr_by"):
+        # Benjamini-Hochberg (bh) / Benjamini-Yekutieli (by) step-up FDR control.
+        # Adjusted p = p(i) * m / i, swept from the largest rank down as a running min
+        # (enforces monotonicity); BY multiplies by the harmonic factor c(m) = Σ 1/k,
+        # buying validity under arbitrary dependence at the cost of extra conservatism.
+        # ``m`` is the total family size (may exceed len(pvals) via nComparisons), so the
+        # denominator and the BY factor both use it - matching bonferroni/holm above.
+        n = len(pvals)
+        order = sorted(range(n), key=lambda i: pvals[i])
+        factor = sum(1.0 / k for k in range(1, m + 1)) if method == "fdr_by" else 1.0
+        out = [0.0] * n
+        running = 1.0
+        for rank in range(n, 0, -1):
+            i = order[rank - 1]
+            running = min(running, min(pvals[i] * m * factor / rank, 1.0))
+            out[i] = running
+        return out
+    raise ValueError(f"correction must be None, 'bonferroni', 'holm', 'fdr_bh', or 'fdr_by', got {method!r}")
 
 
 def _post_hoc_matrix(name: str, groups: list[np.ndarray], correction: str | None) -> np.ndarray:
