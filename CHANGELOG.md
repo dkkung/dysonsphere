@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixes
+
+- **`add_text`/`add_labels` background chip (`fill=`) now centres on a left- or right-aligned label.** The chip was shifted by its padded half-width instead of the text half-width, so a `"left"`/`"right"`-anchored label hugged the near edge of its box with all the horizontal padding piled on the far side (visible on auto-placed `add_labels` labels whose connector meets a side edge). It now centres the chip on the glyphs with equal padding on both sides; centre-aligned labels are unchanged.
+
 ## [3.7.0] - 2026-07-13
 
 ### New features
