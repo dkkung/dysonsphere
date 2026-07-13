@@ -1,6 +1,6 @@
 ---
 title: Marks & transforms
-description: Composite marks (strip, violin) and the data transforms that back them.
+description: Composite marks (strip, violin, table) and the data transforms that back them.
 ---
 
 import Example from '../../../components/Example.astro';
@@ -39,6 +39,18 @@ Plain Altair marks inherit the theme too. `mark_boxplot()` gets grey boxes, a si
 and rounded whisker caps out of the box; `boxplotOutliers=False` hides outlier points.
 
 <Example name="boxplot" alt="Boxplot of miles per gallon by car origin" />
+
+## Table
+
+`mark_table()` renders a DataFrame as a publication-styled table - a composable Altair layer, not a
+picture. Columns are formatted per-column (reusing the same scientific / power / SI notations as the
+rest of the library, typeset with real superscripts); a numeric column can be shaded by value with
+`cellColor`; and `strokes` picks which rules to draw (any of `"outer"`, `"header"`, `"rows"`,
+`"cols"`, `"all"`). The source DataFrame is never mutated, so `ds.read(what="data")` recovers it
+exactly - and every cell background is its own rect, so you can recolour individual cells in
+Illustrator.
+
+<Example name="table" alt="Styled results table with per-column formatting and a value-shaded column" />
 
 ## Transforms
 
