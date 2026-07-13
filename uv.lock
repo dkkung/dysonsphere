@@ -132,7 +132,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "altair", specifier = ">=5.5.0" },
+    { name = "altair", specifier = ">=6.0.0" },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "polars", extras = ["pyarrow"], specifier = ">=1.19.0" },
     { name = "scipy", specifier = ">=1.11.0" },
@@ -164,7 +164,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "altair", specifier = ">=5.5.0" },
+    { name = "altair", specifier = ">=6.0.0" },
     { name = "dysonsphere", editable = "." },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "pillow", specifier = ">=10.0.0" },
