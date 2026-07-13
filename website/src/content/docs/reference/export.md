@@ -101,7 +101,7 @@ def load(
     *,
     raw: bool = False,
     applyTheme: bool = True,
-) -> '_AltairChart | dict': ...
+) -> '_AltairChart | dict[str, Any]': ...
 ```
 
 Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).

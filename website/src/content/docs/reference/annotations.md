@@ -184,7 +184,7 @@ def add_labels(
     yCol: str,
     labelCol: str,
     *,
-    labels: int | list | Any | None = None,
+    labels: int | list[Any] | Any | None = None,
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
@@ -223,7 +223,7 @@ round bounds, but without Vega's default ``zero`` - which is required for alignm
 - **`xCol`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
 - **`yCol`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
 - **`labelCol`** (`str`) - Column holding the label text.
-- **`labels`** (`int | list | Any | None`) - Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n` rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **boolean mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry per row of ``df``) selects rows **positionally** - decoupled from ``labelCol``, so a non-unique label column still picks exactly the intended rows (e.g. ``labels=df["is_hit"]``); any other **list** labels the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``, which needs a unique ``labelCol``). Pass the full plotted ``df`` and let ``labels`` do the selecting: obstacles and the axis domain both span all of ``df``, so the labels dodge EVERY plotted point (not just the labelled subset) and selecting a subset never clips the axes.
+- **`labels`** (`int | list[Any] | Any | None`) - Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n` rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **boolean mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry per row of ``df``) selects rows **positionally** - decoupled from ``labelCol``, so a non-unique label column still picks exactly the intended rows (e.g. ``labels=df["is_hit"]``); any other **list** labels the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``, which needs a unique ``labelCol``). Pass the full plotted ``df`` and let ``labels`` do the selecting: obstacles and the axis domain both span all of ``df``, so the labels dodge EVERY plotted point (not just the labelled subset) and selecting a subset never clips the axes.
 - **`xDomain`** (`tuple[float, float] | None`) - ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``). Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``, rounded outward to nice tick bounds** (d3-style nice, so the axes end on round numbers; filtering ``df`` just moves the axes with it - always inferred). An explicit value is used exactly as given (no rounding). Pass explicitly only when you want the axes to span a range the passed ``df`` does not cover - i.e. the base chart plots more than you hand ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose extent is tighter than the scatter).
 - **`yDomain`** (`tuple[float, float] | None`) - ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``). Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``, rounded outward to nice tick bounds** (d3-style nice, so the axes end on round numbers; filtering ``df`` just moves the axes with it - always inferred). An explicit value is used exactly as given (no rounding). Pass explicitly only when you want the axes to span a range the passed ``df`` does not cover - i.e. the base chart plots more than you hand ``add_labels`` (a deliberate subset, or **derived positions** like cluster centroids whose extent is tighter than the scatter).
 - **`fontSize`** (`float | None`) - Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
@@ -247,7 +247,7 @@ def add_shade(
     categories: list[str] | None = None,
     xCol: str | None = None,
     *,
-    positions: list[tuple] | None = None,
+    positions: list[tuple[Any, ...]] | None = None,
     axis: str = 'x',
     palette: list[str] | None = None,
     nShades: int = 2,
@@ -317,7 +317,7 @@ In both modes, compose behind the main chart with ``+``::
 
 - **`categories`** (`list[str] | None`) - Ordered list of axis categories. Required for band mode. Also required in positions mode when any tuple values are strings.
 - **`xCol`** (`str | None`) - Column name for the x-axis grouping variable (band mode only; not used internally).
-- **`positions`** (`list[tuple] | None`) - List of ``(start, end)`` tuples (single-axis) or ``((x_start, x_end), (y_start, y_end))`` tuples (``axis='both'``) defining explicit shade regions. Activates positions mode; ``repeat`` and ``flush`` are used only when tuple values are strings.
+- **`positions`** (`list[tuple[Any, ...]] | None`) - List of ``(start, end)`` tuples (single-axis) or ``((x_start, x_end), (y_start, y_end))`` tuples (``axis='both'``) defining explicit shade regions. Activates positions mode; ``repeat`` and ``flush`` are used only when tuple values are strings.
 - **`axis`** (`str`) - ``'x'`` (default), ``'y'``, or ``'both'``. Controls which axis the shading runs along. ``'both'`` draws intersection rects spanning an explicit x-range and y-range simultaneously. Ignored in band mode (always ``'x'``).
 - **`palette`** (`list[str] | None`) - List of hex color strings to cycle through in light mode. Defaults to ``"greys"`` when ``None``. In dark mode this parameter is always ignored — the darkest ``nShades`` stops of ``"greys"`` are used regardless. Resolved at call time; pass a callable to ``ds.save()`` for correct darkmode rendering.
 - **`nShades`** (`int`) - Number of colors to use. In light mode, slices the first ``nShades`` stops from ``palette`` (or ``"greys"``). In dark mode, slices the last ``nShades`` stops of ``"greys"``. Defaults to ``2``.

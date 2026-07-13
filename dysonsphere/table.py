@@ -15,8 +15,9 @@ from .utils import _internal_data, ensure_polars
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
 __all__ = ["mark_table"]
 
-# The stroke placements composable via the `strokes` set. "all" expands to rows+cols.
-_STROKE_KINDS = frozenset({"outer", "rows", "cols", "all", "header"})
+# The stroke placements composable via the `strokes` set. "grid" expands to rows+cols (the
+# interior grid); "all" expands to every rule (outer+header+rows+cols).
+_STROKE_KINDS = frozenset({"outer", "header", "rows", "cols", "grid", "all"})
 
 
 # ── Number formatting ────────────────────────────────────────────────────────
@@ -203,13 +204,15 @@ def mark_table(
         Significant figures for the notation keywords and the numeric default. ``None`` (default)
         reads ``theme(sigFigs=…)``.
     align:
-        Text alignment. A single ``"left"``/``"center"``/``"right"`` applies to all columns; a
-        ``{column: side}`` dict overrides per column (unlisted columns stay left). Default: every
-        column left-aligned.
+        Text alignment. ``None`` (default) is **type-aware**: numeric columns are right-aligned
+        (so decimals and units line up) and everything else is left-aligned. A single
+        ``"left"``/``"center"``/``"right"`` forces all columns; a ``{column: side}`` dict overrides
+        per column (unlisted columns keep the type-aware default).
     strokes:
         Which rules to draw, as any combination of ``"outer"`` (the border), ``"header"`` (the
-        header/body separator), ``"rows"`` (between data rows), ``"cols"`` (between columns), and
-        ``"all"`` (= ``rows`` + ``cols``, every cell). A single string is accepted. Default
+        header/body separator), ``"rows"`` (between data rows), ``"cols"`` (between columns),
+        ``"grid"`` (= ``rows`` + ``cols``, the interior grid), and ``"all"`` (every rule -
+        ``outer`` + ``header`` + ``rows`` + ``cols``). A single string is accepted. Default
         ``("outer", "header")``.
     palette:
         Palette (name or hex list) for row striping. Default ``"greys"``. The lightest ``nStripes``
@@ -294,8 +297,10 @@ def mark_table(
     if bad:
         raise ValueError(f"unknown strokes {sorted(bad)}; choose from {sorted(_STROKE_KINDS)}.")
     stroke_set = set(strokes_seq)
-    if "all" in stroke_set:
+    if "grid" in stroke_set:
         stroke_set |= {"rows", "cols"}
+    if "all" in stroke_set:
+        stroke_set |= {"outer", "header", "rows", "cols"}
 
     if nStripes < 1:
         raise ValueError(f"nStripes must be >= 1, got {nStripes}.")
@@ -336,12 +341,15 @@ def mark_table(
     headerLabels = headerLabels or {}
     columnFormat = columnFormat or {}
 
-    def _col_align(col: str) -> str:
+    def _col_align(col: str, numeric: bool) -> str:
+        # Explicit align wins (global string, or a per-column dict entry); otherwise the default is
+        # type-aware - numeric columns right-aligned (so decimals/units line up) and everything
+        # else left-aligned.
         if isinstance(align, str):
             return align
         if isinstance(align, dict) and col in align:
             return align[col]
-        return "left"
+        return "right" if numeric else "left"
 
     def _text_color(col: str) -> tuple[str, str | None]:
         # ("fixed", colour) | ("contrast", None) | ("inherit", None).
@@ -404,7 +412,7 @@ def mark_table(
                 "col": col,
                 "numeric": numeric,
                 "render": render,
-                "align": _col_align(col),
+                "align": _col_align(col, numeric),
                 "label": label,
                 "longest": longest,
             }
