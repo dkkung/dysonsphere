@@ -70,3 +70,6 @@ quote-style = "double"
 
 [tool.ty.rules]
 missing-type-argument = "error"
+
+[tool.ty.src]
+exclude = ["website"]
