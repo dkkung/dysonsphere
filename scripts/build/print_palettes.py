@@ -660,23 +660,23 @@ SEQ_MULTI_MAX_CHROMA = {
 }
 
 # Baked magma Oklab L, sampled at the 12 output positions (matplotlib magma).
-# The lightness benchmark for `condensates`: magma's front-loaded black->near-white
+# The lightness benchmark for `focus`: magma's front-loaded black->near-white
 # curve is what lets a true-black-floored map keep low-signal (dark) detail.
-CONDENSATES_MAGMA_L = [
+FOCUS_MAGMA_L = [
     0.0482, 0.1917, 0.2908, 0.3681, 0.4399, 0.5076,
     0.5769, 0.6488, 0.7272, 0.8069, 0.8899, 0.9785,
 ]  # fmt: skip
 
 
-def build_condensates():
-    """The `condensates` imaging colormap - australis's hue journey rendered for
+def build_focus():
+    """The `focus` imaging colormap - australis's hue journey rendered for
     maximum low-signal detail on a true-black floor (fluorescence micrographs,
     astronomy).  A 25/75 Oklab blend of two constructions of the australis hues:
-      V1 - the hues placed on magma's front-loaded lightness curve (CONDENSATES_MAGMA_L),
+      V1 - the hues placed on magma's front-loaded lightness curve (FOCUS_MAGMA_L),
       V2 - the australis keyframes lightness-stretched to the full [0, 0.97] range,
     with stop 0 forced to pure #000000.  25% V1 keeps V2's crisp puncta-on-black
     look while lifting the dim mid-tones; the result stays Oklab-uniform (ratio
-    ~1.28) and CVD-monotonic.  See the palettes.py condensates design point.
+    ~1.28) and CVD-monotonic.  See the palettes.py focus design point.
     """
     to_ok, to_hex, max_c = _space("oklab")
     base = SEQ_MULTI_OKLAB["australis"]
@@ -689,7 +689,7 @@ def build_condensates():
 
     # V1: australis hues (linearly interpolated over position) on magma's lightness
     v1 = []
-    for i, L in enumerate(CONDENSATES_MAGMA_L):
+    for i, L in enumerate(FOCUS_MAGMA_L):
         pos = (i / (n - 1)) * (len(hues) - 1)
         i0 = int(pos)
         i1 = min(i0 + 1, len(hues) - 1)
@@ -862,7 +862,7 @@ def main():
         )
 
     print("\n# ─── Sequential imaging colormap (true-black floor) ──────────────")
-    _print_palette("condensates", build_condensates())
+    _print_palette("focus", build_focus())
 
     print("\n# ─── Diverging (Oklab, FRAC=0.85) ────────────────────────────────")
     for name, (arm2, arm1) in DIVERG_OKLAB.items():
