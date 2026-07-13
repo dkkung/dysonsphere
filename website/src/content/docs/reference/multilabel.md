@@ -11,8 +11,8 @@ sidebar:
 
 ```python
 def add_multilabel(
-    chart: alt.Chart | alt.LayerChart,
-    groups: dict[str, list] | None = None,
+    chart: alt.Chart | alt.LayerChart | alt.ConcatChart | alt.VConcatChart | alt.HConcatChart,
+    groups: dict[str, list[Any]] | None = None,
     categories: list[str] | None = None,
     *,
     spacing: int = 0,
@@ -27,7 +27,11 @@ def add_multilabel(
 
 Compose a chart with a grid annotation table, replacing its x-axis labels.
 
-Accepts ``alt.Chart`` or ``alt.LayerChart`` (e.g. a strip+boxplot layer).
+Accepts ``alt.Chart`` or ``alt.LayerChart`` (e.g. a strip+boxplot layer), and also a
+concatenated chart - ``_strip_x_labels`` recurses into ``vconcat``/``hconcat`` panels, so a
+stack of panels sharing one x-layout (e.g. ``ds.biology.western_blot``'s image strips) gets
+the table below the whole stack. A ``vconcat`` is the sensible case; a table under an
+``hconcat`` of differently-x'd panels composes but rarely aligns meaningfully.
 Strips x-axis labels and ticks from ``chart``, builds a condition table via
 :func:`_multilabel_layer`, and returns
 ``alt.vconcat(chart, annotation, spacing=spacing).resolve_scale(x="shared")``.
@@ -44,8 +48,8 @@ including ``style``, ``rowStyles``, ``categoryLabel``,
 
 **Parameters**
 
-- **`chart`** (`alt.Chart | alt.LayerChart`) - The main Altair chart (any type: ``Chart``, ``LayerChart``, etc.).
-- **`groups`** (`dict[str, list] | None`) - ``{row_label: [value, ...]}`` mapping, one value per category. Defaults to ``{}`` — omit entirely when only ``showSampleSize`` or ``categoryLabel`` is needed.
+- **`chart`** (`alt.Chart | alt.LayerChart | alt.ConcatChart | alt.VConcatChart | alt.HConcatChart`) - The main Altair chart (any type: ``Chart``, ``LayerChart``, etc.).
+- **`groups`** (`dict[str, list[Any]] | None`) - ``{row_label: [value, ...]}`` mapping, one value per category. Defaults to ``{}`` — omit entirely when only ``showSampleSize`` or ``categoryLabel`` is needed.
 - **`categories`** (`list[str] | None`) - Ordered list of x-axis categories matching the main chart. Defaults to ``None`` (empty list); must be provided when ``showSampleSize=True`` or when ``categoryLabel=True``.
 - **`spacing`** (`int`) - Vertical gap in pixels between the chart and the annotation table. Defaults to ``0`` so the annotation sits flush below the axis line.
 - **`showSampleSize`** (`bool`) - When ``True``, injects a per-category sample size row computed from ``df``. Requires ``df`` and ``xCol``. The row always renders as ``"text"`` regardless of the global ``style`` setting.

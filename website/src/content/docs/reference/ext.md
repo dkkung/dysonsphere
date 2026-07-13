@@ -75,7 +75,9 @@ survives composition (``+``/layer/concat) and is stripped from the written spec.
 ## `internal_data`
 
 ```python
-def internal_data(data: list[dict] | pl.DataFrame | Any) -> Any: ...
+def internal_data(
+    data: list[dict[str, Any]] | pl.DataFrame | Any,
+) -> Any: ...
 ```
 
 Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.

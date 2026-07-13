@@ -92,8 +92,21 @@ class TestStrokes:
 
     def test_all_draws_more_rules_than_outer(self, df):
         n_outer = len(mark_table(df, strokes="outer").to_dict()["layer"])
-        n_all = len(mark_table(df, strokes=("outer", "all")).to_dict()["layer"])
+        n_all = len(mark_table(df, strokes="all").to_dict()["layer"])
         assert n_all > n_outer
+
+    def test_grid_expands_to_rows_and_cols(self, df):
+        # "grid" == the interior only (rows + cols), NOT the outer border or header separator.
+        n_grid = len(mark_table(df, strokes="grid").to_dict()["layer"])
+        n_rows_cols = len(mark_table(df, strokes=("rows", "cols")).to_dict()["layer"])
+        assert n_grid == n_rows_cols
+
+    def test_all_is_grid_plus_outer_and_header(self, df):
+        # "all" == every rule: it draws strictly more than the interior grid alone.
+        n_all = len(mark_table(df, strokes="all").to_dict()["layer"])
+        n_grid = len(mark_table(df, strokes="grid").to_dict()["layer"])
+        n_everything = len(mark_table(df, strokes=("outer", "header", "rows", "cols")).to_dict()["layer"])
+        assert n_all == n_everything > n_grid
 
     def test_no_strokes(self, df):
         assert isinstance(mark_table(df, strokes=()), alt.LayerChart)
@@ -278,14 +291,17 @@ class TestColors:
 
 
 class TestAlign:
-    def test_default_all_left(self, df):
-        spec = mark_table(df, columns=["gene", "hits"]).to_dict()
-        text_aligns = {
-            layer["mark"].get("align")
+    def test_default_type_aware(self, df):
+        # Default (align=None): numeric columns right-aligned, non-numeric left.
+        spec = mark_table(df, columns=["gene", "log2FC", "hits"]).to_dict()
+        aligns = {
+            layer.get("encoding", {}).get("text", {}).get("value"): layer["mark"].get("align")
             for layer in spec["layer"]
             if isinstance(layer.get("mark"), dict) and layer["mark"].get("type") == "text"
         }
-        assert text_aligns == {"left"}
+        assert aligns.get("gene") == "left"  # string → left
+        assert aligns.get("log2FC") == "right"  # numeric → right
+        assert aligns.get("hits") == "right"  # numeric → right
 
     def test_dict_align_override(self, df):
         spec = mark_table(df, columns=["gene", "hits"], align={"hits": "right"}).to_dict()
