@@ -4,7 +4,8 @@ import dysonsphere as ds
 
 # mark_table() renders a DataFrame as a styled table: per-column number formatting
 # (adjusted p-values in scientific notation, typeset with real superscripts and an
-# italic "p"), italic gene names via fontStyle, and strokes between every cell.
+# italic "p") and italic gene names via fontStyle. The default strokes are the outer
+# border plus a header rule; the row stripes separate the data rows.
 ds.theme()
 
 df = pl.DataFrame(
@@ -20,5 +21,4 @@ chart = ds.mark_table(
     columnFormat={"log2FC": ".2f", "padj": "scientific"},
     headerLabels={"gene": "Gene", "log2FC": "log₂FC", "padj": "adj. p-value"},
     fontStyle={"gene": "italic"},
-    strokes=("outer", "header", "all"),
 )
