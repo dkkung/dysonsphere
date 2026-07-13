@@ -448,17 +448,21 @@ def mark_table(
         )
 
     # --- row striping ---
+    # One rect PER CELL (per column span), never a full-width per-row rect, so every cell
+    # background is an independent <rect> - individually editable in Illustrator. (Verified
+    # seam-free at render DPI even for saturated fills with no column strokes.)
     if striping:
         pal = _resolve_palette(palette)
         stripe_cols = pal[-nStripes:] if dark else pal[:nStripes]
-        for k, color in enumerate(stripe_cols):
-            layers.append(
-                _df_base()
-                .transform_filter(f"(datum.__rowidx - 1) % {nStripes} == {k}")
-                # stroke pinned off: config.rect leaks a black border onto mark_rect otherwise.
-                .mark_rect(fill=color, stroke=None, strokeWidth=0)
-                .encode(x=alt.value(0), x2=alt.value(total_w), y=_band_y())
-            )
+        for i in range(len(cols)):
+            for k, color in enumerate(stripe_cols):
+                layers.append(
+                    _df_base()
+                    .transform_filter(f"(datum.__rowidx - 1) % {nStripes} == {k}")
+                    # stroke pinned off: config.rect leaks a black border onto mark_rect otherwise.
+                    .mark_rect(fill=color, stroke=None, strokeWidth=0)
+                    .encode(x=alt.value(lefts[i]), x2=alt.value(lefts[i] + widths[i]), y=_band_y())
+                )
 
     # --- value-coloured cells ---
     for i, p in enumerate(plans):

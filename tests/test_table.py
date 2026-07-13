@@ -99,6 +99,27 @@ class TestStrokes:
         assert isinstance(mark_table(df, strokes=()), alt.LayerChart)
 
 
+class TestStriping:
+    def _n_rect_layers(self, spec):
+        return sum(
+            1 for layer in spec["layer"] if isinstance(layer.get("mark"), dict) and layer["mark"].get("type") == "rect"
+        )
+
+    def test_per_cell_rects_scale_with_columns(self):
+        # Striping draws one rect per cell (per column), so adding a column adds nStripes rects -
+        # each cell background is an independent <rect> for Illustrator editing.
+        d2 = pl.DataFrame({"a": [1, 2], "b": [3, 4]})
+        d3 = pl.DataFrame({"a": [1, 2], "b": [3, 4], "c": [5, 6]})
+        n2 = self._n_rect_layers(mark_table(d2, strokes=()).to_dict())
+        n3 = self._n_rect_layers(mark_table(d3, strokes=()).to_dict())
+        assert n2 == 2 * 2  # 2 columns x nStripes(=2)
+        assert n3 - n2 == 2  # one more column -> nStripes more rects
+
+    def test_striping_false_draws_no_rects(self):
+        d2 = pl.DataFrame({"a": [1, 2], "b": [3, 4]})
+        assert self._n_rect_layers(mark_table(d2, striping=False, strokes=()).to_dict()) == 0
+
+
 class TestFormatting:
     def test_scientific_calc_layer_present(self, df):
         spec = mark_table(df, columnFormat={"pvalue": "scientific"}).to_dict()
