@@ -24,6 +24,7 @@ _MODULE_NAMES = [
     "nonlinear",
     "palettes",
     "statistics",
+    "table",
     "theme",
     "transforms",
     "utils",

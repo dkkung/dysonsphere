@@ -12,6 +12,7 @@ from .multilabel import *  # noqa: F403
 from .nonlinear import *  # noqa: F403
 from .palettes import *  # noqa: F403
 from .statistics import *  # noqa: F403
+from .table import *  # noqa: F403
 from .theme import *  # noqa: F403
 from .transforms import *  # noqa: F403
 from .utils import *  # noqa: F403
@@ -48,6 +49,7 @@ __all__ = [
     "load_extension",
     "log_label_expr",
     "mark_strip",
+    "mark_table",
     "mark_violin",
     "palette",
     "read",
