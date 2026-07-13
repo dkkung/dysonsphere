@@ -681,7 +681,7 @@ def _multilabel_layer(
 
 
 def add_multilabel(
-    chart: alt.Chart | alt.LayerChart,
+    chart: alt.Chart | alt.LayerChart | alt.ConcatChart | alt.VConcatChart | alt.HConcatChart,
     groups: dict[str, list[Any]] | None = None,
     categories: list[str] | None = None,
     *,
@@ -696,7 +696,11 @@ def add_multilabel(
     """
     Compose a chart with a grid annotation table, replacing its x-axis labels.
 
-    Accepts ``alt.Chart`` or ``alt.LayerChart`` (e.g. a strip+boxplot layer).
+    Accepts ``alt.Chart`` or ``alt.LayerChart`` (e.g. a strip+boxplot layer), and also a
+    concatenated chart - ``_strip_x_labels`` recurses into ``vconcat``/``hconcat`` panels, so a
+    stack of panels sharing one x-layout (e.g. ``ds.biology.western_blot``'s image strips) gets
+    the table below the whole stack. A ``vconcat`` is the sensible case; a table under an
+    ``hconcat`` of differently-x'd panels composes but rarely aligns meaningfully.
     Strips x-axis labels and ticks from ``chart``, builds a condition table via
     :func:`_multilabel_layer`, and returns
     ``alt.vconcat(chart, annotation, spacing=spacing).resolve_scale(x="shared")``.
