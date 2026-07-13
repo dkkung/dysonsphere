@@ -33,16 +33,16 @@ def add_comparisons(
     yStart: float | None = None,
     yStep: float | None = None,
     yPad: float | None = None,
-    categories: list | None = None,
+    categories: list[Any] | None = None,
     chartWidth: int | None = None,
-    bracketStyle: str | dict = 'bracket',
+    bracketStyle: str | dict[tuple[str, str], Any] = 'bracket',
     labelStyle: str = 'p',
     tickHeight: float | None = None,
     strokeWidth: float | None = None,
     fontSize: int | None = None,
     reverse: list[tuple[str, str]] | None = None,
     sigFigs: int | None = None,
-    notation: str | dict | None = None,
+    notation: str | dict[str | tuple[str, str], Any] | None = None,
     testLabelPosition: str | None = 'auto',
     testLabel: str | None = None,
     omnibusVerbose: bool = False,
@@ -83,22 +83,22 @@ Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 - **`test`** (`str`) - Statistical test. **Pairwise:** ``'mannwhitneyu'`` (default), ``'ttest_ind'``, ``'ttest_rel'``, ``'wilcoxon'`` (run per pair), or ``'tukey_hsd'`` (one omnibus run, per-pair p-values from the matrix). **Omnibus:** ``'anova'`` (``f_oneway``), ``'kruskal'``, ``'friedman'``, ``'alexandergovern'``. Ignored when ``pvalues`` is provided.
 - **`postHoc`** (`str | None`) - Post-hoc test that fills the brackets when ``test`` is omnibus and ``pairs`` is given. ``None`` (default) picks a sensible default per omnibus test: ``anova → 'tukey_hsd'``, ``alexandergovern → 'games_howell'``, ``kruskal → 'dunn'``, ``friedman → 'nemenyi'``. May also be set to any pairwise test name. Dunn, Nemenyi, and Games-Howell are computed in-house (validated against scikit-posthocs / pingouin); ``correction`` adjusts them over all unique pairs. Ignored for pairwise ``test``.
 - **`pvalues`** (`list[float] | None`) - Pre-computed p-values, one per pair in the same order. Skips all statistical tests for the brackets when provided.
-- **`correction`** (`str | None`) - Multiple comparison correction: ``'bonferroni'``, ``'holm'``, or ``None``. For pairwise/post-hoc bracket p-values; ignored for ``tukey_hsd`` (correction is built in) and when ``pvalues`` is provided.
-- **`nComparisons`** (`int | None`) - Total number of comparisons for Bonferroni correction. Defaults to ``len(pairs)`` when ``correction='bonferroni'`` and not set explicitly.
+- **`correction`** (`str | None`) - Multiple comparison correction: ``'bonferroni'``, ``'holm'``, ``'fdr_bh'`` (Benjamini-Hochberg), ``'fdr_by'`` (Benjamini-Yekutieli), or ``None``. The two ``fdr_*`` methods control the false discovery rate (BH assumes independence / positive dependence; BY is valid under arbitrary dependence but more conservative). For pairwise/post-hoc bracket p-values; ignored for ``tukey_hsd`` (correction is built in) and when ``pvalues`` is provided.
+- **`nComparisons`** (`int | None`) - Total family size for the correction (the denominator ``m``). Defaults to ``len(pairs)`` when a ``correction`` is set and not given explicitly.
 - **`yPositions`** (`list[float] | None`) - Explicit y positions (data units) for each bracket, one per pair in the same order. When provided, overrides all auto-stacking logic (``yStart``, ``yStep``, ``yPad`` are ignored).
 - **`yStart`** (`float | None`) - Y position (data units) of the lowest bracket. Defaults to ``max(y values for all annotated groups) + yPad``.
 - **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels. Defaults to ``yPad * 1.75``, leaving clearance between a bracket's label and the bracket stacked above it.
 - **`yPad`** (`float | None`) - Padding above the data maximum when ``yStart`` is auto-placed. Defaults to a visual gap of ~8 px (``bracketStyle='line'``) or ~10 px (``bracketStyle='bracket'``), expressed in data units as a fraction of the **full** data extent over ``chartHeight``. Using the full extent (not just the compared groups) keeps the spacing stable - and stops the brackets collapsing when an un-annotated group inflates the rendered domain - since the gap in pixels tracks ``chartHeight / rendered domain``.
-- **`categories`** (`list | None`) - Ordered list of all x-axis categories. Inferred from ``df`` (sorted alphabetically) when not provided.
+- **`categories`** (`list[Any] | None`) - Ordered list of all x-axis categories. Inferred from ``df`` (sorted alphabetically) when not provided.
 - **`chartWidth`** (`int | None`) - Width of the chart in pixels, used to compute text x positions. Auto-detected from ``ds.theme()`` when not set.
-- **`bracketStyle`** (`str | dict`) - ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only) applied to every bracket. Or a ``dict`` mapping a pair to its style for per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` — keys match either pair order; pairs absent from the dict fall back to ``'bracket'``.
+- **`bracketStyle`** (`str | dict[tuple[str, str], Any]`) - ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only) applied to every bracket. Or a ``dict`` mapping a pair to its style for per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` — keys match either pair order; pairs absent from the dict fall back to ``'bracket'``.
 - **`labelStyle`** (`str`) - ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'`` renders ``*`` / ``**`` / ``***`` / ``ns``.
 - **`tickHeight`** (`float | None`) - Height of bracket end ticks in data units. Defaults to the theme's ``tickSize`` (converted from px to data units), so bracket ticks match the axis ticks. Always positive, so it works with reverse (negative-``yStep``) brackets without an explicit override. Only used when ``bracketStyle='bracket'``.
 - **`strokeWidth`** (`float | None`) - Stroke width of bracket lines. Inherits ``axisWidth`` from ``ds.theme()`` when not set.
 - **`fontSize`** (`int | None`) - Font size of the p-value / corner labels. Defaults to the theme's primary ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
 - **`reverse`** (`list[tuple[str, str]] | None`) - List of ``(group1, group2)`` tuples identifying brackets to flip — text moves below the bar and ticks point upward.
 - **`sigFigs`** (`int | None`) - Significant figures for p-value labels (and the correlation readout). Gives consistent visual precision across magnitudes — e.g. ``sigFigs=2`` renders both ``P = 4.3×10⁻¹⁴`` and ``P = 0.68`` at two figures. Trailing zeros are stripped. ``None`` (default) reads the theme's ``sigFigs`` (default ``3``). Plain notation floors at a fixed ``P < 0.001``; ``'power'`` is unaffected (integer exponent).
-- **`notation`** (`str | dict | None`) - Format style for p-value labels when ``labelStyle='p'``. ``None`` (default) uses ``P = 0.012`` / ``P < 0.001`` style. ``'scientific'`` uses ``P = 1.23×10⁻²``. ``'e'`` uses ``P = 1.23e-02``. ``'power'`` rounds to the nearest power of 10 giving ``P ≈ 10⁻²`` — note that values within the same decade (e.g. 0.04 and 0.06) map to the same label; best for p-values spanning multiple orders of magnitude. A single value applies to every label; or pass a ``dict`` for per-pair notation, e.g. ``{("A", "B"): "scientific", "test": "power"}`` — tuple keys are pairs (matched either order, unlisted → plain), and the special ``"test"`` key sets the omnibus label's notation.
+- **`notation`** (`str | dict[str | tuple[str, str], Any] | None`) - Format style for p-value labels when ``labelStyle='p'``. ``None`` (default) uses ``P = 0.012`` / ``P < 0.001`` style. ``'scientific'`` uses ``P = 1.23×10⁻²``. ``'e'`` uses ``P = 1.23e-02``. ``'power'`` rounds to the nearest power of 10 giving ``P ≈ 10⁻²`` — note that values within the same decade (e.g. 0.04 and 0.06) map to the same label; best for p-values spanning multiple orders of magnitude. A single value applies to every label; or pass a ``dict`` for per-pair notation, e.g. ``{("A", "B"): "scientific", "test": "power"}`` — tuple keys are pairs (matched either order, unlisted → plain), and the special ``"test"`` key sets the omnibus label's notation.
 - **`testLabelPosition`** (`str | None`) - Corner preset (an ``add_text`` position, e.g. ``'topLeft'``, ``'bottomRight'``) for the single test label. Its content adapts: the omnibus **result** (``ANOVA P = 0.003``) for an omnibus ``test``, or the pairwise **test name** (``Mann-Whitney U``) for a pairwise ``test``. Default ``'auto'`` → shown at ``'topLeft'`` for omnibus, hidden for pairwise (opt-in). A preset draws it there; ``None`` hides it (the result is still computed for the report/metadata).
 - **`testLabel`** (`str | None`) - Override string for the test label. ``None`` (default) builds it from the test result / name.
 - **`omnibusVerbose`** (`bool`) - Applies to the omnibus label content: ``False`` (default) → terse ``ANOVA P = 0.003``; ``True`` → ``ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18`` (statistic, df, p, and effect size).
@@ -185,7 +185,11 @@ def add_correlation(
     strokeWidth: float | None = None,
     strokeDash: bool | list[int] | None = None,
     opacity: float | None = None,
-    lineStyle: dict | None = None,
+    lineStyle: dict[str, Any] | None = None,
+    ci: float | bool = False,
+    interval: str = 'confidence',
+    ciColor: str | None = None,
+    ciOpacity: float = 0.15,
     report: bool = False,
     save: bool | str = False,
 ) -> alt.LayerChart: ...
@@ -222,7 +226,11 @@ Combine with your scatter using ``+``:  ``chart + add_correlation(...)``.
 - **`strokeWidth`** (`str | None`) - Curated style overrides for the fit line (same four knobs as ``add_rule``). Each defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one to override just that property.
 - **`strokeDash`** (`str | None`) - Curated style overrides for the fit line (same four knobs as ``add_rule``). Each defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one to override just that property.
 - **`opacity`** (`str | None`) - Curated style overrides for the fit line (same four knobs as ``add_rule``). Each defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one to override just that property.
-- **`lineStyle`** (`dict | None`) - A dict of raw ``mark_line`` properties merged in last, so any Vega-Lite line property is reachable (e.g. ``{"interpolate": "monotone", "strokeCap": "round"}``). Keys here **override** the curated ``color``/``strokeWidth``/etc. above.
+- **`lineStyle`** (`dict[str, Any] | None`) - A dict of raw ``mark_line`` properties merged in last, so any Vega-Lite line property is reachable (e.g. ``{"interpolate": "monotone", "strokeCap": "round"}``). Keys here **override** the curated ``color``/``strokeWidth``/etc. above.
+- **`ci`** (`float | bool`) - Draw a shaded interval band around the OLS fit (Pearson only). ``False`` (default) → no band. ``True`` → a 95% band. A float in ``(0, 1)`` → that confidence level (e.g. ``0.99``). The band is hyperbolic - narrowest at the mean of ``x``, widening toward the extremes.
+- **`interval`** (`str`) - Which band ``ci`` draws: ``'confidence'`` (default, the interval for the mean response - how well the *line* is pinned down) or ``'prediction'`` (the wider interval for a single new observation).
+- **`ciColor`** (`str | None`) - Fill colour of the band. ``None`` (default) inherits the fit line's ``color``, falling back to the theme's mark colour (black / white, darkmode-aware). Because the default resolves darkmode at build time, wrap chart construction in a callable passed to ``ds.save()`` for correct light/dark exports (as with ``add_shade``).
+- **`ciOpacity`** (`float`) - Fill opacity of the band. Default ``0.15``.
 - **`report`** (`bool`) - ``True`` prints the report (coefficient, r², p, fit, n) to stdout. Default ``False``. The record is queued for export metadata regardless.
 - **`save`** (`bool | str`) - ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in the cwd; a string writes it to that directory.
 
