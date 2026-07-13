@@ -18,3 +18,7 @@ ds.save(lambda: ds.biology.volcano(df), "volcano")
 
 - **`volcano(df, ...)`** - differential-expression volcano plot: `log2fc` vs `-log10(p)`,
   points colored up / down / not-significant, optional threshold guides and gene labels.
+- **`western_blot(images, groups, categories, ...)`** - stacked blot-strip images (optionally
+  bordered, with controllable spacing) annotated with a dysonsphere condition table below the
+  lanes (via `ds.add_multilabel`). Pass one image or several; each is a file path, `data:` URI,
+  or PIL `Image`.
