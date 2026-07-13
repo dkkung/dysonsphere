@@ -5,8 +5,8 @@ import dysonsphere as ds
 from dysonsphere.palettes import colors
 
 # A real fluorescence micrograph (1000x1000 px, 0.0271 µm/px), its GFP intensity recolored with
-# the condensates LUT (true-black floor for imaging) and served as an image; the colorbar is a
-# matching condensates color scale.
+# the focus LUT (true-black floor for imaging) and served as an image; the colorbar is a
+# matching focus color scale.
 ds.theme(chartWidth=170, chartHeight=170, closed=True, viewPadding=False)
 
 FOV = 1000 * 0.027083  # 27.08 µm field of view
@@ -22,14 +22,14 @@ image = (
     )
 )
 
-# an invisible layer whose continuous color scale draws the condensates colorbar (a.u.)
+# an invisible layer whose continuous color scale draws the focus colorbar (a.u.)
 colorbar = (
     alt.Chart(pl.DataFrame({"x": [0.0, 0.0], "y": [0.0, 0.0], "intensity": [0.0, 1.0]}))
     .mark_point(opacity=0)
     .encode(
         x="x:Q",
         y="y:Q",
-        color=alt.Color("intensity:Q", title="Intensity (a.u.)", scale=alt.Scale(range=colors["condensates"])),
+        color=alt.Color("intensity:Q", title="Intensity (a.u.)", scale=alt.Scale(range=colors["focus"])),
     )
 )
 

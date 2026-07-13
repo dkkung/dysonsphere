@@ -34,6 +34,10 @@ reach for:
 - **`brass` / `pewter`** - navy → near-neutral middle (chroma ≤ 0.035) → gold or platinum. The
   blue-yellow axis is fully preserved under dichromacy; the most conservative choice for
   colorblind-critical figures.
+- **`focus`** - the imaging colormap: an australis-derived ramp with a true-black floor (stop 0 is
+  pure `#000000`), so zero signal renders black while dim structure stays legible. Built for
+  fluorescence micrographs and astronomy; front-loaded lightness keeps low-signal detail without
+  breaking Oklab uniformity.
 - **Single-hue ramps** (`blues`, `greens`, `pinks`, ...) - fixed hue, lightness-only encoding;
   use when hue is reserved for another channel.
 

@@ -107,7 +107,7 @@ dissolved 2026-07-06).
   never downsampled - a 1000x1000 per-pixel `mark_rect` heatmap is infeasible), then displayed with
   `mark_image(url=..., aspect=False)` over `x`/`x2`/`y`/`y2` = the physical FOV (real µm axes from
   the OME `PhysicalSizeX`), plus an invisible `mark_point(opacity=0)` layer whose continuous color
-  scale (`range=colors["australis"]`) draws the matching colorbar. **Chart.astro base-prefixes any
+  scale (`range=colors["focus"]`) draws the matching colorbar. **Chart.astro base-prefixes any
   `url` in the spec** (`fixUrls`) so the root-relative asset resolves under the project-pages base.
 
 - **The volcano example** (`examples/volcano.py`) calls `ds.biology.volcano`, which needs the
