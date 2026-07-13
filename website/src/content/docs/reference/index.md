@@ -35,7 +35,7 @@ Requires Python >= 3.11. Runtime dependencies (installed automatically):
 
 | Package | Minimum | Role |
 | --- | --- | --- |
-| `altair` | 5.5.0 | chart construction and the theme registry |
+| `altair` | 6.0.0 | chart construction and the theme registry |
 | `polars[pyarrow]` | 1.19.0 | the native `DataFrame` (pandas input is converted) |
 | `numpy` | 1.26.0 | numeric primitives |
 | `scipy` | 1.11.0 | statistical tests behind `add_comparisons()` / `add_correlation()` |
