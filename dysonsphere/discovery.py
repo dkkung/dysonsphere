@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import importlib.metadata
 from types import ModuleType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .export import _AltairChart
@@ -77,7 +77,7 @@ def _tag_extension(chart: _AltairChart, name: str) -> _AltairChart:
     return chart.properties(name=f"{_EXT_MARKER_PREFIX}{name}")
 
 
-def _used_extensions(spec: dict) -> dict[str, str]:
+def _used_extensions(spec: dict[str, Any]) -> dict[str, str]:
     """``{name: version}`` for every extension whose usage marker (see :func:`_tag_extension`)
     appears in ``spec`` - the extensions that actually produced this figure, not just the
     installed ones. Empty when none. Versions come from the installed entry points' dists."""

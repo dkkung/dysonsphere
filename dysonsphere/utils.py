@@ -181,7 +181,7 @@ def ensure_polars(df: pl.DataFrame) -> pl.DataFrame:
     raise TypeError(f"Expected a polars.DataFrame or pandas.DataFrame, got {type(df).__name__}.")
 
 
-def _hash_rows(rows: list[dict]) -> str:
+def _hash_rows(rows: list[dict[str, Any]]) -> str:
     """Order-independent ``sha256:<hex>`` of a list of record dicts.
 
     Hashes the *multiset* of per-row canonical-JSON digests (sort the digests, then hash), so a
@@ -224,7 +224,7 @@ def frame_checksum(df: "pl.DataFrame | Any") -> str:
 _INTERNAL_COL = "__dysonsphere__"
 
 
-def _internal_data(data: "list[dict] | pl.DataFrame | Any") -> "Any":
+def _internal_data(data: "list[dict[str, Any]] | pl.DataFrame | Any") -> "Any":
     """Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
 
     Accepts a list of record dicts (returned as an ``alt.Data``) or a polars/pandas

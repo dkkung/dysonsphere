@@ -67,3 +67,6 @@ select = ["E", "F", "W", "I"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.ty.rules]
+missing-type-argument = "error"
