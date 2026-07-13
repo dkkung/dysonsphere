@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-07-13
+
 ### New features
 
 - **`add_comparisons(correction=...)` gains false-discovery-rate control: `"fdr_bh"` and `"fdr_by"`.** Alongside the family-wise `"bonferroni"`/`"holm"`, the pairwise and post-hoc bracket p-values can now be adjusted with Benjamini-Hochberg (`"fdr_bh"`) or Benjamini-Yekutieli (`"fdr_by"`) step-up FDR - the standard corrections for many-comparison settings like genomics, where controlling the expected proportion of false positives among the rejected hypotheses is more appropriate than controlling any false positive at all. BH assumes independence or positive dependence; BY multiplies by the harmonic factor `c(m)=Σ1/k` for validity under arbitrary dependence, at the cost of being more conservative. Both honor `nComparisons` (the total family size `m`, which may exceed the number of shown brackets), and both are validated against `scipy.stats.false_discovery_control`. No new dependency - implemented from scipy primitives like the rest of `statistics.py`.
