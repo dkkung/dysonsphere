@@ -142,6 +142,19 @@ class TestAddMultilabel:
         result = add_multilabel(strip, ML_GROUPS, categories=ML_CATS)
         assert isinstance(result, alt.VConcatChart)
 
+    def test_accepts_concat_chart(self):
+        # A vconcat stack (e.g. western_blot's image strips): _strip_x_labels recurses into the
+        # panels, so the table lands below the whole stack. The param annotation includes the
+        # concat types, so this is a first-class call (no type-ignore needed).
+        theme(chartWidth=100)
+        df = pl.DataFrame({"g": ML_CATS * 5, "v": range(15)})
+        panel = alt.Chart(df).mark_boxplot().encode(x=alt.X("g:N", sort=ML_CATS), y="v:Q")
+        stack = alt.vconcat(panel, panel)
+        assert isinstance(stack, alt.VConcatChart)
+        result = add_multilabel(stack, ML_GROUPS, categories=ML_CATS)
+        assert isinstance(result, alt.VConcatChart)
+        result.to_dict()  # would raise if the composition were malformed
+
 
 class TestMultilabelLabelMap:
     def test_category_label_row_uses_display_names(self):

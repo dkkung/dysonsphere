@@ -139,7 +139,5 @@ def western_blot(
         )
 
     stack = strips[0] if len(strips) == 1 else alt.vconcat(*strips, spacing=padding)
-    # add_multilabel's _strip_x_labels recurses into vconcat/hconcat children, so a multi-strip
-    # stack is handled even though the parameter is typed Chart | LayerChart.
-    result = ds.add_multilabel(stack, groups, categories, **kwargs)  # ty: ignore[invalid-argument-type]
+    result = ds.add_multilabel(stack, groups, categories, **kwargs)
     return ext.tag_extension(result, "biology")
