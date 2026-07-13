@@ -274,6 +274,51 @@ def _run_correlation(method: str, x: np.ndarray, y: np.ndarray) -> dict[str, Any
     }
 
 
+def _ols_band(
+    x: np.ndarray,
+    y: np.ndarray,
+    xs: np.ndarray,
+    *,
+    level: float = 0.95,
+    kind: str = "confidence",
+) -> tuple[np.ndarray, np.ndarray]:
+    """Lower/upper OLS interval bounds for the simple-regression fit, evaluated at ``xs``.
+
+    ``kind="confidence"`` gives the confidence band for the MEAN response;
+    ``kind="prediction"`` gives the (wider) interval for a single NEW observation.
+    Both are ``ŷ(x) ± t · s · √f`` with ``t`` the two-sided critical value at
+    ``level`` on ``n-2`` df and ``s`` the residual standard error; they differ only
+    in ``f`` - ``1/n + (x-x̄)²/Sxx`` for confidence, plus ``1`` for prediction.
+    The result is hyperbolic (narrowest at ``x̄``), so callers sample ``xs`` densely
+    for a smooth band. Needs ``n >= 3`` (two fitted params leave ≥1 residual df).
+    """
+    from scipy import stats as _stats
+
+    if kind not in ("confidence", "prediction"):
+        raise ValueError(f"kind must be 'confidence' or 'prediction', got {kind!r}")
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    xs = np.asarray(xs, dtype=float)
+    n = x.size
+    if n < 3:
+        raise ValueError(f"OLS interval band needs n >= 3 points, got {n}")
+
+    res = _stats.linregress(x, y)
+    slope, intercept = float(res.slope), float(res.intercept)
+    xbar = float(x.mean())
+    sxx = float(np.sum((x - xbar) ** 2))
+    resid = y - (slope * x + intercept)
+    s = math.sqrt(float(np.sum(resid**2)) / (n - 2))  # residual standard error
+    tcrit = float(_stats.t.ppf(1 - (1 - level) / 2, n - 2))
+
+    var = 1.0 / n + (xs - xbar) ** 2 / sxx
+    if kind == "prediction":
+        var = var + 1.0
+    half = tcrit * s * np.sqrt(var)
+    fit = slope * xs + intercept
+    return fit - half, fit + half
+
+
 def _make_correlation_record(
     result: dict[str, Any], xCol: str, yCol: str, data_checksum: str | None = None
 ) -> dict[str, Any]:

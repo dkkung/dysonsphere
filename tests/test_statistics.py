@@ -982,6 +982,44 @@ class TestCorrelationStats:
         assert "x - " in text and "+ -" not in text
 
 
+class TestOlsBand:
+    def test_confidence_half_width_at_xbar_matches_closed_form(self):
+        # At x = mean(x) the CI half-width collapses to t * s * sqrt(1/n).
+        from scipy import stats as sp
+
+        x, y = _CX, _CY
+        n = x.size
+        s = np.sqrt(np.sum((y - (sp.linregress(x, y).slope * x + sp.linregress(x, y).intercept)) ** 2) / (n - 2))
+        expected = sp.t.ppf(0.975, n - 2) * s * np.sqrt(1 / n)
+        lo, hi = st._ols_band(x, y, np.array([x.mean()]), level=0.95, kind="confidence")
+        assert (hi[0] - lo[0]) / 2 == pytest.approx(expected)
+
+    def test_prediction_wider_than_confidence_everywhere(self):
+        loc, hic = st._ols_band(_CX, _CY, _CX, kind="confidence")
+        lop, hip = st._ols_band(_CX, _CY, _CX, kind="prediction")
+        assert np.all((hip - lop) > (hic - loc))
+
+    def test_band_is_narrowest_at_xbar(self):
+        xs = np.linspace(_CX.min(), _CX.max(), 51)
+        lo, hi = st._ols_band(_CX, _CY, xs, kind="confidence")
+        width = hi - lo
+        # xbar sits at the midpoint of this symmetric, evenly-spaced grid (index 25).
+        assert int(np.argmin(width)) == 25
+
+    def test_higher_level_is_wider(self):
+        lo90, hi90 = st._ols_band(_CX, _CY, _CX, level=0.90)
+        lo99, hi99 = st._ols_band(_CX, _CY, _CX, level=0.99)
+        assert np.all((hi99 - lo99) > (hi90 - lo90))
+
+    def test_invalid_kind_raises(self):
+        with pytest.raises(ValueError, match="kind must be"):
+            st._ols_band(_CX, _CY, _CX, kind="bogus")
+
+    def test_requires_min_n(self):
+        with pytest.raises(ValueError, match="n >= 3"):
+            st._ols_band(np.array([1.0, 2.0]), np.array([1.0, 2.0]), np.array([1.5]))
+
+
 class TestCorrelationLabel:
     def _pearson(self):
         return st._run_correlation("pearson", _CX, _CY)
@@ -1080,6 +1118,58 @@ class TestAddCorrelation:
         marks = [lyr["mark"] for lyr in spec["layer"] if isinstance(lyr.get("mark"), dict)]
         line_mark = next(m for m in marks if m.get("type") == "line")
         assert line_mark["color"] == "blue"  # lineStyle wins
+
+    def _area_layer(self, spec):
+        return next(
+            (lyr for lyr in spec["layer"] if isinstance(lyr.get("mark"), dict) and lyr["mark"].get("type") == "area"),
+            None,
+        )
+
+    def test_ci_adds_band_under_line(self, scatter_df):
+        spec = add_correlation(scatter_df, "x", "y", ci=True).to_dict()
+        assert len(spec["layer"]) == 3  # band + line + readout
+        # The band is the FIRST layer, so it renders beneath the fit line.
+        assert spec["layer"][0]["mark"]["type"] == "area"
+        band = self._area_layer(spec)
+        # Fill pinned (black default), stroke off so config.area's grey/stroke can't leak.
+        assert band["mark"]["fill"] == "black"
+        assert band["mark"]["fillOpacity"] == pytest.approx(0.15)
+        assert band["mark"]["stroke"] is None
+        # Lower bound rides on the yCol field (title dedupe); upper bound in y2.
+        assert band["encoding"]["y"]["field"] == "y"
+        assert band["encoding"]["y2"]["field"] == "__ci_hi"
+
+    def test_no_band_by_default(self, scatter_df):
+        assert self._area_layer(add_correlation(scatter_df, "x", "y").to_dict()) is None
+
+    def test_ci_opacity_and_color_overrides(self, scatter_df):
+        band = self._area_layer(
+            add_correlation(scatter_df, "x", "y", ci=0.99, ciColor="#c0392b", ciOpacity=0.3).to_dict()
+        )
+        assert band["mark"]["fill"] == "#c0392b" and band["mark"]["fillOpacity"] == pytest.approx(0.3)
+
+    def test_prediction_band_wider_than_confidence(self, scatter_df):
+        def _spread(spec):
+            band = self._area_layer(spec)
+            # The sidecar frame is hoisted to top-level `datasets` and referenced by name.
+            vals = band["data"].get("values") or spec["datasets"][band["data"]["name"]]
+            return max(v["__ci_hi"] - v["y"] for v in vals)
+
+        ci_spec = add_correlation(scatter_df, "x", "y", ci=True, interval="confidence").to_dict()
+        pi_spec = add_correlation(scatter_df, "x", "y", ci=True, interval="prediction").to_dict()
+        assert _spread(pi_spec) > _spread(ci_spec)
+
+    def test_no_band_for_rank_method(self, scatter_df):
+        # Rank methods have no OLS line, so ci is a silent no-op (like line=).
+        assert self._area_layer(add_correlation(scatter_df, "x", "y", method="spearman", ci=True).to_dict()) is None
+
+    def test_invalid_ci_level_raises(self, scatter_df):
+        with pytest.raises(ValueError, match="ci must be"):
+            add_correlation(scatter_df, "x", "y", ci=1.5)
+
+    def test_invalid_interval_raises(self, scatter_df):
+        with pytest.raises(ValueError, match="interval must be"):
+            add_correlation(scatter_df, "x", "y", ci=True, interval="bogus")
 
     def test_record_queued(self, scatter_df):
         st._REPORTS.clear()

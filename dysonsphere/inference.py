@@ -829,6 +829,10 @@ def add_correlation(
     strokeDash: bool | list[int] | None = None,
     opacity: float | None = None,
     lineStyle: dict[str, Any] | None = None,
+    ci: float | bool = False,
+    interval: str = "confidence",
+    ciColor: str | None = None,
+    ciOpacity: float = 0.15,
     report: bool = False,
     save: bool | str = False,
 ) -> alt.LayerChart:
@@ -893,6 +897,22 @@ def add_correlation(
         A dict of raw ``mark_line`` properties merged in last, so any Vega-Lite line
         property is reachable (e.g. ``{"interpolate": "monotone", "strokeCap": "round"}``).
         Keys here **override** the curated ``color``/``strokeWidth``/etc. above.
+    ci:
+        Draw a shaded interval band around the OLS fit (Pearson only). ``False``
+        (default) → no band. ``True`` → a 95% band. A float in ``(0, 1)`` → that
+        confidence level (e.g. ``0.99``). The band is hyperbolic - narrowest at the
+        mean of ``x``, widening toward the extremes.
+    interval:
+        Which band ``ci`` draws: ``'confidence'`` (default, the interval for the mean
+        response - how well the *line* is pinned down) or ``'prediction'`` (the wider
+        interval for a single new observation).
+    ciColor:
+        Fill colour of the band. ``None`` (default) inherits the fit line's ``color``,
+        falling back to the theme's mark colour (black / white, darkmode-aware). Because
+        the default resolves darkmode at build time, wrap chart construction in a callable
+        passed to ``ds.save()`` for correct light/dark exports (as with ``add_shade``).
+    ciOpacity:
+        Fill opacity of the band. Default ``0.15``.
     report:
         ``True`` prints the report (coefficient, r², p, fit, n) to stdout. Default
         ``False``. The record is queued for export metadata regardless.
@@ -915,7 +935,7 @@ def add_correlation(
     from datetime import datetime
     from pathlib import Path
 
-    from .statistics import _make_correlation_record, _register_report, _render_report, _run_correlation
+    from .statistics import _make_correlation_record, _ols_band, _register_report, _render_report, _run_correlation
     from .utils import ensure_polars, frame_checksum
 
     if verbose:  # shortcut for the fullest readout; overrides the individual toggles
@@ -929,6 +949,36 @@ def add_correlation(
     result = _run_correlation(method, x, y)
 
     layers: list[Any] = []
+
+    # Confidence / prediction band around the OLS fit - Pearson only, opt-in via `ci`.
+    # Drawn BEFORE the line so it sits underneath. The band is hyperbolic, so sample the
+    # x-range densely for a smooth area.
+    if ci and result["slope"] is not None:
+        import numpy as np
+
+        level = 0.95 if ci is True else float(ci)
+        if not 0.0 < level < 1.0:
+            raise ValueError(f"ci must be True or a confidence level in (0, 1), got {ci!r}")
+        if interval not in ("confidence", "prediction"):
+            raise ValueError(f"interval must be 'confidence' or 'prediction', got {interval!r}")
+        xs = np.linspace(float(x.min()), float(x.max()), 64)
+        lo, hi = _ols_band(x, y, xs, level=level, kind=interval)
+        # Lower bound rides on the yCol-named field so its derived axis title dedupes with the
+        # base chart (same trick as the fit line); the upper bound goes in y2 (carries no title).
+        band_df = pl.DataFrame({xCol: xs, yCol: lo, "__ci_hi": hi})
+        # Match the fit line's colour (black/white, darkmode-aware at build → callable needed
+        # for save() across backgrounds, like add_shade); pin the stroke off so config.area's
+        # grey fill / stroke can't leak through.
+        band_fill = ciColor or color or ("white" if _opt("darkmode") else "black")
+        layers.append(
+            alt.Chart(_internal_data(band_df))
+            .mark_area(fill=band_fill, fillOpacity=ciOpacity, stroke=None, strokeWidth=0)
+            .encode(
+                x=alt.X(field=xCol, type="quantitative"),
+                y=alt.Y(field=yCol, type="quantitative"),
+                y2=alt.Y2(field="__ci_hi"),
+            )
+        )
 
     # OLS fit line — Pearson only (result["slope"] is None for rank kinds).
     if line and result["slope"] is not None:
