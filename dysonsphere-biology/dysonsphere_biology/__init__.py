@@ -6,5 +6,6 @@ directly as ``dysonsphere_biology``.
 """
 
 from .volcano import volcano
+from .western_blot import western_blot
 
-__all__ = ["volcano"]
+__all__ = ["volcano", "western_blot"]
