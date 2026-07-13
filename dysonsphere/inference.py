@@ -78,7 +78,7 @@ def _pvalue_layer(
     tick_height: float = 0.5,
     bracket_style: str = "bracket",
     label_style: str = "p",
-    categories: list | None = None,
+    categories: list[Any] | None = None,
     chartWidth: int | None = None,
     strokeWidth: float | None = None,
     fontSize: int | None = None,
@@ -238,8 +238,8 @@ def _omnibus_label(result, *, verbose: bool, notation: str | None, sigFigs: int)
 
 def _bracket_pvalues(
     method: str,
-    groups: list,
-    categories: list,
+    groups: list[Any],
+    categories: list[Any],
     pairs: list[tuple[str, str]],
     correction: str | None,
     nComparisons: int | None,
@@ -283,16 +283,16 @@ def add_comparisons(
     yStart: float | None = None,
     yStep: float | None = None,
     yPad: float | None = None,
-    categories: list | None = None,
+    categories: list[Any] | None = None,
     chartWidth: int | None = None,
-    bracketStyle: str | dict = "bracket",
+    bracketStyle: str | dict[tuple[str, str], Any] = "bracket",
     labelStyle: str = "p",
     tickHeight: float | None = None,
     strokeWidth: float | None = None,
     fontSize: int | None = None,
     reverse: list[tuple[str, str]] | None = None,
     sigFigs: int | None = None,
-    notation: str | dict | None = None,
+    notation: str | dict[str | tuple[str, str], Any] | None = None,
     testLabelPosition: str | None = "auto",
     testLabel: str | None = None,
     omnibusVerbose: bool = False,
@@ -543,9 +543,9 @@ def add_comparisons(
     if yPositions is not None and pairs is not None and len(yPositions) != len(pairs):
         raise ValueError(f"yPositions length ({len(yPositions)}) does not match pairs length ({len(pairs)})")
 
-    annotation_layers: list = []
+    annotation_layers: list[Any] = []
     omnibus_result = None
-    comparisons: list[dict] = []
+    comparisons: list[dict[str, Any]] = []
     comparison_name: str | None = None
 
     if is_omnibus:
@@ -618,7 +618,7 @@ def add_comparisons(
     else:
         report_pairs = list(pairs) if pairs else []
 
-    pval_lookup: dict = {}
+    pval_lookup: dict[frozenset[str], Any] = {}
     if method is not None and report_pairs:
         report_pvals = _bracket_pvalues(method, groups, categories, report_pairs, correction, nComparisons)
         pval_lookup = {frozenset(p): v for p, v in zip(report_pairs, report_pvals)}
@@ -774,7 +774,13 @@ def add_comparisons(
 
 
 def _correlation_label(
-    result: dict, *, coefficient: str, includePvalue: bool, includeEquation: bool, sigFigs: int, notation: str | None
+    result: dict[str, Any],
+    *,
+    coefficient: str,
+    includePvalue: bool,
+    includeEquation: bool,
+    sigFigs: int,
+    notation: str | None,
 ) -> str:
     """Build the corner-readout string from a correlation result, one part at a time."""
     g = f".{sigFigs}g"  # significant figures, no trailing zeros
@@ -818,7 +824,7 @@ def add_correlation(
     strokeWidth: float | None = None,
     strokeDash: bool | list[int] | None = None,
     opacity: float | None = None,
-    lineStyle: dict | None = None,
+    lineStyle: dict[str, Any] | None = None,
     report: bool = False,
     save: bool | str = False,
 ) -> alt.LayerChart:
@@ -918,7 +924,7 @@ def add_correlation(
     y = df[yCol].cast(pl.Float64).to_numpy()
     result = _run_correlation(method, x, y)
 
-    layers: list = []
+    layers: list[Any] = []
 
     # OLS fit line — Pearson only (result["slope"] is None for rank kinds).
     if line and result["slope"] is not None:
@@ -930,7 +936,7 @@ def add_correlation(
         fit_df = pl.DataFrame({xCol: [x0, x1], yCol: [slope * x0 + intercept, slope * x1 + intercept]})
         # By default the line inherits the theme's mark_line config (no overrides).
         # Curated params override only what's passed; lineStyle overrides everything.
-        mark_kwargs: dict = {}
+        mark_kwargs: dict[str, Any] = {}
         if color is not None:
             mark_kwargs["color"] = color
         if strokeWidth is not None:

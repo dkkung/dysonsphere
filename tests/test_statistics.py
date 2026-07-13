@@ -1,3 +1,5 @@
+from typing import Any
+
 import altair as alt
 import numpy as np
 import polars as pl
@@ -279,7 +281,7 @@ def _text_labels(layer):
     add_text (test label, correlation readout) encodes its string via ``alt.value`` (an
     ``encoding.text.value`` literal), not a dataset field - walk the layer tree for those.
     """
-    found: list = []
+    found: list[Any] = []
 
     def walk(node):
         if isinstance(node, dict):

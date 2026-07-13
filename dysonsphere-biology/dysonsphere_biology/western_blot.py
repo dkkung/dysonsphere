@@ -54,7 +54,7 @@ def _load_image(image: Any) -> tuple[str, int, int]:
 
 def western_blot(
     images: Any,
-    groups: dict[str, list] | None = None,
+    groups: dict[str, list[Any]] | None = None,
     categories: list[str] | None = None,
     *,
     stroke: bool | float = True,

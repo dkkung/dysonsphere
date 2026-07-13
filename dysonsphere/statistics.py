@@ -18,6 +18,7 @@ import json
 import math
 import sys
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
@@ -79,7 +80,7 @@ _TEST_DISPLAY = {
 # when layers are combined with ``+`` (see CLAUDE.md); the marker (a Vega-Lite view
 # ``name``, which DOES survive ``+``) is what ties a queued record back to its chart.
 _MARKER_PREFIX = "__dysonsphere_"
-_REPORTS: dict[str, dict] = {}  # content-hash -> record
+_REPORTS: dict[str, dict[str, Any]] = {}  # content-hash -> record
 _marker_counter = 0
 
 # Machine-readable names for the effect-size symbols used in the text report.
@@ -92,12 +93,12 @@ _EFFECT_NAMES = {
 }
 
 
-def _record_hash(record: dict) -> str:
+def _record_hash(record: dict[str, Any]) -> str:
     """Stable 16-hex content hash of a record (for keying + the marker)."""
     return hashlib.sha256(json.dumps(record, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
-def _register_report(record: dict) -> str:
+def _register_report(record: dict[str, Any]) -> str:
     """Store ``record`` (keyed by content hash) and return a unique marker ``name`` for the
     annotation layer.  The name is ``__dysonsphere_<hash>_<counter>``: the hash lets
     ``save()`` look the record up, the counter keeps the name unique within a spec (two
@@ -118,7 +119,7 @@ def _marker_hash(name: str) -> str | None:
     return name[len(_MARKER_PREFIX) :].rsplit("_", 1)[0]
 
 
-def _select_reports(hashes) -> list[dict]:
+def _select_reports(hashes) -> list[dict[str, Any]]:
     """Records for the given hashes, in registration order (naturally de-duped by hash)."""
     want = set(hashes)
     return [r for h, r in _REPORTS.items() if h in want]
@@ -147,11 +148,11 @@ class _OmnibusResult:
     df: tuple[int, ...]  # (df1, df2) for F; (df,) otherwise
     effectName: str  # "η²", "ε²", "W"
     effectSize: float
-    descriptives: list[dict] = field(default_factory=list)
+    descriptives: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ── Descriptive statistics ─────────────────────────────────────────────────
-def _describe(label: str, x: np.ndarray) -> dict:
+def _describe(label: str, x: np.ndarray) -> dict[str, Any]:
     x = np.asarray(x, dtype=float)
     return {
         "label": label,
@@ -166,7 +167,7 @@ def _describe(label: str, x: np.ndarray) -> dict:
     }
 
 
-def _describe_all(groups: list[np.ndarray], labels: list) -> list[dict]:
+def _describe_all(groups: list[np.ndarray], labels: list[str]) -> list[dict[str, Any]]:
     return [_describe(str(lab), g) for lab, g in zip(labels, groups)]
 
 
@@ -192,7 +193,7 @@ def _kendalls_w(chi2: float, n_subjects: int, k_groups: int) -> float:
 
 
 # ── Omnibus runners ────────────────────────────────────────────────────────
-def _run_omnibus(test: str, groups: list[np.ndarray], labels: list) -> _OmnibusResult:
+def _run_omnibus(test: str, groups: list[np.ndarray], labels: list[str]) -> _OmnibusResult:
     from scipy import stats as _stats
 
     if test not in _OMNIBUS_TESTS:
@@ -234,7 +235,7 @@ def _run_omnibus(test: str, groups: list[np.ndarray], labels: list) -> _OmnibusR
 
 
 # ── Correlation ────────────────────────────────────────────────────────────
-def _run_correlation(method: str, x: np.ndarray, y: np.ndarray) -> dict:
+def _run_correlation(method: str, x: np.ndarray, y: np.ndarray) -> dict[str, Any]:
     """Compute a correlation coefficient (+ OLS fit for Pearson) between two continuous vars."""
     from scipy import stats as _stats
 
@@ -273,7 +274,9 @@ def _run_correlation(method: str, x: np.ndarray, y: np.ndarray) -> dict:
     }
 
 
-def _make_correlation_record(result: dict, xCol: str, yCol: str, data_checksum: str | None = None) -> dict:
+def _make_correlation_record(
+    result: dict[str, Any], xCol: str, yCol: str, data_checksum: str | None = None
+) -> dict[str, Any]:
     """Structured record for a correlation (the single source of truth, → usermeta).
 
     ``data_checksum`` is the order-independent fingerprint of the source dataframe
@@ -470,13 +473,13 @@ def _make_record(
     test: str,
     is_omnibus: bool,
     omnibus: _OmnibusResult | None,
-    descriptives: list[dict],
-    comparisons: list[dict],
+    descriptives: list[dict[str, Any]],
+    comparisons: list[dict[str, Any]],
     comparison_test: str | None,
     correction: str | None,
     pvalues_provided: bool,
     data_checksum: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Build the structured report record.
 
     This dict is the single source of truth: ``_render_report`` turns it into the
@@ -490,12 +493,12 @@ def _make_record(
     direct unit-test call).
     """
 
-    def _effect(symbol: str | None, value) -> dict | None:
+    def _effect(symbol: str | None, value) -> dict[str, Any] | None:
         if symbol is None:
             return None
         return {"name": _EFFECT_NAMES.get(symbol, symbol), "symbol": symbol, "value": value}
 
-    record: dict = {
+    record: dict[str, Any] = {
         "kind": "omnibus" if is_omnibus else "pairwise",
         "dataChecksum": data_checksum,
         "test": None if pvalues_provided else test,
@@ -548,7 +551,7 @@ def _fmt_p(p: float) -> str:
     return f"= {p:.{_REPORT_SIGFIGS}g}"
 
 
-def _render_correlation(record: dict) -> str:
+def _render_correlation(record: dict[str, Any]) -> str:
     method = _CORRELATION_METHODS[record["method"]][0]
     title = f"Statistics | Correlation | {method}"
     lines: list[str] = [title, "─" * len(title), ""]
@@ -566,7 +569,7 @@ def _render_correlation(record: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_report(record: dict) -> str:
+def _render_report(record: dict[str, Any]) -> str:
     """Render the plain-text descriptive + effect-size report from a record dict."""
     if record["kind"] == "correlation":
         return _render_correlation(record)

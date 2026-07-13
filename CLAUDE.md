@@ -75,6 +75,7 @@ Validate functional correctness by running `uv run pytest tests/`. Validate visu
 
 - Use `-` instead of em dashes (`—`) in comments, config files, and generated text.
 - Maximum line length is 120 characters (`[tool.ruff] line-length = 120`). E501 is enforced across all Python files including tests and scripts. The formatter handles code automatically; comments and strings must be wrapped manually when over the limit.
+- **No bare generics.** `[tool.ty.rules] missing-type-argument = "error"` makes an unparametrized `dict`/`list`/`tuple` a hard ty error (a bare `dict` is `dict[Unknown, Unknown]` and silently opts out of checking). Always parametrize: `dict[str, Any]` for kwargs/encoding dicts, precise element types for lists (`list[str]` for category/label lists, `list[Any]` for mixed layer/position lists), etc. (All were parametrized 2026-07-12.) NOTE ty's default level does NOT flag these, so run `uv run ty check dysonsphere/ tests/ scripts/` (which reads the config) rather than trusting an editor's inline ty at default rules.
 
 ## Development workflow
 

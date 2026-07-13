@@ -29,8 +29,8 @@ def _rule_mark_kwargs(
     strokeWidth: float | None,
     strokeDash: bool | list[int] | None,
     opacity: float,
-) -> dict:
-    kwargs: dict = {"opacity": opacity}
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"opacity": opacity}
     if color is not None:
         kwargs["color"] = color
     if strokeWidth is not None:
@@ -48,7 +48,7 @@ def _rule_label_geometry(
     labelOffsetY: int,
     fontSize: float,
     color: str | None,
-) -> tuple[str, float, dict]:
+) -> tuple[str, float, dict[str, Any]]:
     """Resolve a reference-line label's placement to ``(perp_channel, perp_anchor, text_kwargs)``.
 
     ``perp_channel`` is the pixel-anchored channel perpendicular to the line (``"x"`` for a
@@ -94,7 +94,7 @@ def _rule_label_geometry(
         align = "left" if lp == "right" else "right"
         dx = (3 if lp == "right" else -3) + labelOffsetX
         dy = labelOffsetY
-    text_kwargs: dict = {"align": align, "dx": dx, "dy": dy, "baseline": baseline, "fontSize": fontSize}
+    text_kwargs: dict[str, Any] = {"align": align, "dx": dx, "dy": dy, "baseline": baseline, "fontSize": fontSize}
     if color is not None:
         text_kwargs["color"] = color
     return perp_ch, perp_val, text_kwargs
@@ -122,10 +122,10 @@ def _datum_ref_layers(
     base_factory: "Callable[[], alt.Chart]",
     pos_ch: str,
     vals: list[float],
-    mark_kwargs: dict,
+    mark_kwargs: dict[str, Any],
     *,
     labels: list[str] | None = None,
-    text_kwargs: dict | None = None,
+    text_kwargs: dict[str, Any] | None = None,
     perp_ch: str | None = None,
     perp_val: float | None = None,
 ) -> list[alt.Chart]:
@@ -301,7 +301,7 @@ def add_rule(
     return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
 
-_TEXT_PRESETS: dict[str, dict] = {
+_TEXT_PRESETS: dict[str, dict[str, Any]] = {
     "topLeft": {"x_frac": 0, "y_frac": 0, "align": "left", "baseline": "top"},
     "topCenter": {"x_frac": 0.5, "y_frac": 0, "align": "center", "baseline": "top"},
     "topRight": {"x_frac": 1, "y_frac": 0, "align": "right", "baseline": "top"},
@@ -360,7 +360,7 @@ def _text_bg_props(
     stroke_c: "str | None",
     fillOpacity: float,
     cornerRadius: "float | bool",
-) -> "tuple[dict, float, float]":
+) -> "tuple[dict[str, Any], float, float]":
     """Background-rect ``mark_rect`` kwargs + pixel (xOffset, yOffset) for one text.
 
     The box is sized from a rough text estimate (``len*fs*0.6`` wide, proportional fonts vary so
@@ -375,7 +375,7 @@ def _text_bg_props(
     x_shift = {"left": w / 2, "right": -w / 2}.get(align, 0.0) + dx
     y_shift = {"top": h / 2, "bottom": -h / 2, "alphabetic": -h / 2}.get(baseline, 0.0) + dy
     cr = fs * 0.25 if cornerRadius is True else (0.0 if cornerRadius is False else cornerRadius)
-    rk: dict = {"width": round(w, 2), "height": round(h, 2), "cornerRadius": round(cr, 2)}
+    rk: dict[str, Any] = {"width": round(w, 2), "height": round(h, 2), "cornerRadius": round(cr, 2)}
     rk["fill"] = fill_c  # None -> transparent fill (stroke-only)
     if fill_c is not None:
         rk["fillOpacity"] = fillOpacity
@@ -393,9 +393,9 @@ def _text_bg_props(
 def _text_datum_layers(
     base_factory: "Callable[[], alt.Chart]",
     texts: list[str],
-    xs: list,
-    ys: list,
-    mark_kwargs: dict,
+    xs: list[Any],
+    ys: list[Any],
+    mark_kwargs: dict[str, Any],
     bg: "tuple[str | None, str | None, float, float | bool] | None" = None,
 ) -> list[alt.Chart]:
     """Datum/value-positioned text layers: one per annotation, each on a fresh ``base_factory``
@@ -637,7 +637,7 @@ def add_text(
     if len(xs) != n or len(ys) != n:
         raise ValueError(f"text, x, and y must have the same length; got text={n}, x={len(xs)}, y={len(ys)}.")
 
-    mark_kwargs: dict = {
+    mark_kwargs: dict[str, Any] = {
         "align": align,
         "baseline": baseline,
         "angle": angle % 360,
@@ -714,7 +714,7 @@ def add_labels(
     yCol: str,
     labelCol: str,
     *,
-    labels: "int | list | Any | None" = None,
+    labels: "int | list[Any] | Any | None" = None,
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
@@ -864,13 +864,13 @@ def add_labels(
     # rounded caps, axisWidth stroke, opaque) - resolved per render, so they track darkmode without
     # a callable. We only force the connector dash solid (never the theme's dashedRule) and apply an
     # explicit color when the caller passes one. (align is set per-label below, by side.)
-    text_kwargs: dict = {"fontSize": fs, "baseline": "middle"}
+    text_kwargs: dict[str, Any] = {"fontSize": fs, "baseline": "middle"}
     if color is not None:
         text_kwargs["color"] = color
     if fontStyle is not None:
         text_kwargs["fontStyle"] = fontStyle
     # connectorStrokeDash: False -> solid ([0, 0]); True -> the theme's dashedWidth; a list -> as given.
-    rule_kwargs: dict = {"strokeDash": _resolve_dash(connectorStrokeDash)}
+    rule_kwargs: dict[str, Any] = {"strokeDash": _resolve_dash(connectorStrokeDash)}
     if connectorColor is not None:
         rule_kwargs["color"] = connectorColor
     # connectorOpacity only sets the mark's opacity, leaving color to the (darkmode-aware) default or
@@ -924,7 +924,7 @@ def add_labels(
     y_scale = alt.Scale(domain=[y0, y1], nice=False, zero=False, padding=0)
     pinned = False
 
-    def datum_xy(px: float, py: float) -> dict:
+    def datum_xy(px: float, py: float) -> dict[str, Any]:
         # x/y datum encodings for a pixel position; the first call attaches the scale pin.
         nonlocal pinned
         if pinned:
@@ -1031,7 +1031,7 @@ def add_shade(
     categories: list[str] | None = None,
     xCol: str | None = None,
     *,
-    positions: list[tuple] | None = None,
+    positions: list[tuple[Any, ...]] | None = None,
     axis: str = "x",
     palette: list[str] | None = None,
     nShades: int = 2,
@@ -1169,7 +1169,7 @@ def add_shade(
     resolved_dash = _resolve_dash(strokeDash) if strokeDash is not None else None
     resolved_stroke_width = (strokeWidth if strokeWidth is not None else _opt("axisWidth")) if stroke else 0
     axis_stroke_color = "white" if _opt("darkmode") else "black"
-    mark_kwargs: dict = {
+    mark_kwargs: dict[str, Any] = {
         "opacity": opacity,
         "stroke": axis_stroke_color if stroke else None,
         "strokeWidth": resolved_stroke_width,
@@ -1201,7 +1201,7 @@ def add_shade(
         mode shares ``src`` (faceteable); the default builds a fresh internal sidecar
         (read-filtered, deliberately NOT faceteable). Both share the base chart's scale, so the
         datum lands at the right data coordinate."""
-        enc: dict = {}
+        enc: dict[str, Any] = {}
         for ch, spec in (("x", x), ("y", y)):
             if spec is None:
                 continue
@@ -1231,7 +1231,7 @@ def add_shade(
             if flush is None:
                 flush = _opt("closed")
 
-            def _half(ch: str, start, end, geo, span) -> tuple:
+            def _half(ch: str, start, end, geo, span) -> tuple[Any, ...]:
                 # A string range → pixel span via the band scale; a numeric range → data span.
                 if isinstance(start, str):
                     if categories is None:

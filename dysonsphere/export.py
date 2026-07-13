@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Union, cast
+from typing import Any, Callable, Union, cast
 
 import altair as alt
 
@@ -385,7 +385,7 @@ def show(chart: _AltairChart | Callable[[], _AltairChart]):
     return SVG(svg)
 
 
-def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict":
+def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict[str, Any]":
     """Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).
 
     JSON only — the PNG/SVG carry the metadata block but not the full spec.

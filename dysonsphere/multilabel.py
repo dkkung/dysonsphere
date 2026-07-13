@@ -1,5 +1,5 @@
 import math
-from typing import cast
+from typing import Any, cast
 
 import altair as alt
 import polars as pl
@@ -13,7 +13,7 @@ __all__ = ["add_multilabel"]
 
 
 def _multilabel_layer(
-    groups: dict[str, list],
+    groups: dict[str, list[Any]],
     categories: list[str],
     *,
     order: list[str] | None = None,
@@ -33,7 +33,7 @@ def _multilabel_layer(
     rowHeight: int | float | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
-    labelMap: dict | None = None,
+    labelMap: dict[str, Any] | None = None,
     categoryLabelAngle: int = -45,
     categoryLabelHeight: int | None = None,
     span: dict[str | None, list[str]] | list[dict[str | None, list[str]]] | None = None,
@@ -367,7 +367,7 @@ def _multilabel_layer(
         .encode(x=label_x, y=y_enc, text=alt.Text("__label:N"))
     )
 
-    layers: list = [row_labels]
+    layers: list[Any] = [row_labels]
 
     # --- plusminus rows ---
     if plusminus_rows:
@@ -682,7 +682,7 @@ def _multilabel_layer(
 
 def add_multilabel(
     chart: alt.Chart | alt.LayerChart,
-    groups: dict[str, list] | None = None,
+    groups: dict[str, list[Any]] | None = None,
     categories: list[str] | None = None,
     *,
     spacing: int = 0,
