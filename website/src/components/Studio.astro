@@ -83,6 +83,7 @@ const paletteGroups = [
 					<option value="">None</option>
 					<option value="jitter">Jitter</option>
 					<option value="beeswarm">Beeswarm</option>
+					<option value="quasirandom">Quasirandom</option>
 				</select>
 			</label>
 			<div id="st-strip-opts">
@@ -589,11 +590,11 @@ high,100,26.4,6`;
 			} else if (type === 'violin') {
 				body.push(`chart = ds.mark_violin(df, ${q(x)}, ${q(y)}, categories)`);
 			} else if (type === 'point' && xtype === 'N' && transform) {
-				const off = transform === 'jitter' ? 'jitter_x' : 'beeswarm_x';
+				const off = `${transform}_x`;
 				const call =
 					transform === 'jitter'
 						? `df = ds.add_jitter(df)`
-						: `df = ds.add_beeswarm(df, ${q(y)}, groupBy=[${q(x)}])`;
+						: `df = ds.add_${transform}(df, ${q(y)}, groupBy=[${q(x)}])`;
 				const enc = [
 					`        x=alt.X("${x}:N", title=None),`,
 					`        y=alt.Y("${y}:Q"),`,

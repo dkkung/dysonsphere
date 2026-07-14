@@ -55,10 +55,20 @@ recolour individual cells in Illustrator.
 
 ## Transforms
 
-The jitter and beeswarm offsets are also available as standalone transforms that add a column to
-your DataFrame, which you then feed to Altair's `xOffset` encoding - handy when you want the offset
-on your own custom mark.
+The jitter, beeswarm, and quasirandom offsets are also available as standalone transforms that add a
+column to your DataFrame, which you then feed to Altair's `xOffset` encoding - handy when you want
+the offset on your own custom mark.
+
+`add_beeswarm` packs points with exact collision avoidance, so none overlap - but tightly-packed
+rows can look lopsided (an even-count row parks a point on the tick, and lone points get pushed to
+one side). `add_quasirandom` instead spreads points by local density - a deterministic van der
+Corput sequence weighted by a kernel density estimate - for a symmetric, violin-shaped swarm. It is
+the better choice for large or heavily-tied groups, at the cost of allowing some overlap. Both are
+reproducible (no random seed); `add_jitter` is the lightweight random option for overlaying raw
+points on another mark.
 
 <Example name="jitter" alt="Jittered scatter using add_jitter" />
 
 <Example name="beeswarm" alt="Beeswarm scatter using add_beeswarm" />
+
+<Example name="quasirandom" alt="Quasirandom scatter using add_quasirandom" />
