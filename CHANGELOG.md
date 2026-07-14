@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### New features
+
+- **`add_beeswarm(method="quasirandom")`: a density-scaled quasirandom spread, alongside the default `"swarm"`.** Mirroring R's ggbeeswarm (`geom_beeswarm(method="swarm")` vs `geom_quasirandom`), `add_beeswarm` gains a `method` argument. The default `"swarm"` is unchanged (exact collision avoidance, guaranteed non-overlap), but it can look lopsided where points pack tightly - even-count rows park a point on the tick and lone points get pushed to one side, an artifact intrinsic to the greedy swarm algorithm (seaborn's `swarmplot` has it too). `method="quasirandom"` sidesteps it: points are spread by a van der Corput low-discrepancy sequence weighted by a Gaussian KDE of the value axis, giving a symmetric, violin-shaped swarm that stays centred on the tick. It's fully deterministic (no RNG), so figures reproduce. The trade is that it does not guarantee non-overlap - the cost of the smoother, symmetric look. Two `"quasirandom"`-only knobs: `width` (peak half-width in px; auto-sized to the swarm's footprint by default) and `bandwidth` (KDE smoothing, Scott's rule by default). No new dependency - the KDE uses scipy, already a runtime dep.
+
 ### Fixes
 
 - **`add_text`/`add_labels` background chip (`fill=`) now centres on a left- or right-aligned label.** The chip was shifted by its padded half-width instead of the text half-width, so a `"left"`/`"right"`-anchored label hugged the near edge of its box with all the horizontal padding piled on the far side (visible on auto-placed `add_labels` labels whose connector meets a side edge). It now centres the chip on the glyphs with equal padding on both sides; centre-aligned labels are unchanged.
