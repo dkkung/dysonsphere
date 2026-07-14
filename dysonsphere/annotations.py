@@ -370,9 +370,13 @@ def _text_bg_props(
     ``cornerRadius`` follows the ``float | bool`` pattern: ``True`` -> ``fs * 0.25`` (the default
     rounding), ``False`` -> ``0`` (square), an explicit float -> that radius in px.
     """
-    w = len(text) * fs * 0.6 + fs * 0.7  # text width estimate + horizontal padding
+    tw = len(text) * fs * 0.6  # text width estimate (no padding)
+    w = tw + fs * 0.7  # chip width = text estimate + horizontal padding
     h = fs * 1.4
-    x_shift = {"left": w / 2, "right": -w / 2}.get(align, 0.0) + dx
+    # Recentre the chip on the TEXT via the text half-width, NOT the padded chip half-width: a
+    # left/right-anchored label then sits centred in its chip with equal padding on both sides
+    # (shifting by w/2 hugged the text to the near edge, piling all the padding on the far side).
+    x_shift = {"left": tw / 2, "right": -tw / 2}.get(align, 0.0) + dx
     y_shift = {"top": h / 2, "bottom": -h / 2, "alphabetic": -h / 2}.get(baseline, 0.0) + dy
     cr = fs * 0.25 if cornerRadius is True else (0.0 if cornerRadius is False else cornerRadius)
     rk: dict[str, Any] = {"width": round(w, 2), "height": round(h, 2), "cornerRadius": round(cr, 2)}

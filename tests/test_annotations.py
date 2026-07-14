@@ -95,6 +95,21 @@ class TestAddLabels:
         assert all(r["cornerRadius"] == 0.0 for r in square)
         assert all(r["cornerRadius"] == 3.0 for r in px)
 
+    def test_bg_chip_centers_on_text(self):
+        # the chip must sit centred on the glyphs for every alignment: a left/right-anchored label
+        # shifts the chip by the TEXT half-width (equal padding both sides), not the padded chip
+        # half-width (which hugged the text to the near edge - the off-centre NK label bug).
+        from dysonsphere.annotations import _text_bg_props
+
+        fs = 7.0
+        tw = len("NK") * fs * 0.6  # text-width estimate the helper uses internally
+        _, x_left, _ = _text_bg_props("NK", fs, "left", "middle", 0, 0, "#000", None, 1.0, False)
+        _, x_right, _ = _text_bg_props("NK", fs, "right", "middle", 0, 0, "#000", None, 1.0, False)
+        _, x_center, _ = _text_bg_props("NK", fs, "center", "middle", 0, 0, "#000", None, 1.0, False)
+        assert x_left == pytest.approx(tw / 2)  # text-start anchor -> chip centre a text half-width right
+        assert x_right == pytest.approx(-tw / 2)
+        assert x_center == 0.0
+
     def test_no_invisible_pin_mark(self, df):
         # the scale pin must ride on the label marks themselves - no invisible point may land in
         # the spec (it used to show up as a phantom element in the exported SVG)
