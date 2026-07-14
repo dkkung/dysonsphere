@@ -9,6 +9,7 @@ from dysonsphere.transforms import (
     _van_der_corput,
     add_beeswarm,
     add_jitter,
+    add_quasirandom,
 )
 
 
@@ -94,19 +95,28 @@ class TestAddBeeswarm:
         result = add_beeswarm(group_df, yCol="value", groupBy=["group"], outCol="my_swarm")
         assert "my_swarm" in result.columns
 
-    def test_swarm_is_default(self, group_df):
-        # method defaults to "swarm" - byte-identical to an explicit method="swarm"
-        default = add_beeswarm(group_df, yCol="value", groupBy=["group"])["beeswarm_x"].to_list()
-        explicit = add_beeswarm(group_df, yCol="value", groupBy=["group"], method="swarm")["beeswarm_x"].to_list()
-        assert default == explicit
 
-    def test_quasirandom_method(self, group_df):
-        result = add_beeswarm(group_df, yCol="value", groupBy=["group"], method="quasirandom")
-        assert "beeswarm_x" in result.columns and len(result) == len(group_df)
+class TestAddQuasirandom:
+    def test_adds_offset_column(self, group_df):
+        result = add_quasirandom(group_df, yCol="value", groupBy=["group"])
+        assert "quasirandom_x" in result.columns
 
-    def test_invalid_method_raises(self, group_df):
-        with pytest.raises(ValueError, match="method must be"):
-            add_beeswarm(group_df, yCol="value", groupBy=["group"], method="hex")
+    def test_output_length_unchanged(self, group_df):
+        result = add_quasirandom(group_df, yCol="value", groupBy=["group"])
+        assert len(result) == len(group_df)
+
+    def test_custom_column_name(self, group_df):
+        result = add_quasirandom(group_df, yCol="value", groupBy=["group"], outCol="my_q")
+        assert "my_q" in result.columns
+
+    def test_rows_map_back_in_order(self, group_df):
+        # the offset must line up with its own row after the group_by/sort round-trip
+        result = add_quasirandom(group_df, yCol="value", groupBy=["group"])
+        assert result["value"].to_list() == group_df["value"].to_list()
+
+    def test_width_and_bandwidth_accepted(self, group_df):
+        result = add_quasirandom(group_df, yCol="value", groupBy=["group"], width=20.0, bandwidth=0.5)
+        assert "quasirandom_x" in result.columns and len(result) == len(group_df)
 
 
 class TestVanDerCorput:

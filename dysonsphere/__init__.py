@@ -31,6 +31,7 @@ __all__ = [
     "add_log_ticks",
     "add_multilabel",
     "add_pow_ticks",
+    "add_quasirandom",
     "add_rule",
     "add_shade",
     "add_text",
