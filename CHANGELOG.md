@@ -8,6 +8,7 @@
 
 ### Fixes
 
+- **The `add_beeswarm`/`add_quasirandom` docstring examples now pin a symmetric `xOffset` domain.** When you feed a raw offset column to a bare `xOffset="beeswarm_x:Q"` encoding, Vega-Lite centres the category tick on the *midpoint* of the offset range - so a leaning swarm (e.g. a lone lowest point) renders slightly off the tick. The examples now encode `alt.XOffset(..., scale=alt.Scale(domain=[-m, m]))` (with `m` the widest offset) so offset 0 lands on the tick, matching ggbeeswarm. This is documentation only - `mark_strip(scatter="beeswarm")` already pins this domain internally, so composite-mark output was never affected.
 - **`add_text`/`add_labels` background chip (`fill=`) now centres on a left- or right-aligned label.** The chip was shifted by its padded half-width instead of the text half-width, so a `"left"`/`"right"`-anchored label hugged the near edge of its box with all the horizontal padding piled on the far side (visible on auto-placed `add_labels` labels whose connector meets a side edge). It now centres the chip on the glyphs with equal padding on both sides; centre-aligned labels are unchanged.
 
 ## [3.7.0] - 2026-07-13
