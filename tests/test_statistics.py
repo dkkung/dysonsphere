@@ -1179,3 +1179,118 @@ class TestAddCorrelation:
     def test_report_prints(self, scatter_df, capsys):
         add_correlation(scatter_df, "x", "y", report=True)
         assert "Correlation | Pearson" in capsys.readouterr().out
+
+
+class TestGroupedComparisons:
+    """add_comparisons(xOffsetCol=...) - compare xOffset subgroups within each x-category."""
+
+    @pytest.fixture
+    def qpcr_df(self):
+        # Deterministic so the control is a TRUE null (identical conditions -> p == 1, never a
+        # random dip below 0.05): G1 strongly induced by the treatment, G2 (housekeeping) unchanged.
+        base = [1.0, 1.1, 0.9, 1.05, 0.95, 1.0]
+        induced = [10.0, 10.5, 9.5, 10.2, 9.8, 10.1]
+        rows = []
+        for gene, veh, trt in [("G1", base, induced), ("G2", base, base)]:
+            for cond, vals in [("Veh", veh), ("Trt", trt)]:
+                rows += [{"gene": gene, "cond": cond, "expr": v} for v in vals]
+        return pl.DataFrame(rows)
+
+    def test_returns_layerchart_two_levels_default_pairs(self, qpcr_df):
+        # exactly two levels -> pairs defaults to comparing them
+        r = add_comparisons(
+            qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1", "G2"], xOffsetSort=["Veh", "Trt"]
+        )
+        assert isinstance(r, alt.LayerChart)
+
+    def test_real_per_category_pvalues(self, qpcr_df):
+        # the whole point: stats are computed per category from the data, not hardcoded.
+        st._REPORTS.clear()
+        add_comparisons(
+            qpcr_df,
+            "gene",
+            "expr",
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=["Veh", "Trt"],
+            test="ttest_ind",
+        )
+        rec = next(iter(st._REPORTS.values()))
+        pairs = rec["comparisons"]["pairs"]
+        g1 = next(p for p in pairs if p["group1"].startswith("G1"))
+        g2 = next(p for p in pairs if p["group1"].startswith("G2"))
+        assert g1["pvalue"] < 0.001  # induced gene: significant
+        assert g2["pvalue"] > 0.05  # unchanged control: not significant
+        # comparison labels encode the category so multi-gene records stay legible
+        assert g1["group1"] == "G1 (Veh)" and g1["group2"] == "G1 (Trt)"
+
+    def test_bracket_sort_matches_bars(self, qpcr_df):
+        # every bracket layer carries the level sort so the shared xOffset scale keeps bar order.
+        r = add_comparisons(
+            qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G2", "G1"], xOffsetSort=["Trt", "Veh"]
+        )
+        sorts: list[Any] = []
+
+        def walk(node):
+            if isinstance(node, dict):
+                enc = node.get("encoding", {})
+                if "xOffset" in enc and isinstance(enc["xOffset"], dict) and "sort" in enc["xOffset"]:
+                    sorts.append(enc["xOffset"]["sort"])
+                for v in node.values():
+                    walk(v)
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v)
+
+        walk(r.to_dict())
+        assert sorts and all(s == ["Trt", "Veh"] for s in sorts)
+
+    def test_per_category_placement(self, qpcr_df):
+        # each bracket sits above its OWN category's bars -> the induced gene's bracket is higher.
+        r = add_comparisons(
+            qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1", "G2"], xOffsetSort=["Veh", "Trt"]
+        )
+        ys = {}
+        for bracket in r.to_dict()["layer"]:
+            top_row = bracket["layer"][0]["data"]["values"][0]  # top line's first point
+            ys[top_row["gene"]] = top_row["__y"]
+        assert ys["G1"] > ys["G2"]
+
+    def test_three_levels_requires_pairs(self):
+        df = pl.DataFrame({"g": ["A"] * 9, "c": ["x", "y", "z"] * 3, "v": [1.0, 2.0, 3.0] * 3})
+        with pytest.raises(ValueError, match="pairs is required"):
+            add_comparisons(df, "g", "v", xOffsetCol="c", categories=["A"], xOffsetSort=["x", "y", "z"])
+
+    def test_nonadjacent_pair(self):
+        rng = np.random.default_rng(1)
+        df = pl.DataFrame(
+            {"g": ["A"] * 30, "c": (["x"] * 10 + ["y"] * 10 + ["z"] * 10), "v": list(rng.normal(0, 1, 30))}
+        )
+        r = add_comparisons(
+            df, "g", "v", xOffsetCol="c", pairs=[("x", "z")], categories=["A"], xOffsetSort=["x", "y", "z"]
+        )
+        assert isinstance(r, alt.LayerChart)
+
+    def test_unknown_level_raises(self, qpcr_df):
+        with pytest.raises(ValueError, match="not in xOffsetCol"):
+            add_comparisons(
+                qpcr_df,
+                "gene",
+                "expr",
+                xOffsetCol="cond",
+                pairs=[("Veh", "NOPE")],
+                categories=["G1", "G2"],
+                xOffsetSort=["Veh", "Trt"],
+            )
+
+    def test_omnibus_test_rejected(self, qpcr_df):
+        with pytest.raises(ValueError, match="grouped comparisons"):
+            add_comparisons(
+                qpcr_df,
+                "gene",
+                "expr",
+                xOffsetCol="cond",
+                test="anova",
+                categories=["G1", "G2"],
+                xOffsetSort=["Veh", "Trt"],
+            )
