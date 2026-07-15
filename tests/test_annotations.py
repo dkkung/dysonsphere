@@ -110,6 +110,29 @@ class TestAddLabels:
         assert x_right == pytest.approx(-tw / 2)
         assert x_center == 0.0
 
+    def test_fill_centres_text_in_chip(self):
+        # With a chip, every label's text is centred inside it (align="center", concentric with the
+        # rect) regardless of which side the connector attaches - so the text can't drift off-centre
+        # when the len*fs*0.6 width estimate misjudges the glyphs (the off-centre NK label). Without a
+        # chip the flow-out left/right justification is kept, so a ring of points yields both here.
+        import numpy as np
+
+        ang = np.linspace(0, 2 * np.pi, 8, endpoint=False)
+        ring = pl.DataFrame({"x": list(np.cos(ang)), "y": list(np.sin(ang)), "g": [f"L{i}" for i in range(8)]})
+
+        def _aligns(fill):
+            spec = add_labels(ring, "x", "y", "g", fill=fill).to_dict()
+            return [lyr["mark"].get("align") for lyr in spec["layer"] if lyr["mark"]["type"] == "text"]
+
+        assert set(_aligns(False)) & {"left", "right"}  # no chip: side justification preserved
+        assert all(a == "center" for a in _aligns(True))  # chip: all centred
+
+        # concentric: chip rect xOffset is 0 for every chip label (text and rect share the x datum,
+        # so the estimate error can't push the text off the chip centre)
+        spec = add_labels(ring, "x", "y", "g", fill=True, connector=False).to_dict()
+        offsets = [lyr["encoding"]["xOffset"]["value"] for lyr in spec["layer"] if lyr["mark"]["type"] == "rect"]
+        assert offsets and all(o == 0 for o in offsets)
+
     def test_no_invisible_pin_mark(self, df):
         # the scale pin must ride on the label marks themselves - no invisible point may land in
         # the spec (it used to show up as a phantom element in the exported SVG)
