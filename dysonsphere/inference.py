@@ -268,6 +268,268 @@ def _bracket_pvalues(
     raise ValueError(f"Unknown test/postHoc {method!r}. Choose from: {sorted(_MATRIX_POSTHOCS | _PAIRWISE_TESTS)}")
 
 
+def _grouped_bracket_layer(
+    x_col: str,
+    xoffset_col: str,
+    category: Any,
+    level1: str,
+    level2: str,
+    y: float,
+    *,
+    tick_height: float,
+    label: str,
+    bracket_style: str,
+    label_style: str,
+    categories: list[Any],
+    level_order: list[str],
+    strokeWidth: float,
+    fontSize: int,
+) -> alt.LayerChart:
+    """One within-category bracket for grouped comparisons.
+
+    The top bar spans the two xOffset sub-bars via the SHARED xOffset scale (``sort`` matched to the
+    bars so they keep their order), the optional end-ticks drop from it, and the label centres on the
+    band. Everything is encoded (no pixel math), so the bracket tracks wherever Vega lays the grouped
+    bars out. The label sits at the band centre - exact for two levels / symmetric pairs, slightly off
+    the true midpoint only for an asymmetric 3+-level pair (the bar and ticks stay exact).
+    """
+    rk = {"strokeWidth": strokeWidth, "strokeDash": [0, 0], "strokeCap": _opt("strokeCap")}
+    xenc = alt.X(f"{x_col}:N", sort=categories)
+    xoff = alt.XOffset(f"{xoffset_col}:N", sort=level_order)
+
+    top = (
+        alt.Chart(
+            _internal_data(
+                [{x_col: category, xoffset_col: level1, "__y": y}, {x_col: category, xoffset_col: level2, "__y": y}]
+            )
+        )
+        .mark_line(**rk)
+        .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"))
+    )
+    # Asterisk glyphs sit close to the baseline; alphanumeric labels ("ns", "P = …") need more.
+    dy = -(2 if label_style == "asterisks" and label != "ns" else 4)
+    text = (
+        alt.Chart(_internal_data([{x_col: category, "__y": y, "__label": label}]))
+        .mark_text(align="center", fontSize=fontSize, dy=dy)
+        .encode(x=alt.X(f"{x_col}:N", sort=categories), y=alt.Y("__y:Q"), text="__label:N")
+    )
+    if bracket_style == "bracket":
+        ticks = (
+            alt.Chart(
+                _internal_data(
+                    [
+                        {x_col: category, xoffset_col: level1, "__y": y, "__y2": y - tick_height},
+                        {x_col: category, xoffset_col: level2, "__y": y, "__y2": y - tick_height},
+                    ]
+                )
+            )
+            .mark_rule(**rk)
+            .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"), y2="__y2:Q")
+        )
+        return cast(alt.LayerChart, alt.layer(top, ticks, text))
+    return cast(alt.LayerChart, alt.layer(top, text))
+
+
+def _add_grouped_comparisons(
+    df: pl.DataFrame,
+    x_col: str,
+    y_col: str,
+    xoffset_col: str,
+    pairs: list[tuple[str, str]] | None,
+    *,
+    xOffsetSort: list[str] | None,
+    test: str,
+    correction: str | None,
+    nComparisons: int | None,
+    labelStyle: str,
+    bracketStyle: Any,
+    notation: Any,
+    sigFigs: int | None,
+    tickHeight: float | None,
+    strokeWidth: float | None,
+    fontSize: int | None,
+    yPad: float | None,
+    yStep: float | None,
+    categories: list[Any] | None,
+    chartWidth: int | None,
+    report: bool,
+    save: bool | str,
+) -> alt.LayerChart:
+    """Grouped (two-factor) comparisons: compare the xOffset levels within each x-category.
+
+    One bracket per (category, pair), each placed above its OWN category's bars (per-category, so
+    groups of wildly different magnitude don't push short brackets sky-high), carrying a real
+    per-category p-value from ``test`` (corrected over the whole family by ``correction``). A single
+    record is registered, its comparisons labelled ``"<category> (<level>)"``.
+    """
+    from datetime import datetime
+    from pathlib import Path
+
+    from scipy import stats as _stats
+
+    from .statistics import _adjust, _describe_all, _make_record, _pair_effect, _register_report, _render_report
+    from .utils import frame_checksum
+
+    if categories is None:
+        categories = sorted(df[x_col].unique().to_list())
+    level_order = (
+        list(xOffsetSort) if xOffsetSort is not None else df[xoffset_col].unique(maintain_order=True).to_list()
+    )
+
+    if pairs is None:
+        if len(level_order) == 2:
+            pairs = [(level_order[0], level_order[1])]
+        else:
+            raise ValueError(
+                f"pairs is required when xOffsetCol has more than two levels (levels: {level_order}); "
+                "pass e.g. pairs=[('Ctrl', 'Low'), ('Ctrl', 'High')]."
+            )
+    if len(pairs) == 0:
+        raise ValueError("pairs must not be empty when provided.")
+    _lvls = set(level_order)
+    for l1, l2 in pairs:
+        if l1 not in _lvls or l2 not in _lvls:
+            raise ValueError(f"pair ({l1!r}, {l2!r}) names a level not in xOffsetCol {xoffset_col!r} {level_order}.")
+
+    _valid_tests = {"mannwhitneyu", "ttest_ind", "ttest_rel", "wilcoxon"}
+    if test not in _valid_tests:
+        raise ValueError(f"grouped comparisons (xOffsetCol) support {sorted(_valid_tests)}, got {test!r}.")
+    if labelStyle not in ("p", "asterisks"):
+        raise ValueError(f"labelStyle must be 'p' or 'asterisks', got {labelStyle!r}.")
+    if not isinstance(bracketStyle, str) or bracketStyle not in ("bracket", "line"):
+        raise ValueError(f"grouped comparisons take bracketStyle 'bracket' or 'line', got {bracketStyle!r}.")
+    notation_val = notation if not isinstance(notation, dict) else None
+
+    chartWidth = chartWidth if chartWidth is not None else _opt("chartWidth")
+    chart_height = _opt("chartHeight")
+    fontSize = fontSize if fontSize is not None else _opt("fontSize")
+    strokeWidth = strokeWidth if strokeWidth is not None else _opt("axisWidth")
+    effective_sigfigs = sigFigs if sigFigs is not None else _opt("sigFigs")
+
+    y_all = df[y_col].cast(pl.Float64)
+    y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
+    if yPad is None:
+        yPad = (10.0 if bracketStyle == "bracket" else 8.0) * y_range / chart_height if chart_height else 0.0
+    if tickHeight is None:
+        tickHeight = _opt("tickSize") * y_range / chart_height if chart_height else 0.0
+    if yStep is None:
+        yStep = yPad * 1.75
+
+    parametric = test in ("ttest_ind", "ttest_rel")
+    paired = test == "ttest_rel"
+
+    def _pval(a, b) -> float:
+        funcs = {
+            "mannwhitneyu": lambda: _stats.mannwhitneyu(a, b, alternative="two-sided").pvalue,
+            "ttest_ind": lambda: _stats.ttest_ind(a, b).pvalue,
+            "ttest_rel": lambda: _stats.ttest_rel(a, b).pvalue,
+            "wilcoxon": lambda: _stats.wilcoxon(a, b).pvalue,
+        }
+        return float(funcs[test]())
+
+    # p-values + effects, iterated category-major then pair (the layer loop matches this order).
+    raw: list[float] = []
+    effects: list[tuple[str | None, float]] = []
+    for cat in categories:
+        cdf = df.filter(pl.col(x_col) == cat)
+        for l1, l2 in pairs:
+            a = cdf.filter(pl.col(xoffset_col) == l1)[y_col].to_numpy()
+            b = cdf.filter(pl.col(xoffset_col) == l2)[y_col].to_numpy()
+            raw.append(_pval(a, b))
+            effects.append(_pair_effect(a, b, parametric=parametric, paired=paired))
+    m = nComparisons if nComparisons is not None else len(raw)
+    adj = _adjust(raw, correction, m) if correction else raw
+
+    # Stacking level per pair (identical for every category - same spans): shorter spans sit lower.
+    lvl_idx = {lv: i for i, lv in enumerate(level_order)}
+    order = sorted(range(len(pairs)), key=lambda i: abs(lvl_idx[pairs[i][1]] - lvl_idx[pairs[i][0]]))
+    occupied: list[list[tuple[int, int]]] = []
+    pair_level = [0] * len(pairs)
+    for i in order:
+        lo, hi = sorted((lvl_idx[pairs[i][0]], lvl_idx[pairs[i][1]]))
+        for li, occ in enumerate(occupied):
+            if not any(not (hi < ol or lo > oh) for ol, oh in occ):
+                occ.append((lo, hi))
+                pair_level[i] = li
+                break
+        else:
+            occupied.append([(lo, hi)])
+            pair_level[i] = len(occupied) - 1
+
+    # descriptives over every (category, level) subset
+    desc_groups: list[Any] = []
+    desc_labels: list[str] = []
+    for cat in categories:
+        cdf = df.filter(pl.col(x_col) == cat)
+        for lv in level_order:
+            desc_groups.append(cdf.filter(pl.col(xoffset_col) == lv)[y_col].to_numpy())
+            desc_labels.append(f"{cat} ({lv})")
+    descriptives = _describe_all(desc_groups, desc_labels)
+
+    layers: list[Any] = []
+    comparisons: list[dict[str, Any]] = []
+    k = 0
+    for cat in categories:
+        cdf = df.filter(pl.col(x_col) == cat)
+        y_start = cast(float, cdf[y_col].cast(pl.Float64).max() or 0.0) + yPad
+        for pi, (l1, l2) in enumerate(pairs):
+            p = adj[k]
+            en, ev = effects[k]
+            k += 1
+            label = (
+                _format_asterisks(p)
+                if labelStyle == "asterisks"
+                else _format_pvalue(p, sigFigs=effective_sigfigs, notation=notation_val)
+            )
+            layers.append(
+                _grouped_bracket_layer(
+                    x_col,
+                    xoffset_col,
+                    cat,
+                    l1,
+                    l2,
+                    y_start + pair_level[pi] * yStep,
+                    tick_height=tickHeight,
+                    label=label,
+                    bracket_style=bracketStyle,
+                    label_style=labelStyle,
+                    categories=categories,
+                    level_order=level_order,
+                    strokeWidth=strokeWidth,
+                    fontSize=fontSize,
+                )
+            )
+            comparisons.append(
+                {"g1": f"{cat} ({l1})", "g2": f"{cat} ({l2})", "pvalue": p, "effectName": en, "effect": ev}
+            )
+
+    record = _make_record(
+        test=test,
+        is_omnibus=False,
+        omnibus=None,
+        descriptives=descriptives,
+        comparisons=comparisons,
+        comparison_test=test,
+        correction=correction,
+        pvalues_provided=False,
+        data_checksum=frame_checksum(df),
+    )
+    marker = _register_report(record)
+    if report or save:
+        report_text = _render_report(record)
+        if report:
+            print(report_text)
+        if save:
+            directory = Path(save) if isinstance(save, str) else Path.cwd()
+            directory.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+
+    if not layers:
+        layers.append(_empty_layer())
+    return cast(alt.LayerChart, alt.layer(*layers).properties(name=marker))
+
+
 def add_comparisons(
     df: pl.DataFrame | Any,
     xCol: str,
@@ -279,6 +541,8 @@ def add_comparisons(
     pvalues: list[float] | None = None,
     correction: str | None = None,
     nComparisons: int | None = None,
+    xOffsetCol: str | None = None,
+    xOffsetSort: list[str] | None = None,
     yPositions: list[float] | None = None,
     yStart: float | None = None,
     yStep: float | None = None,
@@ -366,6 +630,24 @@ def add_comparisons(
     nComparisons:
         Total family size for the correction (the denominator ``m``). Defaults
         to ``len(pairs)`` when a ``correction`` is set and not given explicitly.
+        In grouped mode it defaults to the total number of drawn comparisons
+        (``len(categories) * len(pairs)``).
+    xOffsetCol:
+        **Grouped mode.** Column encoded as the chart's ``xOffset`` (the subgroup
+        that splits each x-category into side-by-side bars, e.g. ``"condition"``
+        in a qPCR gene × condition panel). When set, ``pairs`` names subgroup
+        **levels** (not x-categories) and one bracket is drawn per x-category,
+        each above its own bars. With exactly two levels ``pairs`` defaults to
+        comparing them. Only the pairwise tests are supported here
+        (``'mannwhitneyu'``/``'ttest_ind'``/``'ttest_rel'``/``'wilcoxon'``);
+        ``correction`` adjusts over the whole family (``categories × pairs``). The
+        bracket label centres on the band - exact for two levels / symmetric
+        pairs, slightly off the midpoint only for an asymmetric 3+-level pair.
+    xOffsetSort:
+        Grouped mode - the subgroup level order. Must match the ``sort`` on your
+        chart's ``xOffset`` encoding (and ``categories`` must match the ``x``
+        sort), or the shared scale reorders the bars. ``None`` (default) reads the
+        data's first-appearance order.
     yPositions:
         Explicit y positions (data units) for each bracket, one per pair in
         the same order. When provided, overrides all auto-stacking logic
@@ -514,6 +796,22 @@ def add_comparisons(
             pvalues=[0.012, 0.341],
             categories=CATEGORIES,
         )
+
+    Grouped (two-factor) - compare vehicle vs LPS *within* each gene of a grouped
+    bar chart (``xOffset="condition"``); one bracket per gene, a real per-gene test::
+
+        GENES = ["GAPDH", "IL6", "TNF"]
+        bars = alt.Chart(df).mark_bar().encode(
+            x=alt.X("gene:N", sort=GENES),
+            xOffset=alt.XOffset("condition:N", sort=["Vehicle", "LPS"]),
+            y="mean(expr):Q", color="condition:N",
+        )
+        bars + ds.add_comparisons(
+            df, "gene", "expr",
+            xOffsetCol="condition",
+            categories=GENES, xOffsetSort=["Vehicle", "LPS"],
+            test="ttest_ind", labelStyle="asterisks",
+        )
     """
     from datetime import datetime
     from pathlib import Path
@@ -533,6 +831,35 @@ def add_comparisons(
     from .utils import ensure_polars, frame_checksum
 
     df = ensure_polars(df)
+
+    # Grouped mode: compare xOffset subgroups WITHIN each x-category (a two-factor design, e.g. a
+    # qPCR gene x condition panel). A fully separate path so the single-factor logic below is
+    # untouched; see the grouped-comparisons design point.
+    if xOffsetCol is not None:
+        return _add_grouped_comparisons(
+            df,
+            xCol,
+            yCol,
+            xOffsetCol,
+            pairs,
+            xOffsetSort=xOffsetSort,
+            test=test,
+            correction=correction,
+            nComparisons=nComparisons,
+            labelStyle=labelStyle,
+            bracketStyle=bracketStyle,
+            notation=notation,
+            sigFigs=sigFigs,
+            tickHeight=tickHeight,
+            strokeWidth=strokeWidth,
+            fontSize=fontSize,
+            yPad=yPad,
+            yStep=yStep,
+            categories=categories,
+            chartWidth=chartWidth,
+            report=report,
+            save=save,
+        )
 
     if categories is None:
         categories = sorted(df[xCol].unique().to_list())
