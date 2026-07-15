@@ -790,7 +790,8 @@ def add_labels(
         Background fill behind each label (a rect chip - useful over a dense scatter). ``False``
         (default) -> none; ``True`` -> a darkmode-aware default (``greys[0]`` light / ``greys[11]``
         dark); a string -> that color. Read at build time (like ``add_shade``), so a ``save()``
-        across backgrounds needs a callable. The connector meets the chip's edge.
+        across backgrounds needs a callable. The connector meets the chip's edge, and the text is
+        centred inside the chip (overriding the side justification a bare label would use).
     fillOpacity:
         Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
     stroke:
@@ -948,8 +949,7 @@ def add_labels(
         # anchored at that edge, so it reads as flowing out of the connector and edits grow outward.
         # A top/bottom edge (near-vertical connector, e.g. a label directly above its point) ->
         # CENTRE-justify, connector to the middle of that edge - so the connector stays vertical and
-        # a center-justified edit keeps it aligned. The connector endpoint coincides with the text
-        # anchor either way.
+        # a center-justified edit keeps it aligned. The connector endpoint (ex, ey) is the box edge.
         if hw > 0 and hh > 0 and abs(dx) / hw >= abs(dy) / hh:
             align = "left" if dx <= 0 else "right"
             text_x = ex = lx - hw if dx <= 0 else lx + hw
@@ -958,6 +958,15 @@ def add_labels(
             align = "center"
             text_x = ex = lx
             ey = ly - hh if dy <= 0 else ly + hh
+        if bg is not None:
+            # With a chip, CENTRE the text inside it rather than anchoring it at the box edge: pin the
+            # text AND the chip at the box centre (lx) so they are concentric, and the text is exactly
+            # centred no matter how far the len*fs*0.6 width estimate is from the true glyph run. (An
+            # edge-anchored label drifts to one side of its chip when the estimate misjudges the run -
+            # e.g. wide all-caps like "NK" render wider than estimated and hug the far edge.) The
+            # connector endpoint (ex, ey) stays on the box edge, so it still meets the chip's edge.
+            align = "center"
+            text_x = lx
         if connector:
             # Small gap at each end so the line points at the marker/label rather than piercing the
             # dot or touching the glyphs. connectorGap (px) defaults to the theme's mark_point EDGE
