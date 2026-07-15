@@ -133,7 +133,7 @@ export default defineConfig({
 								{ label: 'Fields & imaging', slug: 'gallery/imaging' },
 								{ label: 'Structure & chemistry', slug: 'gallery/chemistry' },
 								{ label: 'Signals & dynamics', slug: 'gallery/signals' },
-								{ label: 'Data science', slug: 'gallery/data-science' },
+								{ label: 'Machine learning', slug: 'gallery/machine-learning' },
 								{ label: 'Molecular biology', slug: 'gallery/biology' },
 								{ label: 'Distributions & statistics', slug: 'gallery/distributions' },
 							],
