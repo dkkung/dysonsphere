@@ -43,7 +43,14 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "dashedLine": False,
     "dashedRule": True,
     "dashedWidth": [2, 2],
-    "font": "Helvetica Neue",
+    # A fallback stack, NOT a single name. The Helvetica Neue *family* name must
+    # come first so vl-convert/resvg can resolve the italic face (the stat-symbol
+    # italics fixer needs it); but some macOS + vl-convert combos fail to match the
+    # spaced family name and silently drop to plain Helvetica, so we list the
+    # PostScript name "HelveticaNeue" and generic fallbacks after it for a
+    # deterministic degrade instead of resvg's arbitrary default. Do not collapse
+    # this back to a single name - that re-breaks Helvetica Neue on those machines.
+    "font": "Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif",
     "fontSize": 7,
     "fontStyle": "normal",
     "fontWeight": 400,
