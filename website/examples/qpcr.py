@@ -20,9 +20,21 @@ for g in genes:
             rows.append({"gene": g, "condition": cond, "expr": float(level * np.exp(rng.normal(0, 0.16)))})
 df = pl.DataFrame(rows)
 
+# Bracket height per gene: a fixed gap above that gene's tallest error bar (mean + SEM), so brackets
+# clear the error bars uniformly whatever the induction magnitude (a fixed gap above the mean let the
+# tall CXCL10 error bar poke through).
+bar_top = {}
+for g in genes:
+    tops = []
+    for c in ["Vehicle", "LPS"]:
+        v = df.filter((pl.col("gene") == g) & (pl.col("condition") == c))["expr"].to_numpy()
+        tops.append(v.mean() + v.std(ddof=1) / np.sqrt(len(v)))
+    bar_top[g] = max(tops) + 1.8
+ymax = round(max(bar_top.values()) + 2.5)
+
 x = alt.X("gene:N", title="Gene", sort=genes, axis=alt.Axis(labelFontStyle="italic"))  # italic gene symbols
 xoff = alt.XOffset("condition:N", sort=["Vehicle", "LPS"])
-yscale = alt.Scale(domain=[0, 27])
+yscale = alt.Scale(domain=[0, ymax])
 
 base = alt.Chart(df).encode(x=x, xOffset=xoff)
 bars = base.mark_bar().encode(
@@ -34,7 +46,6 @@ err = base.mark_errorbar(extent="stderr").encode(y=alt.Y("expr:Q", title=""))
 # Significance bracket over each gene's vehicle-vs-LPS pair: a top line (mark_line spanning the two
 # offset positions via detail) plus down-ticks at each end (mark_rule), with the label centred on the
 # band. GAPDH (housekeeping) is ns; the induced cytokines carry asterisks.
-bar_top = {g: fold[g] + 2.0 for g in genes}  # bracket height, above the taller bar + its error
 tick = 0.7
 top_rows, tick_rows, star_rows = [], [], []
 for g in genes:

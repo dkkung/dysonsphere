@@ -52,6 +52,6 @@ points = (
 zero = ds.add_rule(0.0)  # M = 0: no change
 thresh = ds.add_rule([-1.0, 1.0], strokeDash=True)  # 2-fold-change guides
 
-gene_labels = ds.add_labels(df, "A", "M", "gene", labels=df["gene"].is_not_null())
+gene_labels = ds.add_labels(df, "A", "M", "gene", labels=df["gene"].is_not_null(), fontStyle="italic")
 
 chart = points + zero + thresh + gene_labels
