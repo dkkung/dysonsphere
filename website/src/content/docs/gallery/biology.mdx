@@ -5,7 +5,7 @@ description: Differential expression, survival, dose-response, and genome-wide a
 
 import Example from '../../../components/Example.astro';
 
-Genomics, transcriptomics, and pharmacology. Press **`</> code`** on any figure to read the code
+Genomics, transcriptomics, single-cell, and pharmacology. Press **`</> code`** on any figure to read the code
 that made it, or **Open in studio** to run and edit it live.
 
 <Example name="volcano" codeToggle caption="A volcano plot - differential gene expression (log2 fold change vs −log10 p), the top hits auto-labeled. Built on <code>ds.biology.volcano</code> from the biology extension." alt="Differential-expression volcano plot with labeled genes" />
@@ -23,5 +23,7 @@ that made it, or **Open in studio** to run and edit it live.
 <Example name="manhattan" codeToggle caption="A GWAS Manhattan plot - alternating chromosome colors, a genome-wide significance <code>add_rule</code>, and top hits labeled by <code>add_labels</code>." alt="GWAS Manhattan plot with labeled hits" />
 
 <Example name="qpcr" codeToggle caption="A qPCR panel - relative expression of cytokine genes, vehicle vs LPS, grouped bars with SEM error bars and significance stars." alt="qPCR grouped bar chart with significance stars" />
+
+<Example name="umap" codeToggle caption="A single-cell UMAP embedding - PBMC clusters in the categorical palette, each labeled at its centroid with <code>add_labels</code>." alt="Single-cell UMAP cluster embedding" />
 
 <Example name="celltype_donut" codeToggle caption="A cell-type composition donut - PBMC fractions as a <code>mark_arc</code> donut (arcs are donuts by default under the theme) with the total cell count in the centre." alt="Cell-type composition donut chart" />

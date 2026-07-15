@@ -39,7 +39,7 @@ points = (
         color=alt.Color(
             "value:Q",
             scale=alt.Scale(range=ds.palette("redsblues", 9, reverse=True)),  # low -> blue, high -> red
-            legend=alt.Legend(title="feature value", gradientLength=90, values=[0, 1],
+            legend=alt.Legend(title="Feature value", gradientLength=90, values=[0, 1],
                               labelExpr="datum.value == 0 ? 'low' : 'high'"),
         ),
     )

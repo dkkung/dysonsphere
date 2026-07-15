@@ -33,7 +33,7 @@ chart = (
     .encode(
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("models:Q", stack="center", axis=None),  # streamgraph baseline is meaningless
-        color=alt.Color("framework:N", sort=order, title="framework"),
+        color=alt.Color("framework:N", sort=order, title="Framework"),
         order=alt.Order("framework:N", sort="ascending"),
     )
 )

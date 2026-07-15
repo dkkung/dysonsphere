@@ -34,13 +34,13 @@ for split, (loss, acc) in curves.items():
 df = pl.DataFrame(rows)
 
 color = alt.Color("split:N", sort=["train", "val"], title=None)
-xenc = alt.X("epoch:Q", title="epoch", scale=alt.Scale(domain=[0, 50], nice=False))
+xenc = alt.X("epoch:Q", title="Epoch", scale=alt.Scale(domain=[0, 50], nice=False))
 
 loss = alt.Chart(df).mark_line().encode(
-    x=xenc, y=alt.Y("loss:Q", title="loss", scale=alt.Scale(domain=[0, 2])), color=color
+    x=xenc, y=alt.Y("loss:Q", title="Loss", scale=alt.Scale(domain=[0, 2])), color=color
 )
 acc = alt.Chart(df).mark_line().encode(
-    x=xenc, y=alt.Y("accuracy:Q", title="accuracy", scale=alt.Scale(domain=[0.2, 1])), color=color
+    x=xenc, y=alt.Y("accuracy:Q", title="Accuracy", scale=alt.Scale(domain=[0.2, 1])), color=color
 )
 
 chart = (loss | acc).resolve_scale(y="independent")

@@ -39,8 +39,8 @@ points = (
     alt.Chart(df)
     .mark_circle(size=7, opacity=0.7, clip=True)
     .encode(
-        x=alt.X("A:Q", title="mean log₂ expression", scale=alt.Scale(domain=[0, 16], nice=False)),
-        y=alt.Y("M:Q", title="log₂ fold change", scale=alt.Scale(domain=[-6, 6], nice=False)),
+        x=alt.X("A:Q", title="Mean log₂ expression", scale=alt.Scale(domain=[0, 16], nice=False)),
+        y=alt.Y("M:Q", title="Log₂ fold change", scale=alt.Scale(domain=[-6, 6], nice=False)),
         color=alt.Color(
             "klass:N",
             scale=alt.Scale(domain=["down", "ns", "up"], range=["#3A68BB", "#9AA0A6", "#E0559A"]),

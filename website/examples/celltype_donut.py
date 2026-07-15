@@ -19,7 +19,7 @@ total = df["cells"].sum()
 
 donut = alt.Chart(df).mark_arc().encode(
     theta=alt.Theta("cells:Q", stack=True),
-    color=alt.Color("cell type:N", sort=list(df["cell type"]), legend=alt.Legend(title="cell type")),
+    color=alt.Color("cell type:N", sort=list(df["cell type"]), legend=alt.Legend(title="Cell type")),
     order=alt.Order("cells:Q", sort="descending"),
 )
 
