@@ -27,6 +27,19 @@ class TestThemeDefaults:
         assert "closed" in opts
         assert "darkmode" in opts
 
+    def test_default_font_is_fallback_stack(self):
+        # The default font must be a fallback stack, with the Helvetica Neue *family*
+        # name first (so resvg resolves the italic face) and the PostScript name
+        # "HelveticaNeue" plus generic fallbacks after it (so a macOS/vl-convert combo
+        # that fails to match the spaced family name degrades to Helvetica Neue rather
+        # than plain Helvetica). A regression here silently changes the font in exports.
+        theme()
+        font = alt.theme.options["font"]
+        families = [f.strip() for f in font.split(",")]
+        assert families[0] == "Helvetica Neue"
+        assert "HelveticaNeue" in families
+        assert families[-1] == "sans-serif"
+
     def test_mark_size_default(self):
         theme(chartWidth=200, chartHeight=100)
         assert alt.theme.options["markSize"] == pytest.approx(10.0)
