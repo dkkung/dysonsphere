@@ -320,16 +320,17 @@ def _ols_band(
 
 
 def _make_correlation_record(
-    result: dict[str, Any], xCol: str, yCol: str, data_checksum: str | None = None
+    result: dict[str, Any], xCol: str, yCol: str, data_checksum: str | None = None, group: Any = None
 ) -> dict[str, Any]:
     """Structured record for a correlation (the single source of truth, → usermeta).
 
     ``data_checksum`` is the order-independent fingerprint of the source dataframe
     (``utils.frame_checksum``), so records from distinct dataframes are distinguishable; it also
     feeds the record's content hash (the marker), so two correlations on different data never
-    collapse.  ``None`` when built without a frame (e.g. a direct unit-test call).
+    collapse.  ``None`` when built without a frame (e.g. a direct unit-test call).  ``group`` labels
+    a per-group record in grouped mode (``add_correlation(groupCol=...)``); ``None`` for a single fit.
     """
-    return {
+    record = {
         "kind": "correlation",
         "dataChecksum": data_checksum,
         "method": result["method"],
@@ -341,6 +342,9 @@ def _make_correlation_record(
         "pvalue": _clamp_p(result["pvalue"]),
         "fit": None if result["slope"] is None else {"slope": result["slope"], "intercept": result["intercept"]},
     }
+    if group is not None:
+        record["group"] = group
+    return record
 
 
 # ── Post-hoc tests (hand-rolled) ───────────────────────────────────────────
@@ -616,6 +620,8 @@ def _fmt_p(p: float) -> str:
 def _render_correlation(record: dict[str, Any]) -> str:
     method = _CORRELATION_METHODS[record["method"]][0]
     title = f"Statistics | Correlation | {method}"
+    if "group" in record:  # grouped mode: one record per series
+        title += f" | {record['group']}"
     lines: list[str] = [title, "─" * len(title), ""]
     c = record["coefficient"]
     parts = [f"{c['symbol']} = {_fmt(c['value'])}"]
