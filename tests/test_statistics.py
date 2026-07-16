@@ -1340,6 +1340,16 @@ class TestGroupedCorrelation:
         n_text = sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "text")
         assert n_lines == 3 and n_text == 3
 
+    def test_readout_text_neutral_with_colored_swatch(self, grouped_df):
+        # the colour link is a per-group SWATCH (square); the readout text stays neutral (no color
+        # encoding) so it's legible even for pale palette colours.
+        spec = add_correlation(grouped_df, "x", "y", groupCol="line").to_dict()
+        texts = [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "text"]
+        swatches = [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "square"]
+        assert len(texts) == 3 and len(swatches) == 3
+        assert all("color" not in lyr.get("encoding", {}) for lyr in texts)  # neutral ink
+        assert all(lyr["encoding"]["color"]["field"] == "line" for lyr in swatches)  # coloured swatch
+
     def test_rank_method_no_lines(self, grouped_df):
         # spearman reports the coefficient (readouts) but draws no fit line
         spec = add_correlation(grouped_df, "x", "y", groupCol="line", method="spearman").to_dict()

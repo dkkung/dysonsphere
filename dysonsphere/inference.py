@@ -1258,7 +1258,10 @@ def _add_grouped_correlation(
                 )
             )
 
-        # Stacked, colour-coded corner readout for this group.
+        # Stacked corner readout for this group: a colour SWATCH in the series colour + the readout
+        # in the theme's neutral (darkmode-aware) ink. The swatch carries the colour link to the
+        # line/points (like a legend entry), so the text stays fully legible even for pale palette
+        # colours - colouring the whole readout hurt contrast on light series (e.g. a pale yellow).
         if position is not None:
             text = _correlation_label(
                 result,
@@ -1268,17 +1271,34 @@ def _add_grouped_correlation(
                 sigFigs=effective_sigfigs,
                 notation=notation,
             )
+            label = f"{g}: {text}"
+            y_i = base_y + (i - anchor) * line_h
+            align, baseline = preset["align"], preset["baseline"]
+            sw_side = fontSize * 0.8  # swatch square side
+            gap = fontSize * 0.4  # swatch -> text
+            tw = len(label) * fontSize * 0.6  # rough text-width estimate (for right/centre swatch x)
+            if align == "left":
+                text_x, sw_x = base_x + sw_side + gap, base_x + sw_side / 2
+            elif align == "right":
+                text_x, sw_x = base_x, base_x - tw - gap - sw_side / 2
+            else:  # center
+                text_x, sw_x = base_x, base_x - tw / 2 - gap - sw_side / 2
+            # Seat the swatch on the text's visual middle, given its baseline.
+            _vshift = {"top": 0.35, "middle": 0.0, "alphabetic": -0.35, "bottom": -0.45}.get(baseline, 0.0)
+            sw_y = y_i + _vshift * fontSize
             g_layers.append(
                 alt.Chart(_internal_data([{group_col: g}]))
-                .mark_text(
-                    align=preset["align"], baseline=preset["baseline"], fontSize=fontSize, dx=offsetX, dy=offsetY
-                )
+                .mark_square(size=round(sw_side * sw_side, 2))
                 .encode(
-                    x=alt.value(base_x),
-                    y=alt.value(base_y + (i - anchor) * line_h),
-                    text=alt.value(f"{g}: {text}"),
+                    x=alt.value(round(sw_x + offsetX, 2)),
+                    y=alt.value(round(sw_y + offsetY, 2)),
                     color=alt.Color(f"{group_col}:N", legend=None),
                 )
+            )
+            g_layers.append(
+                alt.Chart(_internal_data([{}]))
+                .mark_text(align=align, baseline=baseline, fontSize=fontSize, dx=offsetX, dy=offsetY)
+                .encode(x=alt.value(round(text_x, 2)), y=alt.value(round(y_i, 2)), text=alt.value(label))
             )
 
         # One record per group; tag it onto this group's first layer so save() matches all of them.
@@ -1358,8 +1378,9 @@ def add_correlation(
         readout coloured by ``groupCol`` on the *same* colour channel your scatter uses -
         so colour by the same field (``color=alt.Color("cell_line:N")``) and they match
         (colour is a lookup, so no sort param is needed, unlike ``add_comparisons``).
-        Readouts stack in the ``position`` corner, each in its group's colour; one record
-        is registered per group. Note: with ``ci=True``, give your scatter an explicit
+        Readouts stack in the ``position`` corner, each a colour swatch (matching the series)
+        plus the coefficient in neutral ink; one record is registered per group. Note: with
+        ``ci=True``, give your scatter an explicit
         y-axis title (``alt.Y("val:Q", title="…")``) - otherwise Vega merges the band's
         internal upper-bound field into the axis title (a Vega title-merge quirk that also
         affects the single-series ``ci`` path).
