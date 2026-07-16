@@ -861,7 +861,18 @@ def add_comparisons(
             save=save,
         )
 
-    if categories is None:
+    # Guard the categories footgun: brackets are positioned by the order/count of `categories`, so an
+    # explicit list that doesn't cover the data's x-values (a typo or omission) mis-sizes the band
+    # geometry and silently shifts every bracket. Raise instead (mirrors the grouped path). The
+    # order-vs-chart mismatch stays undetectable without the chart (documented).
+    if categories is not None:
+        missing = set(df[xCol].unique().to_list()) - set(categories)
+        if missing:
+            raise ValueError(
+                f"categories is missing {xCol!r} values present in the data: {sorted(missing)}. "
+                "It must list every x-category, in the same order as your chart's x sort."
+            )
+    else:
         categories = sorted(df[xCol].unique().to_list())
 
     is_omnibus = test in _OMNIBUS_TESTS
