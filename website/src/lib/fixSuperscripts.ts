@@ -166,8 +166,31 @@ export function alignGridToContent(root: ParentNode, spec: { config?: { axis?: {
  * axis-tick line so ticks point INTO the plot. Like the superscript fixer, the library applies
  * this only at save() time; the site opts in per chart (theming's inwardTicks example) since
  * the rendered spec carries no flag for it.
+ *
+ * Two passes, mirroring the library: Pass 1 pulls each axis's labels + title toward the view by
+ * that axis's OWN tick vector (read BEFORE negation) so the freed outward-tick space doesn't
+ * survive as a dead gap between the domain line and the labels; Pass 2 negates the tick geometry.
  */
 export function flipTicksInward(root: ParentNode): void {
+	const XLATE = /^translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)(.*)$/;
+	// Pass 1: pull each axis's labels + title inward by its tick length (pre-negation read).
+	for (const axis of root.querySelectorAll('svg g.mark-group.role-axis')) {
+		const tick = axis.querySelector('g[class*="role-axis-tick"] line');
+		if (!tick) continue;
+		const dx = -parseFloat(tick.getAttribute('x2') ?? '0');
+		const dy = -parseFloat(tick.getAttribute('y2') ?? '0');
+		if (dx === 0 && dy === 0) continue;
+		for (const text of axis.querySelectorAll(
+			'g[class*="role-axis-label"] text, g[class*="role-axis-title"] text',
+		)) {
+			const m = XLATE.exec(text.getAttribute('transform') ?? '');
+			if (!m) continue;
+			const x = parseFloat(m[1]);
+			const y = parseFloat(m[2]);
+			text.setAttribute('transform', `translate(${x + dx},${y + dy})${m[3]}`);
+		}
+	}
+	// Pass 2: negate the tick geometry itself.
 	for (const line of root.querySelectorAll('svg g[class*="role-axis-tick"] line')) {
 		const x2 = parseFloat(line.getAttribute('x2') ?? '0');
 		const y2 = parseFloat(line.getAttribute('y2') ?? '0');
