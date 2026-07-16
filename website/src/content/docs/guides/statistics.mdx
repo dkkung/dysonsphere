@@ -53,6 +53,16 @@ freedom, and effect size.
 
 <Example name="comparisons_kruskal" alt="Kruskal-Wallis omnibus label with Dunn post-hoc brackets" />
 
+### Grouped (two-factor) comparisons
+
+For a grouped bar chart - a subgroup on `xOffset` within each x-category, like a qPCR gene × condition
+panel - pass `xOffsetCol` to compare the subgroup **levels within each group**. `pairs` names the
+levels (defaulted for two); one bracket is drawn per x-category, each with a real per-category test,
+sitting above its own group's bars. Set `categories` and `xOffsetSort` to match your chart's `x` /
+`xOffset` sort (it raises if they don't cover the data):
+
+<Example name="qpcr" alt="Grouped qPCR bars with a within-gene significance bracket per gene" />
+
 ## Correlation
 
 `add_correlation()` adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
@@ -78,3 +88,12 @@ Rank correlations (`method="spearman"` / `"kendall"`) report only the coefficien
 p-value - no fit line, since a straight line is not their model:
 
 <Example name="correlation_spearman" alt="Weight versus miles per gallon, Spearman coefficient" />
+
+### Per-series correlation
+
+Pass `groupCol` to fit and report a correlation **per group** - one fit line, CI band, and coefficient
+per level, each coloured to match its points (colour your scatter by the same field). Colour is a
+lookup rather than a position, so no sort parameter is needed. The readouts stack in the corner, one
+per series:
+
+<Example name="correlation_groups" alt="Per-cell-line correlation with fit lines and coefficients" />
