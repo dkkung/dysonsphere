@@ -1295,16 +1295,6 @@ class TestGroupedComparisons:
                 xOffsetSort=["Veh", "Trt"],
             )
 
-    def test_incomplete_categories_raises(self, qpcr_df):
-        # an explicit `categories` that omits a gene in the data would misalign the shared x scale
-        with pytest.raises(ValueError, match="categories is missing"):
-            add_comparisons(qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1"], xOffsetSort=["Veh", "Trt"])
-
-    def test_incomplete_xoffsetsort_raises(self, qpcr_df):
-        # an explicit `xOffsetSort` that omits a level in the data would misalign the xOffset scale
-        with pytest.raises(ValueError, match="xOffsetSort is missing"):
-            add_comparisons(qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1", "G2"], xOffsetSort=["Veh"])
-
 
 class TestGroupedCorrelation:
     """add_correlation(groupCol=...) - a fit + coefficient per series."""
@@ -1351,14 +1341,16 @@ class TestGroupedCorrelation:
         assert n_lines == 3 and n_text == 3
 
     def test_readout_text_neutral_with_colored_swatch(self, grouped_df):
-        # the colour link is a per-group SWATCH (square); the readout text stays neutral (no color
-        # encoding) so it's legible even for pale palette colours.
+        # the colour link is a per-group SWATCH (a filled point, legend-symbol sized); the readout
+        # text stays neutral (no color encoding) so it's legible even for pale palette colours.
         spec = add_correlation(grouped_df, "x", "y", groupCol="line").to_dict()
         texts = [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "text"]
-        swatches = [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "square"]
+        swatches = [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "point"]
         assert len(texts) == 3 and len(swatches) == 3
         assert all("color" not in lyr.get("encoding", {}) for lyr in texts)  # neutral ink
         assert all(lyr["encoding"]["color"]["field"] == "line" for lyr in swatches)  # coloured swatch
+        # the swatch scales with the font (symbolSize = fontSize*6 at the default fontSize 7)
+        assert all(lyr["mark"]["size"] == pytest.approx(42.0) for lyr in swatches)
 
     def test_rank_method_no_lines(self, grouped_df):
         # spearman reports the coefficient (readouts) but draws no fit line

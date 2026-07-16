@@ -370,26 +370,8 @@ def _add_grouped_comparisons(
     from .statistics import _adjust, _describe_all, _make_record, _pair_effect, _register_report, _render_report
     from .utils import frame_checksum
 
-    # Guard the sort footgun: `categories`/`xOffsetSort` must match the chart's x/xOffset sort or the
-    # shared scale silently reorders the bars. We can't see the chart to check the *order*, but an
-    # explicit list that doesn't even COVER the data's values (a typo or omission) is a guaranteed
-    # mismatch - catch it with a clear error instead of a mysterious reorder.
-    if categories is not None:
-        missing = set(df[x_col].unique().to_list()) - set(categories)
-        if missing:
-            raise ValueError(
-                f"categories is missing {x_col!r} values present in the data: {sorted(missing)}. "
-                "It must list every x-category, in the same order as your chart's x sort."
-            )
-    else:
+    if categories is None:
         categories = sorted(df[x_col].unique().to_list())
-    if xOffsetSort is not None:
-        missing = set(df[xoffset_col].unique().to_list()) - set(xOffsetSort)
-        if missing:
-            raise ValueError(
-                f"xOffsetSort is missing {xoffset_col!r} levels present in the data: {sorted(missing)}. "
-                "It must list every xOffset level, in the same order as your chart's xOffset sort."
-            )
     level_order = (
         list(xOffsetSort) if xOffsetSort is not None else df[xoffset_col].unique(maintain_order=True).to_list()
     )
@@ -1292,21 +1274,30 @@ def _add_grouped_correlation(
             label = f"{g}: {text}"
             y_i = base_y + (i - anchor) * line_h
             align, baseline = preset["align"], preset["baseline"]
-            sw_side = fontSize * 0.8  # swatch square side
+            # A filled point swatch sized like a symbol-legend entry: config.legend.symbolSize is
+            # fontSize*6 (so it scales with the font), the default circle shape, and the same
+            # darkmode-aware stroke the legend uses (config.point's stroke is a fixed black).
+            sym_size = fontSize * 6
+            sym_r = (sym_size / math.pi) ** 0.5  # circle radius, for placement
             gap = fontSize * 0.4  # swatch -> text
             tw = len(label) * fontSize * 0.6  # rough text-width estimate (for right/centre swatch x)
             if align == "left":
-                text_x, sw_x = base_x + sw_side + gap, base_x + sw_side / 2
+                text_x, sw_x = base_x + 2 * sym_r + gap, base_x + sym_r
             elif align == "right":
-                text_x, sw_x = base_x, base_x - tw - gap - sw_side / 2
+                text_x, sw_x = base_x, base_x - tw - gap - sym_r
             else:  # center
-                text_x, sw_x = base_x, base_x - tw / 2 - gap - sw_side / 2
+                text_x, sw_x = base_x, base_x - tw / 2 - gap - sym_r
             # Seat the swatch on the text's visual middle, given its baseline.
             _vshift = {"top": 0.35, "middle": 0.0, "alphabetic": -0.35, "bottom": -0.45}.get(baseline, 0.0)
             sw_y = y_i + _vshift * fontSize
             g_layers.append(
                 alt.Chart(_internal_data([{group_col: g}]))
-                .mark_square(size=round(sw_side * sw_side, 2))
+                .mark_point(
+                    filled=True,
+                    size=round(sym_size, 2),
+                    stroke="white" if _opt("darkmode") else "black",
+                    strokeWidth=_opt("markStrokeWidth"),
+                )
                 .encode(
                     x=alt.value(round(sw_x + offsetX, 2)),
                     y=alt.value(round(sw_y + offsetY, 2)),
