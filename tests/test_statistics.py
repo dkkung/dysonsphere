@@ -1294,3 +1294,62 @@ class TestGroupedComparisons:
                 categories=["G1", "G2"],
                 xOffsetSort=["Veh", "Trt"],
             )
+
+
+class TestGroupedCorrelation:
+    """add_correlation(groupCol=...) - a fit + coefficient per series."""
+
+    @pytest.fixture
+    def grouped_df(self):
+        rng = np.random.default_rng(3)
+        rows = []
+        for g, (slope, inter) in [("A", (1.0, 2.0)), ("B", (0.4, 6.0)), ("C", (-0.5, 10.0))]:
+            x = rng.uniform(0, 10, 40)
+            y = slope * x + inter + rng.normal(0, 1.0, 40)
+            rows += [{"x": float(a), "y": float(b), "line": g} for a, b in zip(x, y)]
+        return pl.DataFrame(rows)
+
+    def test_returns_layerchart(self, grouped_df):
+        assert isinstance(add_correlation(grouped_df, "x", "y", groupCol="line"), alt.LayerChart)
+
+    def test_one_record_per_group_with_labels(self, grouped_df):
+        st._REPORTS.clear()
+        add_correlation(grouped_df, "x", "y", groupCol="line")
+        recs = list(st._REPORTS.values())
+        assert len(recs) == 3
+        by_group = {r["group"]: r for r in recs}
+        assert set(by_group) == {"A", "B", "C"}
+        # real per-group coefficients: A strongly positive, C negative
+        assert by_group["A"]["coefficient"]["value"] > 0.7
+        assert by_group["C"]["coefficient"]["value"] < -0.3
+        assert all(r["kind"] == "correlation" for r in recs)
+
+    def test_fit_lines_colored_by_group(self, grouped_df):
+        # every fit line encodes color by the group column (so it merges with the scatter's scale)
+        spec = add_correlation(grouped_df, "x", "y", groupCol="line").to_dict()
+        line_colors = [
+            lyr["encoding"]["color"]["field"]
+            for lyr in spec["layer"]
+            if lyr["mark"].get("type") == "line" and "color" in lyr.get("encoding", {})
+        ]
+        assert line_colors and all(f == "line" for f in line_colors)
+
+    def test_one_fit_line_and_readout_per_group(self, grouped_df):
+        spec = add_correlation(grouped_df, "x", "y", groupCol="line").to_dict()
+        n_lines = sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "line")
+        n_text = sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "text")
+        assert n_lines == 3 and n_text == 3
+
+    def test_rank_method_no_lines(self, grouped_df):
+        # spearman reports the coefficient (readouts) but draws no fit line
+        spec = add_correlation(grouped_df, "x", "y", groupCol="line", method="spearman").to_dict()
+        assert not [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "line"]
+        assert sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "text") == 3
+
+    def test_position_none_no_readouts(self, grouped_df):
+        spec = add_correlation(grouped_df, "x", "y", groupCol="line", position=None).to_dict()
+        assert not [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "text"]
+
+    def test_ci_band_per_group(self, grouped_df):
+        spec = add_correlation(grouped_df, "x", "y", groupCol="line", ci=True).to_dict()
+        assert sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "area") == 3

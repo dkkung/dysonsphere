@@ -1133,12 +1133,180 @@ def _correlation_label(
     return label
 
 
+def _add_grouped_correlation(
+    df: pl.DataFrame,
+    x_col: str,
+    y_col: str,
+    group_col: str,
+    *,
+    method: str,
+    line: bool,
+    position: str | None,
+    coefficient: str,
+    includePvalue: bool,
+    includeEquation: bool,
+    offsetX: int,
+    offsetY: int,
+    fontSize: int | None,
+    sigFigs: int | None,
+    notation: str | None,
+    color: str | None,
+    strokeWidth: float | None,
+    strokeDash: bool | list[int] | None,
+    opacity: float | None,
+    lineStyle: dict[str, Any] | None,
+    ci: float | bool,
+    interval: str,
+    ciOpacity: float,
+    report: bool,
+    save: bool | str,
+) -> alt.LayerChart:
+    """A fit + coefficient readout PER group of ``group_col`` (e.g. one line per cell line).
+
+    Every fit line, CI band, and readout is coloured by ``group_col`` on the SAME colour channel the
+    scatter uses, so they share one colour scale and match automatically. Colour is a lookup, not a
+    position, so there's no reorder hazard like the grouped brackets - no sort param is needed. One
+    record is registered per group (tagged onto that group's first layer so ``save()`` finds them
+    all); the readouts stack in the ``position`` corner, each in its group's colour.
+    """
+    from datetime import datetime
+    from pathlib import Path
+
+    import numpy as np
+
+    from .annotations import _TEXT_PRESETS
+    from .statistics import _make_correlation_record, _ols_band, _register_report, _render_report, _run_correlation
+    from .utils import frame_checksum
+
+    fontSize = fontSize if fontSize is not None else _opt("fontSize")
+    effective_sigfigs = sigFigs if sigFigs is not None else _opt("sigFigs")
+    groups = df[group_col].unique(maintain_order=True).to_list()
+
+    # Curated line-style overrides, shared across groups; colour stays per-group via the encoding,
+    # unless a fixed `color` is given (which then overrides every group's line).
+    line_kwargs: dict[str, Any] = {}
+    if strokeWidth is not None:
+        line_kwargs["strokeWidth"] = strokeWidth
+    if strokeDash is not None:
+        line_kwargs["strokeDash"] = _resolve_dash(strokeDash)
+    if opacity is not None:
+        line_kwargs["opacity"] = opacity
+    if lineStyle:
+        line_kwargs.update(lineStyle)
+    line_color = alt.value(color) if color is not None else alt.Color(f"{group_col}:N", legend=None)
+
+    ci_level: float | None = None
+    if ci:
+        ci_level = 0.95 if ci is True else float(ci)
+        if not 0.0 < ci_level < 1.0:
+            raise ValueError(f"ci must be True or a confidence level in (0, 1), got {ci!r}")
+        if interval not in ("confidence", "prediction"):
+            raise ValueError(f"interval must be 'confidence' or 'prediction', got {interval!r}")
+
+    # Corner-readout stacking geometry (resolved once).
+    if position is not None and position not in _TEXT_PRESETS:
+        raise ValueError(f"position must be one of {sorted(_TEXT_PRESETS)} or None, got {position!r}")
+    n = len(groups)
+    if position is not None:
+        preset = _TEXT_PRESETS[position]
+        cw, chh = _opt("chartWidth"), _opt("chartHeight")
+        pad = 1  # px inset from an edge, matching add_text's edge-inset spirit
+        base_x = preset["x_frac"] * cw + (pad if preset["x_frac"] == 0 else -pad if preset["x_frac"] == 1 else 0)
+        base_y = preset["y_frac"] * chh + (pad if preset["y_frac"] == 0 else -pad if preset["y_frac"] == 1 else 0)
+        line_h = fontSize * 1.5
+        # top anchor -> stack down; bottom -> stack up; middle -> centred on the anchor.
+        anchor = 0.0 if preset["y_frac"] == 0 else (n - 1) if preset["y_frac"] == 1 else (n - 1) / 2
+
+    layers: list[Any] = []
+    for i, g in enumerate(groups):
+        gdf = df.filter(pl.col(group_col) == g)
+        x = gdf[x_col].cast(pl.Float64).to_numpy()
+        y = gdf[y_col].cast(pl.Float64).to_numpy()
+        result = _run_correlation(method, x, y)
+        g_layers: list[Any] = []
+
+        # CI band (Pearson only), drawn first so it sits under the line; filled by the group colour.
+        if ci_level is not None and result["slope"] is not None:
+            xs = np.linspace(float(x.min()), float(x.max()), 64)
+            lo, hi = _ols_band(x, y, xs, level=ci_level, kind=interval)
+            band_df = pl.DataFrame({x_col: xs, y_col: lo, "__ci_hi": hi, group_col: [g] * len(xs)})
+            g_layers.append(
+                alt.Chart(_internal_data(band_df))
+                .mark_area(fillOpacity=ciOpacity, stroke=None, strokeWidth=0)
+                .encode(
+                    x=alt.X(field=x_col, type="quantitative"),
+                    y=alt.Y(field=y_col, type="quantitative"),
+                    y2=alt.Y2(field="__ci_hi"),
+                    color=line_color,
+                )
+            )
+
+        # Fit line (Pearson only - slope is None for the rank methods).
+        if line and result["slope"] is not None:
+            x0, x1 = float(x.min()), float(x.max())
+            slope, intercept = result["slope"], result["intercept"]
+            fit_df = pl.DataFrame(
+                {x_col: [x0, x1], y_col: [slope * x0 + intercept, slope * x1 + intercept], group_col: [g, g]}
+            )
+            g_layers.append(
+                alt.Chart(_internal_data(fit_df))
+                .mark_line(**line_kwargs)
+                .encode(
+                    x=alt.X(field=x_col, type="quantitative"),
+                    y=alt.Y(field=y_col, type="quantitative"),
+                    color=line_color,
+                )
+            )
+
+        # Stacked, colour-coded corner readout for this group.
+        if position is not None:
+            text = _correlation_label(
+                result,
+                coefficient=coefficient,
+                includePvalue=includePvalue,
+                includeEquation=includeEquation,
+                sigFigs=effective_sigfigs,
+                notation=notation,
+            )
+            g_layers.append(
+                alt.Chart(_internal_data([{group_col: g}]))
+                .mark_text(
+                    align=preset["align"], baseline=preset["baseline"], fontSize=fontSize, dx=offsetX, dy=offsetY
+                )
+                .encode(
+                    x=alt.value(base_x),
+                    y=alt.value(base_y + (i - anchor) * line_h),
+                    text=alt.value(f"{g}: {text}"),
+                    color=alt.Color(f"{group_col}:N", legend=None),
+                )
+            )
+
+        # One record per group; tag it onto this group's first layer so save() matches all of them.
+        record = _make_correlation_record(result, x_col, y_col, data_checksum=frame_checksum(gdf), group=g)
+        marker = _register_report(record)
+        if g_layers:
+            g_layers[0] = g_layers[0].properties(name=marker)
+        if report:
+            print(_render_report(record))
+        if save:
+            directory = Path(save) if isinstance(save, str) else Path.cwd()
+            directory.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            (directory / f"dysonsphere_report_{ts}.txt").write_text(_render_report(record) + "\n", encoding="utf-8")
+        layers.extend(g_layers)
+
+    if not layers:
+        layers.append(_empty_layer())
+    return cast(alt.LayerChart, alt.layer(*layers))
+
+
 def add_correlation(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
     *,
     method: str = "pearson",
+    groupCol: str | None = None,
     line: bool = True,
     position: str | None = "topLeft",
     label: str | None = None,
@@ -1184,6 +1352,17 @@ def add_correlation(
         with an OLS line. ``'spearman'`` — rank correlation ``ρ``. ``'kendall'`` —
         rank correlation ``τ``. The rank methods report the coefficient only (no ``r²``,
         no line — a straight line isn't their model). Matches pandas' ``DataFrame.corr``.
+    groupCol:
+        **Grouped mode.** A column to split the scatter into series (e.g. ``"cell_line"``).
+        When set, a fit + coefficient is computed **per group**, each fit line / CI band /
+        readout coloured by ``groupCol`` on the *same* colour channel your scatter uses -
+        so colour by the same field (``color=alt.Color("cell_line:N")``) and they match
+        (colour is a lookup, so no sort param is needed, unlike ``add_comparisons``).
+        Readouts stack in the ``position`` corner, each in its group's colour; one record
+        is registered per group. Note: with ``ci=True``, give your scatter an explicit
+        y-axis title (``alt.Y("val:Q", title="…")``) - otherwise Vega merges the band's
+        internal upper-bound field into the axis title (a Vega title-merge quirk that also
+        affects the single-series ``ci`` path).
     line:
         Draw the OLS fit line. Default ``True``. Only applies to ``method="pearson"``
         (a no-op for the rank methods). Set ``False`` to suppress it and, e.g., compose
@@ -1271,6 +1450,39 @@ def add_correlation(
         raise ValueError(f"coefficient must be 'r', 'r2', or 'both', got {coefficient!r}")
 
     df = ensure_polars(df)
+
+    # Grouped mode: a fit + coefficient PER group of `groupCol` (e.g. one line per cell line), each
+    # coloured to match the scatter's colour scale. A separate path so the single-series body below
+    # is untouched; see the grouped-correlation design point.
+    if groupCol is not None:
+        return _add_grouped_correlation(
+            df,
+            xCol,
+            yCol,
+            groupCol,
+            method=method,
+            line=line,
+            position=position,
+            coefficient=coefficient,
+            includePvalue=includePvalue,
+            includeEquation=includeEquation,
+            offsetX=offsetX,
+            offsetY=offsetY,
+            fontSize=fontSize,
+            sigFigs=sigFigs,
+            notation=notation,
+            color=color,
+            strokeWidth=strokeWidth,
+            strokeDash=strokeDash,
+            opacity=opacity,
+            lineStyle=lineStyle,
+            ci=ci,
+            interval=interval,
+            ciOpacity=ciOpacity,
+            report=report,
+            save=save,
+        )
+
     x = df[xCol].cast(pl.Float64).to_numpy()
     y = df[yCol].cast(pl.Float64).to_numpy()
     result = _run_correlation(method, x, y)
