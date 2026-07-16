@@ -216,6 +216,13 @@ class TestAddComparisons:
         with pytest.raises(ValueError, match="Unknown test"):
             add_comparisons(group_df, "group", "value", [("A", "B")], test="bogus")
 
+    def test_incomplete_categories_raises(self):
+        # an explicit `categories` that omits an x-value in the data mis-sizes the band geometry and
+        # would silently shift the brackets - raise instead (naming the missing value).
+        df = pl.DataFrame({"group": ["A"] * 5 + ["B"] * 5 + ["C"] * 5, "value": list(range(15))})
+        with pytest.raises(ValueError, match="categories is missing"):
+            add_comparisons(df, "group", "value", [("A", "B")], categories=["A", "B"])
+
     def test_notation_scientific(self, group_df):
         result = add_comparisons(
             group_df,
