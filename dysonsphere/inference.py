@@ -370,8 +370,26 @@ def _add_grouped_comparisons(
     from .statistics import _adjust, _describe_all, _make_record, _pair_effect, _register_report, _render_report
     from .utils import frame_checksum
 
-    if categories is None:
+    # Guard the sort footgun: `categories`/`xOffsetSort` must match the chart's x/xOffset sort or the
+    # shared scale silently reorders the bars. We can't see the chart to check the *order*, but an
+    # explicit list that doesn't even COVER the data's values (a typo or omission) is a guaranteed
+    # mismatch - catch it with a clear error instead of a mysterious reorder.
+    if categories is not None:
+        missing = set(df[x_col].unique().to_list()) - set(categories)
+        if missing:
+            raise ValueError(
+                f"categories is missing {x_col!r} values present in the data: {sorted(missing)}. "
+                "It must list every x-category, in the same order as your chart's x sort."
+            )
+    else:
         categories = sorted(df[x_col].unique().to_list())
+    if xOffsetSort is not None:
+        missing = set(df[xoffset_col].unique().to_list()) - set(xOffsetSort)
+        if missing:
+            raise ValueError(
+                f"xOffsetSort is missing {xoffset_col!r} levels present in the data: {sorted(missing)}. "
+                "It must list every xOffset level, in the same order as your chart's xOffset sort."
+            )
     level_order = (
         list(xOffsetSort) if xOffsetSort is not None else df[xoffset_col].unique(maintain_order=True).to_list()
     )
