@@ -1295,6 +1295,16 @@ class TestGroupedComparisons:
                 xOffsetSort=["Veh", "Trt"],
             )
 
+    def test_incomplete_categories_raises(self, qpcr_df):
+        # an explicit `categories` that omits a gene in the data would misalign the shared x scale
+        with pytest.raises(ValueError, match="categories is missing"):
+            add_comparisons(qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1"], xOffsetSort=["Veh", "Trt"])
+
+    def test_incomplete_xoffsetsort_raises(self, qpcr_df):
+        # an explicit `xOffsetSort` that omits a level in the data would misalign the xOffset scale
+        with pytest.raises(ValueError, match="xOffsetSort is missing"):
+            add_comparisons(qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1", "G2"], xOffsetSort=["Veh"])
+
 
 class TestGroupedCorrelation:
     """add_correlation(groupCol=...) - a fit + coefficient per series."""
