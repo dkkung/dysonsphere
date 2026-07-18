@@ -25,6 +25,12 @@ Pass a list of values (and a matching list of labels) for several lines in one c
 
 <Example name="rule_labeled" alt="Scatter plot with three labeled horizontal reference lines" />
 
+`span=(start, end)` slices a line to a portion of the axis it runs along, so a reference only
+covers the range it applies to. Bounds are numeric (data coordinates) or category names (resolved
+via the band scale, like `add_shade`, using `categories`); a label anchors to the slice's ends:
+
+<Example name="rule_span" alt="Bar chart of mean MPG by cylinder count with a benchmark line sliced across the six- and eight-cylinder bars" />
+
 ## Text
 
 `add_text()` places annotations at data coordinates (numbers share the quantitative scale, strings
