@@ -42,6 +42,13 @@ For full control you can supply the statistics and positions yourself: `pvalues=
 group) draws precomputed p-values instead of running the test, and `yPositions=` places labels - a
 single number for a flat row, or a dict keyed by group to nudge individual labels.
 
+In grouped mode a `yPositions=` dict keyed by **category** places one flat row per group - useful
+when the groups span very different magnitudes and a single row can't clear them all. Here three
+dose-response groups, each with the vehicle control a few shades darker, quasirandom points, error
+bars, and a flat asterisk row per group compared against the control:
+
+<Example name="comparisons_grouped_reference" alt="Three dose-response groups with per-group flat asterisk rows compared to a darker vehicle control" />
+
 ### Label styles
 
 `labelStyle="asterisks"` renders `*` / `**` / `***` / `ns`; `bracketStyle="line"` drops the end
