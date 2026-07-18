@@ -62,6 +62,57 @@ def _format_asterisks(p: float) -> str:
     return "ns"
 
 
+# --- shared resolvers for add_comparisons / _add_grouped_comparisons ---------------------------
+# Extracted so the single-factor and grouped paths share one implementation. Pure functions;
+# error messages are load-bearing (pinned by `match=` tests in test_statistics.py) - keep verbatim.
+
+
+def _resolve_method(test: str, post_hoc: str | None, pvalues: list[float] | None, is_omnibus: bool) -> str | None:
+    """The comparison method: a post-hoc for omnibus, the test itself for pairwise, None for
+    user-supplied p-values. Also the record's ``comparison_test`` (a pure alias)."""
+    from .statistics import _POSTHOC_DEFAULTS
+
+    if pvalues is not None:
+        return None
+    if is_omnibus:
+        return post_hoc if post_hoc is not None else _POSTHOC_DEFAULTS[test]
+    return test
+
+
+def _resolve_notation(
+    notation: str | dict[Any, Any] | None, pairs: list[tuple[str, str]] | None
+) -> tuple[str | None, list[str | None]]:
+    """Return ``(test_notation, pair_notations)``. A scalar applies everywhere; a dict is per-pair
+    (order-insensitive keys, unlisted → plain None) plus an optional ``"test"`` key for the
+    omnibus/test label."""
+    if isinstance(notation, dict):
+        valid = {None, "scientific", "e", "power"}
+        bad_vals = [v for v in notation.values() if v not in valid]
+        if bad_vals:
+            raise ValueError(f"notation dict values must be None/'scientific'/'e'/'power', got {bad_vals}")
+        bad_keys = [k for k in notation if isinstance(k, str) and k != "test"]
+        if bad_keys:
+            raise ValueError(f"notation dict string keys must be 'test', got {sorted(bad_keys)}")
+        pair_map = {frozenset(k): v for k, v in notation.items() if not isinstance(k, str)}
+        return notation.get("test"), [pair_map.get(frozenset(p)) for p in (pairs or [])]
+    return notation, [notation] * len(pairs or [])
+
+
+def _resolve_bracket_styles(bracket_style: str | dict[Any, Any], pairs: list[tuple[str, str]]) -> list[str]:
+    """Per-pair bracket style: a string applies to all; a dict maps a pair (order-insensitive) to
+    its style, with ``"bracket"`` as the fallback for unlisted pairs."""
+    valid = {"line", "bracket"}
+    if isinstance(bracket_style, dict):
+        bad = set(bracket_style.values()) - valid
+        if bad:
+            raise ValueError(f"bracketStyle dict values must be 'line' or 'bracket', got {sorted(bad)}")
+        style_map = {frozenset(k): v for k, v in bracket_style.items()}
+        return [style_map.get(frozenset(p), "bracket") for p in pairs]
+    if bracket_style not in valid:
+        raise ValueError(f"bracketStyle must be 'line', 'bracket', or a dict, got {bracket_style!r}")
+    return [bracket_style] * len(pairs)
+
+
 def _pvalue_layer(
     df: pl.DataFrame | None = None,
     x_col: str | None = None,
@@ -837,7 +888,6 @@ def add_comparisons(
     from .statistics import (
         _OMNIBUS_TESTS,
         _PARAMETRIC_POSTHOC,
-        _POSTHOC_DEFAULTS,
         _TEST_DISPLAY,
         _describe_all,
         _make_record,
@@ -906,43 +956,21 @@ def add_comparisons(
     annotation_layers: list[Any] = []
     omnibus_result = None
     comparisons: list[dict[str, Any]] = []
-    comparison_name: str | None = None
 
     if is_omnibus:
         omnibus_result = _run_omnibus(test, groups, categories)
 
     # --- resolve comparison method (a post-hoc for omnibus, the test itself for pairwise) ---
     idx = {c: i for i, c in enumerate(categories)}
-    method: str | None
-    if pvalues is not None:
-        method = None
-    elif is_omnibus:
-        method = postHoc if postHoc is not None else _POSTHOC_DEFAULTS[test]
-    else:
-        method = test
-    comparison_name = method
+    method = _resolve_method(test, postHoc, pvalues, is_omnibus)
     # tukey_hsd carries its own correction; explicit p-values aren't corrected by us.
     effective_correction = None if (method is None or method == "tukey_hsd") else correction
     # sigFigs: per-call overrides the theme default (3); governs on-plot label precision.
     effective_sigfigs = sigFigs if sigFigs is not None else _opt("sigFigs")
 
-    # Resolve notation: a scalar applies everywhere; a dict is per-pair for the brackets
-    # (order-insensitive keys, unlisted → plain) plus an optional "test" string key for the
-    # test/omnibus label. Pair notations are read below in the bracket loop.
-    if isinstance(notation, dict):
-        _valid_notations = {None, "scientific", "e", "power"}
-        bad_vals = [v for v in notation.values() if v not in _valid_notations]
-        if bad_vals:
-            raise ValueError(f"notation dict values must be None/'scientific'/'e'/'power', got {bad_vals}")
-        bad_keys = [k for k in notation if isinstance(k, str) and k != "test"]
-        if bad_keys:
-            raise ValueError(f"notation dict string keys must be 'test', got {sorted(bad_keys)}")
-        _notation_map = {frozenset(k): v for k, v in notation.items() if not isinstance(k, str)}
-        test_notation = notation.get("test")
-        pair_notations = [_notation_map.get(frozenset(p)) for p in (pairs or [])]
-    else:
-        test_notation = notation
-        pair_notations = [notation] * len(pairs or [])
+    # Notation: a scalar applies everywhere; a dict is per-pair for the brackets plus an optional
+    # "test" key for the omnibus/test label. Pair notations are read below in the bracket loop.
+    test_notation, pair_notations = _resolve_notation(notation, pairs)
 
     # --- unified test label: the omnibus result, or the pairwise/post-hoc test name ---
     # Position "auto" (default) → shown for omnibus (topLeft), hidden for pairwise.
@@ -992,19 +1020,7 @@ def add_comparisons(
 
     # --- brackets ---
     if pairs:
-        # Per-pair bracket style: a string applies to all; a dict maps a pair (order-
-        # insensitive, matched by frozenset) to its style, with "bracket" as the fallback.
-        _valid_styles = {"line", "bracket"}
-        if isinstance(bracketStyle, dict):
-            bad = set(bracketStyle.values()) - _valid_styles
-            if bad:
-                raise ValueError(f"bracketStyle dict values must be 'line' or 'bracket', got {sorted(bad)}")
-            _style_map = {frozenset(k): v for k, v in bracketStyle.items()}
-            pair_styles = [_style_map.get(frozenset(p), "bracket") for p in pairs]
-        else:
-            if bracketStyle not in _valid_styles:
-                raise ValueError(f"bracketStyle must be 'line', 'bracket', or a dict, got {bracketStyle!r}")
-            pair_styles = [bracketStyle] * len(pairs)
+        pair_styles = _resolve_bracket_styles(bracketStyle, pairs)
 
         if pvalues is not None:
             if len(pvalues) != len(pairs):
@@ -1106,7 +1122,7 @@ def add_comparisons(
         omnibus=omnibus_result,
         descriptives=_describe_all(groups, categories),
         comparisons=comparisons,
-        comparison_test=comparison_name,
+        comparison_test=method,
         correction=effective_correction,
         pvalues_provided=pvalues is not None,
         data_checksum=frame_checksum(df),
