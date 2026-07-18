@@ -718,14 +718,28 @@ def _add_grouped_comparisons(
     # Explicit y control. `yStart` (brackets only) mirrors single-factor: the EXACT stack base -
     # a scalar for all categories, or a dict for a per-category base (partial - unlisted → auto).
     # It does NOT apply to reference mode (no stack); passing it there raises. `yPositions` is the
-    # exact y: a single number → flat (every annotation at that y); a dict → per-comparison (partial).
-    # Precedence: yPositions flat > yPositions[key] > (yStart base OR auto base).
+    # exact y in three forms: a single number → one global flat row; a dict keyed by CATEGORY → a
+    # flat row per category; a dict keyed by (category, level)/(category, pair) → per-comparison.
+    # Dict keys must be uniform. Precedence: flat > per-category > per-comparison > (yStart / auto).
     ypos_flat = float(yPositions) if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool) else None
-    ypos_map = _normalize_grouped_map(yPositions, is_reference, "yPositions") if isinstance(yPositions, dict) else None
-    if ypos_map is not None:
-        unknown = set(ypos_map) - set(all_keys)
-        if unknown:
-            raise ValueError(f"yPositions has {len(unknown)} entr(y/ies) not matching any comparison (check keys).")
+    ypos_cat: dict[Any, float] | None = None
+    ypos_map: dict[Any, Any] | None = None
+    if isinstance(yPositions, dict):
+        tuple_keys = {k for k in yPositions if isinstance(k, tuple)}
+        if tuple_keys and len(tuple_keys) != len(yPositions):
+            raise ValueError(
+                "yPositions dict keys must be uniform: all category names, or all (category, level) tuples."
+            )
+        if tuple_keys:  # per-comparison
+            ypos_map = _normalize_grouped_map(yPositions, is_reference, "yPositions")
+            unknown = set(ypos_map) - set(all_keys)
+            if unknown:
+                raise ValueError(f"yPositions has {len(unknown)} entr(y/ies) not matching any comparison (check keys).")
+        elif yPositions:  # keyed by category → a flat row per category
+            unknown_cats = set(yPositions) - set(categories)
+            if unknown_cats:
+                raise ValueError(f"yPositions has categor(y/ies) not in the data: {sorted(unknown_cats)}.")
+            ypos_cat = {c: float(v) for c, v in yPositions.items()}
     if yStart is not None:
         if is_reference:
             raise ValueError(
@@ -757,9 +771,11 @@ def _add_grouped_comparisons(
             key = _grouped_key(cat, l1, l2, is_reference)
             label = _format_label(p, labelStyle, effective_sigfigs, notation_val)
             if is_reference:
-                # yPositions flat > yPositions[key] > the non-reference sub-bar's own data max + yPad.
+                # yPositions flat > per-category > per-comparison > the sub-bar's own data max + yPad.
                 if ypos_flat is not None:
                     y = ypos_flat
+                elif ypos_cat is not None and cat in ypos_cat:
+                    y = ypos_cat[cat]
                 elif ypos_map is not None and key in ypos_map:
                     y = float(ypos_map[key])
                 else:
@@ -780,9 +796,11 @@ def _add_grouped_comparisons(
                     )
                 )
             else:
-                # yPositions flat > yPositions[key] > (yStart base OR category max + yPad) + stack.
+                # yPositions flat > per-category > per-comparison > (yStart base OR cat max + yPad) + stack.
                 if ypos_flat is not None:
                     y = ypos_flat
+                elif ypos_cat is not None and cat in ypos_cat:
+                    y = ypos_cat[cat]
                 elif ypos_map is not None and key in ypos_map:
                     y = float(ypos_map[key])
                 else:
@@ -972,12 +990,14 @@ def add_comparisons(
         data's first-appearance order.
     yPositions:
         Explicit y positions (data units) for the annotations. **A single number** puts
-        *every* annotation at that y - a flat row, handy for a tidy row of stars in
-        reference mode. **Pairwise:** a list, one per pair in order (overrides auto-stacking).
-        **Reference mode:** a **dict** keyed by the non-reference **group** (single-factor)
-        or ``(category, level)`` (grouped); partial - listed labels use the given y, the rest
-        fall back to auto. **Grouped brackets:** a dict keyed by ``(category, (level1,
-        level2))`` (order-insensitive), partial. Beats ``yStart``; unknown keys raise.
+        *every* annotation at that y - one global flat row. **Pairwise:** a list, one per
+        pair in order (overrides auto-stacking). **Reference mode:** a **dict** keyed by the
+        non-reference **group** (single-factor) or ``(category, level)`` (grouped) for a
+        per-label height. **Grouped** additionally accepts a dict keyed by **category** -
+        a flat row per category, each at its own height (handy when categories span very
+        different magnitudes); and grouped brackets take ``(category, (level1, level2))``
+        keys (order-insensitive). Dicts are partial (unlisted → auto) and their keys must be
+        uniform (all category names, or all tuples). Beats ``yStart``; unknown keys raise.
     yStart:
         The exact y (data units) of the lowest bracket - the stack base (levels rise from it
         by ``yStep``). Defaults to ``max(annotated groups) + yPad``. **Grouped (`xOffsetCol`)

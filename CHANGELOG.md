@@ -22,10 +22,12 @@
   modes.** These were silently ignored on the grouped path (and unavailable in reference mode); now
   they work. In **reference mode** they're keyed by the compared thing - `pvalues={group: p}`
   (single-factor) or `{(category, level): p}` (grouped) supplies precomputed p-values (skipping the
-  test and correction). **`yPositions`** takes either **a single number** - a flat row, every label
-  at that y, the tidy row-of-stars look - or a group-keyed dict for per-label heights (partial,
-  unlisted fall back to auto); it also works this way for grouped brackets (keyed by `(category,
-  (l1, l2))`). **`yStart`** (brackets only) is the exact stack base like single-factor - a scalar or
+  test and correction). **`yPositions`** takes **a single number** (one global flat row), a dict keyed
+  by **group** (single-factor) or **`(category, level)`** (grouped) for per-label heights, or - in
+  grouped mode - a dict keyed by **category** for a flat row per category, each at its own height
+  (handy when categories span very different magnitudes); grouped brackets key by `(category, (l1,
+  l2))`. Dicts are partial (unlisted fall back to auto). **`yStart`** (brackets only) is the exact
+  stack base like single-factor - a scalar or
   a dict keyed by category for a per-category base; it does not apply in reference mode (no stack)
   and now **raises** if set there in either single-factor or grouped mode, rather than silently doing
   nothing. Dict/flat forms are additive type widening; the pairwise list forms are unchanged, and

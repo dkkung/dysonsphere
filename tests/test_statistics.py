@@ -1742,6 +1742,24 @@ class TestGroupedManualOverrides:
         ys = _y_positions(self._call(gdf, reference="Veh", yPositions=10.0))
         assert ys and all(y == 10.0 for y in ys)
 
+    def test_reference_ypositions_category_keyed_flat_row_per_category(self, gdf):
+        # A dict keyed by category → one flat row per category (each level in that category shares it).
+        ys = sorted(set(_y_positions(self._call(gdf, reference="Veh", yPositions={"A": 5.0, "B": 9.0}))))
+        assert ys == [5.0, 9.0]
+
+    def test_reference_ypositions_category_keyed_partial(self, gdf):
+        # Unlisted categories fall back to auto placement.
+        ys = _y_positions(self._call(gdf, reference="Veh", yPositions={"A": 5.0}))
+        assert ys.count(5.0) == 2 and any(y != 5.0 for y in ys)  # A's two labels pinned, B's auto
+
+    def test_ypositions_category_keyed_unknown_raises(self, gdf):
+        with pytest.raises(ValueError, match="not in the data"):
+            self._call(gdf, reference="Veh", yPositions={"Z": 5.0})
+
+    def test_ypositions_mixed_keys_raise(self, gdf):
+        with pytest.raises(ValueError, match="keys must be uniform"):
+            self._call(gdf, reference="Veh", yPositions={"A": 5.0, ("B", "Low"): 6.0})
+
     def test_missing_pvalue_raises(self, gdf):
         with pytest.raises(ValueError, match="missing an entry"):
             self._call(gdf, reference="Veh", pvalues={("A", "Low"): 0.5})
