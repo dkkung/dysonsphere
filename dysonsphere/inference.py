@@ -113,6 +113,61 @@ def _resolve_bracket_styles(bracket_style: str | dict[Any, Any], pairs: list[tup
     return [bracket_style] * len(pairs)
 
 
+def _check_coverage(
+    df: pl.DataFrame, col: str, values: list[Any] | None, param_name: str, noun: str, tail: str
+) -> None:
+    """Raise if an explicit ordering ``values`` for ``param_name`` omits any value present in
+    ``df[col]`` - a guaranteed mis-position of the band geometry / shared-scale reorder. No-op
+    when ``values`` is None (the caller supplies its own default order). ``noun``/``tail`` carry
+    the exact per-param message wording."""
+    if values is None:
+        return
+    missing = set(df[col].unique().to_list()) - set(values)
+    if missing:
+        raise ValueError(f"{param_name} is missing {col!r} {noun} present in the data: {sorted(missing)}. {tail}")
+
+
+def _stack_levels(spans: list[tuple[int, int]]) -> list[int]:
+    """Assign a stacking level to each ``(lo, hi)`` index span via greedy interval scheduling:
+    shorter spans first (so narrow brackets sit lower), each placed on the lowest level whose
+    occupants it doesn't overlap. Returns the level per span, in input order."""
+    order = sorted(range(len(spans)), key=lambda i: abs(spans[i][1] - spans[i][0]))
+    levels: list[list[tuple[int, int]]] = []
+    result = [0] * len(spans)
+    for i in order:
+        lo, hi = min(spans[i]), max(spans[i])
+        for level_idx, occupied in enumerate(levels):
+            if not any(not (hi < occ_lo or lo > occ_hi) for occ_lo, occ_hi in occupied):
+                occupied.append((lo, hi))
+                result[i] = level_idx
+                break
+        else:
+            levels.append([(lo, hi)])
+            result[i] = len(levels) - 1
+    return result
+
+
+def _resolve_y_spacing(
+    any_bracket: bool,
+    y_range: float,
+    chart_height: float,
+    y_pad: float | None,
+    tick_height: float | None,
+    y_step: float | None,
+) -> tuple[float, float, float]:
+    """Resolve the auto ``(y_pad, tick_height, y_step)`` for bracket stacking, each only when
+    None. The gap targets ~10 px for brackets / ~8 px for lines and the tick height matches the
+    theme ``tickSize``, both converted from px to data units via ``chart_height``; ``y_step`` is
+    ``1.75 * y_pad``. All three guard ``chart_height == 0``."""
+    if y_pad is None:
+        y_pad = (10.0 if any_bracket else 8.0) * y_range / chart_height if chart_height else 0.0
+    if tick_height is None:
+        tick_height = _opt("tickSize") * y_range / chart_height if chart_height else 0.0
+    if y_step is None:
+        y_step = y_pad * 1.75
+    return y_pad, tick_height, y_step
+
+
 def _pvalue_layer(
     df: pl.DataFrame | None = None,
     x_col: str | None = None,
@@ -425,22 +480,24 @@ def _add_grouped_comparisons(
     # shared scale silently reorders the bars. We can't see the chart to check the *order*, but an
     # explicit list that doesn't even COVER the data's values (a typo or omission) is a guaranteed
     # mismatch - catch it with a clear error instead of a mysterious reorder.
-    if categories is not None:
-        missing = set(df[x_col].unique().to_list()) - set(categories)
-        if missing:
-            raise ValueError(
-                f"categories is missing {x_col!r} values present in the data: {sorted(missing)}. "
-                "It must list every x-category, in the same order as your chart's x sort."
-            )
-    else:
+    _check_coverage(
+        df,
+        x_col,
+        categories,
+        "categories",
+        "values",
+        "It must list every x-category, in the same order as your chart's x sort.",
+    )
+    if categories is None:
         categories = sorted(df[x_col].unique().to_list())
-    if xOffsetSort is not None:
-        missing = set(df[xoffset_col].unique().to_list()) - set(xOffsetSort)
-        if missing:
-            raise ValueError(
-                f"xOffsetSort is missing {xoffset_col!r} levels present in the data: {sorted(missing)}. "
-                "It must list every xOffset level, in the same order as your chart's xOffset sort."
-            )
+    _check_coverage(
+        df,
+        xoffset_col,
+        xOffsetSort,
+        "xOffsetSort",
+        "levels",
+        "It must list every xOffset level, in the same order as your chart's xOffset sort.",
+    )
     level_order = (
         list(xOffsetSort) if xOffsetSort is not None else df[xoffset_col].unique(maintain_order=True).to_list()
     )
@@ -477,12 +534,9 @@ def _add_grouped_comparisons(
 
     y_all = df[y_col].cast(pl.Float64)
     y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
-    if yPad is None:
-        yPad = (10.0 if bracketStyle == "bracket" else 8.0) * y_range / chart_height if chart_height else 0.0
-    if tickHeight is None:
-        tickHeight = _opt("tickSize") * y_range / chart_height if chart_height else 0.0
-    if yStep is None:
-        yStep = yPad * 1.75
+    yPad, tickHeight, yStep = _resolve_y_spacing(
+        bracketStyle == "bracket", y_range, chart_height, yPad, tickHeight, yStep
+    )
 
     parametric = test in ("ttest_ind", "ttest_rel")
     paired = test == "ttest_rel"
@@ -511,19 +565,7 @@ def _add_grouped_comparisons(
 
     # Stacking level per pair (identical for every category - same spans): shorter spans sit lower.
     lvl_idx = {lv: i for i, lv in enumerate(level_order)}
-    order = sorted(range(len(pairs)), key=lambda i: abs(lvl_idx[pairs[i][1]] - lvl_idx[pairs[i][0]]))
-    occupied: list[list[tuple[int, int]]] = []
-    pair_level = [0] * len(pairs)
-    for i in order:
-        lo, hi = sorted((lvl_idx[pairs[i][0]], lvl_idx[pairs[i][1]]))
-        for li, occ in enumerate(occupied):
-            if not any(not (hi < ol or lo > oh) for ol, oh in occ):
-                occ.append((lo, hi))
-                pair_level[i] = li
-                break
-        else:
-            occupied.append([(lo, hi)])
-            pair_level[i] = len(occupied) - 1
+    pair_level = _stack_levels([(lvl_idx[l1], lvl_idx[l2]) for l1, l2 in pairs])
 
     # descriptives over every (category, level) subset
     desc_groups: list[Any] = []
@@ -933,14 +975,15 @@ def add_comparisons(
     # explicit list that doesn't cover the data's x-values (a typo or omission) mis-sizes the band
     # geometry and silently shifts every bracket. Raise instead (mirrors the grouped path). The
     # order-vs-chart mismatch stays undetectable without the chart (documented).
-    if categories is not None:
-        missing = set(df[xCol].unique().to_list()) - set(categories)
-        if missing:
-            raise ValueError(
-                f"categories is missing {xCol!r} values present in the data: {sorted(missing)}. "
-                "It must list every x-category, in the same order as your chart's x sort."
-            )
-    else:
+    _check_coverage(
+        df,
+        xCol,
+        categories,
+        "categories",
+        "values",
+        "It must list every x-category, in the same order as your chart's x sort.",
+    )
+    if categories is None:
         categories = sorted(df[xCol].unique().to_list())
 
     is_omnibus = test in _OMNIBUS_TESTS
@@ -1040,14 +1083,14 @@ def add_comparisons(
         # groups - see below.)
         y_all = df[yCol].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
-        chart_height = _opt("chartHeight")
-        if yPad is None:
-            # Use the larger (bracket) gap if any pair is a bracket, so ticks clear the data.
-            yPad = (10.0 if "bracket" in pair_styles else 8.0) * y_range / chart_height
-        # Bracket end-tick height matches the theme's tickSize (px → data units). Always
-        # positive, so it no longer flips sign with a negative yStep (reverse brackets).
-        if tickHeight is None:
-            tickHeight = _opt("tickSize") * y_range / chart_height if chart_height else 0.0
+        # The gap is based on the FULL data extent, not just the compared groups: Vega fits the
+        # rendered domain to every group, and the visual gap is yStep * chartHeight / domain, so
+        # using only the annotated range collapses the brackets when an un-annotated group blows
+        # up the domain. (yStart still sits above the compared groups - see below.) Tick height
+        # matches the theme tickSize; always positive so it survives a negative yStep (reverse).
+        yPad, tickHeight, yStep = _resolve_y_spacing(
+            "bracket" in pair_styles, y_range, _opt("chartHeight"), yPad, tickHeight, yStep
+        )
 
         if yPositions is not None:
             final_y = list(yPositions)
@@ -1061,37 +1104,8 @@ def add_comparisons(
                     + yPad
                 )
 
-            if yStep is None:
-                # 1.75x the base gap between stacking levels - enough that a bracket's label
-                # (fontSize ~7 px, dy -4) clears the bracket above it, without the airy
-                # spacing 2x gave on charts whose rendered domain hugs the data extent.
-                yStep = yPad * 1.75
-
-            # Assign stacking levels via greedy interval scheduling.
-            # Shorter spans go to lower levels so narrow brackets sit closer to the data.
-            pair_indices = [(categories.index(g1), categories.index(g2)) for g1, g2 in pairs]
-            sort_order = sorted(
-                range(len(pairs)),
-                key=lambda i: abs(pair_indices[i][1] - pair_indices[i][0]),
-            )
-
-            levels: list[list[tuple[int, int]]] = []
-            pair_levels = [0] * len(pairs)
-
-            for i in sort_order:
-                lo, hi = min(pair_indices[i]), max(pair_indices[i])
-                placed = False
-                for level_idx, occupied in enumerate(levels):
-                    overlaps = any(not (hi < occ_lo or lo > occ_hi) for occ_lo, occ_hi in occupied)
-                    if not overlaps:
-                        occupied.append((lo, hi))
-                        pair_levels[i] = level_idx
-                        placed = True
-                        break
-                if not placed:
-                    levels.append([(lo, hi)])
-                    pair_levels[i] = len(levels) - 1
-
+            # Assign stacking levels via greedy interval scheduling (shorter spans sit lower).
+            pair_levels = _stack_levels([(categories.index(g1), categories.index(g2)) for g1, g2 in pairs])
             final_y = [yStart + pair_levels[i] * yStep for i in range(len(pairs))]
 
         for i, ((g1, g2), pval) in enumerate(zip(pairs, computed_pvalues)):
