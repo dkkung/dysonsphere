@@ -98,62 +98,86 @@ def test_palette_unknown_key_raises():
 
 
 class TestCategorical:
-    HUES = ("blues", "pinks", "yellows", "greens")
+    # The two qualitative palettes and their base hues, keyed by the `palette=` argument.
+    HUES = {
+        "ds_cat_1": ("cat_azures", "cat_blues", "cat_purples", "cat_greens", "cat_tans"),
+        "ds_cat_2": ("blues", "pinks", "yellows", "greens"),
+    }
+    PALETTES = ["ds_cat_1", "ds_cat_2"]
 
     def test_default_is_members_one(self):
         assert categorical() == categorical(1)
 
-    def test_named_palette_matches_function(self):
-        assert colors["categorical"] == categorical(1)
+    def test_default_palette_is_ds_cat_1(self):
+        assert categorical() == categorical(1, palette="ds_cat_1")
 
-    @pytest.mark.parametrize("members,length", [(1, 12), (2, 8), (3, 12), (4, 16), (5, 20), (6, 24), (10, 40)])
-    def test_lengths(self, members, length):
-        assert len(categorical(members)) == length
+    @pytest.mark.parametrize("name", PALETTES)
+    def test_named_palette_matches_function(self, name):
+        assert colors[name] == categorical(1, palette=name)
 
-    def test_flat_is_tier_major(self):
-        # members=1 cycles the four hues at each tier: hue-inner, stop-outer.
-        expected = [colors[h][s] for s in (1, 4, 7) for h in self.HUES]
-        assert categorical(1) == expected
+    @pytest.mark.parametrize("name", PALETTES)
+    @pytest.mark.parametrize("members", [1, 2, 3, 4, 5, 6, 10])
+    def test_lengths(self, name, members):
+        # flat (members=1) = 3 stops per hue; grouped = `members` stops per hue.
+        expected = len(self.HUES[name]) * (3 if members == 1 else members)
+        assert len(categorical(members, palette=name)) == expected
 
-    def test_grouped_is_hue_major(self):
+    @pytest.mark.parametrize("name", PALETTES)
+    def test_flat_is_tier_major(self, name):
+        # members=1 cycles the hues at each tier: hue-inner, stop-outer.
+        expected = [colors[h][s] for s in (1, 4, 7) for h in self.HUES[name]]
+        assert categorical(1, palette=name) == expected
+
+    @pytest.mark.parametrize("name", PALETTES)
+    def test_grouped_is_hue_major(self, name):
         # members>=2 groups by hue: stop-inner, hue-outer.
-        expected = [colors[h][s] for h in self.HUES for s in (1, 4)]
-        assert categorical(2) == expected
+        expected = [colors[h][s] for h in self.HUES[name] for s in (1, 4)]
+        assert categorical(2, palette=name) == expected
 
-    def test_every_color_derived_from_base_hues(self):
-        # Nothing is generated de novo - every color lives in one of the four base hues.
-        pool = {hx for h in self.HUES for hx in colors[h]}
+    @pytest.mark.parametrize("name", PALETTES)
+    def test_every_color_derived_from_base_hues(self, name):
+        # Nothing is generated de novo - every color lives in one of the base hues.
+        pool = {hx for h in self.HUES[name] for hx in colors[h]}
         for members in (1, 2, 3, 4, 5, 8, 10):
-            assert set(categorical(members)) <= pool
+            assert set(categorical(members, palette=name)) <= pool
 
+    @pytest.mark.parametrize("name", PALETTES)
     @pytest.mark.parametrize("members", [2, 3, 4])
-    def test_classic_tier_stops_preserved(self, members):
+    def test_classic_tier_stops_preserved(self, name, members):
         # members<=4 keep the exact (1, 4, 7, 10)[:members] tier stops - byte-identical
         # to prior versions and consistent with the flat palette's tiers.
-        expected = [colors[h][s] for h in self.HUES for s in (1, 4, 7, 10)[:members]]
-        assert categorical(members) == expected
+        expected = [colors[h][s] for h in self.HUES[name] for s in (1, 4, 7, 10)[:members]]
+        assert categorical(members, palette=name) == expected
 
-    def test_five_members_spread_evenly(self):
+    @pytest.mark.parametrize("name", PALETTES)
+    def test_five_members_spread_evenly(self, name):
         # beyond 4, stops spread evenly across the usable ramp [1, 10]
-        expected = [colors[h][s] for h in self.HUES for s in (1, 3, 6, 8, 10)]
-        assert categorical(5) == expected
+        expected = [colors[h][s] for h in self.HUES[name] for s in (1, 3, 6, 8, 10)]
+        assert categorical(5, palette=name) == expected
 
-    def test_stops_strictly_increasing_within_hue(self):
+    @pytest.mark.parametrize("name", PALETTES)
+    def test_stops_strictly_increasing_within_hue(self, name):
         # each hue block must climb monotonically in lightness stops (no duplicates)
+        first_hue = self.HUES[name][0]
         for members in range(2, 11):
-            block = categorical(members)[:members]  # first hue block (blues)
-            indices = [colors["blues"].index(c) for c in block]
-            assert indices == sorted(set(indices)), f"members={members}: {indices}"
+            block = categorical(members, palette=name)[:members]  # first hue block
+            indices = [colors[first_hue].index(c) for c in block]
+            assert indices == sorted(set(indices)), f"{name} members={members}: {indices}"
 
-    def test_ten_is_the_cap(self):
-        assert len(categorical(10)) == 40
+    @pytest.mark.parametrize("name", PALETTES)
+    def test_ten_is_the_cap(self, name):
+        assert len(categorical(10, palette=name)) == len(self.HUES[name]) * 10
         with pytest.raises(ValueError, match="distinct lightness stops"):
-            categorical(11)
+            categorical(11, palette=name)
 
     @pytest.mark.parametrize("bad", [0, -1])
     def test_below_one_raises(self, bad):
         with pytest.raises(ValueError, match="at least 1"):
             categorical(bad)
+
+    def test_unknown_palette_raises(self):
+        with pytest.raises(ValueError, match="unknown palette"):
+            categorical(palette="nope")
 
 
 class TestExportSwatches:
@@ -323,8 +347,10 @@ def _native(name: str) -> bool:
     return not name.startswith(("mpl_", "cmocean_"))
 
 
-# `categorical` carries 12 stops but is the QUALITATIVE hue-cycling palette, not a ramp.
-NATIVE_SEQUENTIAL = sorted(n for n, c in colors.items() if _native(n) and len(c) == 12 and n != "categorical")
+# ds_cat_2 carries 12 stops but is a QUALITATIVE hue-cycling palette, not a ramp (ds_cat_1 has 15,
+# so it is excluded by the stop count). The cat_* base ramps ARE genuine 12-stop sequential ramps.
+_QUALITATIVE = {"ds_cat_1", "ds_cat_2"}
+NATIVE_SEQUENTIAL = sorted(n for n, c in colors.items() if _native(n) and len(c) == 12 and n not in _QUALITATIVE)
 NATIVE_DIVERGING = sorted(n for n, c in colors.items() if _native(n) and len(c) == 13)
 
 

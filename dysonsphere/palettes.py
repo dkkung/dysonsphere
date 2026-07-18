@@ -8,19 +8,25 @@ from pathlib import Path
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
 __all__ = ["colors", "palette", "categorical", "export_swatches"]
 
-# Four base hues for the qualitative palette, in cycle order (blue, pink, yellow, green).
-# Chosen for distinguishability + colorblind robustness (deuteranopia-clean); green and
-# yellow are kept non-adjacent in categorical() so they never touch.
-_CATEGORICAL_HUES = ("blues", "pinks", "yellows", "greens")
+# The base hues each qualitative palette cycles through, in order. Every color is a
+# slice of an existing base palette (retuning a base hue regenerates the palette), and
+# CVD-close pairs are kept non-adjacent so touching marks stay distinguishable.
+#   ds_cat_1 - the default: five muted, australis-harmonious hues (azure leads for
+#              slot-0 presence, tan is the warm end). See the cat_* ramps in `colors`.
+#   ds_cat_2 - the legacy set: four brighter pastel hues (blue, pink, yellow, green).
+_QUALITATIVE_HUES = {
+    "ds_cat_1": ("cat_azures", "cat_blues", "cat_purples", "cat_greens", "cat_tans"),
+    "ds_cat_2": ("blues", "pinks", "yellows", "greens"),
+}
+_DEFAULT_QUALITATIVE = "ds_cat_1"
 
 
-def categorical(members: int = 1) -> list[str]:
+def categorical(members: int = 1, palette: str = _DEFAULT_QUALITATIVE) -> list[str]:
     """
-    Qualitative color palette built from four base hues (blue, pink, yellow, green).
+    Qualitative color palette built from a family of base hues.
 
-    Every color is drawn from the existing ``blues``/``pinks``/``yellows``/``greens``
-    palettes at fixed stops - nothing is generated de novo, so retuning a base hue
-    regenerates this palette automatically.
+    Every color is drawn from an existing base palette at fixed stops - nothing is
+    generated de novo, so retuning a base hue regenerates this palette automatically.
 
     Parameters
     ----------
@@ -28,14 +34,14 @@ def categorical(members: int = 1) -> list[str]:
         Colors per associated group.
 
         - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major**
-          (cycle the four hues at the light tier, then mid, then dark) so adjacent
-          categories differ in hue. Returns 12 colors. This is the palette wired to
-          ``config.range.category``.
+          (cycle the hues at the light tier, then mid, then dark) so adjacent categories
+          differ in hue. Returns ``3 * len(hues)`` colors. The default palette's flat
+          form is what ``config.range.category`` uses.
         - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered
           **hue-major** - each consecutive block of ``members`` categories is one hue
-          climbing through ``members`` lightness levels. Returns ``4 * members`` colors.
-          Sort your categories so a group's members are adjacent, then pass this as the
-          color scale range.
+          climbing through ``members`` lightness levels. Returns ``len(hues) * members``
+          colors. Sort your categories so a group's members are adjacent, then pass this
+          as the color scale range.
 
         Up to ``4`` members the lightness stops are the classic tier stops
         (``1, 4, 7, 10`` - three ramp steps apart, matching the flat palette's tiers);
@@ -44,14 +50,20 @@ def categorical(members: int = 1) -> list[str]:
         normal mark sizes for ``5``-``6``, increasingly ambiguous past that, and capped
         at ``10`` where distinct stops run out. If your "members" are actually ordinal
         (a dose series, timepoints), a sequential slice per group -
-        ``palette("blues", n=5)`` - usually communicates that better than a
+        ``palette("cat_azures", n=5)`` - usually communicates that better than a
         categorical palette pretending they're unordered.
+    palette:
+        Which qualitative palette to build. ``"ds_cat_1"`` (default) is the muted,
+        australis-harmonious five-hue set (also stored as ``colors["ds_cat_1"]`` and
+        wired to ``config.range.category``); ``"ds_cat_2"`` is the legacy four-hue pastel
+        set (``colors["ds_cat_2"]``).
 
     Raises
     ------
     ValueError
-        If ``members`` is below ``1``, or too large for distinct lightness stops in the
-        12-stop base palettes (above ``10``).
+        If ``members`` is below ``1``, too large for distinct lightness stops in the
+        12-stop base palettes (above ``10``), or ``palette`` is not a known qualitative
+        palette name.
 
     Examples
     --------
@@ -59,17 +71,21 @@ def categorical(members: int = 1) -> list[str]:
 
         alt.Color("g:N")                                       # picks it up automatically
         alt.Color("g:N", scale=alt.Scale(range=categorical()))  # explicit
+        alt.Color("g:N", scale=alt.Scale(range=categorical(palette="ds_cat_2")))  # pastel
 
     Paired data, members adjacent within each group::
 
         groups = ["A1", "A2", "B1", "B2"]
         alt.Color("g:N", sort=groups, scale=alt.Scale(range=categorical(2)))
-        # -> A1=blue-light, A2=blue-dark, B1=pink-light, B2=pink-dark, ...
+        # -> A1=azure-light, A2=azure-dark, B1=blue-light, B2=blue-dark, ...
     """
     if members < 1:
         raise ValueError(f"members must be at least 1, got {members}")
+    if palette not in _QUALITATIVE_HUES:
+        raise ValueError(f"unknown palette {palette!r}; choose from {sorted(_QUALITATIVE_HUES)}")
+    hues = _QUALITATIVE_HUES[palette]
     if members == 1:
-        return [colors[h][s] for s in (1, 4, 7) for h in _CATEGORICAL_HUES]  # tier-major
+        return [colors[h][s] for s in (1, 4, 7) for h in hues]  # tier-major
     if 1 + 3 * (members - 1) <= 10:
         # The classic tier stops - (1, 4, 7, 10)[:members] - kept exactly for members<=4
         # so the grouped palette stays consistent with the flat palette's tiers (and with
@@ -84,7 +100,7 @@ def categorical(members: int = 1) -> list[str]:
                 f"members={members} needs more distinct lightness stops than the 12-stop "
                 f"base palettes provide (max 10)."
             )
-    return [colors[h][s] for h in _CATEGORICAL_HUES for s in stops]  # hue-major
+    return [colors[h][s] for h in hues for s in stops]  # hue-major
 
 
 def palette(
@@ -481,6 +497,80 @@ colors = {
         "#703688",
         "#552D7D",
         "#3A2570",
+    ],
+    # Qualitative base ramps: the five muted, australis-harmonious hues sliced
+    # by categorical() to build the ds_cat_1 palette. Muted (low-chroma) with a
+    # per-hue lightness stagger for CVD separation; azure leads, tan is the warm
+    # end. Distinct de-novo ramps, NOT slices of the saturated blues/greens/etc.
+    "cat_azures": [
+        "#8DC8DD",
+        "#7BB5CB",
+        "#69A2B9",
+        "#5890A7",
+        "#477E95",
+        "#3A6C82",
+        "#305B6F",
+        "#264A5B",
+        "#1C3949",
+        "#132A36",
+        "#0A1B25",
+        "#040E14",
+    ],
+    "cat_blues": [
+        "#E2EFF9",
+        "#C3DEF2",
+        "#A8CBE8",
+        "#96B7D4",
+        "#84A4C0",
+        "#7290AD",
+        "#617D9A",
+        "#506B87",
+        "#405975",
+        "#304863",
+        "#213752",
+        "#132741",
+    ],
+    "cat_greens": [
+        "#CCEAC8",
+        "#BAD9B8",
+        "#A9C8A9",
+        "#98B89A",
+        "#87A88B",
+        "#77987C",
+        "#67886E",
+        "#577960",
+        "#486A52",
+        "#395B45",
+        "#2A4D38",
+        "#1E3F2C",
+    ],
+    "cat_purples": [
+        "#CDD2F0",
+        "#B9BFE8",
+        "#A8ABD4",
+        "#9699C0",
+        "#8586AD",
+        "#74749A",
+        "#646387",
+        "#545175",
+        "#454164",
+        "#363152",
+        "#282242",
+        "#1B1331",
+    ],
+    "cat_tans": [
+        "#FBF1EB",
+        "#F6E0D2",
+        "#F2CFB9",
+        "#E9BFA5",
+        "#DAAF97",
+        "#CBA189",
+        "#BC927C",
+        "#AE836F",
+        "#9F7563",
+        "#916756",
+        "#835A4A",
+        "#754C3E",
     ],
     "cosmos": [
         "#021F22",
@@ -5107,5 +5197,9 @@ colors = {
 }
 
 
-# Named entry so config.range.category can reference it and it appears in swatch exports.
-colors["categorical"] = categorical(1)
+# Assembled qualitative palettes, stored as named entries so config.range.category can
+# reference the default and both appear in swatch exports. ds_cat_1 (the muted 5-hue set)
+# is the default; ds_cat_2 is the legacy pastel set. Derived by slicing the base hues, so
+# they must stay AFTER the colors literal above.
+colors["ds_cat_1"] = categorical(1, palette="ds_cat_1")
+colors["ds_cat_2"] = categorical(1, palette="ds_cat_2")

@@ -309,7 +309,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
     # (category i -> color i), which the tier-major `categorical` palette relies on. The
     # {"scheme": [...]} form is invalid for nominal and silently drops the range. A Vega
     # scheme *name* (a str, e.g. "tableau10") still needs the {"scheme": ...} wrapper.
-    _cat = _scheme("categoryPalette", colors["categorical"])
+    _cat = _scheme("categoryPalette", colors["ds_cat_1"])
     category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
     return {

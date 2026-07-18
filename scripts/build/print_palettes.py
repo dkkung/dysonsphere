@@ -636,6 +636,19 @@ SEQ_MULTI_OKLAB = {
         (0.743, 110),
         (0.92, 95),
     ],
+    # ── Qualitative base ramps (the cat_* family) ────────────────────────
+    # Five muted, australis-harmonious hues sliced at stops (1,4,7) to build
+    # the ds_cat_1 categorical palette (see palettes.py `categorical`).  Each
+    # is a 2-keyframe ramp whose hue drifts toward australis's route as it
+    # darkens; the chroma cap (SEQ_MULTI_MAX_CHROMA) keeps the muted register,
+    # and a per-hue LIGHTNESS STAGGER (light end 0.80-0.965) separates the
+    # CVD-close pairs under dichromacy at every tier.  Azure leads the cycle
+    # (slot 0 = the lone-series default, needs presence); tan is the warm end.
+    "cat_azures": [(0.80, 222), (0.155, 237)],
+    "cat_blues": [(0.945, 240), (0.27, 256)],
+    "cat_greens": [(0.905, 142), (0.335, 158)],
+    "cat_purples": [(0.87, 278), (0.215, 293)],
+    "cat_tans": [(0.965, 58), (0.46, 40)],
 }
 
 # Per-palette frac overrides for build_multihue (default SEQ_FRAC).
@@ -657,6 +670,12 @@ SEQ_MULTI_MAX_CHROMA = {
     "australis": 0.14,
     "brass": [0.12, 0.09, 0.035, 0.09, 0.13],
     "pewter": [0.12, 0.09, 0.035, 0.045, 0.035],
+    # Qualitative base ramps - muted register (low chroma) for categorical use.
+    "cat_azures": 0.068,
+    "cat_blues": 0.055,
+    "cat_greens": 0.055,
+    "cat_purples": 0.058,
+    "cat_tans": 0.060,
 }
 
 # Baked magma Oklab L, sampled at the 12 output positions (matplotlib magma).
