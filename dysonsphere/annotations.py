@@ -40,6 +40,76 @@ def _rule_mark_kwargs(
     return kwargs
 
 
+def _resolve_rule_span(
+    span: "tuple[Any, Any]",
+    run_ch: str,
+    categories: list[str] | None,
+    flush: bool | None,
+) -> tuple[str, float, float]:
+    """Resolve a rule's ``span=(start, end)`` to a triple on the line's running axis (``run_ch``).
+
+    Returns ``("q", a, b)`` for a numeric span (data coordinates, shares the base scale via
+    ``alt.datum``) or ``("px", lo, hi)`` for a category-name span (resolved to pixels through
+    ``band_geometry`` like ``add_shade``, so it never merges into the base scale). Both bounds
+    must be the same kind; a string span needs ``categories``.
+    """
+    if len(span) != 2:
+        raise ValueError(f"span must be a (start, end) tuple, got {span!r}")
+    start, end = span
+    start_str, end_str = isinstance(start, str), isinstance(end, str)
+    if start_str != end_str:
+        raise ValueError(f"span bounds must both be numbers or both be category names, got {span!r}")
+    if start_str:
+        if categories is None:
+            raise ValueError("categories is required when span uses category names.")
+        cat_index = {cat: i for i, cat in enumerate(categories)}
+        if start not in cat_index or end not in cat_index:
+            missing = [c for c in (start, end) if c not in cat_index]
+            raise ValueError(f"span category names not in categories: {missing}")
+        n = len(categories)
+        span_len = _opt("chartWidth") if run_ch == "x" else _opt("chartHeight")
+        geo = band_geometry(n, span_len)
+        f = _opt("closed") if flush is None else flush
+        si, ei = cat_index[start], cat_index[end]
+        lo = 0.0 if (f and si == 0) else geo.starts[si]
+        hi = span_len if (f and ei == n - 1) else geo.ends[ei]
+        return ("px", lo, hi)
+    return ("q", float(start), float(end))
+
+
+def _span_enc(triple: tuple[str, float, float] | None, run_ch: str) -> dict[str, Any]:
+    """Encoding dict placing a resolved span triple on the rule's running channel + its ``2`` pair.
+
+    Numeric (``"q"``) → ``alt.datum`` (shares the base scale); pixel (``"px"``) → ``alt.value``.
+    """
+    if triple is None:
+        return {}
+    kind, a, b = triple
+    wrap = alt.value if kind == "px" else alt.datum
+    return {run_ch: wrap(a), run_ch + "2": wrap(b)}
+
+
+def _span_label_anchor(la: str, triple: tuple[str, float, float], axis: str) -> Any:
+    """A label's running-axis anchor derived from the span, wrapped for the channel's coord space.
+
+    Anchors to the span's ends by visual position so a sliced line's label sits on the line:
+    ``axis="y"`` (perp x) left→low / right→high; ``axis="x"`` (perp y) top→up / bottom→down -
+    which is the *high* data value but the *low* pixel value (the data/pixel y-flip), so the
+    numeric and pixel branches invert. ``alt.datum`` for a data span, ``alt.value`` for pixels.
+    """
+    kind, a, b = triple
+    lo, hi = (a, b) if a <= b else (b, a)
+    mid = (lo + hi) / 2
+    wrap = alt.value if kind == "px" else alt.datum
+    if axis == "y":
+        pick = {"left": lo, "center": mid, "right": hi}[la]
+    elif kind == "q":  # data-y: larger value is visually up → top
+        pick = {"top": hi, "center": mid, "bottom": lo}[la]
+    else:  # pixel-y: smaller pixel is visually up → top
+        pick = {"top": lo, "center": mid, "bottom": hi}[la]
+    return wrap(pick)
+
+
 def _rule_label_geometry(
     axis: str,
     labelAlign: str | None,
@@ -48,13 +118,16 @@ def _rule_label_geometry(
     labelOffsetY: int,
     fontSize: float,
     color: str | None,
-) -> tuple[str, float, dict[str, Any]]:
+    span_triple: tuple[str, float, float] | None = None,
+) -> tuple[str, Any, dict[str, Any]]:
     """Resolve a reference-line label's placement to ``(perp_channel, perp_anchor, text_kwargs)``.
 
-    ``perp_channel`` is the pixel-anchored channel perpendicular to the line (``"x"`` for a
-    horizontal ``axis="y"`` rule, ``"y"`` for a vertical ``axis="x"`` rule); ``perp_anchor`` is
-    its ``alt.value`` position; ``text_kwargs`` are the ``mark_text`` properties.  Shared by the
-    data-backed and datum (facet-safe) paths so their label placement can't drift apart.
+    ``perp_channel`` is the channel along which the line runs (``"x"`` for a horizontal
+    ``axis="y"`` rule, ``"y"`` for a vertical ``axis="x"`` rule); ``perp_anchor`` is the built
+    ``alt.value``/``alt.datum`` position on it; ``text_kwargs`` are the ``mark_text`` properties.
+    With no ``span_triple`` the anchor is a pixel edge of the plot (``alt.value``); with a span it
+    anchors to the slice's ends (via ``_span_label_anchor``) so the label stays on the line.
+    Shared by the data-backed and datum (facet-safe) paths so their placement can't drift apart.
     """
     if axis == "y":
         la = labelAlign if labelAlign is not None else "left"
@@ -63,14 +136,19 @@ def _rule_label_geometry(
             raise ValueError(f"labelAlign must be 'left', 'center', or 'right' for axis='y', got {la!r}")
         if lp not in ("top", "bottom"):
             raise ValueError(f"labelPosition must be 'top' or 'bottom' for axis='y', got {lp!r}")
-        chart_width = _opt("chartWidth")
-        # A closed plot's spine sits flush at the content edge, so a left/right-anchored label
-        # hugs the border; inset it by axisOffset to match the gap an open plot gets for free
-        # from its detached axis, so opened and closed look the same. (Center is far from either
-        # edge, so it is left alone.)
-        edge_inset = _opt("axisOffset") if _opt("closed") else 0
         perp_ch = "x"
-        perp_val = {"left": edge_inset, "center": chart_width / 2, "right": chart_width - edge_inset}[la]
+        if span_triple is None:
+            chart_width = _opt("chartWidth")
+            # A closed plot's spine sits flush at the content edge, so a left/right-anchored label
+            # hugs the border; inset it by axisOffset to match the gap an open plot gets for free
+            # from its detached axis, so opened and closed look the same. (Center is far from either
+            # edge, so it is left alone.)
+            edge_inset = _opt("axisOffset") if _opt("closed") else 0
+            perp_anchor = alt.value(
+                {"left": edge_inset, "center": chart_width / 2, "right": chart_width - edge_inset}[la]
+            )
+        else:
+            perp_anchor = _span_label_anchor(la, span_triple, "y")
         align, dx = la, labelOffsetX
         dy = (-3 if lp == "top" else 3) + labelOffsetY
         baseline = "bottom" if lp == "top" else "top"
@@ -81,23 +159,25 @@ def _rule_label_geometry(
             raise ValueError(f"labelAlign must be 'top', 'center', or 'bottom' for axis='x', got {la!r}")
         if lp not in ("left", "right"):
             raise ValueError(f"labelPosition must be 'left' or 'right' for axis='x', got {lp!r}")
-        chart_height = _opt("chartHeight")
-        # See the axis="y" branch: inset a top/bottom-anchored label off the flush closed spine
-        # by axisOffset so opened and closed match.
-        edge_inset = _opt("axisOffset") if _opt("closed") else 0
-        perp_val, baseline = {
-            "top": (edge_inset, "top"),
-            "center": (chart_height / 2, "middle"),
-            "bottom": (chart_height - edge_inset, "bottom"),
-        }[la]
         perp_ch = "y"
+        baseline = {"top": "top", "center": "middle", "bottom": "bottom"}[la]
+        if span_triple is None:
+            chart_height = _opt("chartHeight")
+            # See the axis="y" branch: inset a top/bottom-anchored label off the flush closed spine
+            # by axisOffset so opened and closed match.
+            edge_inset = _opt("axisOffset") if _opt("closed") else 0
+            perp_anchor = alt.value(
+                {"top": edge_inset, "center": chart_height / 2, "bottom": chart_height - edge_inset}[la]
+            )
+        else:
+            perp_anchor = _span_label_anchor(la, span_triple, "x")
         align = "left" if lp == "right" else "right"
         dx = (3 if lp == "right" else -3) + labelOffsetX
         dy = labelOffsetY
     text_kwargs: dict[str, Any] = {"align": align, "dx": dx, "dy": dy, "baseline": baseline, "fontSize": fontSize}
     if color is not None:
         text_kwargs["color"] = color
-    return perp_ch, perp_val, text_kwargs
+    return perp_ch, perp_anchor, text_kwargs
 
 
 _DATUM_AGG = "__dsagg"
@@ -127,7 +207,8 @@ def _datum_ref_layers(
     labels: list[str] | None = None,
     text_kwargs: dict[str, Any] | None = None,
     perp_ch: str | None = None,
-    perp_val: float | None = None,
+    perp_anchor: Any = None,
+    span_enc: dict[str, Any] | None = None,
 ) -> list[alt.Chart]:
     """Datum-positioned rule layers: one rule layer per value, plus (when ``labels`` given) one
     text layer per value, each built on a fresh base from ``base_factory``.
@@ -136,16 +217,18 @@ def _datum_ref_layers(
     base chart's axis title intact: a field on the shared position channel participates in
     Vega-Lite's layer axis-title merge (an explicit ``title=None`` nulls the base title; a
     derived field title concatenates into it), whereas a constant datum contributes no title.
-    ``base_factory`` decides faceting: ``_datum_base(src)`` (shared frame) is facet-safe; a
-    fresh internal sidecar is the non-facet-safe default. One layer per value, so multiple
-    values yield multiple layers."""
-    layers = [base_factory().mark_rule(**mark_kwargs).encode(**{pos_ch: alt.datum(v)}) for v in vals]
+    ``span_enc`` (from ``_span_enc``) optionally slices each rule to a portion of its running axis;
+    it too uses only ``alt.datum``/``alt.value`` so the base title survives. ``base_factory``
+    decides faceting: ``_datum_base(src)`` (shared frame) is facet-safe; a fresh internal sidecar
+    is the non-facet-safe default. One layer per value, so multiple values yield multiple layers."""
+    span_enc = span_enc or {}
+    layers = [base_factory().mark_rule(**mark_kwargs).encode(**{pos_ch: alt.datum(v), **span_enc}) for v in vals]
     if labels is not None:
         assert text_kwargs is not None and perp_ch is not None
         layers += [
             base_factory()
             .mark_text(**text_kwargs)
-            .encode(**{pos_ch: alt.datum(v), perp_ch: alt.value(perp_val), "text": alt.value(lbl)})
+            .encode(**{pos_ch: alt.datum(v), perp_ch: perp_anchor, "text": alt.value(lbl)})
             for v, lbl in zip(vals, labels)
         ]
     return layers
@@ -155,6 +238,9 @@ def add_rule(
     value: float | list[float],
     *,
     axis: str = "y",
+    span: "tuple[float, float] | tuple[str, str] | None" = None,
+    categories: list[str] | None = None,
+    flush: bool | None = None,
     label: str | list[str] | None = None,
     labelPosition: str | None = None,
     labelAlign: str | None = None,
@@ -179,6 +265,26 @@ def add_rule(
     axis:
         ``"y"`` (default) — horizontal line(s) at fixed y value(s).
         ``"x"`` — vertical line(s) at fixed x value(s).
+    span:
+        Optionally slice the line to a portion of its *running* axis (the axis it runs along -
+        the opposite of ``axis``), given as a ``(start, end)`` tuple. ``None`` (default) spans the
+        full plot. For ``axis="y"`` (horizontal line) the running axis is x; for ``axis="x"``
+        (vertical line) it is y. Two forms, mirroring ``add_shade``:
+
+        - **Numeric** ``(start, end)`` — data coordinates on the running axis; shares the base
+          chart's scale (positioned by ``alt.datum``).
+        - **Category names** ``(start, end)`` — resolved to pixels via the band scale (needs
+          ``categories``), so the slice does not merge into the base scale.
+
+        A single ``span`` applies to every ``value`` when ``value`` is a list. When ``span`` is
+        set, a ``label`` anchors to the slice's ends instead of the plot edge.
+    categories:
+        Ordered list of the running axis's categories, required only when ``span`` uses category
+        names (for the band-scale index lookup).
+    flush:
+        For a category-name ``span``, extend an outermost-category endpoint to the axis domain
+        edge. ``None`` (default) inherits the theme's ``closed`` setting. No effect on a numeric
+        ``span``.
     label:
         Optional text label(s). One string per value.
     labelAlign:
@@ -245,6 +351,14 @@ def add_rule(
         chart = base + ds.add_rule(
             10, axis="x", label="t₀", labelOffsetX=4, labelOffsetY=4
         )
+
+        # Horizontal line sliced to x ∈ [2, 8] (data coords)
+        chart = base + ds.add_rule(5.0, span=(2.0, 8.0))
+
+        # Horizontal line sliced across a range of x categories
+        chart = base + ds.add_rule(
+            5.0, span=("Control", "Group B"), categories=CATEGORIES
+        )
     """
     if axis not in ("x", "y"):
         raise ValueError(f"axis must be 'x' or 'y', got {axis!r}")
@@ -252,6 +366,12 @@ def add_rule(
     vals = [float(v) for v in (value if isinstance(value, list) else [value])]
     mark_kwargs = _rule_mark_kwargs(color, strokeWidth, strokeDash, opacity)
     fs = fontSize if fontSize is not None else _opt("fontSize")
+
+    # A rule runs along the axis opposite to the one it is pinned on. `span` slices that running
+    # axis; `_resolve_rule_span` returns a data (`"q"`) or pixel (`"px"`) triple (see add_shade).
+    run_ch = "x" if axis == "y" else "y"
+    span_triple = _resolve_rule_span(span, run_ch, categories, flush) if span is not None else None
+    span_enc = _span_enc(span_triple, run_ch)
 
     labels: list[str] | None = None
     if label is not None:
@@ -262,7 +382,7 @@ def add_rule(
     # labelAlign along x / labelPosition top|bottom; axis="x": vertical rule, labelAlign along y /
     # labelPosition right|left).
     geom = (
-        _rule_label_geometry(axis, labelAlign, labelPosition, labelOffsetX, labelOffsetY, fs, color)
+        _rule_label_geometry(axis, labelAlign, labelPosition, labelOffsetX, labelOffsetY, fs, color, span_triple)
         if labels is not None
         else None
     )
@@ -285,9 +405,9 @@ def add_rule(
             return alt.Chart(_internal_data([{}]))
 
     if geom is None:
-        layers = _datum_ref_layers(base_factory, axis, vals, mark_kwargs)
+        layers = _datum_ref_layers(base_factory, axis, vals, mark_kwargs, span_enc=span_enc)
     else:
-        perp_ch, perp_val, text_kwargs = geom
+        perp_ch, perp_anchor, text_kwargs = geom
         layers = _datum_ref_layers(
             base_factory,
             axis,
@@ -296,7 +416,8 @@ def add_rule(
             labels=labels,
             text_kwargs=text_kwargs,
             perp_ch=perp_ch,
-            perp_val=perp_val,
+            perp_anchor=perp_anchor,
+            span_enc=span_enc,
         )
     return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
