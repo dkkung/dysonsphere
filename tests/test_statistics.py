@@ -1435,3 +1435,122 @@ class TestResolveYSpacing:
     def test_zero_chart_height_guarded(self):
         # No division by zero; auto pad/tick collapse to 0, y_step follows.
         assert _resolve_y_spacing(True, 20.0, 0.0, None, None, None) == (0.0, 0.0, 0.0)
+
+
+def _ref_labels(layer):
+    """Pull the rendered p-value strings from reference-mode label layers (each rides a tiny
+    inline dataset with a ``label`` field, unlike add_text's ``value``-encoded labels)."""
+    found: list[str] = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for row in node.get("data", {}).get("values", []) if isinstance(node.get("data"), dict) else []:
+                if isinstance(row, dict):
+                    if "label" in row:
+                        found.append(row["label"])
+                    elif "__label" in row:
+                        found.append(row["__label"])
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(layer.to_dict())
+    return found
+
+
+class TestReferenceMode:
+    """add_comparisons(reference=...) - compare every group against one, bare label per mark."""
+
+    @pytest.fixture
+    def dose_df(self):
+        rng = np.random.default_rng(7)
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        return pl.DataFrame(
+            {
+                "group": [c for c in cats for _ in range(10)],
+                "value": np.concatenate([rng.normal(m, 0.6, 10) for m in (5.0, 5.4, 6.2, 7.2)]),
+            }
+        )
+
+    def test_one_label_per_non_reference_group(self, dose_df):
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        layer = add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=cats, test="ttest_ind")
+        # one label per non-reference category, none for the reference
+        assert len(_ref_labels(layer)) == len(cats) - 1
+
+    def test_record_has_only_reference_pairs(self, dose_df):
+        from dysonsphere import statistics as _st
+
+        _st._REPORTS.clear()
+        add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=["Ctrl", "Low", "Mid", "High"])
+        rec = next(iter(_st._REPORTS.values()))
+        pairs = [(p["group1"], p["group2"]) for p in rec["comparisons"]["pairs"]]
+        assert pairs == [("Ctrl", "Low"), ("Ctrl", "Mid"), ("Ctrl", "High")]
+
+    def test_correction_applies_over_family(self, dose_df):
+        from dysonsphere import statistics as _st
+
+        _st._REPORTS.clear()
+        add_comparisons(
+            dose_df, "group", "value", reference="Ctrl", categories=["Ctrl", "Low", "Mid", "High"], correction="holm"
+        )
+        rec = next(iter(_st._REPORTS.values()))
+        assert rec["comparisons"]["correction"] == "holm"
+
+    def test_rejects_omnibus(self, dose_df):
+        with pytest.raises(ValueError, match="omnibus"):
+            add_comparisons(dose_df, "group", "value", reference="Ctrl", test="anova")
+
+    def test_rejects_pairs_with_reference(self, dose_df):
+        with pytest.raises(ValueError, match="derives its own"):
+            add_comparisons(dose_df, "group", "value", reference="Ctrl", pairs=[("Ctrl", "Low")])
+
+    def test_rejects_unknown_reference(self, dose_df):
+        with pytest.raises(ValueError, match="not a category"):
+            add_comparisons(dose_df, "group", "value", reference="Nope", categories=["Ctrl", "Low", "Mid", "High"])
+
+    def test_rejects_pvalues_with_reference(self, dose_df):
+        with pytest.raises(ValueError, match="pvalues is not supported"):
+            add_comparisons(dose_df, "group", "value", reference="Ctrl", pvalues=[0.01, 0.02, 0.03])
+
+    def test_rejects_reference_with_xoffsetcol_omnibus_only(self, dose_df):
+        # reference + xOffsetCol is now grouped-reference (not an error); a bad reference level errors.
+        rng = np.random.default_rng(3)
+        genes = ["A", "B"]
+        lvls = ["Veh", "Low", "High"]
+        df = pl.DataFrame(
+            {
+                "gene": [g for g in genes for _ in lvls for _ in range(6)],
+                "cond": [lv for _ in genes for lv in lvls for _ in range(6)],
+                "expr": rng.normal(1.0, 0.2, len(genes) * len(lvls) * 6),
+            }
+        )
+        # valid grouped reference: 2 genes x 2 non-ref levels = 4 labels
+        layer = add_comparisons(
+            df, "gene", "expr", xOffsetCol="cond", reference="Veh", categories=genes, xOffsetSort=lvls, test="ttest_ind"
+        )
+        assert len(_ref_labels(layer)) == len(genes) * (len(lvls) - 1)
+        # bad reference level raises
+        with pytest.raises(ValueError, match="not a level"):
+            add_comparisons(df, "gene", "expr", xOffsetCol="cond", reference="Nope", categories=genes, xOffsetSort=lvls)
+
+    def test_grouped_record_labels_subgroups(self, dose_df):
+        from dysonsphere import statistics as _st
+
+        rng = np.random.default_rng(4)
+        genes = ["A", "B"]
+        lvls = ["Veh", "Drug"]
+        df = pl.DataFrame(
+            {
+                "gene": [g for g in genes for _ in lvls for _ in range(6)],
+                "cond": [lv for _ in genes for lv in lvls for _ in range(6)],
+                "expr": rng.normal(1.0, 0.2, len(genes) * len(lvls) * 6),
+            }
+        )
+        _st._REPORTS.clear()
+        add_comparisons(df, "gene", "expr", xOffsetCol="cond", reference="Veh", categories=genes, xOffsetSort=lvls)
+        rec = next(iter(_st._REPORTS.values()))
+        pairs = [(p["group1"], p["group2"]) for p in rec["comparisons"]["pairs"]]
+        assert pairs == [("A (Veh)", "A (Drug)"), ("B (Veh)", "B (Drug)")]

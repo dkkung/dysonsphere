@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### New features
+
+- **`add_comparisons(reference=...)`: compare every group against one control, no brackets.** Passing
+  `reference` (a group name) compares each other group to it and draws the p-value **above each
+  non-reference mark** - the clean many-vs-one / control layout that a fan of brackets makes noisy.
+  It derives its own comparisons (so leave `pairs` unset), supports the pairwise tests, and corrects
+  over the whole family of `len(categories) - 1` comparisons. Labels sit at each group's own data
+  max, so overlay your points (strip/beeswarm) and they clear the data; distinguishing the reference
+  visually (e.g. a darker fill) stays in your hands - nothing is injected into the chart. Works in
+  grouped mode too: with `xOffsetCol` set, `reference` is an xOffset **level** compared within each
+  x-category (one label per non-reference sub-bar). `pvalues` with `reference` is not supported yet.
+  No new dependency.
+
 ### Internal
 
 - Deduplicated the `add_comparisons` / `add_correlation` internals in `inference.py` into shared

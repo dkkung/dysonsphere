@@ -345,6 +345,25 @@ def _pvalue_layer(
     return cast(alt.LayerChart, alt.layer(bar, text))
 
 
+def _reference_label_layer(
+    group: Any,
+    y: float,
+    label: str,
+    *,
+    categories: list[Any],
+    chartWidth: int,
+    fontSize: int,
+) -> alt.Chart:
+    """A bare p-value label centred over one group's band, at data-coordinate ``y`` - the
+    reference-mode annotation (no bracket; the comparison to the reference is implicit)."""
+    x_px = band_geometry(len(categories), chartWidth).centers[categories.index(group)]
+    return (
+        alt.Chart(_internal_data([{"y": y, "label": label}]))
+        .mark_text(align="center", baseline="bottom", fontSize=fontSize, dy=-4)
+        .encode(x=alt.value(x_px), y=alt.Y("y:Q"), text="label:N")
+    )
+
+
 _MATRIX_POSTHOCS = {"tukey_hsd", "dunn", "nemenyi", "games_howell"}
 
 
@@ -458,6 +477,35 @@ def _grouped_bracket_layer(
     return cast(alt.LayerChart, alt.layer(top, text))
 
 
+def _grouped_reference_label_layer(
+    x_col: str,
+    xoffset_col: str,
+    category: Any,
+    level: str,
+    y: float,
+    *,
+    label: str,
+    label_style: str,
+    categories: list[Any],
+    level_order: list[str],
+    fontSize: int,
+) -> alt.Chart:
+    """A bare p-value label centred over one (category, level) sub-bar - the grouped reference-mode
+    annotation (no bracket). Rides the SHARED x + xOffset scales (sort matched to the bars) so it
+    lands on that sub-bar wherever Vega lays the grouped bars out."""
+    dy = -(2 if label_style == "asterisks" and label != "ns" else 4)
+    return (
+        alt.Chart(_internal_data([{x_col: category, xoffset_col: level, "__y": y, "__label": label}]))
+        .mark_text(align="center", baseline="bottom", fontSize=fontSize, dy=dy)
+        .encode(
+            x=alt.X(f"{x_col}:N", sort=categories),
+            xOffset=alt.XOffset(f"{xoffset_col}:N", sort=level_order),
+            y=alt.Y("__y:Q"),
+            text="__label:N",
+        )
+    )
+
+
 def _add_grouped_comparisons(
     df: pl.DataFrame,
     x_col: str,
@@ -465,6 +513,7 @@ def _add_grouped_comparisons(
     xoffset_col: str,
     pairs: list[tuple[str, str]] | None,
     *,
+    reference: Any,
     xOffsetSort: list[str] | None,
     test: str,
     correction: str | None,
@@ -520,6 +569,16 @@ def _add_grouped_comparisons(
     level_order = (
         list(xOffsetSort) if xOffsetSort is not None else df[xoffset_col].unique(maintain_order=True).to_list()
     )
+
+    # Reference mode: compare every other level against `reference` WITHIN each category, drawing the
+    # p-value above each non-reference sub-bar (no bracket). Derives its own level-pairs.
+    is_reference = reference is not None
+    if is_reference:
+        if reference not in level_order:
+            raise ValueError(f"reference {reference!r} is not a level of xOffsetCol {xoffset_col!r}: {level_order}.")
+        if pairs is not None:
+            raise ValueError("reference derives its own comparisons; don't also pass pairs.")
+        pairs = [(reference, lvl) for lvl in level_order if lvl != reference]
 
     if pairs is None:
         if len(level_order) == 2:
@@ -611,24 +670,42 @@ def _add_grouped_comparisons(
                 if labelStyle == "asterisks"
                 else _format_pvalue(p, sigFigs=effective_sigfigs, notation=notation_val)
             )
-            layers.append(
-                _grouped_bracket_layer(
-                    x_col,
-                    xoffset_col,
-                    cat,
-                    l1,
-                    l2,
-                    y_start + pair_level[pi] * yStep,
-                    tick_height=tickHeight,
-                    label=label,
-                    bracket_style=bracketStyle,
-                    label_style=labelStyle,
-                    categories=categories,
-                    level_order=level_order,
-                    strokeWidth=strokeWidth,
-                    fontSize=fontSize,
+            if is_reference:
+                # Label above the non-reference sub-bar (l2), at that sub-bar's OWN data max.
+                sub_max = cast(float, cdf.filter(pl.col(xoffset_col) == l2)[y_col].cast(pl.Float64).max() or 0.0)
+                layers.append(
+                    _grouped_reference_label_layer(
+                        x_col,
+                        xoffset_col,
+                        cat,
+                        l2,
+                        sub_max + yPad,
+                        label=label,
+                        label_style=labelStyle,
+                        categories=categories,
+                        level_order=level_order,
+                        fontSize=fontSize,
+                    )
                 )
-            )
+            else:
+                layers.append(
+                    _grouped_bracket_layer(
+                        x_col,
+                        xoffset_col,
+                        cat,
+                        l1,
+                        l2,
+                        y_start + pair_level[pi] * yStep,
+                        tick_height=tickHeight,
+                        label=label,
+                        bracket_style=bracketStyle,
+                        label_style=labelStyle,
+                        categories=categories,
+                        level_order=level_order,
+                        strokeWidth=strokeWidth,
+                        fontSize=fontSize,
+                    )
+                )
             comparisons.append(
                 {"g1": f"{cat} ({l1})", "g2": f"{cat} ({l2})", "pvalue": p, "effectName": en, "effect": ev}
             )
@@ -662,6 +739,7 @@ def add_comparisons(
     pvalues: list[float] | None = None,
     correction: str | None = None,
     nComparisons: int | None = None,
+    reference: Any = None,
     xOffsetCol: str | None = None,
     xOffsetSort: list[str] | None = None,
     yPositions: list[float] | None = None,
@@ -702,6 +780,10 @@ def add_comparisons(
       places its result as a corner label via ``add_text`` (see
       ``testLabelPosition``). If ``pairs`` is also given, a post-hoc test (see
       ``postHoc``) fills the brackets.
+
+    Setting ``reference`` overrides both with **reference mode**: compare every
+    other group against one reference and draw the p-value above each mark with no
+    bracket (see ``reference``).
 
     A descriptive + effect-size report is generated on every call and queued for
     the export metadata written by ``ds.save()`` (see ``report``/``save``).
@@ -753,6 +835,20 @@ def add_comparisons(
         to ``len(pairs)`` when a ``correction`` is set and not given explicitly.
         In grouped mode it defaults to the total number of drawn comparisons
         (``len(categories) * len(pairs)``).
+    reference:
+        **Reference mode (compare-against-one).** A single group to compare every
+        other group against, drawing the p-value **above each non-reference mark
+        with no bracket** (the comparison is implicit - a control/many-vs-one
+        design). Derives its own comparisons, so ``pairs`` must be left ``None``.
+        Only the pairwise tests are supported (not omnibus); ``correction`` adjusts
+        over the whole family of ``len(categories) - 1`` comparisons. Labels sit at
+        each group's OWN data max, so overlay your points (they clear the data).
+        Distinguishing the reference visually (e.g. a darker fill) is left to your
+        chart - nothing is injected. Without ``xOffsetCol``, ``reference`` is a
+        category of ``xCol``; with ``xOffsetCol`` (grouped mode) it is an xOffset
+        **level**, compared within each x-category (one label per non-reference
+        sub-bar). ``bracketStyle``/``reverse``/``tickHeight`` are inert here (no
+        bracket). ``pvalues`` is not yet supported with ``reference``.
     xOffsetCol:
         **Grouped mode.** Column encoded as the chart's ``xOffset`` (the subgroup
         that splits each x-category into side-by-side bars, e.g. ``"condition"``
@@ -933,6 +1029,17 @@ def add_comparisons(
             categories=GENES, xOffsetSort=["Vehicle", "LPS"],
             test="ttest_ind", labelStyle="asterisks",
         )
+
+    Reference mode - compare every dose against the control, a bare mark above each
+    (no bracket); overlay your points so the marks clear the data::
+
+        CATS = ["Ctrl", "Low", "Mid", "High"]
+        chart = ds.mark_strip(df, "group", "value", CATS)
+        chart + ds.add_comparisons(
+            df, "group", "value",
+            reference="Ctrl", categories=CATS,
+            test="ttest_ind", correction="holm", labelStyle="asterisks",
+        )
     """
     from .statistics import (
         _OMNIBUS_TESTS,
@@ -957,6 +1064,7 @@ def add_comparisons(
             yCol,
             xOffsetCol,
             pairs,
+            reference=reference,
             xOffsetSort=xOffsetSort,
             test=test,
             correction=correction,
@@ -993,6 +1101,23 @@ def add_comparisons(
 
     is_omnibus = test in _OMNIBUS_TESTS
     groups = [df.filter(pl.col(xCol) == cat)[yCol].to_numpy() for cat in categories]
+
+    # Reference mode: compare every other category against `reference`, drawing the p-value above
+    # each mark with NO bracket (the comparison is implicit - a many-vs-one/control design). It
+    # derives `pairs` and switches the rendering to bare labels; it is a pairwise-only modifier.
+    is_reference = reference is not None
+    if is_reference:
+        if is_omnibus:
+            raise ValueError(
+                "reference is a pairwise comparison against one group; it can't be used with an omnibus test."
+            )
+        if pairs is not None:
+            raise ValueError("reference derives its own comparisons; don't also pass pairs.")
+        if pvalues is not None:
+            raise ValueError("reference with pvalues is not supported yet.")
+        if reference not in categories:
+            raise ValueError(f"reference {reference!r} is not a category of {xCol!r}: {categories}.")
+        pairs = [(reference, c) for c in categories if c != reference]
 
     if pairs is not None and len(pairs) == 0:
         raise ValueError("pairs must not be empty when provided (pass pairs=None for an omnibus-only annotation).")
@@ -1066,8 +1191,29 @@ def add_comparisons(
                 {"g1": g1, "g2": g2, "pvalue": pval_lookup[frozenset((g1, g2))], "effectName": en, "effect": ev}
             )
 
+    # --- reference labels (no brackets) ---
+    if is_reference and pairs:
+        # A bare p-value above each non-reference mark, at that group's OWN data max (per-group,
+        # so groups of different magnitude each get a label sitting just above their data).
+        y_all = df[yCol].cast(pl.Float64)
+        y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
+        ref_pad, _, _ = _resolve_y_spacing(False, y_range, _opt("chartHeight"), yPad, None, None)
+        cw = chartWidth if chartWidth is not None else _opt("chartWidth")
+        fs = fontSize if fontSize is not None else _opt("fontSize")
+        for i, (_, g) in enumerate(pairs):
+            pval = pval_lookup[frozenset((reference, g))]
+            g_max = cast(float, df.filter(pl.col(xCol) == g)[yCol].cast(pl.Float64).max() or 0.0)
+            label = (
+                _format_asterisks(pval)
+                if labelStyle == "asterisks"
+                else _format_pvalue(pval, sigFigs=effective_sigfigs, notation=pair_notations[i])
+            )
+            annotation_layers.append(
+                _reference_label_layer(g, g_max + ref_pad, label, categories=categories, chartWidth=cw, fontSize=fs)
+            )
+
     # --- brackets ---
-    if pairs:
+    elif pairs:
         pair_styles = _resolve_bracket_styles(bracketStyle, pairs)
 
         if pvalues is not None:
