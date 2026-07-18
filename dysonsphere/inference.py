@@ -68,7 +68,7 @@ def _format_asterisks(p: float) -> str:
 # by `match=` tests in test_statistics.py) - keep them verbatim.
 
 
-def _resolve_method(test: str, post_hoc: str | None, pvalues: list[float] | None, is_omnibus: bool) -> str | None:
+def _resolve_method(test: str, post_hoc: str | None, pvalues: Any, is_omnibus: bool) -> str | None:
     """The comparison method: a post-hoc for omnibus, the test itself for pairwise, None for
     user-supplied p-values. Also the record's ``comparison_test`` (a pure alias)."""
     from .statistics import _POSTHOC_DEFAULTS
@@ -710,8 +710,10 @@ def _add_grouped_comparisons(
     # Explicit y control. `yStart` (brackets only) mirrors single-factor: the EXACT stack base -
     # a scalar for all categories, or a dict for a per-category base (partial - unlisted → auto).
     # It does NOT apply to reference mode (no stack); passing it there raises. `yPositions` is the
-    # exact per-comparison y (partial). Precedence: yPositions[key] > (yStart base OR auto base).
-    ypos_map = _normalize_grouped_map(yPositions, is_reference, "yPositions") if yPositions is not None else None
+    # exact y: a single number → flat (every annotation at that y); a dict → per-comparison (partial).
+    # Precedence: yPositions flat > yPositions[key] > (yStart base OR auto base).
+    ypos_flat = float(yPositions) if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool) else None
+    ypos_map = _normalize_grouped_map(yPositions, is_reference, "yPositions") if isinstance(yPositions, dict) else None
     if ypos_map is not None:
         unknown = set(ypos_map) - set(all_keys)
         if unknown:
@@ -751,8 +753,10 @@ def _add_grouped_comparisons(
                 else _format_pvalue(p, sigFigs=effective_sigfigs, notation=notation_val)
             )
             if is_reference:
-                # yPositions (exact) > the non-reference sub-bar's own data max + yPad.
-                if ypos_map is not None and key in ypos_map:
+                # yPositions flat > yPositions[key] > the non-reference sub-bar's own data max + yPad.
+                if ypos_flat is not None:
+                    y = ypos_flat
+                elif ypos_map is not None and key in ypos_map:
                     y = float(ypos_map[key])
                 else:
                     sub_max = cast(float, cdf.filter(pl.col(xoffset_col) == l2)[y_col].cast(pl.Float64).max() or 0.0)
@@ -772,8 +776,10 @@ def _add_grouped_comparisons(
                     )
                 )
             else:
-                # yPositions (exact) > (yStart base OR category max + yPad), then stack by yStep.
-                if ypos_map is not None and key in ypos_map:
+                # yPositions flat > yPositions[key] > (yStart base OR category max + yPad) + stack.
+                if ypos_flat is not None:
+                    y = ypos_flat
+                elif ypos_map is not None and key in ypos_map:
                     y = float(ypos_map[key])
                 else:
                     y = bracket_base + pair_level[pi] * yStep
@@ -831,7 +837,7 @@ def add_comparisons(
     reference: Any = None,
     xOffsetCol: str | None = None,
     xOffsetSort: list[str] | None = None,
-    yPositions: list[float] | dict[Any, Any] | None = None,
+    yPositions: float | list[float] | dict[Any, Any] | None = None,
     yStart: float | dict[Any, Any] | None = None,
     yStep: float | None = None,
     yPad: float | None = None,
@@ -909,11 +915,11 @@ def add_comparisons(
         ``correction`` adjusts them over all unique pairs. Ignored for pairwise
         ``test``.
     pvalues:
-        Pre-computed p-values - skips the test AND correction (they're final). **Single-
-        factor:** a list, one per pair in the same order. **Grouped (`xOffsetCol`):** a
-        **dict** keyed by ``(category, level)`` in reference mode or ``(category, (level1,
-        level2))`` (order-insensitive) in bracket mode, covering **every** comparison
-        (missing or unknown keys raise). Not yet supported with single-factor ``reference``.
+        Pre-computed p-values - skips the test AND correction (they're final). **Pairwise:**
+        a list, one per pair in the same order. **Reference mode:** a **dict** keyed by the
+        non-reference **group** (single-factor) or ``(category, level)`` (grouped). **Grouped
+        brackets:** a dict keyed by ``(category, (level1, level2))`` (order-insensitive). The
+        dict must cover **every** comparison; missing or unknown keys raise.
     correction:
         Multiple comparison correction: ``'bonferroni'``, ``'holm'``,
         ``'fdr_bh'`` (Benjamini-Hochberg), ``'fdr_by'`` (Benjamini-Yekutieli),
@@ -940,10 +946,10 @@ def add_comparisons(
         category of ``xCol``; with ``xOffsetCol`` (grouped mode) it is an xOffset
         **level**, compared within each x-category (one label per non-reference
         sub-bar). ``bracketStyle``/``reverse``/``tickHeight`` are inert here (no
-        bracket); ``yStart`` does not apply (no stack) and raises if set - use
-        ``yPositions`` to place labels explicitly. In grouped reference mode
-        ``pvalues``/``yPositions`` give explicit control (see those params); with
-        single-factor ``reference``, ``pvalues`` is not yet supported.
+        bracket); ``yStart`` does not apply (no stack) and raises if set. ``pvalues``
+        (a group-keyed dict) supplies precomputed p-values, and ``yPositions`` places
+        labels - a single number for a flat row, or a group-keyed dict per label (see
+        those params).
     xOffsetCol:
         **Grouped mode.** Column encoded as the chart's ``xOffset`` (the subgroup
         that splits each x-category into side-by-side bars, e.g. ``"condition"``
@@ -961,12 +967,13 @@ def add_comparisons(
         sort), or the shared scale reorders the bars. ``None`` (default) reads the
         data's first-appearance order.
     yPositions:
-        Explicit y positions (data units) for the annotations. **Single-factor:** a
-        list, one per pair in the same order (overrides all auto-stacking). **Grouped
-        (`xOffsetCol`):** a **dict** keyed by ``(category, level)`` in reference mode or
-        ``(category, (level1, level2))`` (order-insensitive) in bracket mode; may be
-        partial - listed comparisons use the given y, the rest fall back to auto. Beats
-        ``yStart``. Unknown keys raise.
+        Explicit y positions (data units) for the annotations. **A single number** puts
+        *every* annotation at that y - a flat row, handy for a tidy row of stars in
+        reference mode. **Pairwise:** a list, one per pair in order (overrides auto-stacking).
+        **Reference mode:** a **dict** keyed by the non-reference **group** (single-factor)
+        or ``(category, level)`` (grouped); partial - listed labels use the given y, the rest
+        fall back to auto. **Grouped brackets:** a dict keyed by ``(category, (level1,
+        level2))`` (order-insensitive), partial. Beats ``yStart``; unknown keys raise.
     yStart:
         The exact y (data units) of the lowest bracket - the stack base (levels rise from it
         by ``yStep``). Defaults to ``max(annotated groups) + yPad``. **Grouped (`xOffsetCol`)
@@ -1190,11 +1197,18 @@ def add_comparisons(
         )
 
     # Dict pvalues/yPositions/yStart are the grouped (xOffsetCol) form; single-factor takes scalars/lists.
-    if isinstance(pvalues, dict):
-        raise ValueError("a dict pvalues is for grouped mode (xOffsetCol); single-factor takes a list.")
-    if isinstance(yPositions, dict):
-        raise ValueError("a dict yPositions is for grouped mode (xOffsetCol); single-factor takes a list.")
-    if isinstance(yStart, dict):
+    # Reference mode is exempt: it uses a group-keyed dict (pvalues/yPositions) or a scalar (flat row),
+    # validated in the reference block below - so only guard these OUTSIDE reference mode.
+    if reference is None:
+        if isinstance(pvalues, dict):
+            raise ValueError(
+                "a dict pvalues is for grouped mode (xOffsetCol) or reference mode; pairwise takes a list."
+            )
+        if isinstance(yPositions, dict):
+            raise ValueError(
+                "a dict yPositions is for grouped mode (xOffsetCol) or reference mode; pairwise takes a list."
+            )
+    if isinstance(yStart, dict) and reference is None:
         raise ValueError("a dict yStart is for grouped mode (xOffsetCol); single-factor takes a number.")
 
     # Guard the categories footgun: brackets are positioned by the order/count of `categories`, so an
@@ -1226,17 +1240,40 @@ def add_comparisons(
             )
         if pairs is not None:
             raise ValueError("reference derives its own comparisons; don't also pass pairs.")
-        if pvalues is not None:
-            raise ValueError("reference with pvalues is not supported yet.")
+        if yStart is not None:
+            raise ValueError(
+                "yStart does not apply in reference mode; each label sits above its own mark. "
+                "Use yPositions for explicit label heights (a single number sets a flat row)."
+            )
         if reference not in categories:
             raise ValueError(f"reference {reference!r} is not a category of {xCol!r}: {categories}.")
         pairs = [(reference, c) for c in categories if c != reference]
+        non_ref = [c for c in categories if c != reference]
+        # Explicit p-values: a dict keyed by the non-reference GROUP (the single-factor analogue of
+        # grouped reference's (category, level) dict). Must cover every non-reference group exactly.
+        if pvalues is not None:
+            if not isinstance(pvalues, dict):
+                raise ValueError("reference pvalues must be a dict keyed by group (the non-reference category).")
+            missing = [g for g in non_ref if g not in pvalues]
+            if missing:
+                raise ValueError(f"pvalues is missing an entry for: {missing}.")
+            extra = [k for k in pvalues if k not in non_ref]
+            if extra:
+                raise ValueError(f"pvalues has entr(y/ies) not matching any group: {sorted(extra)}.")
+        # Explicit y: a single number → flat row (all labels at that y); a dict keyed by group →
+        # per-label (partial, unlisted → auto). A list is the bracket form and is rejected here.
+        if isinstance(yPositions, dict):
+            ypos_extra = [k for k in yPositions if k not in non_ref]
+            if ypos_extra:
+                raise ValueError(f"yPositions has entr(y/ies) not matching any group: {sorted(ypos_extra)}.")
+        elif isinstance(yPositions, list):
+            raise ValueError("reference yPositions must be a single number (flat row) or a dict keyed by group.")
 
     if pairs is not None and len(pairs) == 0:
         raise ValueError("pairs must not be empty when provided (pass pairs=None for an omnibus-only annotation).")
     if not is_omnibus and not pairs:
         raise ValueError("pairs is required for pairwise tests.")
-    if yPositions is not None and pairs is not None and len(yPositions) != len(pairs):
+    if isinstance(yPositions, list) and pairs is not None and len(yPositions) != len(pairs):
         raise ValueError(f"yPositions length ({len(yPositions)}) does not match pairs length ({len(pairs)})")
 
     annotation_layers: list[Any] = []
@@ -1303,6 +1340,10 @@ def add_comparisons(
             comparisons.append(
                 {"g1": g1, "g2": g2, "pvalue": pval_lookup[frozenset((g1, g2))], "effectName": en, "effect": ev}
             )
+    elif is_reference and isinstance(pvalues, dict):
+        # User p-values for reference mode: use them directly (test + correction skipped).
+        pval_lookup = {frozenset((reference, g)): pvalues[g] for _, g in (pairs or [])}
+        comparisons = [{"g1": reference, "g2": g, "pvalue": pvalues[g]} for _, g in (pairs or [])]
 
     # --- reference labels (no brackets) ---
     if is_reference and pairs:
@@ -1313,16 +1354,27 @@ def add_comparisons(
         ref_pad, _, _ = _resolve_y_spacing(False, y_range, _opt("chartHeight"), yPad, None, None)
         cw = chartWidth if chartWidth is not None else _opt("chartWidth")
         fs = fontSize if fontSize is not None else _opt("fontSize")
+        # yPositions: a number → flat row (every label at that y); a dict keyed by group → per-label
+        # (unlisted → auto); None → each above its own mark.
+        ypos_flat = (
+            float(yPositions) if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool) else None
+        )
         for i, (_, g) in enumerate(pairs):
             pval = pval_lookup[frozenset((reference, g))]
-            g_max = cast(float, df.filter(pl.col(xCol) == g)[yCol].cast(pl.Float64).max() or 0.0)
+            if ypos_flat is not None:
+                y = ypos_flat
+            elif isinstance(yPositions, dict) and g in yPositions:
+                y = float(yPositions[g])
+            else:
+                g_max = cast(float, df.filter(pl.col(xCol) == g)[yCol].cast(pl.Float64).max() or 0.0)
+                y = g_max + ref_pad
             label = (
                 _format_asterisks(pval)
                 if labelStyle == "asterisks"
                 else _format_pvalue(pval, sigFigs=effective_sigfigs, notation=pair_notations[i])
             )
             annotation_layers.append(
-                _reference_label_layer(g, g_max + ref_pad, label, categories=categories, chartWidth=cw, fontSize=fs)
+                _reference_label_layer(g, y, label, categories=categories, chartWidth=cw, fontSize=fs)
             )
 
     # --- brackets ---
@@ -1356,8 +1408,10 @@ def add_comparisons(
             "bracket" in pair_styles, y_range, _opt("chartHeight"), yPad, tickHeight, yStep
         )
 
-        if yPositions is not None:
-            final_y = list(yPositions)
+        if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool):
+            final_y = [float(yPositions)] * len(pairs)  # a single number → every bracket at that y
+        elif isinstance(yPositions, list):
+            final_y = [float(v) for v in yPositions]
         else:
             if yStart is None:
                 yStart = (
@@ -1370,7 +1424,8 @@ def add_comparisons(
 
             # Assign stacking levels via greedy interval scheduling (shorter spans sit lower).
             pair_levels = _stack_levels([(categories.index(g1), categories.index(g2)) for g1, g2 in pairs])
-            final_y = [yStart + pair_levels[i] * yStep for i in range(len(pairs))]
+            base = cast(float, yStart)  # single-factor: a dict yStart was rejected earlier
+            final_y = [base + pair_levels[i] * yStep for i in range(len(pairs))]
 
         for i, ((g1, g2), pval) in enumerate(zip(pairs, computed_pvalues)):
             annotation_layers.append(
