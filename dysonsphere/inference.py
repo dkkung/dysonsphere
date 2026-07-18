@@ -506,6 +506,34 @@ def _grouped_reference_label_layer(
     )
 
 
+def _grouped_key(cat: Any, l1: str, l2: str, is_reference: bool) -> Any:
+    """Internal lookup key for one grouped comparison. Reference mode keys by ``(category, level)``
+    (the non-reference level uniquely identifies it); bracket mode by ``(category, frozenset(pair))``
+    (order-insensitive, like single-factor pair matching)."""
+    return (cat, l2) if is_reference else (cat, frozenset((l1, l2)))
+
+
+def _grouped_desc(cat: Any, l1: str, l2: str, is_reference: bool) -> str:
+    """Human-readable descriptor of a grouped comparison, for error messages."""
+    return f"({cat!r}, {l2!r})" if is_reference else f"({cat!r}, ({l1!r}, {l2!r}))"
+
+
+def _normalize_grouped_map(mapping: Any, is_reference: bool, name: str) -> dict[Any, Any]:
+    """Normalise a user ``{(category, level|pair): value}`` dict to the internal ``_grouped_key``
+    scheme. Reference keys are ``(category, level)``; bracket keys ``(category, (l1, l2))``."""
+    if not isinstance(mapping, dict):
+        shape = "(category, level)" if is_reference else "(category, (level1, level2))"
+        raise ValueError(f"grouped {name} must be a dict keyed by {shape}, got {type(mapping).__name__}.")
+    out: dict[Any, Any] = {}
+    for key, val in mapping.items():
+        try:
+            cat, second = key
+        except (TypeError, ValueError):
+            raise ValueError(f"grouped {name} keys must be (category, level|pair) tuples, got {key!r}.") from None
+        out[(cat, second) if is_reference else (cat, frozenset(second))] = val
+    return out
+
+
 def _add_grouped_comparisons(
     df: pl.DataFrame,
     x_col: str,
@@ -514,6 +542,9 @@ def _add_grouped_comparisons(
     pairs: list[tuple[str, str]] | None,
     *,
     reference: Any,
+    pvalues: Any,
+    yStart: float | dict[Any, Any] | None,
+    yPositions: Any,
     xOffsetSort: list[str] | None,
     test: str,
     correction: str | None,
@@ -628,6 +659,25 @@ def _add_grouped_comparisons(
         }
         return float(funcs[test]())
 
+    # All comparison keys, in the category-major then pair order the loops use.
+    all_keys = [_grouped_key(cat, l1, l2, is_reference) for cat in categories for l1, l2 in pairs]
+
+    # Explicit p-values (a dict keyed by (category, level|pair)) skip the test AND correction, like
+    # the single-factor `pvalues` list. Must cover every comparison exactly (no missing, no extra).
+    pval_map = _normalize_grouped_map(pvalues, is_reference, "pvalues") if pvalues is not None else None
+    if pval_map is not None:
+        missing = [
+            _grouped_desc(cat, l1, l2, is_reference)
+            for cat in categories
+            for l1, l2 in pairs
+            if _grouped_key(cat, l1, l2, is_reference) not in pval_map
+        ]
+        if missing:
+            raise ValueError(f"pvalues is missing an entry for: {missing}.")
+        extra = set(pval_map) - set(all_keys)
+        if extra:
+            raise ValueError(f"pvalues has {len(extra)} entr(y/ies) not matching any comparison (check keys).")
+
     # p-values + effects, iterated category-major then pair (the layer loop matches this order).
     raw: list[float] = []
     effects: list[tuple[str | None, float]] = []
@@ -636,10 +686,12 @@ def _add_grouped_comparisons(
         for l1, l2 in pairs:
             a = cdf.filter(pl.col(xoffset_col) == l1)[y_col].to_numpy()
             b = cdf.filter(pl.col(xoffset_col) == l2)[y_col].to_numpy()
-            raw.append(_pval(a, b))
+            raw.append(_pval(a, b) if pval_map is None else float(pval_map[_grouped_key(cat, l1, l2, is_reference)]))
             effects.append(_pair_effect(a, b, parametric=parametric, paired=paired))
     m = nComparisons if nComparisons is not None else len(raw)
-    adj = _adjust(raw, correction, m) if correction else raw
+    # User-provided p-values are not corrected by us (they're final); computed ones honour `correction`.
+    effective_correction = None if pval_map is not None else correction
+    adj = raw if pval_map is not None else (_adjust(raw, correction, m) if correction else raw)
 
     # Stacking level per pair (identical for every category - same spans): shorter spans sit lower.
     lvl_idx = {lv: i for i, lv in enumerate(level_order)}
@@ -655,31 +707,63 @@ def _add_grouped_comparisons(
             desc_labels.append(f"{cat} ({lv})")
     descriptives = _describe_all(desc_groups, desc_labels)
 
+    # Explicit y control. `yStart` (brackets only) mirrors single-factor: the EXACT stack base -
+    # a scalar for all categories, or a dict for a per-category base (partial - unlisted → auto).
+    # It does NOT apply to reference mode (no stack); passing it there raises. `yPositions` is the
+    # exact per-comparison y (partial). Precedence: yPositions[key] > (yStart base OR auto base).
+    ypos_map = _normalize_grouped_map(yPositions, is_reference, "yPositions") if yPositions is not None else None
+    if ypos_map is not None:
+        unknown = set(ypos_map) - set(all_keys)
+        if unknown:
+            raise ValueError(f"yPositions has {len(unknown)} entr(y/ies) not matching any comparison (check keys).")
+    if yStart is not None:
+        if is_reference:
+            raise ValueError(
+                "yStart does not apply in reference mode; each label sits above its own mark. "
+                "Use yPositions for explicit label heights."
+            )
+        if isinstance(yStart, dict):
+            unknown_cats = set(yStart) - set(categories)
+            if unknown_cats:
+                raise ValueError(f"yStart has categor(y/ies) not in the data: {sorted(unknown_cats)}.")
+
+    def _cat_base(cat: Any, auto_base: float) -> float:
+        """The explicit bracket-stack base for a category (dict entry / scalar), or the auto base."""
+        if isinstance(yStart, dict):
+            return float(yStart[cat]) if cat in yStart else auto_base
+        return float(yStart) if yStart is not None else auto_base
+
     layers: list[Any] = []
     comparisons: list[dict[str, Any]] = []
     k = 0
     for cat in categories:
         cdf = df.filter(pl.col(x_col) == cat)
-        y_start = cast(float, cdf[y_col].cast(pl.Float64).max() or 0.0) + yPad
+        cat_max = cast(float, cdf[y_col].cast(pl.Float64).max() or 0.0)
+        bracket_base = _cat_base(cat, cat_max + yPad)  # brackets only; reference ignores yStart
         for pi, (l1, l2) in enumerate(pairs):
             p = adj[k]
             en, ev = effects[k]
             k += 1
+            key = _grouped_key(cat, l1, l2, is_reference)
             label = (
                 _format_asterisks(p)
                 if labelStyle == "asterisks"
                 else _format_pvalue(p, sigFigs=effective_sigfigs, notation=notation_val)
             )
             if is_reference:
-                # Label above the non-reference sub-bar (l2), at that sub-bar's OWN data max.
-                sub_max = cast(float, cdf.filter(pl.col(xoffset_col) == l2)[y_col].cast(pl.Float64).max() or 0.0)
+                # yPositions (exact) > the non-reference sub-bar's own data max + yPad.
+                if ypos_map is not None and key in ypos_map:
+                    y = float(ypos_map[key])
+                else:
+                    sub_max = cast(float, cdf.filter(pl.col(xoffset_col) == l2)[y_col].cast(pl.Float64).max() or 0.0)
+                    y = sub_max + yPad
                 layers.append(
                     _grouped_reference_label_layer(
                         x_col,
                         xoffset_col,
                         cat,
                         l2,
-                        sub_max + yPad,
+                        y,
                         label=label,
                         label_style=labelStyle,
                         categories=categories,
@@ -688,6 +772,11 @@ def _add_grouped_comparisons(
                     )
                 )
             else:
+                # yPositions (exact) > (yStart base OR category max + yPad), then stack by yStep.
+                if ypos_map is not None and key in ypos_map:
+                    y = float(ypos_map[key])
+                else:
+                    y = bracket_base + pair_level[pi] * yStep
                 layers.append(
                     _grouped_bracket_layer(
                         x_col,
@@ -695,7 +784,7 @@ def _add_grouped_comparisons(
                         cat,
                         l1,
                         l2,
-                        y_start + pair_level[pi] * yStep,
+                        y,
                         tick_height=tickHeight,
                         label=label,
                         bracket_style=bracketStyle,
@@ -717,8 +806,8 @@ def _add_grouped_comparisons(
         descriptives=descriptives,
         comparisons=comparisons,
         comparison_test=test,
-        correction=correction,
-        pvalues_provided=False,
+        correction=effective_correction,
+        pvalues_provided=pval_map is not None,
         data_checksum=frame_checksum(df),
     )
     marker = _emit_report(record, report, save)
@@ -736,14 +825,14 @@ def add_comparisons(
     *,
     test: str = "mannwhitneyu",
     postHoc: str | None = None,
-    pvalues: list[float] | None = None,
+    pvalues: list[float] | dict[Any, Any] | None = None,
     correction: str | None = None,
     nComparisons: int | None = None,
     reference: Any = None,
     xOffsetCol: str | None = None,
     xOffsetSort: list[str] | None = None,
-    yPositions: list[float] | None = None,
-    yStart: float | None = None,
+    yPositions: list[float] | dict[Any, Any] | None = None,
+    yStart: float | dict[Any, Any] | None = None,
     yStep: float | None = None,
     yPad: float | None = None,
     categories: list[Any] | None = None,
@@ -820,8 +909,11 @@ def add_comparisons(
         ``correction`` adjusts them over all unique pairs. Ignored for pairwise
         ``test``.
     pvalues:
-        Pre-computed p-values, one per pair in the same order. Skips all
-        statistical tests for the brackets when provided.
+        Pre-computed p-values - skips the test AND correction (they're final). **Single-
+        factor:** a list, one per pair in the same order. **Grouped (`xOffsetCol`):** a
+        **dict** keyed by ``(category, level)`` in reference mode or ``(category, (level1,
+        level2))`` (order-insensitive) in bracket mode, covering **every** comparison
+        (missing or unknown keys raise). Not yet supported with single-factor ``reference``.
     correction:
         Multiple comparison correction: ``'bonferroni'``, ``'holm'``,
         ``'fdr_bh'`` (Benjamini-Hochberg), ``'fdr_by'`` (Benjamini-Yekutieli),
@@ -848,7 +940,10 @@ def add_comparisons(
         category of ``xCol``; with ``xOffsetCol`` (grouped mode) it is an xOffset
         **level**, compared within each x-category (one label per non-reference
         sub-bar). ``bracketStyle``/``reverse``/``tickHeight`` are inert here (no
-        bracket). ``pvalues`` is not yet supported with ``reference``.
+        bracket); ``yStart`` does not apply (no stack) and raises if set - use
+        ``yPositions`` to place labels explicitly. In grouped reference mode
+        ``pvalues``/``yPositions`` give explicit control (see those params); with
+        single-factor ``reference``, ``pvalues`` is not yet supported.
     xOffsetCol:
         **Grouped mode.** Column encoded as the chart's ``xOffset`` (the subgroup
         that splits each x-category into side-by-side bars, e.g. ``"condition"``
@@ -866,12 +961,19 @@ def add_comparisons(
         sort), or the shared scale reorders the bars. ``None`` (default) reads the
         data's first-appearance order.
     yPositions:
-        Explicit y positions (data units) for each bracket, one per pair in
-        the same order. When provided, overrides all auto-stacking logic
-        (``yStart``, ``yStep``, ``yPad`` are ignored).
+        Explicit y positions (data units) for the annotations. **Single-factor:** a
+        list, one per pair in the same order (overrides all auto-stacking). **Grouped
+        (`xOffsetCol`):** a **dict** keyed by ``(category, level)`` in reference mode or
+        ``(category, (level1, level2))`` (order-insensitive) in bracket mode; may be
+        partial - listed comparisons use the given y, the rest fall back to auto. Beats
+        ``yStart``. Unknown keys raise.
     yStart:
-        Y position (data units) of the lowest bracket. Defaults to
-        ``max(y values for all annotated groups) + yPad``.
+        The exact y (data units) of the lowest bracket - the stack base (levels rise from it
+        by ``yStep``). Defaults to ``max(annotated groups) + yPad``. **Grouped (`xOffsetCol`)
+        brackets** additionally accept a **dict** keyed by category for a per-category base
+        (partial - unlisted categories use the auto base). **Does not apply to reference mode**
+        (there is no stack - each label sits above its own mark); passing it there raises. Use
+        ``yPositions`` for exact per-label heights.
     yStep:
         Vertical distance (data units) between stacking levels. Defaults to
         ``yPad * 1.75``, leaving clearance between a bracket's label and the
@@ -1076,6 +1178,9 @@ def add_comparisons(
             tickHeight=tickHeight,
             strokeWidth=strokeWidth,
             fontSize=fontSize,
+            pvalues=pvalues,
+            yStart=yStart,
+            yPositions=yPositions,
             yPad=yPad,
             yStep=yStep,
             categories=categories,
@@ -1083,6 +1188,14 @@ def add_comparisons(
             report=report,
             save=save,
         )
+
+    # Dict pvalues/yPositions/yStart are the grouped (xOffsetCol) form; single-factor takes scalars/lists.
+    if isinstance(pvalues, dict):
+        raise ValueError("a dict pvalues is for grouped mode (xOffsetCol); single-factor takes a list.")
+    if isinstance(yPositions, dict):
+        raise ValueError("a dict yPositions is for grouped mode (xOffsetCol); single-factor takes a list.")
+    if isinstance(yStart, dict):
+        raise ValueError("a dict yStart is for grouped mode (xOffsetCol); single-factor takes a number.")
 
     # Guard the categories footgun: brackets are positioned by the order/count of `categories`, so an
     # explicit list that doesn't cover the data's x-values (a typo or omission) mis-sizes the band

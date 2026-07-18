@@ -1554,3 +1554,113 @@ class TestReferenceMode:
         rec = next(iter(_st._REPORTS.values()))
         pairs = [(p["group1"], p["group2"]) for p in rec["comparisons"]["pairs"]]
         assert pairs == [("A (Veh)", "A (Drug)"), ("B (Veh)", "B (Drug)")]
+
+
+def _y_positions(layer):
+    """Rendered annotation y-coordinates (grouped label/bracket layers carry ``__y``)."""
+    ys: list[float] = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for row in node.get("data", {}).get("values", []) if isinstance(node.get("data"), dict) else []:
+                if isinstance(row, dict) and "__y" in row:
+                    ys.append(round(row["__y"], 3))
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(layer.to_dict())
+    return ys
+
+
+class TestGroupedManualOverrides:
+    """add_comparisons grouped mode: explicit pvalues / yStart / yPositions (dict-keyed)."""
+
+    @pytest.fixture
+    def gdf(self):
+        rng = np.random.default_rng(2)
+        genes = ["A", "B"]
+        lvls = ["Veh", "Low", "High"]
+        rows = [
+            {"gene": g, "cond": lv, "expr": rng.normal(b * m, 0.2)}
+            for g, b in zip(genes, (1.0, 2.0))
+            for lv, m in zip(lvls, (1.0, 1.4, 2.2))
+            for _ in range(8)
+        ]
+        return pl.DataFrame(rows), genes, lvls
+
+    def _call(self, gdf, **kw):
+        df, genes, lvls = gdf
+        return add_comparisons(df, "gene", "expr", xOffsetCol="cond", categories=genes, xOffsetSort=lvls, **kw)
+
+    def test_reference_pvalues_dict_used_and_uncorrected(self, gdf):
+        from dysonsphere import statistics as _st
+
+        _st._REPORTS.clear()
+        self._call(
+            gdf,
+            reference="Veh",
+            correction="holm",
+            pvalues={("A", "Low"): 0.5, ("A", "High"): 0.001, ("B", "Low"): 0.02, ("B", "High"): 1e-6},
+        )
+        rec = next(iter(_st._REPORTS.values()))
+        assert [round(p["pvalue"], 4) for p in rec["comparisons"]["pairs"]] == [0.5, 0.001, 0.02, 0.0]
+        assert rec["comparisons"]["correction"] is None  # provided p-values are not corrected
+
+    def test_bracket_pvalues_dict_order_insensitive(self, gdf):
+        from dysonsphere import statistics as _st
+
+        _st._REPORTS.clear()
+        self._call(gdf, pairs=[("Low", "High")], pvalues={("A", ("Low", "High")): 0.03, ("B", ("High", "Low")): 0.004})
+        rec = next(iter(_st._REPORTS.values()))
+        assert [round(p["pvalue"], 4) for p in rec["comparisons"]["pairs"]] == [0.03, 0.004]
+
+    def test_reference_ystart_raises(self, gdf):
+        # yStart has no meaning in reference mode (no stack); it raises rather than silently no-op.
+        with pytest.raises(ValueError, match="does not apply in reference mode"):
+            self._call(gdf, reference="Veh", yStart=9.0)
+
+    def test_bracket_ystart_scalar_is_exact_base(self, gdf):
+        # Brackets: an explicit scalar yStart is the exact stack base (not floor+yPad); the lowest
+        # bracket in every category sits exactly at yStart.
+        ys = _y_positions(self._call(gdf, pairs=[("Low", "High")], yStart=9.0))
+        assert min(ys) == 9.0  # single pair per category -> all at the base, exactly
+
+    def test_bracket_ystart_dict_per_category(self, gdf):
+        ys = sorted(set(_y_positions(self._call(gdf, pairs=[("Low", "High")], yStart={"A": 3.0, "B": 7.0}))))
+        assert ys == [3.0, 7.0]
+
+    def test_bracket_ystart_unknown_category_raises(self, gdf):
+        with pytest.raises(ValueError, match="not in the data"):
+            self._call(gdf, pairs=[("Low", "High")], yStart={"Z": 3.0})
+
+    def test_reference_ypositions_partial_fallback(self, gdf):
+        ys = _y_positions(self._call(gdf, reference="Veh", yPositions={("A", "Low"): 8.0}))
+        assert 8.0 in ys and len(ys) == 4  # one overridden, three auto
+
+    def test_missing_pvalue_raises(self, gdf):
+        with pytest.raises(ValueError, match="missing an entry"):
+            self._call(gdf, reference="Veh", pvalues={("A", "Low"): 0.5})
+
+    def test_unknown_pvalue_key_raises(self, gdf):
+        with pytest.raises(ValueError, match="not matching any comparison"):
+            self._call(
+                gdf,
+                reference="Veh",
+                pvalues={("A", "Low"): 0.1, ("A", "High"): 0.1, ("B", "Low"): 0.1, ("B", "High"): 0.1, ("Z", "x"): 0.1},
+            )
+
+    def test_unknown_yposition_key_raises(self, gdf):
+        with pytest.raises(ValueError, match="not matching any comparison"):
+            self._call(gdf, reference="Veh", yPositions={("Z", "x"): 5.0})
+
+    def test_list_pvalues_rejected_in_grouped(self, gdf):
+        with pytest.raises(ValueError, match="must be a dict"):
+            self._call(gdf, reference="Veh", pvalues=[0.1, 0.2, 0.3, 0.4])
+
+    def test_dict_pvalues_rejected_in_single_factor(self):
+        df = pl.DataFrame({"g": ["A"] * 8 + ["B"] * 8, "v": np.random.default_rng(0).normal(0, 1, 16)})
+        with pytest.raises(ValueError, match="for grouped mode"):
+            add_comparisons(df, "g", "v", pairs=[("A", "B")], categories=["A", "B"], pvalues={("A", "B"): 0.1})

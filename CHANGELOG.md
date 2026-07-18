@@ -12,8 +12,19 @@
   max, so overlay your points (strip/beeswarm) and they clear the data; distinguishing the reference
   visually (e.g. a darker fill) stays in your hands - nothing is injected into the chart. Works in
   grouped mode too: with `xOffsetCol` set, `reference` is an xOffset **level** compared within each
-  x-category (one label per non-reference sub-bar). `pvalues` with `reference` is not supported yet.
-  No new dependency.
+  x-category (one label per non-reference sub-bar). `pvalues` with single-factor `reference` is not
+  supported yet. No new dependency.
+- **Grouped `add_comparisons` (`xOffsetCol`) gains explicit `pvalues`, `yStart`, and `yPositions`.**
+  These were silently ignored on the grouped path; now they work (both brackets and reference
+  mode), keyed as a **dict** by `(category, level)` (reference) or `(category, (level1, level2))`
+  (brackets, order-insensitive) - clearer and less error-prone than a flat list whose order you'd
+  have to get exactly right. `pvalues` (a complete dict) supplies precomputed p-values, skipping the
+  test and correction; `yStart` (brackets) is the exact stack base like single-factor - a scalar for
+  all categories, or a dict keyed by category for a per-category base (it does not apply to reference
+  mode, where each label sits above its own mark, and raises if set there); `yPositions` (a partial
+  dict) sets the exact per-comparison height, with unlisted comparisons falling back to auto
+  placement. The single-factor list/scalar forms are unchanged (additive type widening); mismatched
+  forms raise a clear error.
 
 ### Internal
 
