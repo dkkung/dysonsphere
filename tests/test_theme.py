@@ -48,6 +48,11 @@ class TestThemeDefaults:
         theme(chartWidth=50, chartHeight=200)
         assert alt.theme.options["markSize"] == pytest.approx(5.0)
 
+    def test_circle_size_default(self):
+        theme(chartWidth=100, chartHeight=100)
+        # config.circle.size is markSize / 8 (markSize = min(w, h) * 0.1 = 10 here).
+        assert _dysonsphere_theme()["config"]["circle"]["size"] == pytest.approx(1.25)
+
     def test_mark_stroke_width_defaults_to_axis_width(self):
         theme(axisWidth=0.5)
         assert alt.theme.options["markStrokeWidth"] == pytest.approx(0.5)

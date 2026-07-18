@@ -33,6 +33,13 @@
   nothing. Dict/flat forms are additive type widening; the pairwise list forms are unchanged, and
   mismatched forms raise a clear error.
 
+### Changes
+
+- **Default `mark_circle` size increased to `markSize / 8`** (was `markSize / 20`). The overlay dot
+  at the old size rendered as a sub-1px pinprick that read faint over bars/boxplots/violins; the new
+  default is a legible dot while staying smaller than `config.point` / `config.square`. Override per
+  chart with `mark_circle(size=...)`.
+
 ### Internal
 
 - Deduplicated the `add_comparisons` / `add_correlation` internals in `inference.py` into shared
