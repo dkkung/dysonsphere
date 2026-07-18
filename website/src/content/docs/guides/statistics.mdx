@@ -26,12 +26,34 @@ multiple-comparison adjustment.
 
 <Example name="comparisons_pairwise" alt="Three pairwise Mann-Whitney brackets with Holm correction" />
 
+### Compare against a control
+
+Pass `reference=` (a group name) to compare every other group against one control and draw the
+p-value **above each mark, with no brackets** - the clean many-vs-one layout that a fan of brackets
+makes noisy. It derives its own comparisons (leave `pairs` unset), supports the pairwise tests, and
+corrects over the whole family. Labels sit above each group's data, so overlay your points and they
+clear the data; distinguishing the reference (a darker fill, etc.) stays in your hands. It also works
+in grouped mode - with `xOffsetCol` set, `reference` is an xOffset level compared within each
+category.
+
+<Example name="comparisons_reference" alt="Dose-response bars compared to a control with asterisks over each bar" />
+
+For full control you can supply the statistics and positions yourself: `pvalues=` (a dict keyed by
+group) draws precomputed p-values instead of running the test, and `yPositions=` places labels - a
+single number for a flat row, or a dict keyed by group to nudge individual labels.
+
 ### Label styles
 
 `labelStyle="asterisks"` renders `*` / `**` / `***` / `ns`; `bracketStyle="line"` drops the end
 ticks.
 
 <Example name="comparisons_asterisks" alt="Pairwise comparison with asterisk labels and line brackets" />
+
+`labelStyle="value"` renders the bare number - the same as `"p"` but without the `P` symbol (to save
+room), keeping a meaningful operator like `< 0.001` when the value floors. Here with `yPositions=` set
+to a single number, which aligns every label in a flat row:
+
+<Example name="comparisons_value" alt="Reference comparison with bare-value labels in a flat row" />
 
 ### Number notation
 
