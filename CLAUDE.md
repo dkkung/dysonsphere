@@ -99,7 +99,7 @@ Then **verify**, iterating (fix, rerun) until green:
 - `uv run pytest tests/` - all pass, zero skips/failures.
 
 Then **document** (prose the checks do not touch):
-4. Add a `CHANGELOG.md` entry under `[Unreleased]` for every user-visible change (features, changes, fixes) - entries land WITH the work, in the same PR; releases only finalize + date the section.
+4. Add a `CHANGELOG.md` entry under `[Unreleased]` for every notable change - entries land WITH the work, in the same PR; releases only finalize + date the section. User-visible changes go under `### New features` / `### Changes` / `### Fixes`; internal-only work (refactors, dedup, tooling with no public API or rendering change) goes under `### Internal`, kept separate so an upgrader can skim just the user-facing sections.
 5. Update `CLAUDE.md` if architecture, conventions, or design points changed.
 6. Update memories if there is non-obvious context worth persisting.
 
