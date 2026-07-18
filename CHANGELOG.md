@@ -4,6 +4,14 @@
 
 ### New features
 
+- **`add_rule(span=...)`: slice a reference line to a portion of its axis.** Pass a `(start, end)`
+  tuple to stop the line short of the plot edges - it spans only that range along its *running* axis
+  (the one it runs along, opposite of `axis`: x for a horizontal `axis="y"` rule, y for a vertical
+  `axis="x"` rule), mirroring `add_shade`. Bounds are **numeric** (data coordinates, sharing the base
+  scale) or **category names** (resolved to pixels via the band scale, needing the new `categories=`;
+  `flush=` extends an outermost category to the axis edge, like `add_shade`). A single `span` applies
+  to every value when `value` is a list, and a `label` anchors to the slice's ends instead of the
+  plot edge. No new dependency.
 - **`add_comparisons(labelStyle="value")`: bare p-value labels, no `P`.** A third label style
   alongside `"p"` and `"asterisks"`, rendering just the number to save room - the same as `"p"` but
   without the `P` symbol and the redundant `= ` (`P = 0.041` → `0.041`), while keeping a meaningful

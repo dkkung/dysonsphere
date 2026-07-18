@@ -463,31 +463,121 @@ class TestRuleLabelInset:
     # for free, so opened and closed look the same. Center anchors are untouched.
     def test_open_left_label_at_content_edge(self):
         theme(chartWidth=100, chartHeight=100)
-        perp_ch, perp_val, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
+        perp_ch, perp_anchor, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
         assert perp_ch == "x"
-        assert perp_val == 0  # flush with the content edge; the detached axis provides the gap
+        assert perp_anchor == {"value": 0}  # flush with the content edge; the detached axis provides the gap
 
     def test_closed_left_label_inset_by_axis_offset(self):
         theme(chartWidth=100, chartHeight=100, closed=True)
-        _, perp_val, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
-        assert perp_val == _opt("axisOffset")
+        _, perp_anchor, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
+        assert perp_anchor == {"value": _opt("axisOffset")}
 
     def test_closed_right_label_inset_from_right_edge(self):
         theme(chartWidth=100, chartHeight=100, closed=True)
-        _, perp_val, _ = _rule_label_geometry("y", "right", "top", 0, 0, 7, None)
-        assert perp_val == 100 - _opt("axisOffset")
+        _, perp_anchor, _ = _rule_label_geometry("y", "right", "top", 0, 0, 7, None)
+        assert perp_anchor == {"value": 100 - _opt("axisOffset")}
 
     def test_closed_center_label_not_inset(self):
         theme(chartWidth=100, chartHeight=100, closed=True)
-        _, perp_val, _ = _rule_label_geometry("y", "center", "top", 0, 0, 7, None)
-        assert perp_val == 50
+        _, perp_anchor, _ = _rule_label_geometry("y", "center", "top", 0, 0, 7, None)
+        assert perp_anchor == {"value": 50}
 
     def test_closed_vertical_rule_top_label_inset(self):
         # axis="x" top-anchored label insets off the (closed) top spine by axisOffset.
         theme(chartWidth=100, chartHeight=100, closed=True)
-        perp_ch, perp_val, _ = _rule_label_geometry("x", "top", "right", 0, 0, 7, None)
+        perp_ch, perp_anchor, _ = _rule_label_geometry("x", "top", "right", 0, 0, 7, None)
         assert perp_ch == "y"
-        assert perp_val == _opt("axisOffset")
+        assert perp_anchor == {"value": _opt("axisOffset")}
+
+
+class TestAddRuleSpan:
+    # span= slices a rule to a portion of its running axis (the axis it runs along, opposite of
+    # `axis`): numeric bounds -> data coords via alt.datum; category names -> pixels via band scale.
+    CATS = ["Control", "A", "B", "C", "D"]
+
+    def _enc(self, layer):
+        # encoding of a bare Chart, or of each layer of a LayerChart.
+        d = layer.to_dict()
+        return [lyr["encoding"] for lyr in d["layer"]] if "layer" in d else d["encoding"]
+
+    def test_numeric_span_horizontal_datum(self):
+        # axis="y" runs along x: span goes on x / x2 as data-coord datums.
+        enc = self._enc(add_rule(5.0, span=(2.0, 8.0)))
+        assert enc == {"y": {"datum": 5.0}, "x": {"datum": 2.0}, "x2": {"datum": 8.0}}
+
+    def test_numeric_span_vertical_datum(self):
+        # axis="x" runs along y: span goes on y / y2.
+        enc = self._enc(add_rule(5.0, axis="x", span=(2.0, 8.0)))
+        assert enc == {"x": {"datum": 5.0}, "y": {"datum": 2.0}, "y2": {"datum": 8.0}}
+
+    def test_no_span_omits_running_channel(self):
+        # Regression: without span, a horizontal rule has no x/x2 (spans full width).
+        enc = self._enc(add_rule(5.0))
+        assert enc == {"y": {"datum": 5.0}}
+
+    def test_category_span_resolves_to_pixels(self):
+        # String bounds resolve through the band scale to pixel values (like add_shade).
+        theme(chartWidth=100, chartHeight=100)
+        enc = self._enc(add_rule(5.0, span=("Control", "B"), categories=self.CATS))
+        assert enc["y"] == {"datum": 5.0}
+        assert "value" in enc["x"] and "value" in enc["x2"]
+        assert enc["x"]["value"] < enc["x2"]["value"]
+
+    def test_span_applies_to_every_value(self):
+        layers = self._enc(add_rule([3.0, 7.0], span=(2.0, 8.0)))
+        for lyr in layers:
+            assert lyr["x"] == {"datum": 2.0} and lyr["x2"] == {"datum": 8.0}
+
+    def test_label_anchors_to_span_end(self):
+        # A labelAlign="right" label on a sliced horizontal line sits at the slice's high end (x=8),
+        # not the chart edge; "left" sits at the low end (x=2).
+        r_enc = self._enc(add_rule(5.0, span=(2.0, 8.0), label="t", labelAlign="right"))
+        text_layer = next(e for e in r_enc if "text" in e)
+        assert text_layer["x"] == {"datum": 8.0}
+        l_enc = self._enc(add_rule(5.0, span=(2.0, 8.0), label="t", labelAlign="left"))
+        text_layer = next(e for e in l_enc if "text" in e)
+        assert text_layer["x"] == {"datum": 2.0}
+
+    def test_vertical_label_top_is_high_data_value(self):
+        # axis="x": "top" anchors to the visually-upper end = the larger data-y (8, not 1).
+        enc = self._enc(add_rule(3.0, axis="x", span=(1.0, 8.0), label="v", labelAlign="top"))
+        text_layer = next(e for e in enc if "text" in e)
+        assert text_layer["y"] == {"datum": 8.0}
+
+    def test_string_span_without_categories_raises(self):
+        with pytest.raises(ValueError, match="categories is required"):
+            add_rule(5.0, span=("Control", "B"))
+
+    def test_mixed_span_bounds_raise(self):
+        with pytest.raises(ValueError, match="both be numbers or both be category names"):
+            add_rule(5.0, span=("Control", 8.0), categories=self.CATS)  # ty: ignore[invalid-argument-type]
+
+    def test_unknown_category_raises(self):
+        with pytest.raises(ValueError, match="not in categories"):
+            add_rule(5.0, span=("Control", "Z"), categories=self.CATS)
+
+    def test_span_wrong_length_raises(self):
+        with pytest.raises(ValueError, match="start, end"):
+            add_rule(5.0, span=(2.0, 4.0, 8.0))  # ty: ignore[invalid-argument-type]
+
+    def test_span_preserves_base_axis_titles(self):
+        # A sliced rule must not clobber the base chart's axis titles (datum-not-field).
+        import vl_convert as vlc
+
+        base = (
+            alt.Chart(pl.DataFrame({"a": [0.0, 5, 10], "b": [0.0, 5, 10]}))
+            .mark_point()
+            .encode(x=alt.X("a:Q", title="MyXTitle"), y=alt.Y("b:Q", title="MyYTitle"))
+        )
+        svg = vlc.vegalite_to_svg((base + add_rule(5.0, span=(2.0, 8.0), label="s")).to_dict())
+        assert "MyXTitle" in svg and "MyYTitle" in svg
+
+    def test_span_facet_safe_data_mode_renders(self):
+        # span works in the datum (data=) facet-safe path too.
+        df = pl.DataFrame({"a": [0.0, 5, 10], "b": [0.0, 5, 10]})
+        layer = add_rule(5.0, span=(2.0, 8.0), data=df)
+        layer.to_dict()  # must not raise
+        assert layer.to_dict()["encoding"]["x"] == {"datum": 2.0}
 
 
 class TestAddText:
