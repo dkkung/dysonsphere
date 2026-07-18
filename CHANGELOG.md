@@ -4,6 +4,11 @@
 
 ### New features
 
+- **`add_comparisons(labelStyle="value")`: bare p-value labels, no `P`.** A third label style
+  alongside `"p"` and `"asterisks"`, rendering just the number to save room - the same as `"p"` but
+  without the `P` symbol and the redundant `= ` (`P = 0.041` → `0.041`), while keeping a meaningful
+  operator (`< 0.001` when the value floors, `≈ 10⁻⁵` under `notation="power"`). `notation=` still
+  applies. Useful where `P = …` labels crowd each other, e.g. a row of many-vs-control comparisons.
 - **`add_comparisons(reference=...)`: compare every group against one control, no brackets.** Passing
   `reference` (a group name) compares each other group to it and draws the p-value **above each
   non-reference mark** - the clean many-vs-one / control layout that a fan of brackets makes noisy.

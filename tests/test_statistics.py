@@ -63,6 +63,14 @@ class TestFormatPvalue:
         assert _format_pvalue(0.0009) == "P < 0.001"  # below → floored
         assert _format_pvalue(0.0009, 5) == "P < 0.001"  # sigFigs doesn't move the floor
 
+    def test_symbol_false_drops_p_and_equals(self):
+        # labelStyle="value": no "P", no redundant "= ", but keep a meaningful operator.
+        assert _format_pvalue(0.041, symbol=False) == "0.041"  # bare value
+        assert _format_pvalue(4e-7, symbol=False) == "< 0.001"  # floored → keep "<"
+        assert _format_pvalue(1.23e-5, notation="scientific", symbol=False) == "1.23×10⁻⁵"
+        assert _format_pvalue(1.23e-5, notation="e", symbol=False) == "1.23e-05"
+        assert _format_pvalue(1e-5, notation="power", symbol=False) == "≈ 10⁻⁵"  # power keeps "≈"
+
 
 class TestFormatPvalueNotation:
     def test_scientific(self):
@@ -1587,6 +1595,22 @@ class TestReferenceMode:
             add_comparisons(
                 dose_df, "group", "value", reference="Ctrl", categories=["Ctrl", "Low", "Mid", "High"], yStart=9.0
             )
+
+    def test_labelstyle_value_renders_bare_numbers(self, dose_df):
+        # labelStyle="value" drops "P =" but keeps "<" on floored values.
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        layer = add_comparisons(
+            dose_df,
+            "group",
+            "value",
+            reference="Ctrl",
+            categories=cats,
+            pvalues={"Low": 0.041, "Mid": 0.0023, "High": 7e-6},
+            labelStyle="value",
+        )
+        labels = _ref_labels(layer)
+        assert "0.041" in labels and "0.0023" in labels and "< 0.001" in labels
+        assert not any(lbl.startswith("P") for lbl in labels)
 
     def test_rejects_reference_with_xoffsetcol_omnibus_only(self, dose_df):
         # reference + xOffsetCol is now grouped-reference (not an error); a bad reference level errors.

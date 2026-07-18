@@ -31,25 +31,37 @@ def _superscript(n: int) -> str:
     return sign + "".join(_SUP[int(d)] for d in str(abs(n)))
 
 
-def _format_pvalue(p: float, sigFigs: int = 3, notation: str | None = None) -> str:
+def _format_pvalue(p: float, sigFigs: int = 3, notation: str | None = None, symbol: bool = True) -> str:
     # `sigFigs` sets the significant-figure precision; `%g` gives that and strips trailing
     # zeros. Plain notation floors at a fixed 0.001 convention (`P < 0.001`); scientific/e/
-    # power never floor (they represent any magnitude at `sigFigs` figures).
+    # power never floor (they represent any magnitude at `sigFigs` figures). `symbol=False`
+    # (labelStyle="value") drops the "P" symbol AND the redundant "= ", but keeps a MEANINGFUL
+    # operator - "< " (the flooring convention) and "≈ " (power's nearest-power rounding).
+    lead = "P " if symbol else ""  # the statistical symbol
+    eq = "= " if symbol else ""  # the equals is redundant once the symbol is gone
     if notation is None:
         if p < 0.001:
-            return "P < 0.001"
-        return f"P = {p:.{sigFigs}g}"
+            return f"{lead}< 0.001"
+        return f"{lead}{eq}{p:.{sigFigs}g}"
     if notation == "power":
         exp = round(math.log10(p))
-        return f"P ≈ 10{_superscript(exp)}"
+        return f"{lead}≈ 10{_superscript(exp)}"
     # scientific / e share the mantissa (at `sigFigs` sig figs) and exponent.
     exp = math.floor(math.log10(p))
     mantissa = f"{p / 10**exp:.{sigFigs}g}"
     if notation == "scientific":
-        return f"P = {mantissa}×10{_superscript(exp)}"
+        return f"{lead}{eq}{mantissa}×10{_superscript(exp)}"
     if notation == "e":
-        return f"P = {mantissa}e{exp:+03d}"
+        return f"{lead}{eq}{mantissa}e{exp:+03d}"
     raise ValueError(f"notation must be 'power', 'scientific', or 'e', got {notation!r}")
+
+
+def _format_label(p: float, label_style: str, sigFigs: int, notation: str | None) -> str:
+    """Render one comparison's on-plot label: asterisks, ``P = …`` ("p"), or the bare value
+    without the "P" symbol ("value")."""
+    if label_style == "asterisks":
+        return _format_asterisks(p)
+    return _format_pvalue(p, sigFigs=sigFigs, notation=notation, symbol=(label_style != "value"))
 
 
 def _format_asterisks(p: float) -> str:
@@ -243,11 +255,7 @@ def _pvalue_layer(
     if correction == "bonferroni" and test != "tukey_hsd":
         pvalue = min(pvalue * n_comparisons, 1.0)
 
-    label = (
-        _format_asterisks(pvalue)
-        if label_style == "asterisks"
-        else _format_pvalue(pvalue, sigFigs=sigFigs, notation=notation)
-    )
+    label = _format_label(pvalue, label_style, sigFigs, notation)
 
     # --- y position ---
     if y is None:
@@ -629,8 +637,8 @@ def _add_grouped_comparisons(
     _valid_tests = {"mannwhitneyu", "ttest_ind", "ttest_rel", "wilcoxon"}
     if test not in _valid_tests:
         raise ValueError(f"grouped comparisons (xOffsetCol) support {sorted(_valid_tests)}, got {test!r}.")
-    if labelStyle not in ("p", "asterisks"):
-        raise ValueError(f"labelStyle must be 'p' or 'asterisks', got {labelStyle!r}.")
+    if labelStyle not in ("p", "asterisks", "value"):
+        raise ValueError(f"labelStyle must be 'p', 'asterisks', or 'value', got {labelStyle!r}.")
     if not isinstance(bracketStyle, str) or bracketStyle not in ("bracket", "line"):
         raise ValueError(f"grouped comparisons take bracketStyle 'bracket' or 'line', got {bracketStyle!r}.")
     notation_val = notation if not isinstance(notation, dict) else None
@@ -747,11 +755,7 @@ def _add_grouped_comparisons(
             en, ev = effects[k]
             k += 1
             key = _grouped_key(cat, l1, l2, is_reference)
-            label = (
-                _format_asterisks(p)
-                if labelStyle == "asterisks"
-                else _format_pvalue(p, sigFigs=effective_sigfigs, notation=notation_val)
-            )
+            label = _format_label(p, labelStyle, effective_sigfigs, notation_val)
             if is_reference:
                 # yPositions flat > yPositions[key] > the non-reference sub-bar's own data max + yPad.
                 if ypos_flat is not None:
@@ -1007,7 +1011,10 @@ def add_comparisons(
         ``'bracket'``.
     labelStyle:
         ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'``
-        renders ``*`` / ``**`` / ``***`` / ``ns``.
+        renders ``*`` / ``**`` / ``***`` / ``ns``. ``'value'`` renders the bare
+        value to save room - the same as ``'p'`` but without the ``P`` symbol and
+        the redundant ``= `` (``0.012``), keeping a meaningful operator (``< 0.001``
+        when floored, ``≈ 10⁻⁵`` for ``notation='power'``). ``notation`` still applies.
     tickHeight:
         Height of bracket end ticks in data units. Defaults to the theme's
         ``tickSize`` (converted from px to data units), so bracket ticks match the
@@ -1368,11 +1375,7 @@ def add_comparisons(
             else:
                 g_max = cast(float, df.filter(pl.col(xCol) == g)[yCol].cast(pl.Float64).max() or 0.0)
                 y = g_max + ref_pad
-            label = (
-                _format_asterisks(pval)
-                if labelStyle == "asterisks"
-                else _format_pvalue(pval, sigFigs=effective_sigfigs, notation=pair_notations[i])
-            )
+            label = _format_label(pval, labelStyle, effective_sigfigs, pair_notations[i])
             annotation_layers.append(
                 _reference_label_layer(g, y, label, categories=categories, chartWidth=cw, fontSize=fs)
             )
