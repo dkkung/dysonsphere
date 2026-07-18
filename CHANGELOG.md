@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Internal
+
+- Deduplicated the `add_comparisons` / `add_correlation` internals in `inference.py` into shared
+  private helpers (`_resolve_method`, `_resolve_notation`, `_resolve_bracket_styles`,
+  `_check_coverage`, `_stack_levels`, `_resolve_y_spacing`, `_emit_report`), so the single-factor
+  and grouped paths share one implementation each. No public API or rendering change; also fixed a
+  latent `chartHeight == 0` guard drift between the two paths.
+
 ## [3.8.0] - 2026-07-15
 
 ### New features

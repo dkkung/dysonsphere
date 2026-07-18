@@ -9,6 +9,8 @@ from dysonsphere.inference import (
     _correlation_label,
     _format_asterisks,
     _format_pvalue,
+    _resolve_y_spacing,
+    _stack_levels,
     add_comparisons,
     add_correlation,
 )
@@ -1382,3 +1384,54 @@ class TestGroupedCorrelation:
     def test_ci_band_per_group(self, grouped_df):
         spec = add_correlation(grouped_df, "x", "y", groupCol="line", ci=True).to_dict()
         assert sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "area") == 3
+
+
+class TestStackLevels:
+    """Direct tests for the shared bracket-stacking helper (greedy interval scheduling)."""
+
+    def test_empty(self):
+        assert _stack_levels([]) == []
+
+    def test_disjoint_spans_share_level_zero(self):
+        # (0,1) and (2,3) don't overlap → both on level 0.
+        assert _stack_levels([(0, 1), (2, 3)]) == [0, 0]
+
+    def test_overlap_bumps_to_next_level(self):
+        # (0,2) and (1,3) overlap → the second must climb a level.
+        assert _stack_levels([(0, 2), (1, 3)]) == [0, 1]
+
+    def test_shorter_span_sits_lower(self):
+        # The wide (0,3) span is placed after the narrow (0,1) despite input order, so the
+        # narrow one takes level 0 and the wide one is bumped up.
+        assert _stack_levels([(0, 3), (0, 1)]) == [1, 0]
+
+    def test_orientation_agnostic(self):
+        # (lo, hi) may arrive reversed; the helper normalises with min/max.
+        assert _stack_levels([(3, 0), (0, 1)]) == [1, 0]
+
+    def test_nested_span_overlaps(self):
+        # A span fully containing another still counts as overlapping → separate levels.
+        assert _stack_levels([(0, 4), (1, 2)]) == [1, 0]
+
+
+class TestResolveYSpacing:
+    """Direct tests for the shared y-spacing resolver."""
+
+    def test_none_args_resolved_from_extent(self):
+        # bracket gap = 10 px * y_range / chartHeight; y_step = 1.75 * y_pad.
+        y_pad, tick, y_step = _resolve_y_spacing(True, 20.0, 100.0, None, None, None)
+        assert y_pad == pytest.approx(10.0 * 20.0 / 100.0)
+        assert y_step == pytest.approx(y_pad * 1.75)
+        assert tick > 0
+
+    def test_line_uses_smaller_gap(self):
+        bracket_pad = _resolve_y_spacing(True, 20.0, 100.0, None, None, None)[0]
+        line_pad = _resolve_y_spacing(False, 20.0, 100.0, None, None, None)[0]
+        assert line_pad == pytest.approx(bracket_pad * 0.8)
+
+    def test_explicit_values_pass_through(self):
+        assert _resolve_y_spacing(True, 20.0, 100.0, 5.0, 0.3, 9.0) == (5.0, 0.3, 9.0)
+
+    def test_zero_chart_height_guarded(self):
+        # No division by zero; auto pad/tick collapse to 0, y_step follows.
+        assert _resolve_y_spacing(True, 20.0, 0.0, None, None, None) == (0.0, 0.0, 0.0)

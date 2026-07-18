@@ -62,6 +62,134 @@ def _format_asterisks(p: float) -> str:
     return "ns"
 
 
+# --- shared resolvers for add_comparisons / _add_grouped_comparisons ---------------------------
+# Extracted so the single-factor and grouped paths share one implementation (they had drifted -
+# see the y-spacing chart_height guard). Pure functions; error messages are load-bearing (pinned
+# by `match=` tests in test_statistics.py) - keep them verbatim.
+
+
+def _resolve_method(test: str, post_hoc: str | None, pvalues: list[float] | None, is_omnibus: bool) -> str | None:
+    """The comparison method: a post-hoc for omnibus, the test itself for pairwise, None for
+    user-supplied p-values. Also the record's ``comparison_test`` (a pure alias)."""
+    from .statistics import _POSTHOC_DEFAULTS
+
+    if pvalues is not None:
+        return None
+    if is_omnibus:
+        return post_hoc if post_hoc is not None else _POSTHOC_DEFAULTS[test]
+    return test
+
+
+def _resolve_notation(
+    notation: str | dict[Any, Any] | None, pairs: list[tuple[str, str]] | None
+) -> tuple[str | None, list[str | None]]:
+    """Return ``(test_notation, pair_notations)``. A scalar applies everywhere; a dict is per-pair
+    (order-insensitive keys, unlisted → plain None) plus an optional ``"test"`` key for the
+    omnibus/test label."""
+    if isinstance(notation, dict):
+        valid = {None, "scientific", "e", "power"}
+        bad_vals = [v for v in notation.values() if v not in valid]
+        if bad_vals:
+            raise ValueError(f"notation dict values must be None/'scientific'/'e'/'power', got {bad_vals}")
+        bad_keys = [k for k in notation if isinstance(k, str) and k != "test"]
+        if bad_keys:
+            raise ValueError(f"notation dict string keys must be 'test', got {sorted(bad_keys)}")
+        pair_map = {frozenset(k): v for k, v in notation.items() if not isinstance(k, str)}
+        return notation.get("test"), [pair_map.get(frozenset(p)) for p in (pairs or [])]
+    return notation, [notation] * len(pairs or [])
+
+
+def _resolve_bracket_styles(bracket_style: str | dict[Any, Any], pairs: list[tuple[str, str]]) -> list[str]:
+    """Per-pair bracket style: a string applies to all; a dict maps a pair (order-insensitive) to
+    its style, with ``"bracket"`` as the fallback for unlisted pairs."""
+    valid = {"line", "bracket"}
+    if isinstance(bracket_style, dict):
+        bad = set(bracket_style.values()) - valid
+        if bad:
+            raise ValueError(f"bracketStyle dict values must be 'line' or 'bracket', got {sorted(bad)}")
+        style_map = {frozenset(k): v for k, v in bracket_style.items()}
+        return [style_map.get(frozenset(p), "bracket") for p in pairs]
+    if bracket_style not in valid:
+        raise ValueError(f"bracketStyle must be 'line', 'bracket', or a dict, got {bracket_style!r}")
+    return [bracket_style] * len(pairs)
+
+
+def _check_coverage(
+    df: pl.DataFrame, col: str, values: list[Any] | None, param_name: str, noun: str, tail: str
+) -> None:
+    """Raise if an explicit ordering ``values`` for ``param_name`` omits any value present in
+    ``df[col]`` - a guaranteed mis-position of the band geometry / shared-scale reorder. No-op
+    when ``values`` is None (the caller supplies its own default order). ``noun``/``tail`` carry
+    the exact per-param message wording."""
+    if values is None:
+        return
+    missing = set(df[col].unique().to_list()) - set(values)
+    if missing:
+        raise ValueError(f"{param_name} is missing {col!r} {noun} present in the data: {sorted(missing)}. {tail}")
+
+
+def _stack_levels(spans: list[tuple[int, int]]) -> list[int]:
+    """Assign a stacking level to each ``(lo, hi)`` index span via greedy interval scheduling:
+    shorter spans first (so narrow brackets sit lower), each placed on the lowest level whose
+    occupants it doesn't overlap. Returns the level per span, in input order."""
+    order = sorted(range(len(spans)), key=lambda i: abs(spans[i][1] - spans[i][0]))
+    levels: list[list[tuple[int, int]]] = []
+    result = [0] * len(spans)
+    for i in order:
+        lo, hi = min(spans[i]), max(spans[i])
+        for level_idx, occupied in enumerate(levels):
+            if not any(not (hi < occ_lo or lo > occ_hi) for occ_lo, occ_hi in occupied):
+                occupied.append((lo, hi))
+                result[i] = level_idx
+                break
+        else:
+            levels.append([(lo, hi)])
+            result[i] = len(levels) - 1
+    return result
+
+
+def _resolve_y_spacing(
+    any_bracket: bool,
+    y_range: float,
+    chart_height: float,
+    y_pad: float | None,
+    tick_height: float | None,
+    y_step: float | None,
+) -> tuple[float, float, float]:
+    """Resolve the auto ``(y_pad, tick_height, y_step)`` for bracket stacking, each only when
+    None. The gap targets ~10 px for brackets / ~8 px for lines and the tick height matches the
+    theme ``tickSize``, both converted from px to data units via ``chart_height``; ``y_step`` is
+    ``1.75 * y_pad``. All three guard ``chart_height == 0``."""
+    if y_pad is None:
+        y_pad = (10.0 if any_bracket else 8.0) * y_range / chart_height if chart_height else 0.0
+    if tick_height is None:
+        tick_height = _opt("tickSize") * y_range / chart_height if chart_height else 0.0
+    if y_step is None:
+        y_step = y_pad * 1.75
+    return y_pad, tick_height, y_step
+
+
+def _emit_report(record: dict[str, Any], report: bool, save: bool | str) -> str:
+    """Register ``record`` for the export metadata and, if requested, print the rendered report
+    and/or write it to a timestamped ``.txt``. Returns the marker name tagged onto the layer."""
+    from datetime import datetime
+    from pathlib import Path
+
+    from .statistics import _register_report, _render_report
+
+    marker = _register_report(record)
+    if report or save:
+        report_text = _render_report(record)
+        if report:
+            print(report_text)
+        if save:
+            directory = Path(save) if isinstance(save, str) else Path.cwd()
+            directory.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+    return marker
+
+
 def _pvalue_layer(
     df: pl.DataFrame | None = None,
     x_col: str | None = None,
@@ -362,34 +490,33 @@ def _add_grouped_comparisons(
     per-category p-value from ``test`` (corrected over the whole family by ``correction``). A single
     record is registered, its comparisons labelled ``"<category> (<level>)"``.
     """
-    from datetime import datetime
-    from pathlib import Path
-
     from scipy import stats as _stats
 
-    from .statistics import _adjust, _describe_all, _make_record, _pair_effect, _register_report, _render_report
+    from .statistics import _adjust, _describe_all, _make_record, _pair_effect
     from .utils import frame_checksum
 
     # Guard the sort footgun: `categories`/`xOffsetSort` must match the chart's x/xOffset sort or the
     # shared scale silently reorders the bars. We can't see the chart to check the *order*, but an
     # explicit list that doesn't even COVER the data's values (a typo or omission) is a guaranteed
     # mismatch - catch it with a clear error instead of a mysterious reorder.
-    if categories is not None:
-        missing = set(df[x_col].unique().to_list()) - set(categories)
-        if missing:
-            raise ValueError(
-                f"categories is missing {x_col!r} values present in the data: {sorted(missing)}. "
-                "It must list every x-category, in the same order as your chart's x sort."
-            )
-    else:
+    _check_coverage(
+        df,
+        x_col,
+        categories,
+        "categories",
+        "values",
+        "It must list every x-category, in the same order as your chart's x sort.",
+    )
+    if categories is None:
         categories = sorted(df[x_col].unique().to_list())
-    if xOffsetSort is not None:
-        missing = set(df[xoffset_col].unique().to_list()) - set(xOffsetSort)
-        if missing:
-            raise ValueError(
-                f"xOffsetSort is missing {xoffset_col!r} levels present in the data: {sorted(missing)}. "
-                "It must list every xOffset level, in the same order as your chart's xOffset sort."
-            )
+    _check_coverage(
+        df,
+        xoffset_col,
+        xOffsetSort,
+        "xOffsetSort",
+        "levels",
+        "It must list every xOffset level, in the same order as your chart's xOffset sort.",
+    )
     level_order = (
         list(xOffsetSort) if xOffsetSort is not None else df[xoffset_col].unique(maintain_order=True).to_list()
     )
@@ -426,12 +553,9 @@ def _add_grouped_comparisons(
 
     y_all = df[y_col].cast(pl.Float64)
     y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
-    if yPad is None:
-        yPad = (10.0 if bracketStyle == "bracket" else 8.0) * y_range / chart_height if chart_height else 0.0
-    if tickHeight is None:
-        tickHeight = _opt("tickSize") * y_range / chart_height if chart_height else 0.0
-    if yStep is None:
-        yStep = yPad * 1.75
+    yPad, tickHeight, yStep = _resolve_y_spacing(
+        bracketStyle == "bracket", y_range, chart_height, yPad, tickHeight, yStep
+    )
 
     parametric = test in ("ttest_ind", "ttest_rel")
     paired = test == "ttest_rel"
@@ -460,19 +584,7 @@ def _add_grouped_comparisons(
 
     # Stacking level per pair (identical for every category - same spans): shorter spans sit lower.
     lvl_idx = {lv: i for i, lv in enumerate(level_order)}
-    order = sorted(range(len(pairs)), key=lambda i: abs(lvl_idx[pairs[i][1]] - lvl_idx[pairs[i][0]]))
-    occupied: list[list[tuple[int, int]]] = []
-    pair_level = [0] * len(pairs)
-    for i in order:
-        lo, hi = sorted((lvl_idx[pairs[i][0]], lvl_idx[pairs[i][1]]))
-        for li, occ in enumerate(occupied):
-            if not any(not (hi < ol or lo > oh) for ol, oh in occ):
-                occ.append((lo, hi))
-                pair_level[i] = li
-                break
-        else:
-            occupied.append([(lo, hi)])
-            pair_level[i] = len(occupied) - 1
+    pair_level = _stack_levels([(lvl_idx[l1], lvl_idx[l2]) for l1, l2 in pairs])
 
     # descriptives over every (category, level) subset
     desc_groups: list[Any] = []
@@ -532,16 +644,7 @@ def _add_grouped_comparisons(
         pvalues_provided=False,
         data_checksum=frame_checksum(df),
     )
-    marker = _register_report(record)
-    if report or save:
-        report_text = _render_report(record)
-        if report:
-            print(report_text)
-        if save:
-            directory = Path(save) if isinstance(save, str) else Path.cwd()
-            directory.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+    marker = _emit_report(record, report, save)
 
     if not layers:
         layers.append(_empty_layer())
@@ -831,19 +934,13 @@ def add_comparisons(
             test="ttest_ind", labelStyle="asterisks",
         )
     """
-    from datetime import datetime
-    from pathlib import Path
-
     from .statistics import (
         _OMNIBUS_TESTS,
         _PARAMETRIC_POSTHOC,
-        _POSTHOC_DEFAULTS,
         _TEST_DISPLAY,
         _describe_all,
         _make_record,
         _pair_effect,
-        _register_report,
-        _render_report,
         _run_omnibus,
     )
     from .utils import ensure_polars, frame_checksum
@@ -883,14 +980,15 @@ def add_comparisons(
     # explicit list that doesn't cover the data's x-values (a typo or omission) mis-sizes the band
     # geometry and silently shifts every bracket. Raise instead (mirrors the grouped path). The
     # order-vs-chart mismatch stays undetectable without the chart (documented).
-    if categories is not None:
-        missing = set(df[xCol].unique().to_list()) - set(categories)
-        if missing:
-            raise ValueError(
-                f"categories is missing {xCol!r} values present in the data: {sorted(missing)}. "
-                "It must list every x-category, in the same order as your chart's x sort."
-            )
-    else:
+    _check_coverage(
+        df,
+        xCol,
+        categories,
+        "categories",
+        "values",
+        "It must list every x-category, in the same order as your chart's x sort.",
+    )
+    if categories is None:
         categories = sorted(df[xCol].unique().to_list())
 
     is_omnibus = test in _OMNIBUS_TESTS
@@ -906,43 +1004,21 @@ def add_comparisons(
     annotation_layers: list[Any] = []
     omnibus_result = None
     comparisons: list[dict[str, Any]] = []
-    comparison_name: str | None = None
 
     if is_omnibus:
         omnibus_result = _run_omnibus(test, groups, categories)
 
     # --- resolve comparison method (a post-hoc for omnibus, the test itself for pairwise) ---
     idx = {c: i for i, c in enumerate(categories)}
-    method: str | None
-    if pvalues is not None:
-        method = None
-    elif is_omnibus:
-        method = postHoc if postHoc is not None else _POSTHOC_DEFAULTS[test]
-    else:
-        method = test
-    comparison_name = method
+    method = _resolve_method(test, postHoc, pvalues, is_omnibus)
     # tukey_hsd carries its own correction; explicit p-values aren't corrected by us.
     effective_correction = None if (method is None or method == "tukey_hsd") else correction
     # sigFigs: per-call overrides the theme default (3); governs on-plot label precision.
     effective_sigfigs = sigFigs if sigFigs is not None else _opt("sigFigs")
 
-    # Resolve notation: a scalar applies everywhere; a dict is per-pair for the brackets
-    # (order-insensitive keys, unlisted → plain) plus an optional "test" string key for the
-    # test/omnibus label. Pair notations are read below in the bracket loop.
-    if isinstance(notation, dict):
-        _valid_notations = {None, "scientific", "e", "power"}
-        bad_vals = [v for v in notation.values() if v not in _valid_notations]
-        if bad_vals:
-            raise ValueError(f"notation dict values must be None/'scientific'/'e'/'power', got {bad_vals}")
-        bad_keys = [k for k in notation if isinstance(k, str) and k != "test"]
-        if bad_keys:
-            raise ValueError(f"notation dict string keys must be 'test', got {sorted(bad_keys)}")
-        _notation_map = {frozenset(k): v for k, v in notation.items() if not isinstance(k, str)}
-        test_notation = notation.get("test")
-        pair_notations = [_notation_map.get(frozenset(p)) for p in (pairs or [])]
-    else:
-        test_notation = notation
-        pair_notations = [notation] * len(pairs or [])
+    # Notation: a scalar applies everywhere; a dict is per-pair for the brackets plus an optional
+    # "test" key for the omnibus/test label. Pair notations are read below in the bracket loop.
+    test_notation, pair_notations = _resolve_notation(notation, pairs)
 
     # --- unified test label: the omnibus result, or the pairwise/post-hoc test name ---
     # Position "auto" (default) → shown for omnibus (topLeft), hidden for pairwise.
@@ -992,19 +1068,7 @@ def add_comparisons(
 
     # --- brackets ---
     if pairs:
-        # Per-pair bracket style: a string applies to all; a dict maps a pair (order-
-        # insensitive, matched by frozenset) to its style, with "bracket" as the fallback.
-        _valid_styles = {"line", "bracket"}
-        if isinstance(bracketStyle, dict):
-            bad = set(bracketStyle.values()) - _valid_styles
-            if bad:
-                raise ValueError(f"bracketStyle dict values must be 'line' or 'bracket', got {sorted(bad)}")
-            _style_map = {frozenset(k): v for k, v in bracketStyle.items()}
-            pair_styles = [_style_map.get(frozenset(p), "bracket") for p in pairs]
-        else:
-            if bracketStyle not in _valid_styles:
-                raise ValueError(f"bracketStyle must be 'line', 'bracket', or a dict, got {bracketStyle!r}")
-            pair_styles = [bracketStyle] * len(pairs)
+        pair_styles = _resolve_bracket_styles(bracketStyle, pairs)
 
         if pvalues is not None:
             if len(pvalues) != len(pairs):
@@ -1024,14 +1088,14 @@ def add_comparisons(
         # groups - see below.)
         y_all = df[yCol].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
-        chart_height = _opt("chartHeight")
-        if yPad is None:
-            # Use the larger (bracket) gap if any pair is a bracket, so ticks clear the data.
-            yPad = (10.0 if "bracket" in pair_styles else 8.0) * y_range / chart_height
-        # Bracket end-tick height matches the theme's tickSize (px → data units). Always
-        # positive, so it no longer flips sign with a negative yStep (reverse brackets).
-        if tickHeight is None:
-            tickHeight = _opt("tickSize") * y_range / chart_height if chart_height else 0.0
+        # The gap is based on the FULL data extent, not just the compared groups: Vega fits the
+        # rendered domain to every group, and the visual gap is yStep * chartHeight / domain, so
+        # using only the annotated range collapses the brackets when an un-annotated group blows
+        # up the domain. (yStart still sits above the compared groups - see below.) Tick height
+        # matches the theme tickSize; always positive so it survives a negative yStep (reverse).
+        yPad, tickHeight, yStep = _resolve_y_spacing(
+            "bracket" in pair_styles, y_range, _opt("chartHeight"), yPad, tickHeight, yStep
+        )
 
         if yPositions is not None:
             final_y = list(yPositions)
@@ -1045,37 +1109,8 @@ def add_comparisons(
                     + yPad
                 )
 
-            if yStep is None:
-                # 1.75x the base gap between stacking levels - enough that a bracket's label
-                # (fontSize ~7 px, dy -4) clears the bracket above it, without the airy
-                # spacing 2x gave on charts whose rendered domain hugs the data extent.
-                yStep = yPad * 1.75
-
-            # Assign stacking levels via greedy interval scheduling.
-            # Shorter spans go to lower levels so narrow brackets sit closer to the data.
-            pair_indices = [(categories.index(g1), categories.index(g2)) for g1, g2 in pairs]
-            sort_order = sorted(
-                range(len(pairs)),
-                key=lambda i: abs(pair_indices[i][1] - pair_indices[i][0]),
-            )
-
-            levels: list[list[tuple[int, int]]] = []
-            pair_levels = [0] * len(pairs)
-
-            for i in sort_order:
-                lo, hi = min(pair_indices[i]), max(pair_indices[i])
-                placed = False
-                for level_idx, occupied in enumerate(levels):
-                    overlaps = any(not (hi < occ_lo or lo > occ_hi) for occ_lo, occ_hi in occupied)
-                    if not overlaps:
-                        occupied.append((lo, hi))
-                        pair_levels[i] = level_idx
-                        placed = True
-                        break
-                if not placed:
-                    levels.append([(lo, hi)])
-                    pair_levels[i] = len(levels) - 1
-
+            # Assign stacking levels via greedy interval scheduling (shorter spans sit lower).
+            pair_levels = _stack_levels([(categories.index(g1), categories.index(g2)) for g1, g2 in pairs])
             final_y = [yStart + pair_levels[i] * yStep for i in range(len(pairs))]
 
         for i, ((g1, g2), pval) in enumerate(zip(pairs, computed_pvalues)):
@@ -1106,21 +1141,12 @@ def add_comparisons(
         omnibus=omnibus_result,
         descriptives=_describe_all(groups, categories),
         comparisons=comparisons,
-        comparison_test=comparison_name,
+        comparison_test=method,
         correction=effective_correction,
         pvalues_provided=pvalues is not None,
         data_checksum=frame_checksum(df),
     )
-    marker = _register_report(record)
-    if report or save:
-        report_text = _render_report(record)
-        if report:
-            print(report_text)
-        if save:
-            directory = Path(save) if isinstance(save, str) else Path.cwd()
-            directory.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+    marker = _emit_report(record, report, save)
 
     if not annotation_layers:
         # no label and no brackets → report-only; return an invisible layer.
@@ -1198,13 +1224,10 @@ def _add_grouped_correlation(
     record is registered per group (tagged onto that group's first layer so ``save()`` finds them
     all); the readouts stack in the ``position`` corner, each in its group's colour.
     """
-    from datetime import datetime
-    from pathlib import Path
-
     import numpy as np
 
     from .annotations import _TEXT_PRESETS
-    from .statistics import _make_correlation_record, _ols_band, _register_report, _render_report, _run_correlation
+    from .statistics import _make_correlation_record, _ols_band, _run_correlation
     from .utils import frame_checksum
 
     fontSize = fontSize if fontSize is not None else _opt("fontSize")
@@ -1341,16 +1364,9 @@ def _add_grouped_correlation(
 
         # One record per group; tag it onto this group's first layer so save() matches all of them.
         record = _make_correlation_record(result, x_col, y_col, data_checksum=frame_checksum(gdf), group=g)
-        marker = _register_report(record)
+        marker = _emit_report(record, report, save)
         if g_layers:
             g_layers[0] = g_layers[0].properties(name=marker)
-        if report:
-            print(_render_report(record))
-        if save:
-            directory = Path(save) if isinstance(save, str) else Path.cwd()
-            directory.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            (directory / f"dysonsphere_report_{ts}.txt").write_text(_render_report(record) + "\n", encoding="utf-8")
         layers.extend(g_layers)
 
     if not layers:
@@ -1497,10 +1513,7 @@ def add_correlation(
             color="#c0392b", lineStyle={"strokeDash": [4, 2]},
         )
     """
-    from datetime import datetime
-    from pathlib import Path
-
-    from .statistics import _make_correlation_record, _ols_band, _register_report, _render_report, _run_correlation
+    from .statistics import _make_correlation_record, _ols_band, _run_correlation
     from .utils import ensure_polars, frame_checksum
 
     if verbose:  # shortcut for the fullest readout; overrides the individual toggles
@@ -1635,16 +1648,7 @@ def add_correlation(
 
     # Structured record → export metadata; printed/written on request.
     record = _make_correlation_record(result, xCol, yCol, data_checksum=frame_checksum(df))
-    marker = _register_report(record)
-    if report or save:
-        report_text = _render_report(record)
-        if report:
-            print(report_text)
-        if save:
-            directory = Path(save) if isinstance(save, str) else Path.cwd()
-            directory.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+    marker = _emit_report(record, report, save)
 
     if not layers:
         layers.append(_empty_layer())
