@@ -63,8 +63,9 @@ def _format_asterisks(p: float) -> str:
 
 
 # --- shared resolvers for add_comparisons / _add_grouped_comparisons ---------------------------
-# Extracted so the single-factor and grouped paths share one implementation. Pure functions;
-# error messages are load-bearing (pinned by `match=` tests in test_statistics.py) - keep verbatim.
+# Extracted so the single-factor and grouped paths share one implementation (they had drifted -
+# see the y-spacing chart_height guard). Pure functions; error messages are load-bearing (pinned
+# by `match=` tests in test_statistics.py) - keep them verbatim.
 
 
 def _resolve_method(test: str, post_hoc: str | None, pvalues: list[float] | None, is_omnibus: bool) -> str | None:
@@ -166,6 +167,27 @@ def _resolve_y_spacing(
     if y_step is None:
         y_step = y_pad * 1.75
     return y_pad, tick_height, y_step
+
+
+def _emit_report(record: dict[str, Any], report: bool, save: bool | str) -> str:
+    """Register ``record`` for the export metadata and, if requested, print the rendered report
+    and/or write it to a timestamped ``.txt``. Returns the marker name tagged onto the layer."""
+    from datetime import datetime
+    from pathlib import Path
+
+    from .statistics import _register_report, _render_report
+
+    marker = _register_report(record)
+    if report or save:
+        report_text = _render_report(record)
+        if report:
+            print(report_text)
+        if save:
+            directory = Path(save) if isinstance(save, str) else Path.cwd()
+            directory.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+    return marker
 
 
 def _pvalue_layer(
@@ -468,12 +490,9 @@ def _add_grouped_comparisons(
     per-category p-value from ``test`` (corrected over the whole family by ``correction``). A single
     record is registered, its comparisons labelled ``"<category> (<level>)"``.
     """
-    from datetime import datetime
-    from pathlib import Path
-
     from scipy import stats as _stats
 
-    from .statistics import _adjust, _describe_all, _make_record, _pair_effect, _register_report, _render_report
+    from .statistics import _adjust, _describe_all, _make_record, _pair_effect
     from .utils import frame_checksum
 
     # Guard the sort footgun: `categories`/`xOffsetSort` must match the chart's x/xOffset sort or the
@@ -625,16 +644,7 @@ def _add_grouped_comparisons(
         pvalues_provided=False,
         data_checksum=frame_checksum(df),
     )
-    marker = _register_report(record)
-    if report or save:
-        report_text = _render_report(record)
-        if report:
-            print(report_text)
-        if save:
-            directory = Path(save) if isinstance(save, str) else Path.cwd()
-            directory.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+    marker = _emit_report(record, report, save)
 
     if not layers:
         layers.append(_empty_layer())
@@ -924,9 +934,6 @@ def add_comparisons(
             test="ttest_ind", labelStyle="asterisks",
         )
     """
-    from datetime import datetime
-    from pathlib import Path
-
     from .statistics import (
         _OMNIBUS_TESTS,
         _PARAMETRIC_POSTHOC,
@@ -934,8 +941,6 @@ def add_comparisons(
         _describe_all,
         _make_record,
         _pair_effect,
-        _register_report,
-        _render_report,
         _run_omnibus,
     )
     from .utils import ensure_polars, frame_checksum
@@ -1141,16 +1146,7 @@ def add_comparisons(
         pvalues_provided=pvalues is not None,
         data_checksum=frame_checksum(df),
     )
-    marker = _register_report(record)
-    if report or save:
-        report_text = _render_report(record)
-        if report:
-            print(report_text)
-        if save:
-            directory = Path(save) if isinstance(save, str) else Path.cwd()
-            directory.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+    marker = _emit_report(record, report, save)
 
     if not annotation_layers:
         # no label and no brackets → report-only; return an invisible layer.
@@ -1228,13 +1224,10 @@ def _add_grouped_correlation(
     record is registered per group (tagged onto that group's first layer so ``save()`` finds them
     all); the readouts stack in the ``position`` corner, each in its group's colour.
     """
-    from datetime import datetime
-    from pathlib import Path
-
     import numpy as np
 
     from .annotations import _TEXT_PRESETS
-    from .statistics import _make_correlation_record, _ols_band, _register_report, _render_report, _run_correlation
+    from .statistics import _make_correlation_record, _ols_band, _run_correlation
     from .utils import frame_checksum
 
     fontSize = fontSize if fontSize is not None else _opt("fontSize")
@@ -1371,16 +1364,9 @@ def _add_grouped_correlation(
 
         # One record per group; tag it onto this group's first layer so save() matches all of them.
         record = _make_correlation_record(result, x_col, y_col, data_checksum=frame_checksum(gdf), group=g)
-        marker = _register_report(record)
+        marker = _emit_report(record, report, save)
         if g_layers:
             g_layers[0] = g_layers[0].properties(name=marker)
-        if report:
-            print(_render_report(record))
-        if save:
-            directory = Path(save) if isinstance(save, str) else Path.cwd()
-            directory.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            (directory / f"dysonsphere_report_{ts}.txt").write_text(_render_report(record) + "\n", encoding="utf-8")
         layers.extend(g_layers)
 
     if not layers:
@@ -1527,10 +1513,7 @@ def add_correlation(
             color="#c0392b", lineStyle={"strokeDash": [4, 2]},
         )
     """
-    from datetime import datetime
-    from pathlib import Path
-
-    from .statistics import _make_correlation_record, _ols_band, _register_report, _render_report, _run_correlation
+    from .statistics import _make_correlation_record, _ols_band, _run_correlation
     from .utils import ensure_polars, frame_checksum
 
     if verbose:  # shortcut for the fullest readout; overrides the individual toggles
@@ -1665,16 +1648,7 @@ def add_correlation(
 
     # Structured record → export metadata; printed/written on request.
     record = _make_correlation_record(result, xCol, yCol, data_checksum=frame_checksum(df))
-    marker = _register_report(record)
-    if report or save:
-        report_text = _render_report(record)
-        if report:
-            print(report_text)
-        if save:
-            directory = Path(save) if isinstance(save, str) else Path.cwd()
-            directory.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
+    marker = _emit_report(record, report, save)
 
     if not layers:
         layers.append(_empty_layer())
