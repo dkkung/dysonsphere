@@ -63,6 +63,14 @@ class TestFormatPvalue:
         assert _format_pvalue(0.0009) == "P < 0.001"  # below → floored
         assert _format_pvalue(0.0009, 5) == "P < 0.001"  # sigFigs doesn't move the floor
 
+    def test_symbol_false_drops_p_and_equals(self):
+        # labelStyle="value": no "P", no redundant "= ", but keep a meaningful operator.
+        assert _format_pvalue(0.041, symbol=False) == "0.041"  # bare value
+        assert _format_pvalue(4e-7, symbol=False) == "< 0.001"  # floored → keep "<"
+        assert _format_pvalue(1.23e-5, notation="scientific", symbol=False) == "1.23×10⁻⁵"
+        assert _format_pvalue(1.23e-5, notation="e", symbol=False) == "1.23e-05"
+        assert _format_pvalue(1e-5, notation="power", symbol=False) == "≈ 10⁻⁵"  # power keeps "≈"
+
 
 class TestFormatPvalueNotation:
     def test_scientific(self):
@@ -1435,3 +1443,344 @@ class TestResolveYSpacing:
     def test_zero_chart_height_guarded(self):
         # No division by zero; auto pad/tick collapse to 0, y_step follows.
         assert _resolve_y_spacing(True, 20.0, 0.0, None, None, None) == (0.0, 0.0, 0.0)
+
+
+def _ref_labels(layer):
+    """Pull the rendered p-value strings from reference-mode label layers (each rides a tiny
+    inline dataset with a ``label`` field, unlike add_text's ``value``-encoded labels)."""
+    found: list[str] = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for row in node.get("data", {}).get("values", []) if isinstance(node.get("data"), dict) else []:
+                if isinstance(row, dict):
+                    if "label" in row:
+                        found.append(row["label"])
+                    elif "__label" in row:
+                        found.append(row["__label"])
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(layer.to_dict())
+    return found
+
+
+class TestReferenceMode:
+    """add_comparisons(reference=...) - compare every group against one, bare label per mark."""
+
+    @pytest.fixture
+    def dose_df(self):
+        rng = np.random.default_rng(7)
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        return pl.DataFrame(
+            {
+                "group": [c for c in cats for _ in range(10)],
+                "value": np.concatenate([rng.normal(m, 0.6, 10) for m in (5.0, 5.4, 6.2, 7.2)]),
+            }
+        )
+
+    def test_one_label_per_non_reference_group(self, dose_df):
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        layer = add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=cats, test="ttest_ind")
+        # one label per non-reference category, none for the reference
+        assert len(_ref_labels(layer)) == len(cats) - 1
+
+    def test_record_has_only_reference_pairs(self, dose_df):
+        from dysonsphere import statistics as _st
+
+        _st._REPORTS.clear()
+        add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=["Ctrl", "Low", "Mid", "High"])
+        rec = next(iter(_st._REPORTS.values()))
+        pairs = [(p["group1"], p["group2"]) for p in rec["comparisons"]["pairs"]]
+        assert pairs == [("Ctrl", "Low"), ("Ctrl", "Mid"), ("Ctrl", "High")]
+
+    def test_correction_applies_over_family(self, dose_df):
+        from dysonsphere import statistics as _st
+
+        _st._REPORTS.clear()
+        add_comparisons(
+            dose_df, "group", "value", reference="Ctrl", categories=["Ctrl", "Low", "Mid", "High"], correction="holm"
+        )
+        rec = next(iter(_st._REPORTS.values()))
+        assert rec["comparisons"]["correction"] == "holm"
+
+    def test_rejects_omnibus(self, dose_df):
+        with pytest.raises(ValueError, match="omnibus"):
+            add_comparisons(dose_df, "group", "value", reference="Ctrl", test="anova")
+
+    def test_rejects_pairs_with_reference(self, dose_df):
+        with pytest.raises(ValueError, match="derives its own"):
+            add_comparisons(dose_df, "group", "value", reference="Ctrl", pairs=[("Ctrl", "Low")])
+
+    def test_rejects_unknown_reference(self, dose_df):
+        with pytest.raises(ValueError, match="not a category"):
+            add_comparisons(dose_df, "group", "value", reference="Nope", categories=["Ctrl", "Low", "Mid", "High"])
+
+    def _label_ys(self, layer):
+        """Single-factor reference labels carry a ``y`` field (unlike grouped's ``__y``)."""
+        ys: list[float] = []
+
+        def walk(node):
+            if isinstance(node, dict):
+                for row in node.get("data", {}).get("values", []) if isinstance(node.get("data"), dict) else []:
+                    if isinstance(row, dict) and "y" in row and "label" in row:
+                        ys.append(round(row["y"], 3))
+                for v in node.values():
+                    walk(v)
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v)
+
+        walk(layer.to_dict())
+        return ys
+
+    def test_pvalues_dict_used_and_uncorrected(self, dose_df):
+        from dysonsphere import statistics as _st
+
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        _st._REPORTS.clear()
+        add_comparisons(
+            dose_df,
+            "group",
+            "value",
+            reference="Ctrl",
+            categories=cats,
+            correction="holm",
+            pvalues={"Low": 0.5, "Mid": 0.01, "High": 1e-6},
+        )
+        rec = next(iter(_st._REPORTS.values()))
+        assert [round(p["pvalue"], 4) for p in rec["comparisons"]["pairs"]] == [0.5, 0.01, 0.0]
+        assert rec["comparisons"]["correction"] is None  # user p-values are not corrected
+
+    def test_pvalues_missing_and_extra_and_list_raise(self, dose_df):
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        with pytest.raises(ValueError, match="missing an entry"):
+            add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=cats, pvalues={"Low": 0.1})
+        with pytest.raises(ValueError, match="not matching any group"):
+            add_comparisons(
+                dose_df,
+                "group",
+                "value",
+                reference="Ctrl",
+                categories=cats,
+                pvalues={"Low": 0.1, "Mid": 0.1, "High": 0.1, "Z": 0.1},
+            )
+        with pytest.raises(ValueError, match="must be a dict keyed by group"):
+            add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=cats, pvalues=[0.1, 0.2, 0.3])
+
+    def test_ypositions_scalar_is_flat_row(self, dose_df):
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        layer = add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=cats, yPositions=9.0)
+        ys = self._label_ys(layer)
+        assert ys == [9.0, 9.0, 9.0]
+
+    def test_ypositions_dict_partial(self, dose_df):
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        layer = add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=cats, yPositions={"Mid": 9.0})
+        ys = self._label_ys(layer)
+        assert 9.0 in ys and len(ys) == 3 and len(set(ys)) == 3  # one pinned, two auto (distinct)
+
+    def test_ypositions_unknown_key_and_list_raise(self, dose_df):
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        with pytest.raises(ValueError, match="not matching any group"):
+            add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=cats, yPositions={"Z": 9.0})
+        with pytest.raises(ValueError, match="single number .* or a dict"):
+            add_comparisons(dose_df, "group", "value", reference="Ctrl", categories=cats, yPositions=[1.0, 2.0, 3.0])
+
+    def test_ystart_raises(self, dose_df):
+        with pytest.raises(ValueError, match="does not apply in reference mode"):
+            add_comparisons(
+                dose_df, "group", "value", reference="Ctrl", categories=["Ctrl", "Low", "Mid", "High"], yStart=9.0
+            )
+
+    def test_labelstyle_value_renders_bare_numbers(self, dose_df):
+        # labelStyle="value" drops "P =" but keeps "<" on floored values.
+        cats = ["Ctrl", "Low", "Mid", "High"]
+        layer = add_comparisons(
+            dose_df,
+            "group",
+            "value",
+            reference="Ctrl",
+            categories=cats,
+            pvalues={"Low": 0.041, "Mid": 0.0023, "High": 7e-6},
+            labelStyle="value",
+        )
+        labels = _ref_labels(layer)
+        assert "0.041" in labels and "0.0023" in labels and "< 0.001" in labels
+        assert not any(lbl.startswith("P") for lbl in labels)
+
+    def test_rejects_reference_with_xoffsetcol_omnibus_only(self, dose_df):
+        # reference + xOffsetCol is now grouped-reference (not an error); a bad reference level errors.
+        rng = np.random.default_rng(3)
+        genes = ["A", "B"]
+        lvls = ["Veh", "Low", "High"]
+        df = pl.DataFrame(
+            {
+                "gene": [g for g in genes for _ in lvls for _ in range(6)],
+                "cond": [lv for _ in genes for lv in lvls for _ in range(6)],
+                "expr": rng.normal(1.0, 0.2, len(genes) * len(lvls) * 6),
+            }
+        )
+        # valid grouped reference: 2 genes x 2 non-ref levels = 4 labels
+        layer = add_comparisons(
+            df, "gene", "expr", xOffsetCol="cond", reference="Veh", categories=genes, xOffsetSort=lvls, test="ttest_ind"
+        )
+        assert len(_ref_labels(layer)) == len(genes) * (len(lvls) - 1)
+        # bad reference level raises
+        with pytest.raises(ValueError, match="not a level"):
+            add_comparisons(df, "gene", "expr", xOffsetCol="cond", reference="Nope", categories=genes, xOffsetSort=lvls)
+
+    def test_grouped_record_labels_subgroups(self, dose_df):
+        from dysonsphere import statistics as _st
+
+        rng = np.random.default_rng(4)
+        genes = ["A", "B"]
+        lvls = ["Veh", "Drug"]
+        df = pl.DataFrame(
+            {
+                "gene": [g for g in genes for _ in lvls for _ in range(6)],
+                "cond": [lv for _ in genes for lv in lvls for _ in range(6)],
+                "expr": rng.normal(1.0, 0.2, len(genes) * len(lvls) * 6),
+            }
+        )
+        _st._REPORTS.clear()
+        add_comparisons(df, "gene", "expr", xOffsetCol="cond", reference="Veh", categories=genes, xOffsetSort=lvls)
+        rec = next(iter(_st._REPORTS.values()))
+        pairs = [(p["group1"], p["group2"]) for p in rec["comparisons"]["pairs"]]
+        assert pairs == [("A (Veh)", "A (Drug)"), ("B (Veh)", "B (Drug)")]
+
+
+def _y_positions(layer):
+    """Rendered annotation y-coordinates (grouped label/bracket layers carry ``__y``)."""
+    ys: list[float] = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for row in node.get("data", {}).get("values", []) if isinstance(node.get("data"), dict) else []:
+                if isinstance(row, dict) and "__y" in row:
+                    ys.append(round(row["__y"], 3))
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(layer.to_dict())
+    return ys
+
+
+class TestGroupedManualOverrides:
+    """add_comparisons grouped mode: explicit pvalues / yStart / yPositions (dict-keyed)."""
+
+    @pytest.fixture
+    def gdf(self):
+        rng = np.random.default_rng(2)
+        genes = ["A", "B"]
+        lvls = ["Veh", "Low", "High"]
+        rows = [
+            {"gene": g, "cond": lv, "expr": rng.normal(b * m, 0.2)}
+            for g, b in zip(genes, (1.0, 2.0))
+            for lv, m in zip(lvls, (1.0, 1.4, 2.2))
+            for _ in range(8)
+        ]
+        return pl.DataFrame(rows), genes, lvls
+
+    def _call(self, gdf, **kw):
+        df, genes, lvls = gdf
+        return add_comparisons(df, "gene", "expr", xOffsetCol="cond", categories=genes, xOffsetSort=lvls, **kw)
+
+    def test_reference_pvalues_dict_used_and_uncorrected(self, gdf):
+        from dysonsphere import statistics as _st
+
+        _st._REPORTS.clear()
+        self._call(
+            gdf,
+            reference="Veh",
+            correction="holm",
+            pvalues={("A", "Low"): 0.5, ("A", "High"): 0.001, ("B", "Low"): 0.02, ("B", "High"): 1e-6},
+        )
+        rec = next(iter(_st._REPORTS.values()))
+        assert [round(p["pvalue"], 4) for p in rec["comparisons"]["pairs"]] == [0.5, 0.001, 0.02, 0.0]
+        assert rec["comparisons"]["correction"] is None  # provided p-values are not corrected
+
+    def test_bracket_pvalues_dict_order_insensitive(self, gdf):
+        from dysonsphere import statistics as _st
+
+        _st._REPORTS.clear()
+        self._call(gdf, pairs=[("Low", "High")], pvalues={("A", ("Low", "High")): 0.03, ("B", ("High", "Low")): 0.004})
+        rec = next(iter(_st._REPORTS.values()))
+        assert [round(p["pvalue"], 4) for p in rec["comparisons"]["pairs"]] == [0.03, 0.004]
+
+    def test_reference_ystart_raises(self, gdf):
+        # yStart has no meaning in reference mode (no stack); it raises rather than silently no-op.
+        with pytest.raises(ValueError, match="does not apply in reference mode"):
+            self._call(gdf, reference="Veh", yStart=9.0)
+
+    def test_bracket_ystart_scalar_is_exact_base(self, gdf):
+        # Brackets: an explicit scalar yStart is the exact stack base (not floor+yPad); the lowest
+        # bracket in every category sits exactly at yStart.
+        ys = _y_positions(self._call(gdf, pairs=[("Low", "High")], yStart=9.0))
+        assert min(ys) == 9.0  # single pair per category -> all at the base, exactly
+
+    def test_bracket_ystart_dict_per_category(self, gdf):
+        ys = sorted(set(_y_positions(self._call(gdf, pairs=[("Low", "High")], yStart={"A": 3.0, "B": 7.0}))))
+        assert ys == [3.0, 7.0]
+
+    def test_bracket_ystart_unknown_category_raises(self, gdf):
+        with pytest.raises(ValueError, match="not in the data"):
+            self._call(gdf, pairs=[("Low", "High")], yStart={"Z": 3.0})
+
+    def test_reference_ypositions_partial_fallback(self, gdf):
+        ys = _y_positions(self._call(gdf, reference="Veh", yPositions={("A", "Low"): 8.0}))
+        assert 8.0 in ys and len(ys) == 4  # one overridden, three auto
+
+    def test_reference_ypositions_scalar_is_flat_row(self, gdf):
+        # A single number flattens every grouped-reference label to one height.
+        ys = _y_positions(self._call(gdf, reference="Veh", yPositions=10.0))
+        assert ys and all(y == 10.0 for y in ys)
+
+    def test_reference_ypositions_category_keyed_flat_row_per_category(self, gdf):
+        # A dict keyed by category → one flat row per category (each level in that category shares it).
+        ys = sorted(set(_y_positions(self._call(gdf, reference="Veh", yPositions={"A": 5.0, "B": 9.0}))))
+        assert ys == [5.0, 9.0]
+
+    def test_reference_ypositions_category_keyed_partial(self, gdf):
+        # Unlisted categories fall back to auto placement.
+        ys = _y_positions(self._call(gdf, reference="Veh", yPositions={"A": 5.0}))
+        assert ys.count(5.0) == 2 and any(y != 5.0 for y in ys)  # A's two labels pinned, B's auto
+
+    def test_ypositions_category_keyed_unknown_raises(self, gdf):
+        with pytest.raises(ValueError, match="not in the data"):
+            self._call(gdf, reference="Veh", yPositions={"Z": 5.0})
+
+    def test_ypositions_mixed_keys_raise(self, gdf):
+        with pytest.raises(ValueError, match="keys must be uniform"):
+            self._call(gdf, reference="Veh", yPositions={"A": 5.0, ("B", "Low"): 6.0})
+
+    def test_missing_pvalue_raises(self, gdf):
+        with pytest.raises(ValueError, match="missing an entry"):
+            self._call(gdf, reference="Veh", pvalues={("A", "Low"): 0.5})
+
+    def test_unknown_pvalue_key_raises(self, gdf):
+        with pytest.raises(ValueError, match="not matching any comparison"):
+            self._call(
+                gdf,
+                reference="Veh",
+                pvalues={("A", "Low"): 0.1, ("A", "High"): 0.1, ("B", "Low"): 0.1, ("B", "High"): 0.1, ("Z", "x"): 0.1},
+            )
+
+    def test_unknown_yposition_key_raises(self, gdf):
+        with pytest.raises(ValueError, match="not matching any comparison"):
+            self._call(gdf, reference="Veh", yPositions={("Z", "x"): 5.0})
+
+    def test_list_pvalues_rejected_in_grouped(self, gdf):
+        with pytest.raises(ValueError, match="must be a dict"):
+            self._call(gdf, reference="Veh", pvalues=[0.1, 0.2, 0.3, 0.4])
+
+    def test_dict_pvalues_rejected_in_single_factor(self):
+        df = pl.DataFrame({"g": ["A"] * 8 + ["B"] * 8, "v": np.random.default_rng(0).normal(0, 1, 16)})
+        with pytest.raises(ValueError, match="for grouped mode"):
+            add_comparisons(df, "g", "v", pairs=[("A", "B")], categories=["A", "B"], pvalues={("A", "B"): 0.1})

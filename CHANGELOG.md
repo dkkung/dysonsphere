@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+### New features
+
+- **`add_comparisons(labelStyle="value")`: bare p-value labels, no `P`.** A third label style
+  alongside `"p"` and `"asterisks"`, rendering just the number to save room - the same as `"p"` but
+  without the `P` symbol and the redundant `= ` (`P = 0.041` → `0.041`), while keeping a meaningful
+  operator (`< 0.001` when the value floors, `≈ 10⁻⁵` under `notation="power"`). `notation=` still
+  applies. Useful where `P = …` labels crowd each other, e.g. a row of many-vs-control comparisons.
+- **`add_comparisons(reference=...)`: compare every group against one control, no brackets.** Passing
+  `reference` (a group name) compares each other group to it and draws the p-value **above each
+  non-reference mark** - the clean many-vs-one / control layout that a fan of brackets makes noisy.
+  It derives its own comparisons (so leave `pairs` unset), supports the pairwise tests, and corrects
+  over the whole family of `len(categories) - 1` comparisons. Labels sit at each group's own data
+  max, so overlay your points (strip/beeswarm) and they clear the data; distinguishing the reference
+  visually (e.g. a darker fill) stays in your hands - nothing is injected into the chart. Works in
+  grouped mode too: with `xOffsetCol` set, `reference` is an xOffset **level** compared within each
+  x-category (one label per non-reference sub-bar). No new dependency.
+- **`add_comparisons` gains explicit `pvalues` / `yStart` / `yPositions` in reference and grouped
+  modes.** These were silently ignored on the grouped path (and unavailable in reference mode); now
+  they work. In **reference mode** they're keyed by the compared thing - `pvalues={group: p}`
+  (single-factor) or `{(category, level): p}` (grouped) supplies precomputed p-values (skipping the
+  test and correction). **`yPositions`** takes **a single number** (one global flat row), a dict keyed
+  by **group** (single-factor) or **`(category, level)`** (grouped) for per-label heights, or - in
+  grouped mode - a dict keyed by **category** for a flat row per category, each at its own height
+  (handy when categories span very different magnitudes); grouped brackets key by `(category, (l1,
+  l2))`. Dicts are partial (unlisted fall back to auto). **`yStart`** (brackets only) is the exact
+  stack base like single-factor - a scalar or
+  a dict keyed by category for a per-category base; it does not apply in reference mode (no stack)
+  and now **raises** if set there in either single-factor or grouped mode, rather than silently doing
+  nothing. Dict/flat forms are additive type widening; the pairwise list forms are unchanged, and
+  mismatched forms raise a clear error.
+
 ### Internal
 
 - Deduplicated the `add_comparisons` / `add_correlation` internals in `inference.py` into shared

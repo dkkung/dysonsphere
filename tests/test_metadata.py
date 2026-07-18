@@ -518,6 +518,10 @@ class TestReadLoad:
             "mark_violin": (ds.mark_violin(df, "g", "v", cats), {"g", "v"}),
             "mark_table": (ds.mark_table(df, cellColor={"v": "greens"}), {"g", "v"}),
             "add_comparisons": (box + ds.add_comparisons(df, "g", "v", [("A", "B")], categories=cats), {"g", "v"}),
+            "add_comparisons_reference": (
+                box + ds.add_comparisons(df, "g", "v", reference="A", categories=cats),
+                {"g", "v"},
+            ),
             "add_correlation": (pts + ds.add_correlation(dfx, "x", "y"), {"x", "y"}),
             "add_rule": (box + ds.add_rule(1.5, label="thr"), {"g", "v"}),
             "add_text": (box + ds.add_text("hi", position="topLeft"), {"g", "v"}),
