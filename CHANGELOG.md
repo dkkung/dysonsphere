@@ -62,6 +62,22 @@
   default is a legible dot while staying smaller than `config.point` / `config.square`. Override per
   chart with `mark_circle(size=...)`.
 
+### Fixes
+
+- **Exported SVGs now open with the correct font in Adobe Illustrator.** The theme font is a CSS
+  fallback stack (`Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif`) that browsers and
+  vl-convert resolve to Helvetica Neue, but Illustrator's SVG importer doesn't resolve CSS stacks -
+  it landed on plain Helvetica, and even aliases the spaced name `Helvetica Neue` to Helvetica as a
+  single value. A new SVG-only post-processor rewrites `font-family` to an Illustrator-resolvable
+  form: the space-free PostScript name (`HelveticaNeue`) as the primary, the trapping same-family
+  aliases (spaced `Helvetica Neue`, bare `Helvetica`) dropped, and the genuinely-different fallbacks
+  (`Arial, sans-serif`) kept - i.e. `HelveticaNeue, Arial, sans-serif`. So Illustrator now shows
+  Helvetica Neue on macOS (regular and the italic stat symbols alike), and every non-macOS consumer
+  that lacks Helvetica Neue (Windows Illustrator, Linux Inkscape, a raw SVG in a browser) still falls
+  back gracefully to Arial/sans-serif. The theme option, the JSON spec, and the browser-targeted HTML
+  export keep the original stack unchanged; only the SVG is rewritten. Single custom fonts (e.g.
+  `Courier New`) are untouched, since Illustrator resolves those fine on their own.
+
 ### Internal
 
 - Deduplicated the `add_comparisons` / `add_correlation` internals in `inference.py` into shared

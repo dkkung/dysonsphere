@@ -10,8 +10,10 @@ import pytest
 
 from dysonsphere.export import (
     _align_grid_to_content,
+    _fix_font_for_illustrator,
     _fix_superscript_labels,
     _flip_ticks_inward,
+    _illustrator_font_family,
     _italicize_stat_symbols,
     _layer_axes_to_front,
     _simplify_svg,
@@ -988,3 +990,58 @@ class TestItalicizeStatSymbols:
         save(chart, str(tmp_path / "italic"), format="svg", background=["light"])
         svg = (tmp_path / "italic.svg").read_text(encoding="utf-8")
         assert '<tspan font-style="italic">P</tspan>' in svg
+
+
+class TestFixFontForIllustrator:
+    THEME_STACK = "Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif"
+    FIXED = "HelveticaNeue, Arial, sans-serif"
+
+    def test_default_stack_uses_postscript_primary_keeps_fallbacks(self):
+        # Illustrator aliases the spaced "Helvetica Neue" (and its "Helvetica" prefix) to plain
+        # Helvetica; the despaced PostScript name resolves. Keep Arial/sans-serif for non-mac.
+        assert _illustrator_font_family(self.THEME_STACK) == self.FIXED
+
+    def test_prefix_alias_dropped_genuine_fallbacks_kept(self):
+        # "Helvetica" (a prefix of the primary) is the trap and is dropped; Arial/sans-serif stay.
+        out = _illustrator_font_family(self.THEME_STACK)
+        assert "Helvetica," not in out and " Helvetica " not in out  # the bare-Helvetica trap is gone
+        assert out.endswith("Arial, sans-serif")
+
+    def test_single_family_without_despaced_fallback_kept(self):
+        # A single spaced family with no PostScript fallback resolves fine in Illustrator as-is;
+        # its genuinely-different fallbacks are preserved.
+        assert _illustrator_font_family("Courier New") == "Courier New"
+        assert _illustrator_font_family("Courier New, monospace") == "Courier New, monospace"
+
+    def test_single_word_family_unchanged(self):
+        assert _illustrator_font_family("Arial") == "Arial"
+        assert _illustrator_font_family("Arial, sans-serif") == "Arial, sans-serif"
+
+    def test_quotes_and_whitespace_tolerated(self):
+        assert _illustrator_font_family(" 'Helvetica Neue' , HelveticaNeue , Helvetica ") == "HelveticaNeue"
+
+    def test_generic_only_unchanged(self):
+        assert _illustrator_font_family("sans-serif") == "sans-serif"
+
+    def test_fixer_rewrites_every_font_family_in_tree(self):
+        svg = (
+            f'<svg xmlns="{NS}">'
+            f'<text font-family="{self.THEME_STACK}">a<tspan font-style="italic">P</tspan></text>'
+            f'<text font-family="{self.THEME_STACK}">b</text></svg>'
+        )
+        root = ET.fromstring(svg)
+        _fix_font_for_illustrator(root)
+        families = {t.get("font-family") for t in root.iter(f"{{{NS}}}text")}
+        assert families == {self.FIXED}
+        # italic tspan inherits the parent family (no own font-family), so it stays but resolves
+        tspan = root.find(f".//{{{NS}}}tspan")
+        assert tspan is not None and tspan.get("font-family") is None and tspan.get("font-style") == "italic"
+
+    def test_save_svg_uses_postscript_primary_theme_option_unchanged(self, tmp_path, simple_chart):
+        out = str(tmp_path / "fig")
+        save(simple_chart, out, format="svg", background="light")
+        svg = (tmp_path / "fig.svg").read_text(encoding="utf-8")
+        families = set(re.findall(r'font-family="([^"]*)"', svg))
+        assert families == {self.FIXED}, families
+        # the SVG-only fix must NOT mutate the theme option (HTML/JSON keep the full stack)
+        assert alt.theme.options["font"] == self.THEME_STACK
