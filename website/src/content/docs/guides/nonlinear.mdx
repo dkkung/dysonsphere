@@ -16,16 +16,16 @@ chart and shares its scale.
 
 <Example name="log" alt="Log-scale line chart of stock prices with minor ticks" />
 
-### Typeset labels
-
-`log_label_expr()` returns a Vega `labelExpr` for superscript log labels (`10¹`, `10²`, …), in
-`"power"`, `"scientific"`, `"e"`, or `"si"` notation.
-
-<Example name="nonlinear_labels" alt="Log-scale chart with typeset power-notation labels" />
-
 ## Power axes
 
 `add_pow_ticks()` does the same for power and square-root scales, interpolating minor ticks evenly
 in transformed space. Pass the same `majorValues` you give the main axis.
 
 <Example name="nonlinear_pow" alt="Square-root axis scatter with evenly spaced minor ticks" />
+
+## Typeset labels
+
+`log_label_expr()` returns a Vega `labelExpr` for superscript log labels (`10¹`, `10²`, …), in
+`"power"`, `"scientific"`, `"e"`, or `"si"` notation.
+
+<Example name="nonlinear_labels" alt="Log-scale chart with typeset power-notation labels" />
