@@ -43,6 +43,20 @@
 
 ### Changes
 
+- **New default categorical palette (`ds_cat_1`); the old set is now `ds_cat_2`.** The default
+  qualitative palette - what `config.range.category` and `categorical()` produce, and what any
+  `color=` nominal encoding without an explicit range picks up - is now a **five-hue set harmonious
+  with `australis`** (the default sequential ramp) and **tuned for colorblindness**: teal, blue,
+  purple, green, gold, in that cycle order. It is built by slicing five new perceptually-uniform base
+  ramps added to `colors` (`cat_teals` / `cat_blues` / `cat_purples` / `cat_greens` / `cat_golds`),
+  each also usable as a standalone sequential palette. The CVD tuning matters: under deuteranopia/
+  protanopia hue collapses toward the blue-yellow axis, so the three cool hues are pulled apart in
+  hue *and* lightness (a viewer separates them by lightness when hue fails), and gold is a pure-yellow
+  warm anchor maximally distinct from the cools. The **previous** four-hue pastel set is unchanged and
+  still available: pass `categorical(palette="ds_cat_2")`, `theme(categoryPalette="ds_cat_2")`, or
+  `alt.Scale(range=colors["ds_cat_2"])`. This changes the colors of every default-coloured chart.
+  **Breaking-ish note:** the bare `colors["categorical"]` key was removed (use `colors["ds_cat_1"]`);
+  `categorical()` itself is unchanged and gains an optional `palette=` argument.
 - **Default `mark_circle` size increased to `markSize / 8`** (was `markSize / 20`). The overlay dot
   at the old size rendered as a sub-1px pinprick that read faint over bars/boxplots/violins; the new
   default is a legible dot while staying smaller than `config.point` / `config.square`. Override per
