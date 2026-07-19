@@ -218,3 +218,51 @@ class TestLabelMap:
         a = json.dumps(mark_strip(group_df, "group", "value", CATEGORIES).to_dict(), sort_keys=True)
         b = json.dumps(mark_strip(group_df, "group", "value", CATEGORIES).to_dict(), sort_keys=True)
         assert a == b
+
+
+class TestCategoryOrderPreserved:
+    """The scaffold pins the DOMAIN (not just sort=) on x and colour so the category order
+    survives Vega-Lite's shared-scale union when marks are layered/concatenated - otherwise the
+    order gets re-sorted alphabetically through the merge and colours stop matching their bars.
+    """
+
+    def _domains(self, chart, names=("x", "color")):
+        import vl_convert as vlc
+
+        vg = vlc.vegalite_to_vega(chart.to_dict())
+        out: dict[str, list[list[str]]] = {}
+
+        def walk(o):
+            if isinstance(o, dict):
+                for s in o.get("scales", []) or []:
+                    if s.get("name") in names and isinstance(s.get("domain"), list):
+                        out.setdefault(s["name"], []).append(s["domain"])
+                for v in o.values():
+                    walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
+
+        walk(vg)
+        return out
+
+    @pytest.fixture
+    def unsorted_df(self):
+        rng = np.random.default_rng(0)
+        cats = ["C", "A", "B"]  # deliberately NOT alphabetical
+        return pl.DataFrame({"group": [c for c in cats for _ in range(20)], "value": rng.normal(size=60)})
+
+    def test_strip_x_and_color_follow_categories(self, unsorted_df):
+        cats = ["C", "A", "B"]
+        d = self._domains(mark_strip(unsorted_df, "group", "value", cats))
+        assert d.get("x"), "no literal x domain (order not pinned)"
+        assert d.get("color"), "no literal colour domain (order not pinned)"
+        for dom in d["x"] + d["color"]:
+            assert dom == cats, f"{dom} did not preserve categories order {cats}"
+
+    def test_violin_color_follows_categories(self, unsorted_df):
+        cats = ["C", "A", "B"]
+        d = self._domains(mark_violin(unsorted_df, "group", "value", cats), names=("color",))
+        assert d.get("color")
+        for dom in d["color"]:
+            assert dom == cats

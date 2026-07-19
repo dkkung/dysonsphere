@@ -77,6 +77,15 @@
   back gracefully to Arial/sans-serif. The theme option, the JSON spec, and the browser-targeted HTML
   export keep the original stack unchanged; only the SVG is rewritten. Single custom fonts (e.g.
   `Courier New`) are untouched, since Illustrator resolves those fine on their own.
+- **Category colors and x-axis order now stay consistent in `mark_strip` / `mark_violin` /
+  `mark_boxplot` and `add_multilabel`.** The marks pinned only the `sort=` on their x and color
+  encodings, but Vega-Lite re-sorts a scale's domain **alphabetically** when it merges views (the
+  marks are internally layered, and `add_multilabel` shares the x scale) - so passing a
+  non-alphabetical `categories` list (e.g. `["USA", "Europe", "Japan"]`) rendered the bars in one
+  order and the colors in another, and the palette no longer started at teal. The scaffold now pins
+  the **domain** (a literal list), not just the sort, on both x and color, so the category order
+  survives every layer/concat merge. (Custom marks you layer yourself need the same
+  `scale=alt.Scale(domain=categories)` to line up with a dysonsphere mark.)
 
 ### Internal
 

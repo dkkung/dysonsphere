@@ -171,3 +171,39 @@ class TestMultilabelLabelMap:
         assert "B two lines" in blob  # list labels space-joined in the text row
         # raw values still present (they are the band-scale positions)
         assert "metadata_a" in blob
+
+
+class TestMultilabelXOrder:
+    def _x_domains(self, vg) -> list[list[str]]:
+        found: list[list[str]] = []
+
+        def walk(o):
+            if isinstance(o, dict):
+                for s in o.get("scales", []) or []:
+                    if s.get("name") == "x" and isinstance(s.get("domain"), list):
+                        found.append(s["domain"])
+                for v in o.values():
+                    walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
+
+        walk(vg)
+        return found
+
+    def test_shared_x_domain_follows_categories_not_alphabetical(self):
+        # Regression: add_multilabel shares the x scale; without pinning the annotation's x
+        # domain, resolve_scale(x="shared") re-sorted it alphabetically, so the strip's bars
+        # rendered in a different order than the (unshared) colour scale - category colours
+        # stopped matching their bars. Use a NON-alphabetical order to catch it.
+        import vl_convert as vlc
+
+        cats = ["USA", "Europe", "Japan"]  # not alphabetical
+        df = pl.DataFrame({"g": [c for c in cats for _ in range(5)], "y": [float(i) for i in range(15)]})
+        strip = mark_strip(df, "g", "y", cats)
+        chart = add_multilabel(strip, categories=cats, showSampleSize=True, df=df, xCol="g")
+        vg = vlc.vegalite_to_vega(chart.to_dict())
+        domains = self._x_domains(vg)
+        assert domains, "no resolved x domain found"
+        for dom in domains:
+            assert dom == cats, f"x domain {dom} did not preserve categories order {cats}"
