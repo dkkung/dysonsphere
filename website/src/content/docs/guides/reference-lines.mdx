@@ -1,0 +1,29 @@
+---
+title: Reference lines
+description: Horizontal and vertical reference lines with add_rule, optionally labeled and sliced.
+---
+
+import Example from '../../../components/Example.astro';
+
+`add_rule()` returns a native Altair layer you compose onto a chart with `+`; it shares the base
+chart's scales, so lines land at the right data coordinates automatically. It draws horizontal
+(`axis="y"`, the default) or vertical (`axis="x"`) reference lines at fixed values, with optional
+labels. `strokeDash=None` inherits the theme's dashed-rule style; `strokeDash=True`/`False` forces
+dashed/solid.
+
+<Example name="rule" alt="Strip plot with a labeled horizontal reference line at a release limit" />
+
+`axis="x"` draws the same line vertically, at a fixed x value:
+
+<Example name="rule_vertical" alt="Scatter plot with a dashed vertical reference line" />
+
+Pass a list of values (and a matching list of labels) for several lines in one call.
+`labelPosition` chooses which side of the line the label sits on; `labelAlign`, where along it:
+
+<Example name="rule_labeled" alt="Scatter plot with three labeled horizontal reference lines" />
+
+`span=(start, end)` slices a line to a portion of the axis it runs along, so a reference only
+covers the range it applies to. Bounds are numeric (data coordinates) or category names (resolved
+via the band scale, like `add_shade`, using `categories`); a label anchors to the slice's ends:
+
+<Example name="rule_span" alt="Bar chart of mean MPG by cylinder count with a benchmark line sliced across the six- and eight-cylinder bars" />

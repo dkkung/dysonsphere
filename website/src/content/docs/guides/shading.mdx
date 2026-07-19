@@ -1,0 +1,21 @@
+---
+title: Shading
+description: Background shading layers with add_shade - alternating bands or explicit coordinate ranges.
+---
+
+import Example from '../../../components/Example.astro';
+
+`add_shade()` lays a background rectangle layer under your chart, composed with `+` and sharing its
+scales. In **band mode** it alternates shades across the x-axis categories; in **positions mode** it
+shades explicit coordinate ranges.
+
+<Example name="shade_bands" alt="Bar chart with alternating band shading" />
+
+In positions mode, a numeric `(start, end)` tuple shades a fixed range on either axis:
+
+<Example name="shade_range" alt="Strip plot with a shaded y-range" />
+
+With `axis="both"` and a nested `((x0, x1), (y0, y1))` tuple, it shades a 2D region - an
+intersection rectangle spanning both axes:
+
+<Example name="shade_region" alt="Scatter plot with a shaded 2D region" />

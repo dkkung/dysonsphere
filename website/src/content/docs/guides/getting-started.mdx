@@ -39,9 +39,12 @@ Everything hangs off one namespace, `dysonsphere` (conventionally `ds`):
 - **`ds.theme()`** - register a global theme. Call it once; every Altair chart afterwards inherits
   perceptually uniform palettes and publication-ready styling. See [Theming](/guides/theming/).
 - **Marks** - `ds.mark_strip()`, `ds.mark_violin()` build composite plots. See [Marks](/guides/marks/).
-- **Annotations** - `ds.add_rule()`, `ds.add_text()`, `ds.add_shade()`, `ds.add_comparisons()`,
-  `ds.add_correlation()` return layers you add with `+`. See
-  [Annotations](/guides/annotations/) and [Statistics](/guides/statistics/).
+- **Annotations** - `ds.add_rule()`, `ds.add_text()`, `ds.add_shade()`, `ds.add_labels()` return
+  layers you add with `+`. See [Reference lines](/guides/reference-lines/),
+  [Shading](/guides/shading/), and [Text & labels](/guides/text-labels/).
+- **Statistics** - `ds.add_comparisons()` and `ds.add_correlation()` draw significance tests and
+  fits that carry a report into the export. See [Comparisons](/guides/comparisons/) and
+  [Correlation](/guides/correlation/).
 - **`ds.save()` / `ds.read()` / `ds.load()`** - export figures that carry their own provenance,
   statistics, theme, and data. See [Saving & reading](/guides/saving/).
 
