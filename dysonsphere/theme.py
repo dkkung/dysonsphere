@@ -565,7 +565,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "strokeCap": opts["strokeCap"],
                 "strokeDash": opts["dashedWidth"] if opts["dashedLine"] else [0, 0],
                 "strokeOpacity": 1,
-                "strokeWidth": opts["axisWidth"] * 1.5,
+                "strokeWidth": opts["axisWidth"] * 2,
             },
             "point": {
                 "filled": True,
@@ -654,7 +654,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "opacity": 1,
                 # default width when there is no size encoding - matches config.line's
                 # strokeWidth so an unsized trail renders exactly like a line
-                "size": opts["axisWidth"] * 1.5,
+                "size": opts["axisWidth"] * 2,
             },
             "view": {
                 "continuousWidth": opts["chartWidth"],

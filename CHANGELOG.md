@@ -54,6 +54,8 @@
 
 ### Changes
 
+- **Default data-line stroke raised to `axisWidth * 2` (was `axisWidth * 1.5`).** `config.line` and
+  the matching `config.trail` default: `0.375` → `0.5` at the default `axisWidth`.
 - **New default categorical palette (`ds_cat_1`); the old set is now `ds_cat_2`.** The default
   qualitative palette - what `config.range.category` and `categorical()` produce, and what any
   `color=` nominal encoding without an explicit range picks up - is now a **five-hue set harmonious
