@@ -32,3 +32,25 @@ species names), and give them a background chip with `fill` / `fillOpacity` / `s
 `cornerRadius` (drawn only when `fill` is set) to keep them readable over a dense scatter.
 
 <Example name="labels" alt="Scatter plot with eight auto-placed, connector-linked point labels" />
+
+## Superscripts and subscripts
+
+Any label - an axis title, an `add_text` annotation, a legend title - can carry a superscript or
+subscript. It is typeset when you export with `ds.save()` (and on this site's live charts): the run
+becomes a shrunk, shifted plain-ASCII glyph, so it looks right even in fonts that lack the Unicode
+super/subscript characters. Write a superscript with a caret, and a subscript with a **double**
+underscore:
+
+- `x^2`, `10^3` -> x squared, ten cubed
+- `C__t`, `x__1` -> C-sub-t, x-sub-1
+
+The run is the one or two characters right after the token. Literal Unicode subscripts you type
+yourself are handled too (`H₂O`, `t₀`).
+
+<Example name="subscripts" alt="Concentration-decay line with a C-subscript-t axis title and a squared-superscript annotation" />
+
+The subscript token is a **double** underscore on purpose. A single underscore is the usual
+snake_case column-name separator, so a default axis title taken from a column like `x_1` or
+`flipper_length_mm` would be mangled if a lone `_` meant "subscript". With `__`, only a deliberate
+`C__t` is lowered; ordinary column names - single-underscore or double-underscore (`model__alpha`) -
+are left untouched. The caret needs no such guard, since `^` never appears in column names.

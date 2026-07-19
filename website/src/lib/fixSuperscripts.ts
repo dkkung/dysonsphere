@@ -1,12 +1,14 @@
-// Client-side port of dysonsphere's `export._fix_superscript_labels()` SVG post-processor.
+// Client-side port of dysonsphere's `export._typeset_scripts()` SVG post-processor (super- and
+// subscript typesetting).
 //
-// Unicode superscript digits live in two blocks with inconsistent vertical metrics in many
-// fonts (¹²³ in Latin-1, ⁰⁴-⁹ + ⁻ in the Superscripts block), so scientific/power p-value
-// labels like `P = 5.03×10⁻¹⁷` render with a wobbly, collision-prone exponent. The library
-// fixes this at save() time, but the site renders charts live in the browser (vega-embed),
-// which never goes through save() - so the same fix is applied here to the rendered SVG DOM:
-// the exponent is replaced with a <tspan> of plain ASCII digits (and a true minus), raised
-// and shrunk relative to the label's font size (the library's 4px/-2.5px at fontSize 6).
+// Vega renders every label as one flat string, so a real super/subscript exists only after the
+// run is pulled into a shrunk, shifted <tspan>. The library does this at save() time; the site
+// renders charts live in the browser (vega-embed), which never goes through save() - so the same
+// typesetting is applied here to the rendered SVG DOM. Superscripts: Unicode exponents (×10ⁿ /
+// bare 10ⁿ - some fonts lack the Superscripts-block ⁰⁴-⁹, so they'd otherwise render wobbly) and
+// a `^` author token (q^2). Subscripts: literal Unicode (t₀) and a `__` author token (q__x, since
+// Unicode has no subscript for most letters). Runs become plain ASCII, raised/lowered and shrunk
+// relative to the label's font size (2/3 size, 5/12 shift - matching the library).
 //
 // Only text content is touched; Vega's aria-label/title attributes keep the original string.
 
@@ -23,70 +25,85 @@ const SUP_MAP: Record<string, string> = {
 	'⁹': '9',
 	'⁻': '−',
 };
-const EXPONENT = /([×≈]\s*10)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)/;
+// Unicode subscripts -> ASCII (mirrors the library's export._SUBSCRIPT_MAP).
+const SUB_MAP: Record<string, string> = {
+	'₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9',
+	'₋': '-', 'ₐ': 'a', 'ₑ': 'e', 'ₒ': 'o', 'ₓ': 'x', 'ₕ': 'h', 'ₖ': 'k', 'ₗ': 'l', 'ₘ': 'm', 'ₙ': 'n',
+	'ₚ': 'p', 'ₛ': 's', 'ₜ': 't',
+};
+
+// Detection patterns mirroring the library's export._typeset_scripts specs (group 1 = the base to
+// keep, group 2 = the run to typeset; any `^`/`__` connector between them is dropped).
+// Superscripts: Unicode exponents (×10ⁿ / bare 10ⁿ, a digit/×10 base required) + a `^` author
+// token (q^2). Subscripts: literal Unicode (t₀) + a boundary-guarded DOUBLE-underscore token
+// (q__x). The token is double, not single, AND guarded: a single `_` is the snake_case column-name
+// separator, so a default axis title equal to a column name - single-underscore (x_1,
+// flipper_length_mm) or double-underscore (model__alpha) - is never mistaken for a subscript; only
+// a deliberate single-base token like q__x is.
+const EXPONENT = /([×≈]\s*10|\d)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)/;
+const CARET = /([A-Za-z0-9])\^([A-Za-z0-9]{1,2})/;
+const SUB_UNICODE = /([A-Za-z0-9])([₀₁₂₃₄₅₆₇₈₉₋ₐₑₒₓₕₖₗₘₙₚₛₜ]+)/;
+const DUNDER = /(?<![A-Za-z0-9])([A-Za-z0-9])__([A-Za-z0-9]{1,2})(?![A-Za-z0-9])/;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Re-typeset `×10ⁿ` exponents in every <text> of the rendered chart(s) under `root`. */
-export function fixSuperscripts(root: ParentNode): void {
-	for (const text of root.querySelectorAll('svg text')) {
-		if (text.childElementCount > 0) continue; // has tspans already (or was processed)
-		const s = text.textContent ?? '';
-		const m = s.match(EXPONENT);
-		if (!m || m.index === undefined) continue;
-		const fs = parseFloat(getComputedStyle(text).fontSize) || 7;
-		const supSize = ((fs * 2) / 3).toFixed(2);
-		const shift = ((fs * 5) / 12).toFixed(2);
-		const exponent = [...m[2]].map((c) => SUP_MAP[c] ?? c).join('');
-		const after = s.slice(m.index + m[0].length);
-		text.textContent = s.slice(0, m.index) + m[1];
-		const sup = document.createElementNS(SVG_NS, 'tspan');
-		sup.setAttribute('font-size', supSize);
-		sup.setAttribute('dy', `-${shift}`);
-		sup.textContent = exponent;
-		text.appendChild(sup);
-		if (after) {
-			// Reset the baseline for any trailing text (dy is cumulative within <text>).
-			const rest = document.createElementNS(SVG_NS, 'tspan');
-			rest.setAttribute('font-size', String(fs));
-			rest.setAttribute('dy', shift);
-			rest.textContent = after;
-			text.appendChild(rest);
-		}
+/** The leftmost of several matches (or null). */
+function firstMatch(...ms: (RegExpMatchArray | null)[]): RegExpMatchArray | null {
+	let best: RegExpMatchArray | null = null;
+	for (const m of ms) {
+		if (m && m.index !== undefined && (best === null || m.index < (best.index ?? Infinity))) best = m;
+	}
+	return best;
+}
+
+// Split one matched run out of a <text> into a shrunk, shifted <tspan> (up = superscript, else
+// subscript), then reset the baseline for any trailing text - dy is CUMULATIVE within a <text> in
+// the browser (unlike resvg, which the library targets). `m[1]` (the base) stays inline; the
+// `^`/`__` connector is dropped. NOTE: this runs one match per element, so a single label mixing a
+// super AND a subscript (`q__x = 10^3`) gets only the first fixer's token (the second skips an
+// element that already has tspans). No site example needs both in one label; the library's
+// single-pass engine handles that case, this port does not.
+function applyScript(text: Element, s: string, m: RegExpMatchArray, run: string, up: boolean): void {
+	const idx = m.index ?? 0;
+	const fs = parseFloat(getComputedStyle(text).fontSize) || 7;
+	const size = ((fs * 2) / 3).toFixed(2);
+	const shift = ((fs * 5) / 12).toFixed(2);
+	const after = s.slice(idx + m[0].length);
+	text.textContent = s.slice(0, idx) + m[1];
+	const runEl = document.createElementNS(SVG_NS, 'tspan');
+	runEl.setAttribute('font-size', size);
+	runEl.setAttribute('dy', up ? `-${shift}` : shift);
+	runEl.textContent = run;
+	text.appendChild(runEl);
+	if (after) {
+		const rest = document.createElementNS(SVG_NS, 'tspan');
+		rest.setAttribute('font-size', String(fs));
+		rest.setAttribute('dy', up ? shift : `-${shift}`);
+		rest.textContent = after;
+		text.appendChild(rest);
 	}
 }
 
-// Subscript typesetting for axis titles like `q_x` / `q_y`. Unicode has a subscript x (ₓ) but NO
-// subscript y (the Subscripts block is missing most letters), so a `q_y` label can only be written
-// with a literal underscore, which renders as an ugly `q_y`. This lowers + shrinks the token after
-// a single-letter base and its underscore into a <tspan> (mirroring fixSuperscripts, opposite dy),
-// so `q_x`/`q_y` read as true subscripts. Matches a standalone `letter _ 1-2 alphanumerics` token
-// (the subscript notation), which does not occur in prose chart text.
-const SUBSCRIPT = /(?<![A-Za-z0-9])([A-Za-z])_([A-Za-z0-9]{1,2})(?![A-Za-z0-9])/;
+/** Re-typeset superscripts (Unicode ×10ⁿ / 10ⁿ, and the `^` token) in every chart <text>. */
+export function fixSuperscripts(root: ParentNode): void {
+	for (const text of root.querySelectorAll('svg text')) {
+		if (text.childElementCount > 0) continue; // already split into tspans
+		const s = text.textContent ?? '';
+		const m = firstMatch(s.match(EXPONENT), s.match(CARET));
+		if (!m) continue;
+		const run = [...m[2]].map((c) => SUP_MAP[c] ?? c).join(''); // maps Unicode; ASCII passes through
+		applyScript(text, s, m, run, true);
+	}
+}
 
-/** Re-typeset `base_sub` subscripts in every <text> of the rendered chart(s) under `root`. */
+/** Re-typeset subscripts (literal Unicode t₀, and the `__` token) in every chart <text>. */
 export function fixSubscripts(root: ParentNode): void {
 	for (const text of root.querySelectorAll('svg text')) {
 		if (text.childElementCount > 0) continue; // already split into tspans
 		const s = text.textContent ?? '';
-		const m = s.match(SUBSCRIPT);
-		if (!m || m.index === undefined) continue;
-		const fs = parseFloat(getComputedStyle(text).fontSize) || 7;
-		const subSize = ((fs * 2) / 3).toFixed(2);
-		const shift = (fs * 0.3).toFixed(2);
-		const after = s.slice(m.index + m[0].length);
-		text.textContent = s.slice(0, m.index) + m[1]; // up to and including the base letter
-		const sub = document.createElementNS(SVG_NS, 'tspan');
-		sub.setAttribute('font-size', subSize);
-		sub.setAttribute('dy', shift); // lower (dy is cumulative within <text>)
-		sub.textContent = m[2];
-		text.appendChild(sub);
-		if (after) {
-			const rest = document.createElementNS(SVG_NS, 'tspan');
-			rest.setAttribute('font-size', String(fs));
-			rest.setAttribute('dy', `-${shift}`); // reset the baseline for trailing text
-			rest.textContent = after;
-			text.appendChild(rest);
-		}
+		const m = firstMatch(s.match(DUNDER), s.match(SUB_UNICODE));
+		if (!m) continue;
+		const run = [...m[2]].map((c) => SUB_MAP[c] ?? c).join(''); // maps Unicode; ASCII passes through
+		applyScript(text, s, m, run, false);
 	}
 }
 

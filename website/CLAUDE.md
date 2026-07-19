@@ -157,20 +157,24 @@ dissolved 2026-07-06).
   ports `export._flip_ticks_inward`; the rendered spec carries no flag, so the page opts in via
   `<Example inwardTicks />` -> Chart.astro `data-inward`. Only the theming guide's example uses
   it.
-- **Superscript exponents are re-typeset client-side.** The library's `_fix_superscript_labels`
-  runs only in `save()`, never in the browser - so live charts rendered mixed-metric Unicode
-  superscripts (`P = 5.03×10⁻¹⁷`). `src/lib/fixSuperscripts.ts` ports the fixer to the rendered
-  SVG DOM (raised/shrunk ASCII tspan, same ratios); Chart.astro and the Studio call it after
-  every vegaEmbed. Only text nodes are touched - aria-label attributes keep the original string.
-- **Subscripts are typeset client-side too (`fixSubscripts`, site-only).** Unicode has a subscript
-  x (ₓ) but NO subscript y (most letters are missing from the Subscripts block), so a `q_y`-style
-  axis title can only be written with a literal underscore that renders as an ugly `q_y`.
-  `fixSubscripts` (fixSuperscripts.ts, called after `fixSuperscripts` in Chart.astro + Studio)
-  lowers+shrinks the token after a `letter_` into a `<tspan>` (mirrors the superscript fixer,
-  opposite dy). It matches only a standalone `letter _ 1-2 alphanumerics` token (subscript
-  notation, absent from prose), so it is safe to run globally. Used by the diffraction example
-  (`q_x`/`q_y`). NOTE: there is NO library-side subscript fixer, so an example using `q_x`/`q_y`
-  would show literal underscores if exported via `ds.save()` - this is a site-render-only feature.
+- **Super/subscripts are re-typeset client-side (`fixSuperscripts` + `fixSubscripts`).** The
+  library's `export._typeset_scripts` runs only in `save()`, never in the browser, so live charts
+  would render raw Unicode superscripts (`P = 5.03×10⁻¹⁷`) and literal `__` subscript tokens.
+  `src/lib/fixSuperscripts.ts` ports it to the rendered SVG DOM (raised/shrunk ASCII tspan, same
+  2/3 size, 5/12 shift), called after every vegaEmbed in Chart.astro + the Studio. Only text nodes
+  are touched (aria-label attributes keep the original string). **Reconciled with the library
+  2026-07-19** so the tokens MATCH: `fixSuperscripts` = Unicode exponents (`×10ⁿ` / bare `10ⁿ`)
+  + a `^` author token (`q^2`); `fixSubscripts` = literal Unicode (`t₀`) + a boundary-guarded
+  DOUBLE-underscore token (`q__x`). The `__` (not single `_`) + the `(?<![A-Za-z0-9])…(?![A-Za-z0-9])`
+  guard keep default column-name axis titles safe (single-underscore `x_1`/`flipper_length_mm` AND
+  double-underscore sklearn-style `model__alpha` are all left alone). Both share an `applyScript`
+  helper. **KNOWN gap vs the library:** these run one match per <text> element and sequentially
+  (super then sub), so a single label mixing BOTH a super and a subscript (`q__x = 10^3`) gets only
+  the first - the library's single-pass engine handles that, this port does not (no site example
+  needs it). Keep the four patterns + `SUB_MAP` in sync with `export._typeset_scripts`. Used by the
+  diffraction example (`q__x`/`q__y`) and the `subscripts` guide example. Now that the LIBRARY
+  typesets `__`/`^` too, an example using them exports correctly via `ds.save()` (no longer
+  site-render-only).
 - **Grid lines are re-seated client-side.** `alignGridToContent` (fixSuperscripts.ts) ports
   `export._align_grid_to_content`: on an open plot the grid inherits its axis group's
   `axisOffset` and renders dragged toward the axis; the fixer translates each line back so the
