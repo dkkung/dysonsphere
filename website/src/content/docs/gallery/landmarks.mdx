@@ -1,0 +1,53 @@
+---
+title: Landmark plots
+description: Famous scientific figures, reconstructed from open and published data with dysonsphere.
+---
+
+import Example from '../../../components/Example.astro';
+
+Unlike the rest of the gallery - which is synthetic showpieces - these are **real figures from the
+history of science**, rebuilt with dysonsphere from open or published data. Each is a *reconstruction*
+(our binning, our fit, our styling), not the original published figure, and each caption cites where
+the data came from. Press **`</> code`** to read the code, or **Open in studio** to run and edit it live.
+
+## Astronomy
+
+<Example name="hubble_1929" codeToggle inwardTicks caption="Hubble's 1929 diagram - the expanding universe. Radial velocity versus distance for 24 galaxies: the farther away, the faster they recede, in direct proportion. The fit slope is the Hubble constant - here ~450 km/s/Mpc, the famous early overestimate (the modern value is ~70; Hubble's distance scale was off). Fit and confidence band via <code>add_correlation</code>; the 24 nebulae are from <a href='https://doi.org/10.1073/pnas.15.3.168'>Hubble, PNAS (1929)</a>." alt="Radial velocity versus distance for 24 galaxies with a linear fit - Hubble's law" />
+
+## Biology
+
+<Example name="mendel_peas" codeToggle caption="Mendel's peas - the 3:1 ratio that founded genetics. F2 counts for seven pea traits: the dominant phenotype turns up in about three-quarters of offspring and the recessive in one-quarter, revealing genes as discrete, independently-segregating units. Each bar is the observed dominant fraction; the line marks the 0.75 expectation. Counts from Mendel's 1866 paper." alt="Seven pea traits, each with the dominant-phenotype fraction near 0.75, against a 3:1 reference line" />
+
+<Example name="ld_fluctuation" codeToggle caption="Luria–Delbrück fluctuation test - proof that mutations arise at random, before selection. Parallel bacterial cultures scored for virus-resistant colonies: an 'induced' hypothesis predicts a tight Poisson, but real counts fluctuate wildly with rare 'jackpots' - the signature of spontaneous mutations seeding early, large clones. Each point is a simulated culture under the two hypotheses (matched in mean); the effect is from <a href='https://doi.org/10.1093/genetics/28.6.491'>Luria & Delbrück, Genetics (1943)</a>." alt="Strip plot of resistant-colony counts: spontaneous cultures fluctuate with jackpots, induced cultures cluster tightly" />
+
+<Example name="hodgkin_huxley" codeToggle caption="Hodgkin–Huxley - the action potential, integrated live from the 1952 equations. Voltage-gated sodium and potassium conductances generate the nerve impulse; a sustained current drives a train of spikes (rapid depolarization to +40 mV, repolarization, afterhyperpolarization). The four coupled ODEs are solved in the browser with the original squid-axon parameters from <a href='https://doi.org/10.1113/jphysiol.1952.sp004764'>Hodgkin & Huxley, J. Physiol. (1952)</a>." alt="Membrane potential over time showing a train of Hodgkin-Huxley action potentials" />
+
+<Example name="hiv_decay" codeToggle caption="HIV viral-load decay - plasma HIV-1 RNA falls exponentially once therapy starts; the in-browser first-phase fit recovers a ~1-2 day half-life, the result that recast HIV as a fast, high-turnover infection. Representative traces simulated from the decay parameters in <a href='https://doi.org/10.1038/373123a0'>Ho et al., Nature (1995)</a> and <a href='https://doi.org/10.1126/science.271.5255.1582'>Perelson et al., Science (1996)</a> - not the original patient data." alt="Plasma HIV RNA declining exponentially on a log axis for three patients after starting therapy" />
+
+<Example name="alphafold_casp" codeToggle caption="AlphaFold2 at CASP14 (2020) - the protein-folding problem cracked. At the blind CASP14 assessment, DeepMind's AlphaFold2 predicted protein backbones at a median accuracy (GDT_TS ~92 out of 100) approaching experiment - far above every other group, a leap unseen in 25 years of CASP. Each point is a predictor group's median GDT_TS; AlphaFold2 sits alone at the top. Its ~92 and the gap over the field are the real result (the trailing field is a representative ranking); see <a href='https://doi.org/10.1038/s41586-021-03819-2'>Jumper et al., Nature (2021)</a>." alt="CASP14 group accuracy scatter with AlphaFold2 alone at the top, far above the field" />
+
+## Chemistry
+
+<Example name="rutherford_scattering" codeToggle caption="Rutherford scattering - the experiment that found the atomic nucleus. α-particle scintillation counts off a gold foil at each deflection angle follow Rutherford's 1/sin⁴(θ/2) law across nearly four orders of magnitude - a deflection so sharp that only a tiny, dense, charged nucleus could produce it. Counts from Geiger & Marsden (1913); the curve is Rutherford's law, calibrated to the data." alt="Alpha-particle scattering counts versus angle on a log axis following the Rutherford 1/sin⁴ law" />
+
+## Computing
+
+<Example name="moores_law" codeToggle caption="Moore's law - the exponential rise of transistor counts. Landmark microprocessors on a log axis; the in-browser log-linear fit recovers the famous ~2-year doubling that has held across more than seven orders of magnitude since 1971. Gordon Moore's 1965 observation; transistor counts compiled from public records." alt="Transistor count per chip rising exponentially on a log axis from 1971 to 2020 with a fit" />
+
+## Earth science
+
+<Example name="keeling_curve" codeToggle caption="The Keeling curve - atmospheric CO₂ at Mauna Loa, measured monthly since 1958. The relentless rise from ~315 to over 420 ppm, with a seasonal saw-tooth as northern-hemisphere plants draw CO₂ down each summer and release it each winter. Monthly-mean CO₂ from <a href='https://gml.noaa.gov/ccgg/trends/'>NOAA Global Monitoring Laboratory</a> (public domain)." alt="Atmospheric CO2 at Mauna Loa rising from 315 to over 420 ppm with a seasonal cycle" />
+
+## Mathematics
+
+<Example name="benford_law" codeToggle caption="Benford's law - why leading digits aren't uniform. The leading digit of the powers of two (2, 4, 8, 16, ...), tallied in the browser, tracks P(d) = log₁₀(1 + 1/d): a 1 leads about 30% of the time, a 9 under 5%. First noted by Newcomb (1881) and rediscovered by Benford (1938)." alt="Bar chart of leading-digit frequencies matching the Benford's law curve" />
+
+## Medicine
+
+<Example name="semmelweis_handwashing" codeToggle caption="Semmelweis - handwashing and the fall of childbed fever. Annual maternal mortality at the Vienna General Hospital's First Clinic: after Semmelweis required chlorine handwashing in 1847 (dashed line), deaths from puerperal fever collapsed within a year - decades before germ theory explained why. From Semmelweis's published clinic statistics." alt="Maternal mortality falling sharply after handwashing is introduced in 1847" />
+
+## Physics
+
+<Example name="higgs_diphoton" codeToggle caption="The Higgs boson H→γγ 'bump' - the 2-GeV-binned diphoton invariant-mass spectrum, fit with an exponential-polynomial background plus a Gaussian signal; the ~125 GeV excess stands clear of the sidebands in the background-subtracted residual. Reconstructed (our binning and fit, not the official figure) from <a href='https://opendata.cern.ch/record/15006'>ATLAS Open Data</a> - CERN Open Data record 15006, released CC0." alt="Diphoton invariant-mass spectrum with a Higgs bump at 125 GeV and its background-subtracted residual" />
+
+<Example name="ligo_chirp" codeToggle inwardTicks caption="LIGO GW150914 - the first direct detection of gravitational waves. Whitened, band-passed (35-350 Hz) strain from the Hanford and Livingston detectors as two ~30-solar-mass black holes spiral together and merge near t = 0; L1 is delayed by the 6.9 ms light-travel time and inverted so the two detectors align - the coincidence that confirmed the signal. Processed from <a href='https://gwosc.org/events/GW150914/'>GW Open Science Center</a> strain data; discovery: <a href='https://doi.org/10.1103/PhysRevLett.116.061102'>Abbott et al., PRL (2016)</a>." alt="Whitened gravitational-wave strain chirp from the two LIGO detectors, aligned and overlaid" />
