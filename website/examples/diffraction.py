@@ -48,9 +48,9 @@ chart = (
     alt.Chart(df)
     .mark_rect(stroke=None, clip=True)
     .encode(
-        x=alt.X("x0:Q", title="q_x (1/nm)", scale=alt.Scale(domain=[-L, L], nice=False)),
+        x=alt.X("x0:Q", title="q__x (1/nm)", scale=alt.Scale(domain=[-L, L], nice=False)),
         x2="x1",
-        y=alt.Y("y0:Q", title="q_y (1/nm)", scale=alt.Scale(domain=[-L, L], nice=False)),
+        y=alt.Y("y0:Q", title="q__y (1/nm)", scale=alt.Scale(domain=[-L, L], nice=False)),
         y2="y1",
         color=alt.Color("I:Q", title=None, legend=None),
     )
