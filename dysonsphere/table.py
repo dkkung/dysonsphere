@@ -7,9 +7,8 @@ from typing import Any, cast
 import altair as alt
 import polars as pl
 
-from .nonlinear import _SUP
 from .theme import _opt
-from .utils import _internal_data, ensure_polars
+from .utils import _SUP, _internal_data, ensure_polars
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.

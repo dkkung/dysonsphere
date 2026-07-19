@@ -15,6 +15,7 @@ import altair as alt
 
 from . import discovery, metadata
 from .theme import _opt
+from .utils import _SUP
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -589,22 +590,50 @@ def _layer_axes_to_front(root: ET.Element) -> None:
     reorder(root)
 
 
-_SUPERSCRIPT_MAP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789−")
-_SUP_LABEL_PATTERN = re.compile(r"([×≈]\s*10)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)")
+# Reverse of the shared _SUP (utils) plus the superscript minus, back to plain ASCII + real minus.
+_SUPERSCRIPT_MAP = str.maketrans(_SUP + "⁻", "0123456789−")
+# Matches the Unicode-superscript exponent of a power/scientific-notation number, in either form:
+#   - a scientific/p-value mantissa - ...×10ⁿ / ≈10ⁿ  (group 1 = "×10"/"≈10")
+#   - a bare power base - a digit directly before the superscript run, e.g. the log-axis labels
+#     10⁰, 2²⁰ that log_label_expr emits  (group 1 = the last base digit)
+# Group 1 is the kept base; group 2 is the superscript exponent that gets re-typeset. The bare-base
+# alternative is what fixes log-axis labels - a base digit is required before the run so letter+
+# superscript labels (r², η², χ²) are left upright/untouched.
+_SUP_LABEL_PATTERN = re.compile(r"([×≈]\s*10|\d)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)")
+# Exponent size / rise as a fraction of the base glyph's font-size (2/3 and 5/12 - the old fixed
+# 4px / 2.5px expressed against a 6px base), so the exponent scales to whatever size the label is.
+_SUP_SIZE_RATIO = 2 / 3
+_SUP_RISE_RATIO = 5 / 12
+
+
+def _sup_font_size(el: ET.Element) -> float:
+    """Parse the base glyph's font-size in px; fall back to the theme's fontSize when absent."""
+    raw = el.get("font-size")
+    if raw:
+        try:
+            return float(raw.removesuffix("px"))
+        except ValueError:
+            pass
+    return float(_opt("fontSize"))
 
 
 def _fix_superscript_labels(root: ET.Element) -> None:
-    """Fix misaligned Unicode superscripts in scientific/power notation labels.
+    """Fix misaligned/substituted Unicode superscripts in scientific/power notation labels.
 
     Unicode superscript digits 1-3 (U+00B9/B2/B3, Latin-1 Supplement) and 0/4-9
-    (U+2070, U+2074-U+2079, Superscripts block) live in different font metric tables and
-    render at inconsistent vertical positions in many fonts, causing visible misalignment
-    in multi-digit exponents like 10^-14. Operates on element .text values in the parsed
-    tree only (never attribute values, which carry the same label text in aria-label/title)
-    and replaces the exponent portion with a <tspan dy="-2.5" font-size="4"> element using
-    plain ASCII digits for consistent font metrics.
+    (U+2070, U+2074-U+2079, Superscripts block) live in different Unicode blocks. Two problems
+    follow: within one exponent (e.g. 10^-14) the two blocks carry inconsistent vertical metrics,
+    so the digits misalign; and many fonts (Helvetica Neue included) ship the Latin-1 1/2/3 but
+    NOT the Superscripts-block 0/4-9, so a bare log-axis label like 10^0 has its exponent glyph
+    substituted from a fallback font and renders slanted. Both are fixed the same way: the exponent
+    is replaced with a <tspan> of raised, shrunk PLAIN ASCII digits (consistent metrics, always
+    present in the base font). Covers scientific/p-value labels (...×10ⁿ) AND the bare-base power
+    labels log_label_expr emits (10ⁿ, 2ⁿ).
 
-    Tuned for p-value label fontSize=6: exponent font-size=4 (~67%), dy=-2.5 (~42% shift).
+    Operates on element .text values in the parsed tree only (never attribute values, which carry
+    the same label text in aria-label/title). The tspan's font-size and dy scale to the base
+    glyph's own font-size (see _SUP_SIZE_RATIO / _SUP_RISE_RATIO), so p-value (7px) and log-axis
+    (7px) exponents are typeset proportionally rather than at a fixed p-value size.
     """
     # Collect matching text/tspan elements first to avoid modifying while iterating.
     targets = [
@@ -622,9 +651,10 @@ def _fix_superscript_labels(root: ET.Element) -> None:
         exp_ascii = m.group(2).translate(_SUPERSCRIPT_MAP)
         suffix = text[m.end() :]
 
+        fs = _sup_font_size(el)
         tspan = ET.Element(f"{{{_SVG_NS}}}tspan")
-        tspan.set("dy", "-2.5")
-        tspan.set("font-size", "4")
+        tspan.set("dy", f"{round(-fs * _SUP_RISE_RATIO, 2):g}")
+        tspan.set("font-size", f"{round(fs * _SUP_SIZE_RATIO, 2):g}")
         tspan.text = exp_ascii
         tspan.tail = suffix or None
 

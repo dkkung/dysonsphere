@@ -3,7 +3,7 @@ import math
 import altair as alt
 
 from .theme import _opt
-from .utils import ensure_polars
+from .utils import _SUP, ensure_polars
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -12,8 +12,6 @@ __all__ = ["log_label_expr", "add_log_ticks", "add_pow_ticks"]
 # ---------------------------------------------------------------------------
 # Log-scale axis label helper
 # ---------------------------------------------------------------------------
-
-_SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹"
 
 
 def log_label_expr(base: int = 10, notation: str = "power") -> str:

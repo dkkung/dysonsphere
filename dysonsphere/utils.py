@@ -223,6 +223,13 @@ def frame_checksum(df: "pl.DataFrame | Any") -> str:
 # Miss one, and that sidecar leaks as a phantom "user" dataframe on read.  See CLAUDE.md.
 _INTERNAL_COL = "__dysonsphere__"
 
+# Unicode superscript digits 0-9 - the SINGLE source for every notation label that renders an
+# exponent: nonlinear.log_label_expr (10ⁿ / bⁿ log labels), inference._superscript (p-value
+# ×10ⁿ), and table.py power/scientific columns all index this string. export._fix_superscript_labels
+# reverses it (and the superscript minus ⁻) back to raised ASCII at render time - see its design
+# point. Kept here (no Altair dependency, imported by all four) so it can't drift between copies.
+_SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+
 
 def _internal_data(data: "list[dict[str, Any]] | pl.DataFrame | Any") -> "Any":
     """Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
