@@ -125,6 +125,13 @@ def save(
 
     Each background toggles ``darkmode`` for its render, restoring the original after.
 
+    Labels are typeset on export (SVG/PNG): a ``^`` marks a superscript (``"x^2"``, ``"10^3"``)
+    and a **double** underscore a subscript (``"C__t"`` -> C with a subscript t; single ``_`` is
+    left alone so snake_case column names used as default titles are not mangled). Unicode
+    super/subscripts you type (``"H₂O"``, ``"t₀"``) and log/p-value exponents are normalized to the
+    same shrunk, shifted plain-ASCII glyphs, so they render correctly even in fonts missing the
+    Unicode super/subscript characters.
+
     Parameters
     ----------
     chart:
@@ -612,13 +619,17 @@ _SCRIPT_RISE_RATIO = 5 / 12
 # the base to keep and group(2) = the run to typeset; any connector between them (the `^` / `__`
 # author tokens) sits outside both groups and is dropped. Superscripts: the Unicode exponents that
 # log_label_expr / p-values emit (10⁰, 2²⁰, ×10⁻⁵ - a base char is required so letter+superscript
-# labels r²/η²/χ² stay upright) plus a `^` author token (q^2). Subscripts: literal Unicode (t₀) plus
-# a DOUBLE-underscore author token (q__x) - double, not single, so ordinary snake_case column names
-# used as default axis titles (x_1, flipper_length_mm) are NEVER mistaken for subscripts.
+# labels r²/η²/χ² stay upright) plus a `^` author token (q^2 / mc^2 - the char right before `^` is
+# the base, no boundary guard needed since `^` never appears in data/column names). Subscripts:
+# literal Unicode (t₀) plus a DOUBLE-underscore author token (q__x). The `__` token is boundary-
+# GUARDED (`(?<![A-Za-z0-9])…(?![A-Za-z0-9])`): a single-alnum base at a word boundary with a 1-2
+# char run, so a snake_case column name used as a default axis title is never mistaken for a
+# subscript - neither single-underscore (x_1, flipper_length_mm) nor double-underscore sklearn-style
+# names (model__alpha, param__C, which the guard rejects because their base is mid-word).
 _SUP_UNICODE = re.compile(r"([×≈]\s*10|\d)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)")
 _SUP_CARET = re.compile(r"([A-Za-z0-9])\^([A-Za-z0-9]{1,2})")
 _SUB_UNICODE = re.compile(r"([A-Za-z0-9])([₀₁₂₃₄₅₆₇₈₉₋ₐₑₒₓₕₖₗₘₙₚₛₜ]+)")
-_SUB_DUNDER = re.compile(r"([A-Za-z0-9])__([A-Za-z0-9]{1,2})")
+_SUB_DUNDER = re.compile(r"(?<![A-Za-z0-9])([A-Za-z0-9])__([A-Za-z0-9]{1,2})(?![A-Za-z0-9])")
 
 _ScriptSpec = tuple["re.Pattern[str]", "dict[int, int] | None", str]
 _SUP_SPECS: "list[_ScriptSpec]" = [(_SUP_UNICODE, _SUPERSCRIPT_MAP, "raise"), (_SUP_CARET, None, "raise")]

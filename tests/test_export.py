@@ -923,9 +923,11 @@ class TestFixSubscriptLabels:
         assert tspan is not None
         assert tspan.text == "0"
 
-    def test_single_underscore_column_name_untouched(self):
-        # The crux: a default axis title equal to a snake_case column name must NOT be subscripted.
-        for name in ("x_1", "q_x", "t_0", "flipper_length_mm", "p_value", "T_max"):
+    def test_column_names_untouched(self):
+        # The crux: a default axis title equal to a column name must NOT be subscripted. Neither
+        # single-underscore snake_case NOR double-underscore sklearn-style names (whose base is
+        # mid-word) trip the boundary-guarded `__` token - only a deliberate q__x does.
+        for name in ("x_1", "q_x", "t_0", "flipper_length_mm", "p_value", "T_max", "model__alpha", "param__C"):
             text_el = self._one_tspan(name)
             assert text_el.text == name  # unchanged
             assert text_el.find(f"{{{NS}}}tspan") is None
