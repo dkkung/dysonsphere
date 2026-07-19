@@ -15,6 +15,7 @@ import altair as alt
 
 from . import discovery, metadata
 from .theme import _opt
+from .utils import _SUP
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -589,7 +590,8 @@ def _layer_axes_to_front(root: ET.Element) -> None:
     reorder(root)
 
 
-_SUPERSCRIPT_MAP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789−")
+# Reverse of the shared _SUP (utils) plus the superscript minus, back to plain ASCII + real minus.
+_SUPERSCRIPT_MAP = str.maketrans(_SUP + "⁻", "0123456789−")
 # Matches the Unicode-superscript exponent of a power/scientific-notation number, in either form:
 #   - a scientific/p-value mantissa - ...×10ⁿ / ≈10ⁿ  (group 1 = "×10"/"≈10")
 #   - a bare power base - a digit directly before the superscript run, e.g. the log-axis labels

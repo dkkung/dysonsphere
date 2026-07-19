@@ -15,15 +15,13 @@ import polars as pl
 
 from .annotations import add_text
 from .theme import _opt
-from .utils import _empty_layer, _internal_data, _resolve_dash, band_geometry
+from .utils import _SUP, _empty_layer, _internal_data, _resolve_dash, band_geometry
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
 __all__ = ["add_comparisons", "add_correlation"]
 
 # P-value annotations
-
-_SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹"
 
 
 def _superscript(n: int) -> str:

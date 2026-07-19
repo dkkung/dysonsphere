@@ -814,6 +814,31 @@ class TestFixSuperscriptLabels:
         assert tspan is not None
         assert tspan.text == "0"
 
+    def test_fixer_typesets_every_generator_superscript(self):
+        # Guard against reopening the log-label bug: the SINGLE fixer must convert EVERY Unicode
+        # superscript that ANY generator emits (p-value labels, log-axis labels, table columns -
+        # all funnel through utils._SUP / inference._superscript), so no fragile glyph survives
+        # into the font-rendered SVG. If a future generator emits a superscript form the fixer's
+        # pattern misses, a fragile char is left in the text and this fails.
+        from dysonsphere.inference import _format_pvalue, _superscript
+        from dysonsphere.utils import _SUP
+
+        labels = [
+            _format_pvalue(1e-5, notation="power"),  # p-value: P ≈ 10⁻⁵
+            _format_pvalue(1.23e-5, notation="scientific"),  # p-value: ... ×10⁻⁵
+            *[f"10{_superscript(i)}" for i in range(13)],  # log-axis 10⁰..10¹² (0/4-9 + two-digit)
+            f"2{_superscript(20)}",  # log-axis, non-base-10: 2²⁰
+        ]
+        fragile = set(_SUP) | {"⁻"}
+        for lab in labels:
+            root = ET.fromstring(self._svg_with_text(lab))
+            _fix_superscript_labels(root)
+            text_el = root.find(f"{{{NS}}}text")
+            assert text_el is not None
+            rendered = "".join(text_el.itertext())  # base + ascii exponent + tail
+            leftover = fragile & set(rendered)
+            assert not leftover, f"unfixed superscript {leftover} left in {lab!r} -> {rendered!r}"
+
     def test_no_match_leaves_tree_unchanged(self):
         root = ET.fromstring(self._svg_with_text("P = 0.023"))
         _fix_superscript_labels(root)

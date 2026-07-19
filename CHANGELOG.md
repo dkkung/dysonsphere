@@ -101,6 +101,12 @@
 
 ### Internal
 
+- Consolidated the Unicode superscript-digit constant (`_SUP`) into a single source in `utils.py`.
+  It was defined twice (`nonlinear.py`, `inference.py`) and hardcoded a third time as the reverse
+  map in `export.py`; now every notation label (log-axis, p-value, table columns) and the SVG
+  superscript fixer reference the one constant, so the copies can't drift. Added a guard test that
+  the fixer typesets every superscript form each generator emits, so a future generator can't
+  silently reopen the log-label rendering gap.
 - Deduplicated the `add_comparisons` / `add_correlation` internals in `inference.py` into shared
   private helpers (`_resolve_method`, `_resolve_notation`, `_resolve_bracket_styles`,
   `_check_coverage`, `_stack_levels`, `_resolve_y_spacing`, `_emit_report`), so the single-factor
