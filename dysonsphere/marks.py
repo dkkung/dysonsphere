@@ -65,7 +65,17 @@ class _MarkScaffold:
         return alt.Axis(**kwargs)
 
     def x(self) -> alt.X:
-        return alt.X(f"{self.xCol}:N", sort=self.categories, title=self.x_title, axis=self.x_axis())
+        # Pin the DOMAIN (a literal list), not just sort=, so the category order survives
+        # Vega-Lite's shared-scale domain union when marks are layered/concatenated - a `sort=`
+        # order gets re-sorted (alphabetically) through a scale merge, whereas an explicit
+        # literal domain wins the union. Same reason the multilabel y scale pins domain=row_order.
+        return alt.X(
+            f"{self.xCol}:N",
+            sort=self.categories,
+            scale=alt.Scale(domain=self.categories),
+            title=self.x_title,
+            axis=self.x_axis(),
+        )
 
     def y(self, field: str | None = None) -> alt.Y:
         return alt.Y(field if field is not None else f"{self.yCol}:Q", title=self.y_title)
@@ -85,7 +95,11 @@ class _MarkScaffold:
             title = self.xCol if self.legend else None
         legend_kwargs: dict[str, Any] = {"symbolType": symbolType} if symbolType else {}
         pal = self.palette
-        scale = alt.Undefined if pal is None else alt.Scale(range=pal if isinstance(pal, list) else [pal])
+        # Pin the domain (a literal list) so the category->colour mapping survives a shared-scale
+        # merge when marks are layered/concatenated - see x(). Without it, `sort=` alone is
+        # re-sorted alphabetically through the merge and colours stop matching their categories.
+        range_kwargs: dict[str, Any] = {} if pal is None else {"range": pal if isinstance(pal, list) else [pal]}
+        scale = alt.Scale(domain=self.categories, **range_kwargs)
         return alt.Color(
             field if field is not None else f"{self.xCol}:N",
             sort=self.categories,

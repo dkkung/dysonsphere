@@ -338,6 +338,11 @@ def _multilabel_layer(
     x_enc = alt.X(
         "__category:N",
         sort=categories,
+        # Pin the domain (not just sort) so `resolve_scale(x="shared")` can't re-sort the
+        # merged x domain alphabetically - the same shared-scale union fix as `domain=row_order`
+        # on the y scale below. Without it the chart's x renders in a different order than its
+        # (unshared) colour scale, so category colours stop matching their bars.
+        scale=alt.Scale(domain=categories),
         axis=alt.Axis(labels=False, ticks=False, domain=False, grid=False, title=None),
     )
     y_scale = alt.Scale(
