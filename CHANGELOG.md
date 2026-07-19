@@ -4,6 +4,16 @@
 
 ### New features
 
+- **Subscripts in labels, and a `^` superscript author token - typeset in exports.** Any label (axis
+  title, `add_text`, legend) can now carry a subscript with a **double-underscore** token: `q__x`
+  renders as q with a subscript x, `H__2O` as H-sub-2. Superscripts gain a matching author token,
+  `^`: `q^2`, `10^3`. Both are typeset in `ds.save()` PNG/SVG output the same way superscripts
+  already were - the run becomes a shrunk, shifted ASCII `<tspan>`, so nothing depends on a Unicode
+  glyph the font may lack. Literal Unicode subscripts you type yourself (`t₀`) are handled too. The
+  subscript token is a **double** underscore on purpose: a single `_` is the snake_case column-name
+  separator, so a default axis title equal to a column name (`x_1`, `flipper_length_mm`) is never
+  mistaken for a subscript - only the deliberate `q__x` is. One label can mix several tokens and both
+  directions (`q__x = 10^3`).
 - **`add_rule(span=...)`: slice a reference line to a portion of its axis.** Pass a `(start, end)`
   tuple to stop the line short of the plot edges - it spans only that range along its *running* axis
   (the one it runs along, opposite of `axis`: x for a horizontal `axis="y"` rule, y for a vertical
