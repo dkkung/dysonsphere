@@ -130,6 +130,7 @@ export default defineConfig({
 							label: 'Gallery',
 							items: [
 								{ label: 'Overview', slug: 'gallery' },
+								{ label: 'Landmark plots', slug: 'gallery/landmarks' },
 								{ label: 'Fields & imaging', slug: 'gallery/imaging' },
 								{ label: 'Structure & chemistry', slug: 'gallery/chemistry' },
 								{ label: 'Signals & dynamics', slug: 'gallery/signals' },
