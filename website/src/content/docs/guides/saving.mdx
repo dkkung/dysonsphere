@@ -37,6 +37,14 @@ and log/power minor ticks are snapped to exact positions, superscript exponents 
 Latin statistical symbols (*P*, *n*, *F*, *r*, ...) are set in italic per convention - digits,
 operators, and Greek symbols (η², ρ, τ) stay upright.
 
+### Fonts
+
+Exports reference fonts by name instead of embedding them, so a saved chart samples the user's system
+across a list of fallback defaults. The default, Helvetica Neue, ships with macOS; Windows falls back
+to Arial, and Linux distributions fall back to their default sans-serif font. SVGs use the PostScript
+name `HelveticaNeue` so they open in the right font in Adobe Illustrator, which doesn't follow the
+usual fallback list. To override the default font on any platform, set `theme(font="...")`.
+
 ## What gets embedded
 
 When `saveMetadata=True` (the default), `save()` writes a `dysonsphere` metadata block into all
