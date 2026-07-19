@@ -1,12 +1,13 @@
 ---
-title: Marks & transforms
-description: Composite marks (strip, violin, table) and the data transforms that back them.
+title: Marks
+description: Composite marks - strip, violin, boxplot, and a publication-styled table.
 ---
 
 import Example from '../../../components/Example.astro';
 
 dysonsphere's composite marks return native Altair layers, so you compose them with `+` and keep
-Altair's full API.
+Altair's full API. The jitter, beeswarm, and quasirandom offsets they use are also available as
+standalone [transforms](/guides/transforms/).
 
 ## Strip plot
 
@@ -52,26 +53,3 @@ so figures line up on the decimal; everything else is left. The source DataFrame
 recolour individual cells in Illustrator.
 
 <Example name="table" alt="Styled results table with per-column formatting and a value-shaded column" />
-
-## Transforms
-
-The jitter, beeswarm, and quasirandom offsets are also available as standalone transforms that add a
-column to your DataFrame, which you then feed to Altair's `xOffset` encoding - handy when you want
-the offset on your own custom mark.
-
-`add_jitter` adds random Gaussian x-noise (seeded, so it still reproduces) - the lightweight option
-for breaking up overplotting, e.g. scattering raw points over a boxplot.
-
-<Example name="jitter" alt="Jittered scatter using add_jitter" />
-
-`add_beeswarm` packs points with exact collision avoidance, so none overlap. The trade is that
-tightly-packed rows can look lopsided - an even-count row parks a point on the tick, and lone points
-get pushed to one side.
-
-<Example name="beeswarm" alt="Beeswarm scatter using add_beeswarm" />
-
-`add_quasirandom` spreads points by local density instead - a deterministic van der Corput sequence
-weighted by a kernel density estimate - for a symmetric, violin-shaped swarm. It is the better
-choice for large or heavily-tied groups, at the cost of allowing some overlap.
-
-<Example name="quasirandom" alt="Quasirandom scatter using add_quasirandom" />

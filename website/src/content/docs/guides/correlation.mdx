@@ -1,0 +1,41 @@
+---
+title: Correlation
+description: Correlation coefficients and OLS fit lines with add_correlation, including per-series fits.
+---
+
+import Example from '../../../components/Example.astro';
+
+`add_correlation()` adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
+scatter, as a layer you compose with `+`. Like `add_comparisons()`, it builds a structured report
+that `save()` embeds in the export metadata (`report=True` prints it, `save=True` writes a file).
+The default readout is a bare `r = …`; rank methods report the coefficient only.
+
+<Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
+
+For Pearson, `ci=True` shades a confidence band around the fit line (pass a level like `ci=0.99`).
+`interval="confidence"` (the default) shows how tightly the line itself is pinned down;
+`interval="prediction"` shows the wider band for a single new observation. The band is drawn under
+the line and styled with `ciColor` / `ciOpacity`:
+
+<Example name="correlation_ci" alt="OLS fit line with a shaded 95% confidence band" />
+
+The readout is composed from independent parts, so you can show exactly what you want:
+`coefficient="both"` gives r and r², `includePvalue=True` adds P, `includeEquation=True` adds the
+fit line's equation, and `verbose=True` is a shortcut that turns all of them on. The longer the
+readout, the wider the chart should be (`theme(chartWidth=…)`):
+
+<Example name="correlation_both" alt="Scatter with an r, r-squared, and p-value readout" />
+
+Rank correlations (`method="spearman"` / `"kendall"`) report only the coefficient (ρ / τ) and its
+p-value - no fit line, since a straight line is not their model:
+
+<Example name="correlation_spearman" alt="Weight versus miles per gallon, Spearman coefficient" />
+
+## Per-series correlation
+
+Pass `groupCol` to fit and report a correlation **per group** - one fit line, CI band, and coefficient
+per level, each coloured to match its points (colour your scatter by the same field). Colour is a
+lookup rather than a position, so no sort parameter is needed. The readouts stack in the corner, one
+per series:
+
+<Example name="correlation_groups" alt="Per-cell-line correlation with fit lines and coefficients" />

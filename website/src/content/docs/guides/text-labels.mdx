@@ -1,0 +1,34 @@
+---
+title: Text & labels
+description: Text annotations with add_text and auto-placed point labels with add_labels.
+---
+
+import Example from '../../../components/Example.astro';
+
+Both return native Altair layers you compose with `+`, sharing the base chart's scales.
+
+## Text
+
+`add_text()` places annotations at data coordinates (numbers share the quantitative scale, strings
+snap to categories) or at frame positions via nine presets (`topLeft`, `middleCenter`, …). Add a
+background chip behind the text with `fill` (`True` for a darkmode-aware grey, or a color),
+`fillOpacity`, `stroke`, and `cornerRadius` - useful for keeping the text legible over a busy
+field. The chip is drawn only when `fill` is set.
+
+<Example name="text" alt="Scatter plot with a frame-anchored sample-size annotation" />
+
+## Point labels
+
+`add_labels()` auto-places non-overlapping text labels with connector lines for a set of points -
+volcano gene labels, rank-order labels, cluster labels. Placement is deterministic (no RNG, so
+figures are reproducible): each label takes the nearest clear spot, and a thin leader line runs
+from each point to its label. Pass the full plotted `df` and let `labels=` select which points to
+name - an integer picks that many spread evenly across the plot, a list names rows by their
+`labelCol` value, and a boolean mask (`labels=df["is_hit"]`) selects rows positionally when the
+label column repeats. Passing the full `df` also lets the labels dodge every plotted point, not
+just the ones being named, so they settle into open space instead of on top of the crowd. Style
+the labels with `fontSize`, `color`, and `fontStyle` (e.g. `fontStyle="italic"` for gene or
+species names), and give them a background chip with `fill` / `fillOpacity` / `stroke` /
+`cornerRadius` (drawn only when `fill` is set) to keep them readable over a dense scatter.
+
+<Example name="labels" alt="Scatter plot with eight auto-placed, connector-linked point labels" />

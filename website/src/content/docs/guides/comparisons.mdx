@@ -1,32 +1,30 @@
 ---
-title: Statistical annotations
-description: Significance brackets and correlation readouts, with reports baked into exports.
+title: Comparisons
+description: Pairwise and omnibus significance tests with add_comparisons - brackets, asterisks, reference and grouped modes.
 ---
 
 import Example from '../../../components/Example.astro';
 
-`add_comparisons()` and `add_correlation()` compute statistics with scipy and draw them as layers.
-Every call also builds a structured report - descriptives, exact p-values, and effect sizes - that
-`save()` embeds in the export metadata, so a figure carries its own analysis. Pass `report=True` to
-print it, or `save=True` to write a text file.
+`add_comparisons()` computes significance tests with scipy and draws them as a layer you compose
+with `+`. Every call also builds a structured report - descriptives, exact p-values, and effect
+sizes - that `save()` embeds in the export metadata, so a figure carries its own analysis. Pass
+`report=True` to print it, or `save=True` to write a text file.
 
-## Group comparisons
-
-`add_comparisons()` classifies `test=` into **pairwise** (`mannwhitneyu`, `ttest_ind`, `ttest_rel`,
-`wilcoxon`, `tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`, `alexandergovern`). Here an
-ANOVA with a corner label plus two post-hoc brackets. The corner label sits at the top of the plot,
-so pad the y domain and lift the brackets with `yStart=` to keep everything clear:
+It classifies `test=` into **pairwise** (`mannwhitneyu`, `ttest_ind`, `ttest_rel`, `wilcoxon`,
+`tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`, `alexandergovern`). Here an ANOVA with
+a corner label plus two post-hoc brackets. The corner label sits at the top of the plot, so pad the
+y domain and lift the brackets with `yStart=` to keep everything clear:
 
 <Example name="comparisons" alt="Fuel economy by origin with an ANOVA label and post-hoc brackets" />
 
-### Pairwise tests and corrections
+## Pairwise tests and corrections
 
 Give a list of pairs; brackets stack automatically. `correction=` applies Holm or Bonferroni
 multiple-comparison adjustment.
 
 <Example name="comparisons_pairwise" alt="Three pairwise Mann-Whitney brackets with Holm correction" />
 
-### Compare against a control
+## Compare against a control
 
 Pass `reference=` (a group name) to compare every other group against one control and draw the
 p-value **above each mark, with no brackets** - the clean many-vs-one layout that a fan of brackets
@@ -49,7 +47,7 @@ bars, and a flat asterisk row per group compared against the control:
 
 <Example name="comparisons_grouped_reference" alt="Three dose-response groups with per-group flat asterisk rows compared to a darker vehicle control" />
 
-### Label styles
+## Label styles
 
 `labelStyle="asterisks"` renders `*` / `**` / `***` / `ns`; `bracketStyle="line"` drops the end
 ticks.
@@ -62,7 +60,7 @@ to a single number, which aligns every label in a flat row:
 
 <Example name="comparisons_value" alt="Reference comparison with bare-value labels in a flat row" />
 
-### Number notation
+## Number notation
 
 `notation=` controls the p-value format (`"scientific"`, `"e"`, `"power"`), and `sigFigs=` sets the
 precision.
@@ -74,7 +72,7 @@ matched regardless of order); `notation` additionally takes a `"test"` key for t
 
 <Example name="comparisons_perpair" alt="Two brackets with different per-pair styles and notation" />
 
-### Omnibus with post-hoc
+## Omnibus with post-hoc
 
 For an omnibus test, the corner label reports the omnibus result and the brackets are filled by the
 matching post-hoc (Kruskal-Wallis → Dunn here). `omnibusVerbose=True` adds the statistic, degrees of
@@ -82,7 +80,7 @@ freedom, and effect size.
 
 <Example name="comparisons_kruskal" alt="Kruskal-Wallis omnibus label with Dunn post-hoc brackets" />
 
-### Grouped (two-factor) comparisons
+## Grouped (two-factor) comparisons
 
 For a grouped bar chart - a subgroup on `xOffset` within each x-category, like a qPCR gene × condition
 panel - pass `xOffsetCol` to compare the subgroup **levels within each group**. `pairs` names the
@@ -91,38 +89,3 @@ sitting above its own group's bars. Set `categories` and `xOffsetSort` to match 
 `xOffset` sort (it raises if they don't cover the data):
 
 <Example name="qpcr" alt="Grouped qPCR bars with a within-gene significance bracket per gene" />
-
-## Correlation
-
-`add_correlation()` adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
-scatter. The default readout is a bare `r = …`; rank methods report the coefficient only.
-
-<Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
-
-For Pearson, `ci=True` shades a confidence band around the fit line (pass a level like `ci=0.99`).
-`interval="confidence"` (the default) shows how tightly the line itself is pinned down;
-`interval="prediction"` shows the wider band for a single new observation. The band is drawn under
-the line and styled with `ciColor` / `ciOpacity`:
-
-<Example name="correlation_ci" alt="OLS fit line with a shaded 95% confidence band" />
-
-The readout is composed from independent parts, so you can show exactly what you want:
-`coefficient="both"` gives r and r², `includePvalue=True` adds P, `includeEquation=True` adds the
-fit line's equation, and `verbose=True` is a shortcut that turns all of them on. The longer the
-readout, the wider the chart should be (`theme(chartWidth=…)`):
-
-<Example name="correlation_both" alt="Scatter with an r, r-squared, and p-value readout" />
-
-Rank correlations (`method="spearman"` / `"kendall"`) report only the coefficient (ρ / τ) and its
-p-value - no fit line, since a straight line is not their model:
-
-<Example name="correlation_spearman" alt="Weight versus miles per gallon, Spearman coefficient" />
-
-### Per-series correlation
-
-Pass `groupCol` to fit and report a correlation **per group** - one fit line, CI band, and coefficient
-per level, each coloured to match its points (colour your scatter by the same field). Colour is a
-lookup rather than a position, so no sort parameter is needed. The readouts stack in the corner, one
-per series:
-
-<Example name="correlation_groups" alt="Per-cell-line correlation with fit lines and coefficients" />

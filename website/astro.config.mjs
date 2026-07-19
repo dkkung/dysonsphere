@@ -113,9 +113,28 @@ export default defineConfig({
 						{ label: 'Theming', slug: 'guides/theming' },
 						{ label: 'Global theme overrides', slug: 'guides/configuration' },
 						{ label: 'Palettes', slug: 'guides/palettes' },
-						{ label: 'Marks & transforms', slug: 'guides/marks' },
-						{ label: 'Annotations', slug: 'guides/annotations' },
-						{ label: 'Statistical annotations', slug: 'guides/statistics' },
+						{
+							label: 'Marks & transforms',
+							items: [
+								{ label: 'Marks', slug: 'guides/marks' },
+								{ label: 'Transforms', slug: 'guides/transforms' },
+							],
+						},
+						{
+							label: 'Annotations',
+							items: [
+								{ label: 'Reference lines', slug: 'guides/reference-lines' },
+								{ label: 'Shading', slug: 'guides/shading' },
+								{ label: 'Text & labels', slug: 'guides/text-labels' },
+							],
+						},
+						{
+							label: 'Statistical annotations',
+							items: [
+								{ label: 'Comparisons', slug: 'guides/comparisons' },
+								{ label: 'Correlation', slug: 'guides/correlation' },
+							],
+						},
 						{ label: 'Multilabels', slug: 'guides/multilabels' },
 						{ label: 'Nonlinear axes', slug: 'guides/nonlinear' },
 						{ label: 'Saving, reading, loading', slug: 'guides/saving' },
