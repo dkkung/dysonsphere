@@ -118,12 +118,20 @@ def _minor_tick_layer(
     scale: alt.Scale,
     minor_tick_size: float,
 ) -> alt.Chart:
-    """The invisible minor-tick layer shared by the log and pow constructors.
+    """The minor-tick layer shared by the log and pow constructors.
 
-    A zero-opacity point mark carrying a second axis that draws only unlabeled ticks at
-    ``minor_values``. The ``scale`` must set an explicit domain - without it Vega auto-fits
-    the independent scale to the data extent, dropping partial edge intervals. The caller
-    layers it over the main chart with ``resolve_axis(...="independent")``.
+    A point-mark layer carrying a second axis that draws only unlabeled ticks at ``minor_values``.
+    The ``scale`` must set an explicit domain - without it Vega auto-fits the independent scale to
+    the data extent, dropping partial edge intervals. The caller layers it over the main chart with
+    ``resolve_axis(...="independent")``.
+
+    **The layer renders NO marks.** It shares the user's ``df`` (so ``read(what="data")`` /
+    provenance still see exactly one frame - the layer dedupes to the main chart's dataset) but is
+    filtered to zero rows, so it hosts the minor-tick axis (which is driven by the forced ``scale``
+    domain, not by data) while emitting nothing. This is why the axis-host marks do not litter the
+    exported SVG - and it is done at the source rather than by stripping transparent elements after
+    render, which would also delete a user's own opacity-encoded (transparent) DATA marks and break
+    the SVG's data-completeness. ``opacity=0`` is kept as a belt-and-suspenders fallback.
     """
     minor_axis = alt.Axis(
         values=minor_values,
@@ -134,7 +142,7 @@ def _minor_tick_layer(
         tickSize=minor_tick_size,
         orient="bottom" if axis == "x" else "left",
     )
-    layer = alt.Chart(df).mark_point(opacity=0)
+    layer = alt.Chart(df).transform_filter("false").mark_point(opacity=0)
     if axis == "y":
         return layer.encode(y=alt.Y(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
     return layer.encode(x=alt.X(f"{field}:Q", title=None, scale=scale, axis=minor_axis))

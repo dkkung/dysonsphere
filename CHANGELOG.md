@@ -75,6 +75,15 @@
 
 ### Fixes
 
+- **`add_log_ticks` / `add_pow_ticks` no longer leave a column of transparent circles in the
+  exported SVG.** They host their minor-tick axis on a `mark_point(opacity=0)` layer, which was
+  drawn once per data row and stacked at the plot centre - invisible in a PNG or browser, but real
+  `<path>` objects that showed up as a stray column when the SVG was opened in Illustrator or
+  Inkscape. The axis-host layer now shares the dataframe but is filtered to zero rows, so it hosts
+  the axis (driven by the forced scale domain) while rendering no marks. Fixed at the source rather
+  than by stripping transparent elements from the SVG - a blanket strip would have deleted a user's
+  own opacity-encoded (transparent) data marks and broken the export's data-completeness. `read()`
+  and PNG output are unchanged.
 - **Log-axis power labels (`10⁰`, `10⁴`, …) no longer render in a slanted substitute font in
   exports.** `log_label_expr(notation="power")` emits Unicode superscript exponents, but Helvetica
   Neue (the theme font) ships the Latin-1 superscripts `¹²³` while lacking the Superscripts-block

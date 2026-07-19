@@ -701,6 +701,43 @@ class TestLayerAxesToFront:
         assert any(p.get("fill") == "none" for p in paths)  # clone → fill=none
 
 
+# ── scaffolding marks vs real data marks ─────────────────────────────────────
+
+
+class TestScaffoldingMarks:
+    def test_log_ticks_emit_no_scaffolding_marks(self, tmp_path):
+        # add_log_ticks hosts its minor-tick axis on a layer filtered to zero rows, so the SVG
+        # carries NO axis-host point marks (the old bug: a column of ~n transparent circles), while
+        # the minor-tick <line> elements still render and read(what="data") sees one user frame.
+        import dysonsphere as ds
+
+        df = pl.DataFrame({"x": list(range(20)), "y": [1.5**i for i in range(20)]})
+        line = (
+            alt.Chart(df)
+            .mark_line()
+            .encode(
+                x="x:Q", y=alt.Y("y:Q", scale=alt.Scale(type="log"), axis=alt.Axis(values=[1, 10, 100, 1000, 10000]))
+            )
+        )
+        chart = ds.add_log_ticks(line, df, "y", axis="y")
+        save(chart, str(tmp_path / "out"), format=["svg", "json"], background="light")
+        svg = (tmp_path / "out.svg").read_text(encoding="utf-8")
+        assert 'opacity="0"' not in svg  # no scaffolding marks leaked
+        assert "<line" in svg  # minor ticks still drawn
+        assert ds.read(str(tmp_path / "out.json"), what="data").shape == (20, 2)  # one user frame, intact
+
+    def test_transparent_data_marks_are_preserved(self, tmp_path):
+        # The crux of the fix: a user's own opacity-encoded (fully transparent) DATA marks must
+        # survive to the SVG - the export must stay a complete rendering of the data (provenance).
+        # A blanket opacity="0" strip would have wrongly deleted these.
+        df = pl.DataFrame({"x": [0.0, 1.0, 2.0], "y": [1.0, 2.0, 3.0]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", opacity=alt.value(0.0))
+        save(chart, str(tmp_path / "out"), format="svg", background="light")
+        svg = (tmp_path / "out.svg").read_text(encoding="utf-8")
+        # all three transparent points are still present as marks
+        assert svg.count('aria-roledescription="point"') == 3
+
+
 # ── _simplify_svg() ──────────────────────────────────────────────────────────
 
 
