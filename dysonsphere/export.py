@@ -63,9 +63,11 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     The remaining post-processors are shared by :func:`save` and :func:`show` so the pipeline
     stays identical: grid alignment (seat both grid directions onto the plot content, off the
     detached axes), inward-tick flip (when ``inwardTicks``), axis layering, ``<g>``
-    simplification, superscript-label typesetting, and statistical-symbol italicization
+    simplification, superscript-label typesetting, statistical-symbol italicization
     (``P``/``n``/``F``/``r``/… - after the superscript fixer, which only scans element
-    ``.text``). The SVG is parsed once here and each
+    ``.text``), and Illustrator font-family collapse (the CSS fallback stack renders as plain
+    Helvetica in Illustrator; the SVG - and only the SVG - is pinned to the resolvable
+    PostScript name). The SVG is parsed once here and each
     fixer mutates the shared ElementTree;
     the corrected tree is serialized once at the end (a single parse/write round trip, not
     one per fixer). The caller sets up the theme (e.g. ``transparent``) and owns the file's
@@ -87,6 +89,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     _simplify_svg(root)
     _fix_superscript_labels(root)
     _italicize_stat_symbols(root)
+    _fix_font_for_illustrator(root)
     svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
     Path(svg_path).write_text(svg, encoding="utf-8")
     return svg
@@ -728,6 +731,67 @@ def _italicize_stat_symbols(root: ET.Element) -> None:
     targets = [el for el in root.iter() if el.tag in (f"{{{_SVG_NS}}}text", f"{{{_SVG_NS}}}tspan")]
     for el in targets:
         _italicize_text_element(el)
+
+
+# Generic CSS font keywords (never a real family to collapse to).
+_GENERIC_FONTS = {"serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui", "ui-sans-serif"}
+
+
+def _illustrator_font_family(value: str) -> str:
+    """Rewrite a CSS ``font-family`` stack to an Illustrator-resolvable form, fallbacks kept.
+
+    Adobe Illustrator's SVG importer does NOT resolve CSS fallback stacks the way browsers
+    and vl-convert do - it walks a comma-separated ``font-family`` and lands on the first
+    single-word family it recognizes, so the default theme stack
+    ``Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif`` renders as plain
+    **Helvetica** (the 3rd entry), not Helvetica Neue. Worse, Illustrator aliases the
+    *spaced* family name ``Helvetica Neue`` to Helvetica even as a single value, while the
+    space-free **PostScript** name ``HelveticaNeue`` resolves correctly (verified in
+    Illustrator, regular AND italic faces).
+
+    Two things fix it: (1) put the resolvable form of the primary family first - the space-free
+    PostScript name when the theme provided it as a fallback (the despaced primary appears
+    elsewhere in the stack, the signal it's the intended alias), else the primary as-is (a
+    single spaced family like ``Courier New`` resolves fine on its own; only the Helvetica
+    family aliases). (2) DROP the primary's less-specific same-family aliases - any entry that
+    is a prefix of the primary name (e.g. ``Helvetica`` under ``Helvetica Neue``), which is
+    exactly the entry Illustrator gets trapped on - but KEEP the genuinely-different fallbacks
+    (``Arial``, ``sans-serif``). So the default becomes ``HelveticaNeue, Arial, sans-serif``:
+    Helvetica Neue on macOS Illustrator AND a graceful Arial/sans-serif fallback for every
+    non-macOS consumer (Windows Illustrator, Linux Inkscape, a raw SVG in a browser) that
+    lacks Helvetica Neue. Both verified. Generic-only values are left untouched.
+    """
+    families = [f.strip().strip("'\"") for f in value.split(",")]
+    families = [f for f in families if f]
+    if not families:
+        return value
+    primary = families[0]
+    if primary.lower() in _GENERIC_FONTS:
+        return value  # nothing concrete to pin
+    despaced = primary.replace(" ", "")
+    resolvable = despaced if (" " in primary and despaced in families) else primary
+    plow = primary.lower()
+    tail = [
+        f
+        for f in families[1:]
+        if f != resolvable and f.replace(" ", "") != resolvable and not plow.startswith(f.lower())
+    ]
+    return ", ".join([resolvable, *tail])
+
+
+def _fix_font_for_illustrator(root: ET.Element) -> None:
+    """Rewrite every ``font-family`` in the SVG to an Illustrator-resolvable form.
+
+    SVG-only (runs in :func:`_render_fixed_svg`, never on the spec) so the theme option, the
+    JSON, and the browser-targeted HTML keep the original CSS fallback stack - only the
+    Illustrator-targeted SVG is rewritten. See :func:`_illustrator_font_family` for the why
+    and the rule. Italic stat-symbol tspans inherit the parent ``font-family``, so they pick
+    up the resolvable name too (verified: real italic face in Illustrator).
+    """
+    for el in root.iter():
+        ff = el.get("font-family")
+        if ff:
+            el.set("font-family", _illustrator_font_family(ff))
 
 
 def _simplify_svg(root: ET.Element) -> None:
