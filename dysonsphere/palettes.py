@@ -11,11 +11,12 @@ __all__ = ["colors", "palette", "categorical", "export_swatches"]
 # The base hues each qualitative palette cycles through, in order. Every color is a
 # slice of an existing base palette (retuning a base hue regenerates the palette), and
 # CVD-close pairs are kept non-adjacent so touching marks stay distinguishable.
-#   ds_cat_1 - the default: five muted, australis-harmonious hues (azure leads for
-#              slot-0 presence, tan is the warm end). See the cat_* ramps in `colors`.
+#   ds_cat_1 - the default: five australis-harmonious hues tuned for colorblindness
+#              (teal leads for slot-0 presence, gold is the warm end). See the cat_*
+#              ramps in `colors`.
 #   ds_cat_2 - the legacy set: four brighter pastel hues (blue, pink, yellow, green).
 _QUALITATIVE_HUES = {
-    "ds_cat_1": ("cat_azures", "cat_blues", "cat_purples", "cat_greens", "cat_tans"),
+    "ds_cat_1": ("cat_teals", "cat_blues", "cat_purples", "cat_greens", "cat_golds"),
     "ds_cat_2": ("blues", "pinks", "yellows", "greens"),
 }
 _DEFAULT_QUALITATIVE = "ds_cat_1"
@@ -498,79 +499,82 @@ colors = {
         "#552D7D",
         "#3A2570",
     ],
-    # Qualitative base ramps: the five muted, australis-harmonious hues sliced
-    # by categorical() to build the ds_cat_1 palette. Muted (low-chroma) with a
-    # per-hue lightness stagger for CVD separation; azure leads, tan is the warm
-    # end. Distinct de-novo ramps, NOT slices of the saturated blues/greens/etc.
-    "cat_azures": [
-        "#8DC8DD",
-        "#7BB5CB",
-        "#69A2B9",
-        "#5890A7",
-        "#477E95",
-        "#3A6C82",
-        "#305B6F",
-        "#264A5B",
-        "#1C3949",
-        "#132A36",
-        "#0A1B25",
-        "#040E14",
-    ],
+    # Qualitative base ramps: the five australis-harmonious hues sliced by
+    # categorical() to build the ds_cat_1 palette. Tuned for colorblindness -
+    # the three cool hues (teal/blue/purple) are pulled apart in hue AND given
+    # distinct lightnesses so a CVD viewer separates them by lightness when hue
+    # collapses; green + gold are the yellow-side anchors. Teal leads, gold is
+    # the warm end. Distinct de-novo ramps, NOT slices of the saturated
+    # blues/greens/etc. (See print_palettes.py for the recipe.)
     "cat_blues": [
-        "#E2EFF9",
-        "#C3DEF2",
-        "#A8CBE8",
-        "#96B7D4",
-        "#84A4C0",
-        "#7290AD",
-        "#617D9A",
-        "#506B87",
-        "#405975",
-        "#304863",
-        "#213752",
-        "#132741",
+        "#E7EFF9",
+        "#CDDEF3",
+        "#B3CCED",
+        "#9BBBE5",
+        "#8AA8D2",
+        "#7995BF",
+        "#6983AC",
+        "#59719A",
+        "#4A6088",
+        "#3B4F76",
+        "#2D3E65",
+        "#1F2E54",
+    ],
+    "cat_golds": [
+        "#FAEFD7",
+        "#F5E1B3",
+        "#EAD199",
+        "#DAC189",
+        "#CBB17A",
+        "#BBA16B",
+        "#AC915C",
+        "#9D824D",
+        "#8D7340",
+        "#7D6538",
+        "#6D572F",
+        "#5D4A27",
     ],
     "cat_greens": [
-        "#CCEAC8",
-        "#BAD9B8",
-        "#A9C8A9",
-        "#98B89A",
-        "#87A88B",
-        "#77987C",
-        "#67886E",
-        "#577960",
-        "#486A52",
-        "#395B45",
-        "#2A4D38",
-        "#1E3F2C",
+        "#C4EAC4",
+        "#B3DAB5",
+        "#A2C9A6",
+        "#91B997",
+        "#80A988",
+        "#70997A",
+        "#608A6C",
+        "#507B5F",
+        "#416C51",
+        "#315E44",
+        "#274F39",
+        "#1E402F",
     ],
     "cat_purples": [
-        "#CDD2F0",
-        "#B9BFE8",
-        "#A8ABD4",
-        "#9699C0",
-        "#8586AD",
-        "#74749A",
-        "#646387",
-        "#545175",
-        "#454164",
-        "#363152",
-        "#282242",
-        "#1B1331",
+        "#C8C6ED",
+        "#B7B3E4",
+        "#A7A0D1",
+        "#968FBE",
+        "#867DAC",
+        "#776C9A",
+        "#675C88",
+        "#584C77",
+        "#4A3C65",
+        "#3C2D55",
+        "#2E1E45",
+        "#211035",
     ],
-    "cat_tans": [
-        "#FBF1EB",
-        "#F6E0D2",
-        "#F2CFB9",
-        "#E9BFA5",
-        "#DAAF97",
-        "#CBA189",
-        "#BC927C",
-        "#AE836F",
-        "#9F7563",
-        "#916756",
-        "#835A4A",
-        "#754C3E",
+    "cat_teals": [
+        "#69BAC3",
+        "#5CA7B1",
+        "#51959F",
+        "#47838D",
+        "#3D727B",
+        "#336169",
+        "#295058",
+        "#204148",
+        "#173137",
+        "#0F2328",
+        "#071519",
+        "#02090B",
     ],
     "cosmos": [
         "#021F22",

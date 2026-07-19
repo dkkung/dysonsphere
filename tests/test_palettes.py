@@ -100,7 +100,7 @@ def test_palette_unknown_key_raises():
 class TestCategorical:
     # The two qualitative palettes and their base hues, keyed by the `palette=` argument.
     HUES = {
-        "ds_cat_1": ("cat_azures", "cat_blues", "cat_purples", "cat_greens", "cat_tans"),
+        "ds_cat_1": ("cat_teals", "cat_blues", "cat_purples", "cat_greens", "cat_golds"),
         "ds_cat_2": ("blues", "pinks", "yellows", "greens"),
     }
     PALETTES = ["ds_cat_1", "ds_cat_2"]

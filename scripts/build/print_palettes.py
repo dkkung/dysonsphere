@@ -637,18 +637,22 @@ SEQ_MULTI_OKLAB = {
         (0.92, 95),
     ],
     # ── Qualitative base ramps (the cat_* family) ────────────────────────
-    # Five muted, australis-harmonious hues sliced at stops (1,4,7) to build
-    # the ds_cat_1 categorical palette (see palettes.py `categorical`).  Each
-    # is a 2-keyframe ramp whose hue drifts toward australis's route as it
-    # darkens; the chroma cap (SEQ_MULTI_MAX_CHROMA) keeps the muted register,
-    # and a per-hue LIGHTNESS STAGGER (light end 0.80-0.965) separates the
-    # CVD-close pairs under dichromacy at every tier.  Azure leads the cycle
-    # (slot 0 = the lone-series default, needs presence); tan is the warm end.
-    "cat_azures": [(0.80, 222), (0.155, 237)],
-    "cat_blues": [(0.945, 240), (0.27, 256)],
-    "cat_greens": [(0.905, 142), (0.335, 158)],
-    "cat_purples": [(0.87, 278), (0.215, 293)],
-    "cat_tans": [(0.965, 58), (0.46, 40)],
+    # Five australis-harmonious hues sliced at stops (1,4,7) to build the
+    # ds_cat_1 categorical palette (see palettes.py `categorical`).  Each is a
+    # 2-keyframe ramp whose hue drifts as it darkens; the chroma cap
+    # (SEQ_MULTI_MAX_CHROMA) sets the register.  Tuned for COLORBLINDNESS
+    # (deut/prot): the three cool hues are pulled apart - teal (h205) leads and
+    # is DARKEST, indigo blue is lightest, violet purple sits between - and each
+    # hue gets a distinct LIGHTNESS so a CVD viewer separates them by lightness
+    # when hue collapses toward the blue<->yellow axis.  Green + gold are the
+    # yellow-side pair (gold is the pure-yellow warm anchor, maximally distinct
+    # from the cools under dichromacy).  Teal leads the cycle (slot 0 = the
+    # lone-series default, needs presence); gold is the warm end.
+    "cat_blues": [(0.95, 252), (0.31, 266)],
+    "cat_golds": [(0.955, 88), (0.42, 80)],
+    "cat_greens": [(0.90, 145), (0.34, 160)],
+    "cat_purples": [(0.84, 288), (0.22, 302)],
+    "cat_teals": [(0.74, 205), (0.13, 218)],
 }
 
 # Per-palette frac overrides for build_multihue (default SEQ_FRAC).
@@ -670,12 +674,12 @@ SEQ_MULTI_MAX_CHROMA = {
     "australis": 0.14,
     "brass": [0.12, 0.09, 0.035, 0.09, 0.13],
     "pewter": [0.12, 0.09, 0.035, 0.045, 0.035],
-    # Qualitative base ramps - muted register (low chroma) for categorical use.
-    "cat_azures": 0.068,
-    "cat_blues": 0.055,
-    "cat_greens": 0.055,
-    "cat_purples": 0.058,
-    "cat_tans": 0.060,
+    # Qualitative base ramps - chroma tuned per hue for CVD contrast.
+    "cat_blues": 0.070,
+    "cat_golds": 0.078,
+    "cat_greens": 0.065,
+    "cat_purples": 0.070,
+    "cat_teals": 0.080,
 }
 
 # Baked magma Oklab L, sampled at the 12 output positions (matplotlib magma).
