@@ -64,8 +64,8 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     The remaining post-processors are shared by :func:`save` and :func:`show` so the pipeline
     stays identical: grid alignment (seat both grid directions onto the plot content, off the
     detached axes), inward-tick flip (when ``inwardTicks``), axis layering, ``<g>``
-    simplification, superscript-label typesetting, statistical-symbol italicization
-    (``P``/``n``/``F``/``r``/… - after the superscript fixer, which only scans element
+    simplification, super/subscript typesetting, statistical-symbol italicization
+    (``P``/``n``/``F``/``r``/… - after the script fixer, which only scans element
     ``.text``), and Illustrator font-family collapse (the CSS fallback stack renders as plain
     Helvetica in Illustrator; the SVG - and only the SVG - is pinned to the resolvable
     PostScript name). The SVG is parsed once here and each
@@ -88,7 +88,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
         _flip_ticks_inward(root)
     _layer_axes_to_front(root)
     _simplify_svg(root)
-    _fix_superscript_labels(root)
+    _typeset_scripts(root)
     _italicize_stat_symbols(root)
     _fix_font_for_illustrator(root)
     svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
@@ -590,23 +590,43 @@ def _layer_axes_to_front(root: ET.Element) -> None:
     reorder(root)
 
 
-# Reverse of the shared _SUP (utils) plus the superscript minus, back to plain ASCII + real minus.
+# --- Super/subscript typesetting --------------------------------------------------------------
+#
+# Vega renders every label as one flat string, so a real super/subscript can only be produced by
+# editing the SVG after render: the run is pulled into a <tspan> that is shrunk and shifted up
+# (superscript) or down (subscript). ONE engine, `_typeset_scripts`, does both directions - each
+# spec below names the characters to detect, the map to plain ASCII, and the shift direction. Plain
+# ASCII is used in the tspan because some fonts (Helvetica Neue) lack the rarer Unicode super/sub
+# glyphs and substitute a slanted fallback (the log-axis `10⁰` bug) - an ASCII digit always resolves.
+
+# Unicode super/subscript -> plain ASCII (the superscript minus becomes the real minus U+2212).
 _SUPERSCRIPT_MAP = str.maketrans(_SUP + "⁻", "0123456789−")
-# Matches the Unicode-superscript exponent of a power/scientific-notation number, in either form:
-#   - a scientific/p-value mantissa - ...×10ⁿ / ≈10ⁿ  (group 1 = "×10"/"≈10")
-#   - a bare power base - a digit directly before the superscript run, e.g. the log-axis labels
-#     10⁰, 2²⁰ that log_label_expr emits  (group 1 = the last base digit)
-# Group 1 is the kept base; group 2 is the superscript exponent that gets re-typeset. The bare-base
-# alternative is what fixes log-axis labels - a base digit is required before the run so letter+
-# superscript labels (r², η², χ²) are left upright/untouched.
-_SUP_LABEL_PATTERN = re.compile(r"([×≈]\s*10|\d)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)")
-# Exponent size / rise as a fraction of the base glyph's font-size (2/3 and 5/12 - the old fixed
-# 4px / 2.5px expressed against a 6px base), so the exponent scales to whatever size the label is.
-_SUP_SIZE_RATIO = 2 / 3
-_SUP_RISE_RATIO = 5 / 12
+_SUBSCRIPT_MAP = str.maketrans("₀₁₂₃₄₅₆₇₈₉₋ₐₑₒₓₕₖₗₘₙₚₛₜ", "0123456789-aeoxhklmnpst")
+
+# Run size / shift as a fraction of the base glyph's font-size (2/3 and 5/12 - the original fixed
+# 4px / 2.5px expressed against a 6px base), so a run scales to whatever size the label is.
+_SCRIPT_SIZE_RATIO = 2 / 3
+_SCRIPT_RISE_RATIO = 5 / 12
+
+# Detection specs: (pattern, translate-map-or-None, direction). EACH pattern captures group(1) =
+# the base to keep and group(2) = the run to typeset; any connector between them (the `^` / `__`
+# author tokens) sits outside both groups and is dropped. Superscripts: the Unicode exponents that
+# log_label_expr / p-values emit (10⁰, 2²⁰, ×10⁻⁵ - a base char is required so letter+superscript
+# labels r²/η²/χ² stay upright) plus a `^` author token (q^2). Subscripts: literal Unicode (t₀) plus
+# a DOUBLE-underscore author token (q__x) - double, not single, so ordinary snake_case column names
+# used as default axis titles (x_1, flipper_length_mm) are NEVER mistaken for subscripts.
+_SUP_UNICODE = re.compile(r"([×≈]\s*10|\d)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)")
+_SUP_CARET = re.compile(r"([A-Za-z0-9])\^([A-Za-z0-9]{1,2})")
+_SUB_UNICODE = re.compile(r"([A-Za-z0-9])([₀₁₂₃₄₅₆₇₈₉₋ₐₑₒₓₕₖₗₘₙₚₛₜ]+)")
+_SUB_DUNDER = re.compile(r"([A-Za-z0-9])__([A-Za-z0-9]{1,2})")
+
+_ScriptSpec = tuple["re.Pattern[str]", "dict[int, int] | None", str]
+_SUP_SPECS: "list[_ScriptSpec]" = [(_SUP_UNICODE, _SUPERSCRIPT_MAP, "raise"), (_SUP_CARET, None, "raise")]
+_SUB_SPECS: "list[_ScriptSpec]" = [(_SUB_UNICODE, _SUBSCRIPT_MAP, "lower"), (_SUB_DUNDER, None, "lower")]
+_ALL_SCRIPTS: "list[_ScriptSpec]" = _SUP_SPECS + _SUB_SPECS
 
 
-def _sup_font_size(el: ET.Element) -> float:
+def _script_font_size(el: ET.Element) -> float:
     """Parse the base glyph's font-size in px; fall back to the theme's fontSize when absent."""
     raw = el.get("font-size")
     if raw:
@@ -617,49 +637,82 @@ def _sup_font_size(el: ET.Element) -> float:
     return float(_opt("fontSize"))
 
 
-def _fix_superscript_labels(root: ET.Element) -> None:
-    """Fix misaligned/substituted Unicode superscripts in scientific/power notation labels.
+def _typeset_scripts(root: ET.Element, specs: "list[_ScriptSpec]" = _ALL_SCRIPTS) -> None:
+    """Typeset super/subscript runs in every label as shrunk, shifted ASCII <tspan>s.
 
-    Unicode superscript digits 1-3 (U+00B9/B2/B3, Latin-1 Supplement) and 0/4-9
-    (U+2070, U+2074-U+2079, Superscripts block) live in different Unicode blocks. Two problems
-    follow: within one exponent (e.g. 10^-14) the two blocks carry inconsistent vertical metrics,
-    so the digits misalign; and many fonts (Helvetica Neue included) ship the Latin-1 1/2/3 but
-    NOT the Superscripts-block 0/4-9, so a bare log-axis label like 10^0 has its exponent glyph
-    substituted from a fallback font and renders slanted. Both are fixed the same way: the exponent
-    is replaced with a <tspan> of raised, shrunk PLAIN ASCII digits (consistent metrics, always
-    present in the base font). Covers scientific/p-value labels (...×10ⁿ) AND the bare-base power
-    labels log_label_expr emits (10ⁿ, 2ⁿ).
+    Handles, in one pass per element: Unicode superscripts (the misaligned/substituted `10⁰`,
+    `×10⁻¹⁴` exponents log_label_expr and p-value labels emit), a `^` superscript author token
+    (`q^2`), literal Unicode subscripts (`t₀`), and a `__` subscript author token (`q__x`). Each run
+    becomes a <tspan> of plain ASCII, shrunk to `_SCRIPT_SIZE_RATIO` and shifted by `_SCRIPT_RISE_
+    RATIO` of the label's own font-size (up for `raise`, down for `lower`) - so nothing depends on a
+    Unicode super/sub glyph the font may lack, and the shift scales with the label. `specs` selects
+    which detectors run (all four by default; the `_fix_superscript_labels` / `_fix_subscript_labels`
+    wrappers pass a subset).
 
-    Operates on element .text values in the parsed tree only (never attribute values, which carry
-    the same label text in aria-label/title). The tspan's font-size and dy scale to the base
-    glyph's own font-size (see _SUP_SIZE_RATIO / _SUP_RISE_RATIO), so p-value (7px) and log-axis
-    (7px) exponents are typeset proportionally rather than at a fixed p-value size.
+    Operates on element .text values in the parsed tree only, never attribute values (which carry the
+    same label text in aria-label/title). Multiple runs in one label - and mixed super/sub - are all
+    handled by collecting every match, dropping overlaps, and rebuilding the element once.
     """
-    # Collect matching text/tspan elements first to avoid modifying while iterating.
-    targets = [
-        el
-        for el in root.iter()
-        if el.tag in (f"{{{_SVG_NS}}}text", f"{{{_SVG_NS}}}tspan") and el.text and _SUP_LABEL_PATTERN.search(el.text)
-    ]
-
-    for el in targets:
-        text = el.text or ""
-        m = _SUP_LABEL_PATTERN.search(text)
-        if not m:
+    for el in list(root.iter()):
+        if el.tag not in (f"{{{_SVG_NS}}}text", f"{{{_SVG_NS}}}tspan"):
             continue
-        prefix = text[: m.end(1)]
-        exp_ascii = m.group(2).translate(_SUPERSCRIPT_MAP)
-        suffix = text[m.end() :]
+        text = el.text
+        if not text:
+            continue
+        # Gather every match from every spec: (base_start, base_end, run_end, ascii_run, direction).
+        spans: list[tuple[int, int, int, str, str]] = []
+        for pattern, translate, direction in specs:
+            for m in pattern.finditer(text):
+                run = m.group(2)
+                spans.append(
+                    (m.start(1), m.end(1), m.end(2), run.translate(translate) if translate else run, direction)
+                )
+        if not spans:
+            continue
+        # Sort by position and drop overlaps (keep the earlier match).
+        spans.sort(key=lambda s: s[0])
+        kept: list[tuple[int, int, int, str, str]] = []
+        last_end = -1
+        for span in spans:
+            if span[0] >= last_end:
+                kept.append(span)
+                last_end = span[2]
+        # Rebuild once: literal text (incl. each kept base) stays inline, each run becomes a tspan.
+        fs = _script_font_size(el)
+        size = f"{round(fs * _SCRIPT_SIZE_RATIO, 2):g}"
+        existing = list(el)  # any pre-existing children follow el.text in reading order
+        for child in existing:
+            el.remove(child)
+        tspans: list[ET.Element] = []
+        cursor = 0
+        head = ""
+        for i, (_base_start, base_end, run_end, ascii_run, direction) in enumerate(kept):
+            literal = text[cursor:base_end]  # preceding text + kept base (drops the ^/__ connector)
+            dy = round((-1 if direction == "raise" else 1) * fs * _SCRIPT_RISE_RATIO, 2)
+            tspan = ET.Element(f"{{{_SVG_NS}}}tspan")
+            tspan.set("dy", f"{dy:g}")
+            tspan.set("font-size", size)
+            tspan.text = ascii_run
+            if i == 0:
+                head = literal
+            else:
+                tspans[-1].tail = literal
+            tspans.append(tspan)
+            cursor = run_end
+        tspans[-1].tail = text[cursor:] or None
+        el.text = head
+        el.extend(tspans)
+        el.extend(existing)
 
-        fs = _sup_font_size(el)
-        tspan = ET.Element(f"{{{_SVG_NS}}}tspan")
-        tspan.set("dy", f"{round(-fs * _SUP_RISE_RATIO, 2):g}")
-        tspan.set("font-size", f"{round(fs * _SUP_SIZE_RATIO, 2):g}")
-        tspan.text = exp_ascii
-        tspan.tail = suffix or None
 
-        el.text = prefix
-        el.insert(0, tspan)
+def _fix_superscript_labels(root: ET.Element) -> None:
+    """Typeset only superscript runs (Unicode ×10ⁿ / 10ⁿ exponents + the `^` author token)."""
+    _typeset_scripts(root, _SUP_SPECS)
+
+
+def _fix_subscript_labels(root: ET.Element) -> None:
+    """Typeset only subscript runs (literal Unicode t₀ + the `__` author token)."""
+    _typeset_scripts(root, _SUB_SPECS)
 
 
 # Single-letter Latin statistical symbols, set in italic by scientific convention; Greek

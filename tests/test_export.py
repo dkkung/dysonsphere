@@ -11,12 +11,14 @@ import pytest
 from dysonsphere.export import (
     _align_grid_to_content,
     _fix_font_for_illustrator,
+    _fix_subscript_labels,
     _fix_superscript_labels,
     _flip_ticks_inward,
     _illustrator_font_family,
     _italicize_stat_symbols,
     _layer_axes_to_front,
     _simplify_svg,
+    _typeset_scripts,
     save,
 )
 from dysonsphere.theme import theme
@@ -878,6 +880,68 @@ class TestFixSuperscriptLabels:
         inner_tspan = outer_tspan.find(f"{{{NS}}}tspan")
         assert inner_tspan is not None
         assert inner_tspan.text == "−14"
+
+    def test_caret_superscript_token(self):
+        # `^` author token: q^2 -> q + raised "2" (superscript mirror of the __ subscript token).
+        root = ET.fromstring(self._svg_with_text("q^2"))
+        _fix_superscript_labels(root)
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        assert text_el.text == "q"  # the caret is dropped
+        tspan = text_el.find(f"{{{NS}}}tspan")
+        assert tspan is not None
+        assert tspan.text == "2"
+        assert tspan.get("dy", "").startswith("-")  # raised
+
+
+class TestFixSubscriptLabels:
+    def _svg_with_text(self, content: str, fs: str | None = None) -> str:
+        attr = f' font-size="{fs}"' if fs else ""
+        return f'<svg xmlns="{NS}"><text{attr}>{content}</text></svg>'
+
+    def _one_tspan(self, content: str):
+        root = ET.fromstring(self._svg_with_text(content))
+        _fix_subscript_labels(root)
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        return text_el
+
+    def test_dunder_token(self):
+        # q__x -> q + LOWERED "x"; the double underscore is dropped.
+        text_el = self._one_tspan("q__x")
+        assert text_el.text == "q"
+        tspan = text_el.find(f"{{{NS}}}tspan")
+        assert tspan is not None
+        assert tspan.text == "x"
+        assert not tspan.get("dy", "").startswith("-")  # lowered (positive dy)
+
+    def test_literal_unicode_subscript(self):
+        # A hand-typed Unicode subscript (t₀) is lowered to ASCII too, dodging font substitution.
+        text_el = self._one_tspan("t₀")
+        assert text_el.text == "t"
+        tspan = text_el.find(f"{{{NS}}}tspan")
+        assert tspan is not None
+        assert tspan.text == "0"
+
+    def test_single_underscore_column_name_untouched(self):
+        # The crux: a default axis title equal to a snake_case column name must NOT be subscripted.
+        for name in ("x_1", "q_x", "t_0", "flipper_length_mm", "p_value", "T_max"):
+            text_el = self._one_tspan(name)
+            assert text_el.text == name  # unchanged
+            assert text_el.find(f"{{{NS}}}tspan") is None
+
+    def test_multiple_and_mixed_scripts_in_one_label(self):
+        # One pass handles several tokens AND both directions: q__x = 10^3 -> lowered x, raised 3.
+        root = ET.fromstring(self._svg_with_text("q__x = 10^3"))
+        _typeset_scripts(root)
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        assert text_el.text == "q"
+        tspans = text_el.findall(f"{{{NS}}}tspan")
+        assert [t.text for t in tspans] == ["x", "3"]
+        assert not tspans[0].get("dy", "").startswith("-")  # x lowered
+        assert tspans[1].get("dy", "").startswith("-")  # 3 raised
+        assert "".join(text_el.itertext()) == "qx = 103"  # reading order preserved, connectors gone
 
 
 class TestItalicizeStatSymbols:
