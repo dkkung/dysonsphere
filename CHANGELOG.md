@@ -64,6 +64,18 @@
 
 ### Fixes
 
+- **Log-axis power labels (`10⁰`, `10⁴`, …) no longer render in a slanted substitute font in
+  exports.** `log_label_expr(notation="power")` emits Unicode superscript exponents, but Helvetica
+  Neue (the theme font) ships the Latin-1 superscripts `¹²³` while lacking the Superscripts-block
+  `⁰⁴⁵⁶⁷⁸⁹` - so `10¹/10²/10³` rendered correctly and only `10⁰` (and 4-9) had its exponent glyph
+  substituted from a fallback font and drawn slanted in `ds.save()` PNG/SVG output (browsers and the
+  live website resolve the glyph from their own fallback, which is why it wasn't visible there). The
+  SVG superscript fixer, which already re-typesets p-value exponents (`…×10ⁿ`) as raised ASCII
+  digits, now also covers these bare power-notation labels, so every exponent is a plain ASCII glyph
+  in the base font - no substitution, no slant. As part of this, the injected exponent's size and
+  rise now scale to the label's own font-size (previously a fixed 4px/2.5px tuned to the 6px p-value
+  label), so the 7px axis and p-value exponents are typeset proportionally; scientific p-value
+  exponents are marginally larger to match.
 - **Exported SVGs now open with the correct font in Adobe Illustrator.** The theme font is a CSS
   fallback stack (`Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif`) that browsers and
   vl-convert resolve to Helvetica Neue, but Illustrator's SVG importer doesn't resolve CSS stacks -

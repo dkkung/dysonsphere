@@ -787,8 +787,9 @@ class TestFixSuperscriptLabels:
         assert text_el.text == "P = 1.94×10"
         tspan = text_el.find(f"{{{NS}}}tspan")
         assert tspan is not None
-        assert tspan.get("dy") == "-2.5"
-        assert tspan.get("font-size") == "4"
+        # no font-size on the <text>, so the exponent scales to the theme fontSize (7): 7*2/3, -7*5/12
+        assert tspan.get("dy") == "-2.92"
+        assert tspan.get("font-size") == "4.67"
         assert tspan.text == "−14"
 
     def test_power_notation_single_digit(self):
@@ -799,6 +800,19 @@ class TestFixSuperscriptLabels:
         tspan = text_el.find(f"{{{NS}}}tspan")
         assert tspan is not None
         assert tspan.text == "−5"
+
+    def test_bare_log_axis_label(self):
+        # The bug: log_label_expr emits bare 10ⁿ (no ×/≈), and the U+2070 zero gets font-
+        # substituted and rendered slanted unless re-typeset. Base "10" stays; exponent -> ASCII.
+        # (Letter+superscript like r² is left alone - the pattern requires a digit base.)
+        root = ET.fromstring(self._svg_with_text("10⁰"))
+        _fix_superscript_labels(root)
+        text_el = root.find(f"{{{NS}}}text")
+        assert text_el is not None
+        assert text_el.text == "10"
+        tspan = text_el.find(f"{{{NS}}}tspan")
+        assert tspan is not None
+        assert tspan.text == "0"
 
     def test_no_match_leaves_tree_unchanged(self):
         root = ET.fromstring(self._svg_with_text("P = 0.023"))
@@ -949,8 +963,8 @@ class TestItalicizeStatSymbols:
         assert self._italic_runs(root) == ["r", "P", "y", "x"]
         text_el = root.find(f"{{{NS}}}text")
         assert text_el is not None
-        # exponent tspan still present with its styling
-        exp = [t for t in text_el.iter(f"{{{NS}}}tspan") if t.get("dy") == "-2.5"]
+        # exponent tspan still present with its styling (raised via a negative dy)
+        exp = [t for t in text_el.iter(f"{{{NS}}}tspan") if (t.get("dy") or "").startswith("-")]
         assert len(exp) == 1 and exp[0].text == "−14"
         # document order preserved: exponent sits between the P and y italic runs
         kinds = [(t.get("font-style"), t.text) for t in text_el.iter(f"{{{NS}}}tspan")]
