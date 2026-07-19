@@ -32,7 +32,7 @@ rain = (
         x=alt.X("condition:N", sort=conds, axis=None),
         xOffset=alt.XOffset("jx:Q", scale=alt.Scale(domain=[-0.5, 0.5])),
         y=alt.Y("response:Q"),
-        color=alt.Color("condition:N", sort=conds, legend=None),
+        color=alt.Color("condition:N", sort=conds, scale=alt.Scale(domain=conds), legend=None),
     )
 )
 
