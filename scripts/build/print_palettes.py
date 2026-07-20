@@ -913,6 +913,10 @@ def main():
         name = arm1.removesuffix("3") + arm2  # e.g. "reds3","blues3" → "redsblues3"
         _print_palette(name, build_diverging(_pal[arm1][11], _pal[arm2][11], frac=PASTEL_FRAC))
 
+    print("\n# ─── ds_1 family diverging (gold ↔ teal, from cat_golds/cat_teals) ──────────")
+    # arm2 = gold (low, stop 0), arm1 = teal (high, stop 12), warm light pivot; default FRAC.
+    _print_palette("ds_div_1", build_diverging("#6D572F", "#2C555D", center_hex="#F4F1E9"))
+
     print("\n# ─── Desaturation ladder example (bluestgrotto → bluergrotto → bluegrotto)")
     base = build_multihue(SEQ_MULTI_OKLAB["bluestgrotto"])
     _print_palette("bluestgrotto", base)
