@@ -189,7 +189,7 @@ class TestRangePalettes:
         theme()
         assert self._range("category") == categorical(1)  # bare array, positional
         assert self._scheme("ordinal") == colors["greys"]
-        assert self._scheme("diverging") == colors["pinksblues"]
+        assert self._scheme("diverging") == colors["ds_div_1"]  # the ds_1 family diverging (gold<->teal)
         # continuous defaults: the australis journey (dark-first -> viridis polarity)
         assert self._scheme("heatmap") == colors["australis"]
         assert self._scheme("ramp") == colors["australis"]
@@ -204,7 +204,7 @@ class TestRangePalettes:
 
         theme(categoryPalette="reds")
         assert self._range("category") == colors["reds"]
-        assert self._scheme("diverging") == colors["pinksblues"]  # others untouched
+        assert self._scheme("diverging") == colors["ds_div_1"]  # others untouched
 
     def test_per_type_override_raw_list(self):
         theme(rampPalette=["#ffffff", "#000000"])
