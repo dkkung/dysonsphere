@@ -81,6 +81,9 @@
 
 ### Fixes
 
+- **Require `vl-convert-python>=1.9.0`** (was `>=1.7.0`), matching Altair 6's minimum. The old floor
+  could resolve a vl-convert too old to render Altair 6's Vega-Lite output, since dysonsphere depends
+  on plain `altair` (not `altair[save]`) and declares vl-convert separately.
 - **`add_log_ticks` / `add_pow_ticks` no longer leave a column of transparent circles in the
   exported SVG.** They host their minor-tick axis on a `mark_point(opacity=0)` layer, which was
   drawn once per data row and stacked at the plot centre - invisible in a PNG or browser, but real
