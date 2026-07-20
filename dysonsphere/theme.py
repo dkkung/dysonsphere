@@ -43,13 +43,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "dashedLine": False,
     "dashedRule": True,
     "dashedWidth": [2, 2],
-    # A fallback stack, NOT a single name. The Helvetica Neue *family* name must
-    # come first so vl-convert/resvg can resolve the italic face (the stat-symbol
-    # italics fixer needs it); but some macOS + vl-convert combos fail to match the
-    # spaced family name and silently drop to plain Helvetica, so we list the
-    # PostScript name "HelveticaNeue" and generic fallbacks after it for a
-    # deterministic degrade instead of resvg's arbitrary default. Do not collapse
-    # this back to a single name - that re-breaks Helvetica Neue on those machines.
     "font": "Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif",
     "fontSize": 7,
     "fontStyle": "normal",
@@ -242,14 +235,10 @@ def _compute_derived(p: dict[str, Any]) -> None:
         p["cornerRadius"] = min(p["chartWidth"], p["chartHeight"]) / 100
     if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
         p["boxplotOutliers"] = p["markSize"] / 10
-    # chartFill=None means "auto" (white in light mode, black in dark mode) and is resolved
-    # at config-build time in _dysonsphere_theme(), NOT here - save() toggles darkmode per
-    # background variant without re-running theme(), so the fill must follow darkmode live
-    # (the same pattern as every other darkmode-aware colour).
-    # Offset the axis line and legend from the plot by 1.5x the tick length — enough separation
-    # to read as an intentional (Prism-style) detached axis, not a rendering gap. Resolved once
-    # here (not inline at each use) so the axis config, legend config, and save()'s grid-span fix
-    # all read one consistent value from alt.theme.options.
+    # chartFill=None is resolved at config-build time in _dysonsphere_theme(), NOT here, so it
+    # follows darkmode live (save() toggles darkmode per background without re-running theme()).
+    # Offset axis + legend from the plot by 1.5x tick length (Prism-style detached axis). Resolved
+    # once here so the axis/legend config and save()'s grid-span fix read one consistent value.
     if p["axisOffset"] is None:
         p["axisOffset"] = p["tickSize"] * 1.5
     if p["legendOffset"] is None:
