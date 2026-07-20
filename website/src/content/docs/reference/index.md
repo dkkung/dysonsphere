@@ -39,7 +39,7 @@ Requires Python >= 3.11. Runtime dependencies (installed automatically):
 | `polars[pyarrow]` | 1.19.0 | the native `DataFrame` (pandas input is converted) |
 | `numpy` | 1.26.0 | numeric primitives |
 | `scipy` | 1.11.0 | statistical tests behind `add_comparisons()` / `add_correlation()` |
-| `vl-convert-python` | 1.7.0 | the SVG/PNG renderer behind `save()` (lazily imported) |
+| `vl-convert-python` | 1.9.0 | the SVG/PNG renderer behind `save()` (lazily imported) |
 
 Optional: `pandas` / `duckdb` (only for `read(..., output="pandas"/"duckdb")`), `IPython` (only
 for `show()`).

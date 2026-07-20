@@ -43,7 +43,7 @@ Dependencies:
 - `numpy`>=1.26.0
 - `polars[pyarrow]`>=1.19.0
 - `scipy`>=1.11.0
-- `vl-convert-python`>=1.7.0
+- `vl-convert-python`>=1.9.0
 
 ## Quick start
 
