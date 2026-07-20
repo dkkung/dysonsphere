@@ -507,17 +507,17 @@ colors = {
     # the warm end. Distinct de-novo ramps, NOT slices of the saturated
     # blues/greens/etc. (See print_palettes.py for the recipe.)
     "cat_blues": [
-        "#E7EFF9",
-        "#CDDEF3",
-        "#B3CCED",
-        "#9BBBE5",
-        "#8AA8D2",
-        "#7995BF",
-        "#6983AC",
-        "#59719A",
-        "#4A6088",
-        "#3B4F76",
-        "#2D3E65",
+        "#CFE0F4",
+        "#B7D0EE",
+        "#A0C0E8",
+        "#8FAED8",
+        "#809DC7",
+        "#718CB5",
+        "#627CA4",
+        "#546B94",
+        "#465B83",
+        "#384C73",
+        "#2C3D63",
         "#1F2E54",
     ],
     "cat_golds": [
