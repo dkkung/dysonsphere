@@ -27,7 +27,7 @@ ds.biology.volcano(df, geneCol="gene", label=8)
 
 `volcano()` draws log2 fold change against −log₁₀ p, classifies each point as gained / lost /
 non-differential by the fold-change and p-value thresholds, colors it with the diverging
-`pinksblues` endpoints (pink = gained, blue = lost), and layers on optional threshold guides and
+`ds_div_1` endpoints (teal = gained, gold = lost), and layers on optional threshold guides and
 gene labels:
 
 <Example name="volcano" alt="Volcano plot of differential expression with labeled top genes" />
@@ -46,7 +46,7 @@ force-repel engine (deterministic, connector-linked), and the point ranking is d
 | `pThreshold` | `0.05` | P-value cutoff; horizontal guide at −log₁₀ of it |
 | `label` | `None` | `int` (top-N by score), `"significant"` (all hits), or `list[str]` (named genes) |
 | `thresholdLines` | `True` | Draw the fold-change / p-value guide lines |
-| `palette` | `pinksblues` ends | `(gained, lost)` hex colors |
+| `palette` | `ds_div_1` ends | `(gained, lost)` hex colors |
 | `nsColor` | theme grey | Non-differential point color (darkmode-aware) |
 | `legend` | `True` | Show the significance color legend |
 

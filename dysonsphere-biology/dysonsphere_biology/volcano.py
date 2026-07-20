@@ -89,8 +89,8 @@ def volcano(
     thresholdLines:
         Draw the fold-change / p-value guide lines (default ``True``).
     palette:
-        ``(gained, lost)`` hex colors. Defaults to the ``pinksblues`` diverging endpoints
-        (pink = gained, blue = lost).
+        ``(gained, lost)`` hex colors. Defaults to the ``ds_div_1`` diverging endpoints
+        (teal = gained, gold = lost).
     nsColor:
         Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
     markOpacity:
@@ -118,9 +118,7 @@ def volcano(
     data = data.sort(pl.col(_SIG_COL) != _NONDIFF)
 
     darkmode = bool(ext.opt("darkmode"))
-    gained_color, lost_color = (
-        palette if palette is not None else (ds.colors["pinksblues"][0], ds.colors["pinksblues"][-1])
-    )
+    gained_color, lost_color = palette if palette is not None else (ds.colors["ds_div_1"][-1], ds.colors["ds_div_1"][0])
     ns_color = nsColor if nsColor is not None else (ds.colors["greys"][10] if darkmode else ds.colors["greys"][1])
 
     x_title = "log2 fold change" if xTitle is _UNSET else xTitle
