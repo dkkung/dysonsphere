@@ -648,7 +648,7 @@ SEQ_MULTI_OKLAB = {
     # yellow-side pair (gold is the pure-yellow warm anchor, maximally distinct
     # from the cools under dichromacy).  Teal leads the cycle (slot 0 = the
     # lone-series default, needs presence); gold is the warm end.
-    "cat_blues": [(0.95, 252), (0.31, 266)],
+    "cat_blues": [(0.90, 252), (0.31, 266)],
     "cat_golds": [(0.955, 88), (0.42, 80)],
     "cat_greens": [(0.90, 145), (0.34, 160)],
     "cat_purples": [(0.84, 288), (0.22, 302)],
