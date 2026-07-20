@@ -59,7 +59,7 @@ correct light/dark export.
 - **`pThreshold`** (`float`) - P-value significance cutoff (default ``0.05``). Horizontal guide at ``-log10`` of it.
 - **`label`** (`str | int | list[str] | None`) - Which points to label (default ``None`` - no labels). ``int`` -> the top-N most significant, ranked by combined score ``|log2fc| * -log10(p)``; ``"significant"`` -> every significant point; ``list[str]`` -> the named genes. Any non-None value requires ``geneCol``.
 - **`thresholdLines`** (`bool`) - Draw the fold-change / p-value guide lines (default ``True``).
-- **`palette`** (`tuple[str, str] | None`) - ``(gained, lost)`` hex colors. Defaults to the ``pinksblues`` diverging endpoints (pink = gained, blue = lost).
+- **`palette`** (`tuple[str, str] | None`) - ``(gained, lost)`` hex colors. Defaults to the ``ds_div_1`` diverging endpoints (teal = gained, gold = lost).
 - **`nsColor`** (`str | None`) - Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
 - **`markOpacity`** (`float`) - Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes from the active theme's ``mark_point`` config.
 - **`legend`** (`bool`) - Show the significance color legend (default ``True``).
