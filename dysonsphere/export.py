@@ -86,7 +86,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
         _align_grid_to_content(root, axis_offset)
     if _opt("inwardTicks"):
         _flip_ticks_inward(root)
-    _layer_axes_to_front(root)
+    _layer_axes_below_marks(root)
     _simplify_svg(root)
     _typeset_scripts(root)
     _italicize_stat_symbols(root)
@@ -539,23 +539,27 @@ def _flip_ticks_inward(root: ET.Element) -> None:
                     line.set(attr, v[1:] if v.startswith("-") else "-" + v)
 
 
-def _layer_axes_to_front(root: ET.Element) -> None:
-    """Re-order SVG children so axis domain/tick elements and the view border render last.
+def _layer_axes_below_marks(root: ET.Element) -> None:
+    """Re-order SVG children into fill -> grid -> axes and border -> data marks.
 
-    Vega emits axis groups (domain lines, ticks, labels) before data marks, so marks
-    can visually overlap axis lines. It also emits the view border before all content,
-    so grid lines overlap the border edges when closed=True. This fix moves non-grid
-    axis groups and any stroked border path to render after data marks, ensuring axes
-    always visually bound the view on all sides regardless of closed.
+    Vega emits the view border before all content, so grid lines paint over the
+    border edges when closed=True; it also interleaves axis groups with no regard
+    for the mark stack. This fix moves non-grid axis groups (domain lines, ticks,
+    labels) and any stroked border path to sit AFTER the grid but BEFORE the data
+    marks: the grid can never overlap the border, and a datum plotted exactly on
+    an axis renders over the axis line instead of being cut by it (deliberately
+    diverges from the matplotlib/ggplot frame-on-top convention per user decision
+    2026-07-23).
 
-    Grid axis groups (identified by containing a mark-rule role-axis-grid descendant)
-    are left in place so data marks continue to render on top of grid lines.
+    Grid axis groups (identified by containing a mark-rule role-axis-grid
+    descendant) are left in place at the front of the stack.
 
-    viewFill + closed interaction: when the background path carries both a fill (viewFill)
-    and a stroke (closed border), only moving the whole element would place the fill on
-    top of marks. Instead, the original element is stripped to fill-only (stroke="none")
-    and a stroke-only clone is appended at the end, so the fill stays behind marks and
-    the border still renders in front.
+    viewFill + closed interaction: when the background path carries both a fill
+    (viewFill) and a stroke (closed border), moving the whole element would place
+    the fill on top of the grid. Instead, the original element is stripped to
+    fill-only (stroke="none") and a stroke-only clone is inserted at the axis
+    position, so the fill stays at the very back and the border sits with the
+    axes - above grid, below marks.
     """
     import copy
 
@@ -563,12 +567,12 @@ def _layer_axes_to_front(root: ET.Element) -> None:
         return any(g.get("class", "") == "mark-rule role-axis-grid" for g in el.iter(f"{{{_SVG_NS}}}g"))
 
     def reorder(el: ET.Element) -> None:
-        to_move = []  # existing children to remove and re-append at end
-        to_add = []  # stroke-only clones to append at end (originals stay in place)
+        to_place = []  # axis groups + border strokes, re-inserted after the grid block
         for child in list(el):
             cls = child.get("class", "")
             if cls == "mark-group role-axis" and not _is_grid_axis(child):
-                to_move.append(child)
+                el.remove(child)
+                to_place.append(child)
             elif (
                 child.tag == f"{{{_SVG_NS}}}path"
                 and cls == "background"
@@ -579,18 +583,28 @@ def _layer_axes_to_front(root: ET.Element) -> None:
                 has_fill = fill is not None and fill not in ("none", "")
                 if has_fill:
                     # Background has both fill (viewFill) and stroke (closed border).
-                    # Keep fill-only original in place; move stroke-only clone to front.
+                    # Keep fill-only original in place; place a stroke-only clone.
                     border_clone = copy.deepcopy(child)
                     border_clone.set("fill", "none")
                     child.set("stroke", "none")
-                    to_add.append(border_clone)
+                    to_place.append(border_clone)
                 else:
-                    to_move.append(child)
-        for item in to_move:
-            el.remove(item)
-            el.append(item)
-        for item in to_add:
-            el.append(item)
+                    el.remove(child)
+                    to_place.append(child)
+        if to_place:
+            # Insertion point: after the leading background + grid-axis block (the
+            # only axis groups left are grids), before the first data-mark child.
+            index = len(list(el))
+            for i, child in enumerate(el):
+                cls = child.get("class", "")
+                if child.tag == f"{{{_SVG_NS}}}path" and cls == "background":
+                    continue
+                if cls == "mark-group role-axis":
+                    continue
+                index = i
+                break
+            for offset, item in enumerate(to_place):
+                el.insert(index + offset, item)
         for child in el:
             reorder(child)
 
