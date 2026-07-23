@@ -268,6 +268,13 @@ def mark_violin(
     violin_rows = []
     median_rows = []
     quartile_rows = []
+    # Data units per pixel on the y axis, for converting the inner lines' stroke
+    # thickness. Approximate (the rendered domain is niced outward beyond the data
+    # extent, making the true px->data factor smaller) - the same convention as
+    # add_comparisons' yPad math, and conservative in the safe direction here.
+    y_all = df[yCol].to_numpy()
+    y_span = float(y_all.max() - y_all.min())
+    data_per_px = y_span / _opt("chartHeight")
     for i, group in enumerate(categories):
         x_center = geo.centers[i]
         vals = df.filter(pl.col(xCol) == group)[yCol].to_numpy()
@@ -286,17 +293,26 @@ def mark_violin(
         density_norm = density / density.max()
 
         if inner == "quartiles":
-            for q, rows in zip(
+            for q, rows, thickness in zip(
                 np.quantile(vals, [0.25, 0.5, 0.75]),
                 (quartile_rows, median_rows, quartile_rows),
+                (strokeWidth, strokeWidth * 2, strokeWidth),
             ):
-                # Clip the line to the violin outline: half-width = the KDE density
-                # at the quantile's y, in the same normalized units as the outline.
-                d = float(np.interp(float(q), y_grid, density_norm))
+                # Clip the line to the violin outline. Its stroked rectangle's corners
+                # sit at q +/- half the line thickness, where a sharply bending outline
+                # can be much narrower than at q itself - so take the MINIMUM density
+                # over that whole interval (plus half the outline width, whose ink is
+                # the visual boundary), not the density at q alone, or the corners
+                # poke past the outline at extreme bends.
+                h = (thickness / 2 + strokeWidth / 2) * data_per_px
+                qf = float(q)
+                window = density_norm[(y_grid >= qf - h) & (y_grid <= qf + h)]
+                edges = np.interp([qf - h, qf, qf + h], y_grid, density_norm)
+                d = float(min(edges.min(), window.min() if window.size else np.inf))
                 rows.append(
                     {
                         "__group": group,
-                        "__y": float(q),
+                        "__y": qf,
                         "__x": x_center - d * half_width,
                         "__x2": x_center + d * half_width,
                     }
