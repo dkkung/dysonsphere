@@ -4,15 +4,18 @@
 
 ### New features
 
-- **`mark_violin`: Prism-style violins.** New parameters for the classic GraphPad look:
-  `inner` picks the statistic display inside the violin - `"box"` (the embedded boxplot,
-  unchanged default), `"quartiles"` (a solid median line and dashed quartile lines, each
-  spanning the violin's width at that value; `boxplotColor` colors them), or `None` (outline
-  only); `trim=True` ends the violin sharply at the observed data extremes instead of
+- **`mark_violin`: Prism-style violins, now the default.** `inner` picks the statistic
+  display inside the violin - `"quartiles"` (the NEW DEFAULT: a solid median line at twice
+  the outline weight, clipped to the violin border, plus dashed quartile lines, each spanning
+  the violin's width at that value), `"median"` (the median line only), `"box"` (the embedded
+  boxplot - the previous default; pass `inner="box"` to keep the old look), or `None`
+  (outline only). `innerColor` colors the median/quartile lines (default darkmode-aware
+  black/white); `trim=True` ends the violin sharply at the observed data extremes instead of
   overshooting past them; `bandwidth` tunes the KDE smoothness (`scipy.stats.gaussian_kde`
   `bw_method`, as in `add_quasirandom`). Untrimmed tails now extend 2 KDE bandwidths past the
   data extremes rather than a fixed ±1 data units, so the overshoot is proportionate on any
-  data scale - existing violins render with slightly different tail lengths.
+  data scale. Existing violins change appearance on upgrade: quartile lines replace the
+  embedded boxplot unless `inner="box"` is passed, and tail lengths shift slightly.
 
 ## [3.9.0] - 2026-07-20
 

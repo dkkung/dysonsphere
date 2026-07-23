@@ -84,7 +84,9 @@ class TestMarkViolin:
     def test_median_color_wired_to_spec(self, group_df):
         # Proves the medianColor param flows to the boxplot median fill. Uses an explicit
         # value (not the default) so it doesn't pin the cosmetic default, which may change.
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES, medianColor="red")
+        result = mark_violin(
+            group_df, xCol="group", yCol="value", categories=CATEGORIES, inner="box", medianColor="red"
+        )
         box = next(
             lyr
             for lyr in result.to_dict()["layer"]
@@ -154,9 +156,32 @@ class TestViolinInner:
             # The median band's rows include the exact median (its midline).
             assert round(float(q2), 9) in med_ys[group]
 
+    def test_default_inner_is_quartiles(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
+        types = [_mark_type(lyr) for lyr in spec["layer"]]
+        assert "boxplot" not in types
+        assert types.count("rule") == 2 * len(CATEGORIES)
+        assert types.count("area") == 1
+
+    def test_inner_median_draws_median_band_only(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="median").to_dict()
+        types = [_mark_type(lyr) for lyr in spec["layer"]]
+        assert types.count("area") == 1
+        assert types.count("rule") == 0
+        assert "boxplot" not in types
+
+    def test_inner_color_default_is_darkmode_aware(self, group_df):
+        theme(chartWidth=200, chartHeight=200, darkmode=True)
+        spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
+        assert _median_area(spec)["mark"]["fill"] == "white"
+        assert all(lyr["mark"]["color"] == "white" for lyr in _rule_layers(spec))
+        theme(chartWidth=200, chartHeight=200)
+        spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
+        assert _median_area(spec)["mark"]["fill"] == "black"
+
     def test_median_band_and_dashed_quartiles(self, group_df):
-        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles", boxplotColor="red").to_dict()
-        # The median is an outline-clipped area band: fill wired to boxplotColor,
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles", innerColor="red").to_dict()
+        # The median is an outline-clipped area band: fill wired to innerColor,
         # stroke pinned off to dodge the config.area leak.
         median = _median_area(spec)["mark"]
         assert median["fill"] == "red"
@@ -351,10 +376,18 @@ class TestLabelMap:
         expr = spec["layer"][0]["encoding"]["x"]["axis"]["labelExpr"]
         assert "datum.value == 'A' ? 'Alpha'" in expr and expr.endswith("datum.value")
 
-    def test_violin_boxplot_axis_gets_label_expr(self, group_df):
+    def test_violin_axis_gets_label_expr(self, group_df):
         chart = mark_violin(group_df, "group", "value", CATEGORIES, labelMap={"A": ["Alpha", "(n=5)"]})
         spec = chart.to_dict()
-        expr = spec["layer"][1]["encoding"]["x"]["axis"]["labelExpr"]
+        # The nominal x axis rides on the invisible bar host (last layer) in
+        # quartiles mode - find it rather than hardcoding a layer index.
+        axis_layer = next(
+            lyr
+            for lyr in spec["layer"]
+            if isinstance(lyr.get("encoding", {}).get("x", {}).get("axis"), dict)
+            and "labelExpr" in lyr["encoding"]["x"]["axis"]
+        )
+        expr = axis_layer["encoding"]["x"]["axis"]["labelExpr"]
         assert "? ['Alpha', '(n=5)']" in expr  # multi-line label
 
     def test_label_map_combines_with_angle(self, group_df):
