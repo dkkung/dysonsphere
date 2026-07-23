@@ -6,10 +6,10 @@ ds.theme()
 cars = ds.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
 origins = ["USA", "Europe", "Japan"]
 
-# Style the silhouette and the embedded boxplot independently.
+# Custom palette, no outline, and tails trimmed to the data extremes.
 chart = ds.mark_violin(
     cars, "Origin", "Horsepower", origins,
     palette=ds.palette("dusk", 3), fillOpacity=0.85,
-    boxplotColor="black", medianColor="white",
+    stroke=None, trim=True,
     yTitle="Horsepower",
 )
