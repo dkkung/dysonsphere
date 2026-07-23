@@ -84,7 +84,9 @@ class TestMarkViolin:
     def test_median_color_wired_to_spec(self, group_df):
         # Proves the medianColor param flows to the boxplot median fill. Uses an explicit
         # value (not the default) so it doesn't pin the cosmetic default, which may change.
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES, medianColor="red")
+        result = mark_violin(
+            group_df, xCol="group", yCol="value", categories=CATEGORIES, inner="box", medianColor="red"
+        )
         box = next(
             lyr
             for lyr in result.to_dict()["layer"]
@@ -108,6 +110,186 @@ class TestMarkViolin:
         for layer in spec["layer"]:
             x_enc = layer.get("encoding", {}).get("x", {})
             assert x_enc.get("title") is None or "title" not in x_enc
+
+
+def _mark_type(layer):
+    mark = layer.get("mark")
+    return mark.get("type") if isinstance(mark, dict) else mark
+
+
+def _rule_layers(spec):
+    return [lyr for lyr in spec["layer"] if _mark_type(lyr) == "rule"]
+
+
+def _violin_rows(spec):
+    violin = next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "line")
+    return spec["datasets"][violin["data"]["name"]]
+
+
+def _median_area(spec):
+    return next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "area")
+
+
+class TestViolinInner:
+    def test_quartiles_replaces_boxplot_with_rule_layers(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
+        types = [_mark_type(lyr) for lyr in spec["layer"]]
+        assert "boxplot" not in types
+        # One single-row rule layer per quartile line (each carries its own fitted
+        # dash pattern) plus one area layer for the outline-clipped median band.
+        assert types.count("rule") == 2 * len(CATEGORIES)
+        assert types.count("area") == 1
+
+    def test_quartile_line_values_match_data(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
+        ys: dict[str, set[float]] = {}
+        for lyr in _rule_layers(spec):
+            for row in lyr["data"]["values"]:
+                ys.setdefault(row["__group"], set()).add(round(row["__y"], 9))
+        med_ys: dict[str, set[float]] = {}
+        for row in _median_area(spec)["data"]["values"]:
+            med_ys.setdefault(row["__group"], set()).add(round(row["__y"], 9))
+        for group in CATEGORIES:
+            vals = group_df.filter(pl.col("group") == group)["value"].to_numpy()
+            q1, q2, q3 = np.quantile(vals, [0.25, 0.5, 0.75])
+            assert ys[group] == {round(float(q1), 9), round(float(q3), 9)}
+            # The median band's rows include the exact median (its midline).
+            assert round(float(q2), 9) in med_ys[group]
+
+    def test_default_inner_is_quartiles(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
+        types = [_mark_type(lyr) for lyr in spec["layer"]]
+        assert "boxplot" not in types
+        assert types.count("rule") == 2 * len(CATEGORIES)
+        assert types.count("area") == 1
+
+    def test_inner_median_draws_median_band_only(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="median").to_dict()
+        types = [_mark_type(lyr) for lyr in spec["layer"]]
+        assert types.count("area") == 1
+        assert types.count("rule") == 0
+        assert "boxplot" not in types
+
+    def test_inner_color_default_is_darkmode_aware(self, group_df):
+        theme(chartWidth=200, chartHeight=200, darkmode=True)
+        spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
+        assert _median_area(spec)["mark"]["fill"] == "white"
+        assert all(lyr["mark"]["color"] == "white" for lyr in _rule_layers(spec))
+        theme(chartWidth=200, chartHeight=200)
+        spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
+        assert _median_area(spec)["mark"]["fill"] == "black"
+
+    def test_median_band_and_dashed_quartiles(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles", innerColor="red").to_dict()
+        # The median is an outline-clipped area band: fill wired to innerColor,
+        # stroke pinned off to dodge the config.area leak.
+        median = _median_area(spec)["mark"]
+        assert median["fill"] == "red"
+        assert median["stroke"] is None
+        assert median["strokeWidth"] == 0
+        quartiles = [lyr["mark"] for lyr in _rule_layers(spec)]
+        assert len(quartiles) == 2 * len(CATEGORIES)
+        dash_len, gap_len = alt.theme.options["dashedWidth"][:2]
+        for quartile in quartiles:
+            # The dash pattern is per-line scaled-to-fit, so only its proportions
+            # match the theme's dashedWidth.
+            a, b = quartile["strokeDash"]
+            assert a / b == pytest.approx(dash_len / gap_len)
+            # Butt caps: the theme's round rule caps would paint strokeWidth/2 of
+            # ink beyond the endpoints, past the outline.
+            assert quartile["strokeCap"] == "butt"
+            assert quartile["color"] == "red"
+
+    def test_quartile_dashes_fit_line_exactly(self, group_df):
+        # Each quartile line's dash pattern is scaled so an integer number of cycles
+        # plus one closing dash fits its length exactly - the line starts AND ends
+        # with a full dash touching the outline. A fixed pattern can end in a gap,
+        # leaving the ink visibly short of the outline.
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
+        for lyr in _rule_layers(spec):
+            row = lyr["data"]["values"][0]
+            length = row["__x2"] - row["__x"]
+            a, b = lyr["mark"]["strokeDash"]
+            # length == n*(a+b) + a for a non-negative integer n
+            n = (length - a) / (a + b)
+            assert n == pytest.approx(round(n), abs=1e-9)
+            assert round(n) >= 0
+            assert "strokeDashOffset" not in lyr["mark"]
+
+    def test_inner_marks_clipped_inside_violin_outline(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
+        outline = {}
+        for row in _violin_rows(spec):
+            lo, hi = outline.setdefault(row["__group"], [float("inf"), float("-inf")])
+            outline[row["__group"]] = [min(lo, row["__x"]), max(hi, row["__x"])]
+        inner_rows = [row for lyr in _rule_layers(spec) for row in lyr["data"]["values"]]
+        inner_rows += _median_area(spec)["data"]["values"]
+        for row in inner_rows:
+            lo, hi = outline[row["__group"]]
+            assert lo <= row["__x"] < row["__x2"] <= hi + 1e-9
+
+    def test_quartiles_keeps_nominal_x_axis_on_bar_host(self, group_df):
+        # The invisible zero-row host layer must carry the nominal x axis with the
+        # pinned category domain, since no boxplot is present to host it. It must be
+        # a BAR mark: a point mark would type the x:N scale as a POINT scale, whose
+        # tick positions don't match the band-scale centres the violin geometry uses.
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
+        host = next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "bar")
+        assert host["transform"] == [{"filter": "false"}]
+        x_enc = host["encoding"]["x"]
+        assert x_enc["type"] == "nominal"
+        assert x_enc["scale"]["domain"] == CATEGORIES
+
+    def test_inner_none_draws_violin_only(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner=None).to_dict()
+        assert [_mark_type(lyr) for lyr in spec["layer"]] == ["line", "bar"]
+
+    def test_violin_outline_is_closed(self, group_df):
+        # The outline repeats its first point at the end so the bottom edge gets a
+        # stroked cap - without it a trimmed violin is visibly open at the bottom.
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, trim=True).to_dict()
+        rows = _violin_rows(spec)
+        for group in CATEGORIES:
+            path = sorted((r for r in rows if r["__group"] == group), key=lambda r: r["__order"])
+            assert path[-1]["__y"] == path[0]["__y"]
+            assert path[-1]["__x"] == path[0]["__x"]
+
+    def test_invalid_inner_raises(self, group_df):
+        with pytest.raises(ValueError, match="inner must be"):
+            mark_violin(group_df, "group", "value", CATEGORIES, inner="quartile")
+
+
+class TestViolinTrim:
+    def test_trim_clips_to_data_extent(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, trim=True).to_dict()
+        rows = _violin_rows(spec)
+        for group in CATEGORIES:
+            vals = group_df.filter(pl.col("group") == group)["value"].to_numpy()
+            ys = [r["__y"] for r in rows if r["__group"] == group]
+            assert min(ys) == pytest.approx(float(vals.min()))
+            assert max(ys) == pytest.approx(float(vals.max()))
+
+    def test_untrimmed_extends_two_bandwidths(self, group_df):
+        from scipy.stats import gaussian_kde
+
+        spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
+        rows = _violin_rows(spec)
+        for group in CATEGORIES:
+            vals = group_df.filter(pl.col("group") == group)["value"].to_numpy()
+            bw = float(np.sqrt(gaussian_kde(vals).covariance[0, 0]))
+            ys = [r["__y"] for r in rows if r["__group"] == group]
+            assert min(ys) == pytest.approx(float(vals.min()) - 2 * bw)
+            assert max(ys) == pytest.approx(float(vals.max()) + 2 * bw)
+
+    def test_bandwidth_param_scales_extension(self, group_df):
+        from scipy.stats import gaussian_kde
+
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, bandwidth=0.1).to_dict()
+        rows = _violin_rows(spec)
+        vals = group_df.filter(pl.col("group") == "A")["value"].to_numpy()
+        bw = float(np.sqrt(gaussian_kde(vals, bw_method=0.1).covariance[0, 0]))
+        ys = [r["__y"] for r in rows if r["__group"] == "A"]
+        assert min(ys) == pytest.approx(float(vals.min()) - 2 * bw)
 
 
 class TestMarkStrip:
@@ -194,10 +376,18 @@ class TestLabelMap:
         expr = spec["layer"][0]["encoding"]["x"]["axis"]["labelExpr"]
         assert "datum.value == 'A' ? 'Alpha'" in expr and expr.endswith("datum.value")
 
-    def test_violin_boxplot_axis_gets_label_expr(self, group_df):
+    def test_violin_axis_gets_label_expr(self, group_df):
         chart = mark_violin(group_df, "group", "value", CATEGORIES, labelMap={"A": ["Alpha", "(n=5)"]})
         spec = chart.to_dict()
-        expr = spec["layer"][1]["encoding"]["x"]["axis"]["labelExpr"]
+        # The nominal x axis rides on the invisible bar host (last layer) in
+        # quartiles mode - find it rather than hardcoding a layer index.
+        axis_layer = next(
+            lyr
+            for lyr in spec["layer"]
+            if isinstance(lyr.get("encoding", {}).get("x", {}).get("axis"), dict)
+            and "labelExpr" in lyr["encoding"]["x"]["axis"]
+        )
+        expr = axis_layer["encoding"]["x"]["axis"]["labelExpr"]
         assert "? ['Alpha', '(n=5)']" in expr  # multi-line label
 
     def test_label_map_combines_with_angle(self, group_df):

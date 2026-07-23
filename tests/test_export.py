@@ -461,7 +461,9 @@ class TestExactTickPositions:
     def test_strip_violin_hconcat_ticks_exact(self, tmp_path):
         # Capstone: strip (Case 0 band positions) beside violin (Case pi) in one hconcat -
         # every axis tick must land exactly on a band-centred mark in its own panel (the
-        # strip's mean tick; the violin's boxplot box).
+        # strip's mean tick; the violin's boxplot box). inner="box" because this test
+        # exercises the boxplot band-scale lowering; the quartiles-mode bar host's
+        # band-scale alignment is covered in tests/test_marks.py.
         import numpy as np
 
         import dysonsphere as ds
@@ -470,7 +472,7 @@ class TestExactTickPositions:
         cats = ["a", "b", "c", "d"]
         df = pl.DataFrame({"g": [c for c in cats for _ in range(20)], "y": rng.normal(0, 1, 80).tolist()})
         theme()
-        mixed = alt.hconcat(ds.mark_strip(df, "g", "y", cats), ds.mark_violin(df, "g", "y", cats))
+        mixed = alt.hconcat(ds.mark_strip(df, "g", "y", cats), ds.mark_violin(df, "g", "y", cats, inner="box"))
         save(mixed, str(tmp_path / "m"), format="svg", background="light")
         root = ET.parse(tmp_path / "m.svg").getroot()
         boxes: list[float] = []

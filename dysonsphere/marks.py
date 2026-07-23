@@ -9,7 +9,7 @@ import polars as pl
 from .labels import label_expr
 from .theme import _opt
 from .transforms import add_beeswarm, add_jitter
-from .utils import _internal_data, band_geometry, ensure_polars
+from .utils import _internal_data, _nice_domain, band_geometry, ensure_polars
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -115,6 +115,8 @@ def mark_violin(
     yCol: str,
     categories: list[str],
     *,
+    inner: str | None = "quartiles",
+    innerColor: str | None = None,
     boxplotSize: int | None = None,
     boxplotColor: str = "black",
     medianColor: str = "white",
@@ -126,11 +128,13 @@ def mark_violin(
     xLabelAngle: float | None = None,
     labelMap: Mapping[Any, str | list[str]] | None = None,
     steps: int = 200,
+    trim: bool = False,
+    bandwidth: float | None = None,
     yTitle: str | None | _UnsetType = _UNSET,
     xTitle: str | None | _UnsetType = _UNSET,
 ) -> alt.LayerChart:
     """
-    Build an Altair layer combining a violin plot behind a boxplot.
+    Build an Altair layer combining a violin plot with an inner statistic display.
 
     Returns a ``LayerChart`` that can be saved directly or composed with other
     layers (e.g. ``ds.add_comparisons``).
@@ -151,13 +155,26 @@ def mark_violin(
     categories:
         Ordered list of all x-axis categories, used for positioning and
         axis labels.
+    inner:
+        Inner statistic display: ``"quartiles"`` (default) draws Prism-style
+        horizontal lines - a solid median (at twice the outline ``strokeWidth``,
+        clipped to the violin border) and dashed quartiles (at the outline
+        ``strokeWidth``) - each spanning the violin's width at that value;
+        ``"median"`` draws only the median line; ``"box"`` embeds a boxplot;
+        ``None`` draws the violin outline only.
+    innerColor:
+        Color of the median/quartile lines (``"quartiles"``/``"median"``).
+        ``None`` (default) resolves darkmode-aware (black in light mode, white in
+        dark mode) when the chart is built - pass a callable to ``ds.save()`` so
+        dark variants re-resolve.
     boxplotSize:
-        Width of the boxplot box in pixels.
+        Width of the boxplot box in pixels (``inner="box"`` only).
     boxplotColor:
-        Fill color of the boxplot.
+        Fill color of the boxplot (``inner="box"`` only).
     medianColor:
-        Fill color of the boxplot median line. Defaults to ``"white"`` so it reads
-        against the default black box; overrides the theme's ``markMedianFill``.
+        Fill color of the boxplot median line (``inner="box"`` only). Defaults to
+        ``"white"`` so it reads against the default black box; overrides the
+        theme's ``markMedianFill``.
     palette:
         Fill color of all violins. When ``None``, each group inherits its
         color from the theme's active category palette.
@@ -179,6 +196,14 @@ def mark_violin(
         a list of strings for a multi-line label. Unmapped values show as-is.
     steps:
         Number of y grid points used for KDE estimation (per group).
+    trim:
+        When ``True``, evaluate the KDE only on the group's data range so the
+        violin ends sharply at the observed min/max. When ``False`` (default),
+        the tails extend 2 KDE bandwidths beyond the data extremes.
+    bandwidth:
+        KDE bandwidth (``scipy.stats.gaussian_kde`` ``bw_method``). ``None``
+        (default) uses Scott's rule; smaller values give a tighter, less
+        smoothed outline.
     yTitle:
         Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
     xTitle:
@@ -197,9 +222,17 @@ def mark_violin(
         right = ds.mark_violin(df, "group", "value", CATEGORIES)
         ds.save(alt.hconcat(left, right), "comparison")
 
-        # with optional outline and custom colors
+        # Prism-style look: outlined violin, median/quartile lines, sharp tips
         chart = ds.mark_violin(
             df, "group", "value", CATEGORIES,
+            trim=True,
+            stroke="black",
+        )
+
+        # classic embedded boxplot, with optional outline and custom colors
+        chart = ds.mark_violin(
+            df, "group", "value", CATEGORIES,
+            inner="box",
             boxplotSize=10,
             palette="#AAAAAA",
             stroke="black",
@@ -207,6 +240,9 @@ def mark_violin(
         )
     """
     from scipy.stats import gaussian_kde
+
+    if inner not in ("box", "quartiles", "median", None):
+        raise ValueError(f"inner must be 'box', 'quartiles', 'median', or None, got {inner!r}")
 
     s = _MarkScaffold(
         df,
@@ -225,6 +261,10 @@ def mark_violin(
         fillOpacity = _opt("markFillOpacity")
     if strokeWidth is None:
         strokeWidth = _opt("markStrokeWidth")
+    if innerColor is None:
+        # Build-time darkmode read, like add_shade - a save() across backgrounds
+        # needs a callable so the dark variant re-resolves.
+        innerColor = "white" if _opt("darkmode") else "black"
     mark_size = _opt("markSize")
     chart_width = _opt("chartWidth")  # x:Q domain of the violin layer
     # mark_boxplot lowers to a band scale with paddingInner=paddingOuter=bandPadding
@@ -237,15 +277,24 @@ def mark_violin(
     # scale resolution that squishes the violin when hconcated with any
     # chart that also uses xOffset (e.g. mark_strip).
     violin_rows = []
+    group_kde = []
     for i, group in enumerate(categories):
         x_center = geo.centers[i]
         vals = df.filter(pl.col(xCol) == group)[yCol].to_numpy()
-        y_min = float(vals.min()) - 1
-        y_max = float(vals.max()) + 1
+        kde = gaussian_kde(vals, bw_method=bandwidth)
+        # KDE bandwidth in data units - the tail extension scales with it so the
+        # untrimmed overshoot is proportionate on any data scale.
+        bw = float(np.sqrt(kde.covariance[0, 0]))
+        if trim:
+            y_min = float(vals.min())
+            y_max = float(vals.max())
+        else:
+            y_min = float(vals.min()) - 2 * bw
+            y_max = float(vals.max()) + 2 * bw
         y_grid = np.linspace(y_min, y_max, steps)
-        kde = gaussian_kde(vals)
         density = kde(y_grid)
         density_norm = density / density.max()
+        group_kde.append((group, x_center, vals, y_grid, density_norm))
 
         for order, (y, d) in enumerate(zip(y_grid, density_norm)):
             violin_rows.append(
@@ -265,6 +314,67 @@ def mark_violin(
                     "__order": steps + order,
                 }
             )
+        # Close the outline: repeat the first point so the bottom edge gets a stroked
+        # cap like the top (where the two sides already meet). Matters under trim=True,
+        # where the end density is far from zero and the gap is visible.
+        violin_rows.append(
+            {
+                "__group": group,
+                "__y": float(y_grid[0]),
+                "__x": x_center + float(density_norm[0]) * half_width,
+                "__order": 2 * steps,
+            }
+        )
+
+    median_rows: list[dict[str, Any]] = []
+    quartile_rows: list[dict[str, Any]] = []
+    if inner in ("quartiles", "median"):
+        # Pixel->data conversion for the median's stroke thickness. The rendered y
+        # domain is Vega-Lite's nice-rounded union of the violin grids and zero
+        # (zero=True is the y-channel default; verified empirically) - utils'
+        # _nice_domain is the same d3 algorithm, so the estimate tracks it closely.
+        grid_lo = min(g[3][0] for g in group_kde)
+        grid_hi = max(g[3][-1] for g in group_kde)
+        dom_lo, dom_hi = _nice_domain(min(grid_lo, 0.0), max(grid_hi, 0.0))
+        data_per_px = (dom_hi - dom_lo) / _opt("chartHeight")
+        h_med = strokeWidth * data_per_px  # half the median band's 2*strokeWidth thickness
+
+        for group, x_center, vals, y_grid, density_norm in group_kde:
+            q1, q2, q3 = (float(q) for q in np.quantile(vals, [0.25, 0.5, 0.75]))
+            if inner == "quartiles":
+                for q in (q1, q3):
+                    # Clip the line to the violin outline: half-width = the KDE
+                    # density at the quantile's y, in the same normalized units
+                    # as the outline.
+                    d = float(np.interp(q, y_grid, density_norm))
+                    quartile_rows.append(
+                        {
+                            "__group": group,
+                            "__y": q,
+                            "__x": x_center - d * half_width,
+                            "__x2": x_center + d * half_width,
+                        }
+                    )
+            # The median is TRUE-CLIPPED to the violin border: a straight stroked
+            # line is a rectangle, and on a squat violin the outline sweeps inward
+            # by whole pixels across the line's own thickness, so its corners jut
+            # past the border no matter where it ends. Instead the median is a thin
+            # polygon spanning q2 +/- half its thickness whose left/right edges
+            # FOLLOW the outline - every grid point in the band plus interpolated
+            # band edges, rendered as a mark_area.
+            band_lo = max(q2 - h_med, float(y_grid[0]))
+            band_hi = min(q2 + h_med, float(y_grid[-1]))
+            band_ys = sorted({band_lo, *(float(y) for y in y_grid if band_lo < y < band_hi), q2, band_hi})
+            for y in band_ys:
+                d = float(np.interp(y, y_grid, density_norm))
+                median_rows.append(
+                    {
+                        "__group": group,
+                        "__y": y,
+                        "__x": x_center - d * half_width,
+                        "__x2": x_center + d * half_width,
+                    }
+                )
 
     violin_df = pl.DataFrame(violin_rows)
 
@@ -290,22 +400,83 @@ def mark_violin(
         )
     )
 
-    boxplot = (
-        alt.Chart(df)
-        .mark_boxplot(
-            color=boxplotColor,
-            ticks=False,
-            rule={"stroke": boxplotColor},
-            median={"fill": medianColor},
-            **({"size": boxplotSize} if boxplotSize is not None else {}),
+    if inner == "box":
+        boxplot = (
+            alt.Chart(df)
+            .mark_boxplot(
+                color=boxplotColor,
+                ticks=False,
+                rule={"stroke": boxplotColor},
+                median={"fill": medianColor},
+                **({"size": boxplotSize} if boxplotSize is not None else {}),
+            )
+            .encode(
+                x=s.x(),
+                y=s.y(),
+            )
         )
-        .encode(
-            x=s.x(),
-            y=s.y(),
-        )
-    )
+        return cast(alt.LayerChart, alt.layer(violin, boxplot).resolve_axis(x="independent"))
 
-    return cast(alt.LayerChart, alt.layer(violin, boxplot).resolve_axis(x="independent"))
+    # Without the boxplot no layer carries the nominal x axis, so an invisible
+    # zero-row layer on the user's df hosts it (the add_log_ticks trick: the pinned
+    # category domain drives the axis, transform_filter("false") renders nothing,
+    # and sharing df means no phantom dataset for read(what="data")). It must be a
+    # BAR mark: a point mark makes Vega-Lite type the x:N scale as a POINT scale,
+    # whose tick positions don't match the band-scale centres the violin geometry
+    # uses - a bar forces the band scale even at zero rows, seating the ticks on
+    # the violin centres exactly as the boxplot did.
+    axis_host = alt.Chart(df).transform_filter("false").mark_bar(opacity=0).encode(x=s.x())
+    layers: list[Any] = [violin]
+
+    if inner in ("quartiles", "median"):
+        # Same pinned pixel x scale as the violin layer so the shared-scale merge
+        # can't shift the marks. Quartiles = dashed rules (strokeDash pinned -
+        # config.rule is dashed under the theme's dashedRule default); the median =
+        # a solid outline-clipped area band at double weight. Each quartile line is
+        # its OWN layer because its dash pattern is SCALED TO FIT its length (an
+        # integer number of cycles plus one dash), so every line both starts AND
+        # ends with a full dash touching the outline - a fixed pattern ends
+        # wherever the length lands in the cycle, up to a whole gap of blank before
+        # the endpoint (the ink visibly stops short of the outline), and strokeDash
+        # is a mark property, per layer not per datum.
+        pixel_x_scale = alt.Scale(domain=[0, chart_width], padding=0)
+
+        dash_len, gap_len = _opt("dashedWidth")[:2]
+        cycle = dash_len + gap_len
+        for row in quartile_rows:
+            length = row["__x2"] - row["__x"]
+            # Fit n full cycles + one closing dash into the length; a line shorter
+            # than one dash degenerates to a single full-length dash (solid).
+            n = max(0, round((length - dash_len) / cycle)) if cycle else 0
+            scale_factor = length / (n * cycle + dash_len) if length > 0 else 1
+            fitted = [dash_len * scale_factor, gap_len * scale_factor]
+            layers.append(
+                alt.Chart(_internal_data([row]))
+                # strokeCap="butt": config.rule's round caps would paint
+                # strokeWidth/2 of ink beyond each endpoint, past the outline.
+                .mark_rule(color=innerColor, strokeCap="butt", strokeWidth=strokeWidth, strokeDash=fitted)
+                .encode(
+                    x=alt.X("__x:Q", scale=pixel_x_scale, axis=None),
+                    x2=alt.X2("__x2:Q"),
+                    y=s.y("__y:Q"),
+                )
+            )
+        # The median band polygon (see the row builder above). Fill/stroke pinned to
+        # dodge the config.area grey-fill/stroke leak; detail= splits the single
+        # layer into one polygon per group without touching a colour scale.
+        layers.append(
+            alt.Chart(_internal_data(median_rows))
+            .mark_area(fill=innerColor, opacity=1, fillOpacity=1, stroke=None, strokeWidth=0)
+            .encode(
+                x=alt.X("__x:Q", scale=pixel_x_scale, axis=None),
+                x2=alt.X2("__x2:Q"),
+                y=s.y("__y:Q"),
+                detail=alt.Detail("__group:N"),
+            )
+        )
+
+    layers.append(axis_host)
+    return cast(alt.LayerChart, alt.layer(*layers).resolve_axis(x="independent"))
 
 
 def mark_strip(
