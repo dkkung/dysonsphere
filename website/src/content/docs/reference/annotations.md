@@ -22,6 +22,9 @@ def add_rule(
     value: float | list[float],
     *,
     axis: str = 'y',
+    span: tuple[float, float] | tuple[str, str] | None = None,
+    categories: list[str] | None = None,
+    flush: bool | None = None,
     label: str | list[str] | None = None,
     labelPosition: str | None = None,
     labelAlign: str | None = None,
@@ -44,6 +47,9 @@ Returns a layer that the caller composes with ``+``.
 
 - **`value`** (`float | list[float]`) - Coordinate(s) on the specified axis. ``float`` or ``list[float]``.
 - **`axis`** (`str`) - ``"y"`` (default) — horizontal line(s) at fixed y value(s). ``"x"`` — vertical line(s) at fixed x value(s).
+- **`span`** (`tuple[float, float] | tuple[str, str] | None`) - Optionally slice the line to a portion of its *running* axis (the axis it runs along - the opposite of ``axis``), given as a ``(start, end)`` tuple. ``None`` (default) spans the full plot. For ``axis="y"`` (horizontal line) the running axis is x; for ``axis="x"`` (vertical line) it is y. Two forms, mirroring ``add_shade``: - **Numeric** ``(start, end)`` — data coordinates on the running axis; shares the base chart's scale (positioned by ``alt.datum``). - **Category names** ``(start, end)`` — resolved to pixels via the band scale (needs ``categories``), so the slice does not merge into the base scale. A single ``span`` applies to every ``value`` when ``value`` is a list. When ``span`` is set, a ``label`` anchors to the slice's ends instead of the plot edge.
+- **`categories`** (`list[str] | None`) - Ordered list of the running axis's categories, required only when ``span`` uses category names (for the band-scale index lookup).
+- **`flush`** (`bool | None`) - For a category-name ``span``, extend an outermost-category endpoint to the axis domain edge. ``None`` (default) inherits the theme's ``closed`` setting. No effect on a numeric ``span``.
 - **`label`** (`str | list[str] | None`) - Optional text label(s). One string per value.
 - **`labelAlign`** (`str | None`) - Where *along* the line the label is anchored. ``axis="y"``: ``"left"`` (default), ``"center"``, or ``"right"``. ``axis="x"``: ``"top"`` (default), ``"center"``, or ``"bottom"``.
 - **`labelPosition`** (`str | None`) - Which *side* of the line the label sits on. ``axis="y"``: ``"top"`` (default) or ``"bottom"``. ``axis="x"``: ``"right"`` (default) or ``"left"``.
@@ -85,6 +91,14 @@ Returns a layer that the caller composes with ``+``.
     # Vertical line, label nudged right and down
     chart = base + ds.add_rule(
         10, axis="x", label="t₀", labelOffsetX=4, labelOffsetY=4
+    )
+
+    # Horizontal line sliced to x ∈ [2, 8] (data coords)
+    chart = base + ds.add_rule(5.0, span=(2.0, 8.0))
+
+    # Horizontal line sliced across a range of x categories
+    chart = base + ds.add_rule(
+        5.0, span=("Control", "Group B"), categories=CATEGORIES
     )
 ```
 
@@ -229,7 +243,7 @@ round bounds, but without Vega's default ``zero`` - which is required for alignm
 - **`fontSize`** (`float | None`) - Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
 - **`fontStyle`** (`str | None`) - Label font style, e.g. ``"italic"`` (gene / species names) or ``"bold"``. ``None`` (default) inherits the theme's ``mark_text`` (upright). Applies to every label.
 - **`color`** (`str | None`) - Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware black/white).
-- **`fill`** (`str | bool`) - Background fill behind each label (a rect chip - useful over a dense scatter). ``False`` (default) -> none; ``True`` -> a darkmode-aware default (``greys[0]`` light / ``greys[11]`` dark); a string -> that color. Read at build time (like ``add_shade``), so a ``save()`` across backgrounds needs a callable. The connector meets the chip's edge.
+- **`fill`** (`str | bool`) - Background fill behind each label (a rect chip - useful over a dense scatter). ``False`` (default) -> none; ``True`` -> a darkmode-aware default (``greys[0]`` light / ``greys[11]`` dark); a string -> that color. Read at build time (like ``add_shade``), so a ``save()`` across backgrounds needs a callable. The connector meets the chip's edge, and the text is centred inside the chip (overriding the side justification a bare label would use).
 - **`fillOpacity`** (`float`) - Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
 - **`stroke`** (`str | bool`) - Border of the background chip. ``True`` (default) -> a darkmode-aware default (``"black"`` light / ``"white"`` dark); ``False`` -> no border; a string -> that color. Only takes effect when a chip is drawn (i.e. when ``fill`` is set).
 - **`cornerRadius`** (`float | bool`) - Corner rounding of the background chip. ``True`` (default) -> ``fontSize * 0.25``; ``False`` -> ``0`` (square); an explicit float -> that radius in px. Ignored when no chip is drawn.

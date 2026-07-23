@@ -40,6 +40,13 @@ keeps clean names::
 
 Each background toggles ``darkmode`` for its render, restoring the original after.
 
+Labels are typeset on export (SVG/PNG): a ``^`` marks a superscript (``"x^2"``, ``"10^3"``)
+and a **double** underscore a subscript (``"C__t"`` -> C with a subscript t; single ``_`` is
+left alone so snake_case column names used as default titles are not mangled). Unicode
+super/subscripts you type (``"H₂O"``, ``"t₀"``) and log/p-value exponents are normalized to the
+same shrunk, shifted plain-ASCII glyphs, so they render correctly even in fonts missing the
+Unicode super/subscript characters.
+
 **Parameters**
 
 - **`chart`** (`_AltairChart | Callable[[], _AltairChart]`) - The Altair chart to save, or a zero-argument callable that returns one. Accepts any Altair compound chart type: ``Chart``, ``LayerChart``, ``FacetChart``, ``VConcatChart``, ``HConcatChart``, or ``ConcatChart``. When a callable is provided it is called fresh for each variant — after ``darkmode`` has been toggled — so any marks whose colours depend on ``ds.theme()`` (e.g. ``add_multilabel``) are rebuilt with the correct palette each time.

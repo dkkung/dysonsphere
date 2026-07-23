@@ -52,12 +52,16 @@ and grows with n.
 ::
 
     df = ds.add_beeswarm(df, yCol="value", groupBy=["group"])
+    m = df["beeswarm_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
 
     alt.Chart(df).mark_circle().encode(
         x=alt.X("group:N"),
         y=alt.Y("value:Q"),
-        xOffset=alt.XOffset("beeswarm_x:Q"),
+        xOffset=alt.XOffset("beeswarm_x:Q", scale=alt.Scale(domain=[-m, m])),
     )
+
+Without the symmetric ``domain``, Vega-Lite centres the tick on the offset range's midpoint,
+so a leaning swarm renders slightly off the tick (``mark_strip`` pins this domain for you).
 ```
 
 ## `add_quasirandom`
@@ -107,11 +111,12 @@ non-overlap matters.
 ::
 
     df = ds.add_quasirandom(df, yCol="value", groupBy=["group"])
+    m = df["quasirandom_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
 
     alt.Chart(df).mark_circle().encode(
         x=alt.X("group:N"),
         y=alt.Y("value:Q"),
-        xOffset=alt.XOffset("quasirandom_x:Q"),
+        xOffset=alt.XOffset("quasirandom_x:Q", scale=alt.Scale(domain=[-m, m])),
     )
 ```
 

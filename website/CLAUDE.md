@@ -93,9 +93,12 @@ dissolved 2026-07-06).
   max_rows=None)` (the grids exceed Altair's 5000-row cap). Keep grids ~90-110/side: specs inline
   the data, so resolution drives spec size (the whole gallery adds ~15 MB of committed JSON; CI
   regenerates on deploy, so these are the local-dev copies). **Layering two composite marks**
-  (e.g. raincloud = `mark_violin` + points) double-draws the x-axis because `mark_violin` resolves
-  x independently - overlay the raw points as a plain `mark_circle` with `axis=None` instead of a
-  second `mark_strip`, so only the violin draws the axis. **`add_labels` culls axis labels (gotcha):**
+  (e.g. a raincloud = `mark_violin` + points) double-draws the x-axis because `mark_violin` resolves
+  x independently - overlay raw points as a plain `mark_circle` with `axis=None` instead of a
+  second `mark_strip`, so only the violin draws the axis. (Kept for reference: the raincloud
+  example itself was REMOVED 2026-07-22 - site violins layer neither boxplots nor points per user
+  decision; `violin_sample_size` [quartile violins + an `add_multilabel` n= row] replaced it in
+  the distributions gallery.) **`add_labels` culls axis labels (gotcha):**
   once `add_labels` pins the shared position scale, Vega thins that axis's labels to a subset even
   with `labelOverlap=False` (confirmed in BOTH browser Vega and vl-convert). So if you need every
   label on an axis whose scale `add_labels` shares, draw them as a `mark_text` layer (marks are never

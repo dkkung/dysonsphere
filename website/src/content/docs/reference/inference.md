@@ -26,11 +26,14 @@ def add_comparisons(
     *,
     test: str = 'mannwhitneyu',
     postHoc: str | None = None,
-    pvalues: list[float] | None = None,
+    pvalues: list[float] | dict[Any, Any] | None = None,
     correction: str | None = None,
     nComparisons: int | None = None,
-    yPositions: list[float] | None = None,
-    yStart: float | None = None,
+    reference: Any = None,
+    xOffsetCol: str | None = None,
+    xOffsetSort: list[str] | None = None,
+    yPositions: float | list[float] | dict[Any, Any] | None = None,
+    yStart: float | dict[Any, Any] | None = None,
     yStep: float | None = None,
     yPad: float | None = None,
     categories: list[Any] | None = None,
@@ -69,6 +72,10 @@ Two modes, selected by ``test``:
   ``testLabelPosition``). If ``pairs`` is also given, a post-hoc test (see
   ``postHoc``) fills the brackets.
 
+Setting ``reference`` overrides both with **reference mode**: compare every
+other group against one reference and draw the p-value above each mark with no
+bracket (see ``reference``).
+
 A descriptive + effect-size report is generated on every call and queued for
 the export metadata written by ``ds.save()`` (see ``report``/``save``).
 
@@ -82,17 +89,20 @@ Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 - **`pairs`** (`list[tuple[str, str]] | None`) - List of ``(group1, group2)`` tuples identifying the comparisons to annotate with brackets. Required for pairwise ``test`` values. Optional for omnibus tests — pass ``None`` for an omnibus-only corner label, or a list to also draw post-hoc brackets.
 - **`test`** (`str`) - Statistical test. **Pairwise:** ``'mannwhitneyu'`` (default), ``'ttest_ind'``, ``'ttest_rel'``, ``'wilcoxon'`` (run per pair), or ``'tukey_hsd'`` (one omnibus run, per-pair p-values from the matrix). **Omnibus:** ``'anova'`` (``f_oneway``), ``'kruskal'``, ``'friedman'``, ``'alexandergovern'``. Ignored when ``pvalues`` is provided.
 - **`postHoc`** (`str | None`) - Post-hoc test that fills the brackets when ``test`` is omnibus and ``pairs`` is given. ``None`` (default) picks a sensible default per omnibus test: ``anova → 'tukey_hsd'``, ``alexandergovern → 'games_howell'``, ``kruskal → 'dunn'``, ``friedman → 'nemenyi'``. May also be set to any pairwise test name. Dunn, Nemenyi, and Games-Howell are computed in-house (validated against scikit-posthocs / pingouin); ``correction`` adjusts them over all unique pairs. Ignored for pairwise ``test``.
-- **`pvalues`** (`list[float] | None`) - Pre-computed p-values, one per pair in the same order. Skips all statistical tests for the brackets when provided.
+- **`pvalues`** (`list[float] | dict[Any, Any] | None`) - Pre-computed p-values - skips the test AND correction (they're final). **Pairwise:** a list, one per pair in the same order. **Reference mode:** a **dict** keyed by the non-reference **group** (single-factor) or ``(category, level)`` (grouped). **Grouped brackets:** a dict keyed by ``(category, (level1, level2))`` (order-insensitive). The dict must cover **every** comparison; missing or unknown keys raise.
 - **`correction`** (`str | None`) - Multiple comparison correction: ``'bonferroni'``, ``'holm'``, ``'fdr_bh'`` (Benjamini-Hochberg), ``'fdr_by'`` (Benjamini-Yekutieli), or ``None``. The two ``fdr_*`` methods control the false discovery rate (BH assumes independence / positive dependence; BY is valid under arbitrary dependence but more conservative). For pairwise/post-hoc bracket p-values; ignored for ``tukey_hsd`` (correction is built in) and when ``pvalues`` is provided.
-- **`nComparisons`** (`int | None`) - Total family size for the correction (the denominator ``m``). Defaults to ``len(pairs)`` when a ``correction`` is set and not given explicitly.
-- **`yPositions`** (`list[float] | None`) - Explicit y positions (data units) for each bracket, one per pair in the same order. When provided, overrides all auto-stacking logic (``yStart``, ``yStep``, ``yPad`` are ignored).
-- **`yStart`** (`float | None`) - Y position (data units) of the lowest bracket. Defaults to ``max(y values for all annotated groups) + yPad``.
+- **`nComparisons`** (`int | None`) - Total family size for the correction (the denominator ``m``). Defaults to ``len(pairs)`` when a ``correction`` is set and not given explicitly. In grouped mode it defaults to the total number of drawn comparisons (``len(categories) * len(pairs)``).
+- **`reference`** (`Any`) - **Reference mode (compare-against-one).** A single group to compare every other group against, drawing the p-value **above each non-reference mark with no bracket** (the comparison is implicit - a control/many-vs-one design). Derives its own comparisons, so ``pairs`` must be left ``None``. Only the pairwise tests are supported (not omnibus); ``correction`` adjusts over the whole family of ``len(categories) - 1`` comparisons. Labels sit at each group's OWN data max, so overlay your points (they clear the data). Distinguishing the reference visually (e.g. a darker fill) is left to your chart - nothing is injected. Without ``xOffsetCol``, ``reference`` is a category of ``xCol``; with ``xOffsetCol`` (grouped mode) it is an xOffset **level**, compared within each x-category (one label per non-reference sub-bar). ``bracketStyle``/``reverse``/``tickHeight`` are inert here (no bracket); ``yStart`` does not apply (no stack) and raises if set. ``pvalues`` (a group-keyed dict) supplies precomputed p-values, and ``yPositions`` places labels - a single number for a flat row, or a group-keyed dict per label (see those params).
+- **`xOffsetCol`** (`str | None`) - **Grouped mode.** Column encoded as the chart's ``xOffset`` (the subgroup that splits each x-category into side-by-side bars, e.g. ``"condition"`` in a qPCR gene × condition panel). When set, ``pairs`` names subgroup **levels** (not x-categories) and one bracket is drawn per x-category, each above its own bars. With exactly two levels ``pairs`` defaults to comparing them. Only the pairwise tests are supported here (``'mannwhitneyu'``/``'ttest_ind'``/``'ttest_rel'``/``'wilcoxon'``); ``correction`` adjusts over the whole family (``categories × pairs``). The bracket label centres on the band - exact for two levels / symmetric pairs, slightly off the midpoint only for an asymmetric 3+-level pair.
+- **`xOffsetSort`** (`list[str] | None`) - Grouped mode - the subgroup level order. Must match the ``sort`` on your chart's ``xOffset`` encoding (and ``categories`` must match the ``x`` sort), or the shared scale reorders the bars. ``None`` (default) reads the data's first-appearance order.
+- **`yPositions`** (`float | list[float] | dict[Any, Any] | None`) - Explicit y positions (data units) for the annotations. **A single number** puts *every* annotation at that y - one global flat row. **Pairwise:** a list, one per pair in order (overrides auto-stacking). **Reference mode:** a **dict** keyed by the non-reference **group** (single-factor) or ``(category, level)`` (grouped) for a per-label height. **Grouped** additionally accepts a dict keyed by **category** - a flat row per category, each at its own height (handy when categories span very different magnitudes); and grouped brackets take ``(category, (level1, level2))`` keys (order-insensitive). Dicts are partial (unlisted → auto) and their keys must be uniform (all category names, or all tuples). Beats ``yStart``; unknown keys raise.
+- **`yStart`** (`float | dict[Any, Any] | None`) - The exact y (data units) of the lowest bracket - the stack base (levels rise from it by ``yStep``). Defaults to ``max(annotated groups) + yPad``. **Grouped (`xOffsetCol`) brackets** additionally accept a **dict** keyed by category for a per-category base (partial - unlisted categories use the auto base). **Does not apply to reference mode** (there is no stack - each label sits above its own mark); passing it there raises. Use ``yPositions`` for exact per-label heights.
 - **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels. Defaults to ``yPad * 1.75``, leaving clearance between a bracket's label and the bracket stacked above it.
 - **`yPad`** (`float | None`) - Padding above the data maximum when ``yStart`` is auto-placed. Defaults to a visual gap of ~8 px (``bracketStyle='line'``) or ~10 px (``bracketStyle='bracket'``), expressed in data units as a fraction of the **full** data extent over ``chartHeight``. Using the full extent (not just the compared groups) keeps the spacing stable - and stops the brackets collapsing when an un-annotated group inflates the rendered domain - since the gap in pixels tracks ``chartHeight / rendered domain``.
 - **`categories`** (`list[Any] | None`) - Ordered list of all x-axis categories. Inferred from ``df`` (sorted alphabetically) when not provided.
 - **`chartWidth`** (`int | None`) - Width of the chart in pixels, used to compute text x positions. Auto-detected from ``ds.theme()`` when not set.
 - **`bracketStyle`** (`str | dict[tuple[str, str], Any]`) - ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only) applied to every bracket. Or a ``dict`` mapping a pair to its style for per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` — keys match either pair order; pairs absent from the dict fall back to ``'bracket'``.
-- **`labelStyle`** (`str`) - ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'`` renders ``*`` / ``**`` / ``***`` / ``ns``.
+- **`labelStyle`** (`str`) - ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'`` renders ``*`` / ``**`` / ``***`` / ``ns``. ``'value'`` renders the bare value to save room - the same as ``'p'`` but without the ``P`` symbol and the redundant ``= `` (``0.012``), keeping a meaningful operator (``< 0.001`` when floored, ``≈ 10⁻⁵`` for ``notation='power'``). ``notation`` still applies.
 - **`tickHeight`** (`float | None`) - Height of bracket end ticks in data units. Defaults to the theme's ``tickSize`` (converted from px to data units), so bracket ticks match the axis ticks. Always positive, so it works with reverse (negative-``yStep``) brackets without an explicit override. Only used when ``bracketStyle='bracket'``.
 - **`strokeWidth`** (`float | None`) - Stroke width of bracket lines. Inherits ``axisWidth`` from ``ds.theme()`` when not set.
 - **`fontSize`** (`int | None`) - Font size of the p-value / corner labels. Defaults to the theme's primary ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
@@ -158,6 +168,33 @@ From pre-computed p-values::
         pvalues=[0.012, 0.341],
         categories=CATEGORIES,
     )
+
+Grouped (two-factor) - compare vehicle vs LPS *within* each gene of a grouped
+bar chart (``xOffset="condition"``); one bracket per gene, a real per-gene test::
+
+    GENES = ["GAPDH", "IL6", "TNF"]
+    bars = alt.Chart(df).mark_bar().encode(
+        x=alt.X("gene:N", sort=GENES),
+        xOffset=alt.XOffset("condition:N", sort=["Vehicle", "LPS"]),
+        y="mean(expr):Q", color="condition:N",
+    )
+    bars + ds.add_comparisons(
+        df, "gene", "expr",
+        xOffsetCol="condition",
+        categories=GENES, xOffsetSort=["Vehicle", "LPS"],
+        test="ttest_ind", labelStyle="asterisks",
+    )
+
+Reference mode - compare every dose against the control, a bare mark above each
+(no bracket); overlay your points so the marks clear the data::
+
+    CATS = ["Ctrl", "Low", "Mid", "High"]
+    chart = ds.mark_strip(df, "group", "value", CATS)
+    chart + ds.add_comparisons(
+        df, "group", "value",
+        reference="Ctrl", categories=CATS,
+        test="ttest_ind", correction="holm", labelStyle="asterisks",
+    )
 ```
 
 ## `add_correlation`
@@ -169,6 +206,7 @@ def add_correlation(
     yCol: str,
     *,
     method: str = 'pearson',
+    groupCol: str | None = None,
     line: bool = True,
     position: str | None = 'topLeft',
     label: str | None = None,
@@ -210,6 +248,7 @@ Combine with your scatter using ``+``:  ``chart + add_correlation(...)``.
 - **`xCol`** (`str`) - Column names for the two **continuous** variables.
 - **`yCol`** (`str`) - Column names for the two **continuous** variables.
 - **`method`** (`str`) - ``'pearson'`` (default) — linear correlation ``r`` + ``r²`` + slope/intercept, with an OLS line. ``'spearman'`` — rank correlation ``ρ``. ``'kendall'`` — rank correlation ``τ``. The rank methods report the coefficient only (no ``r²``, no line — a straight line isn't their model). Matches pandas' ``DataFrame.corr``.
+- **`groupCol`** (`str | None`) - **Grouped mode.** A column to split the scatter into series (e.g. ``"cell_line"``). When set, a fit + coefficient is computed **per group**, each fit line / CI band / readout coloured by ``groupCol`` on the *same* colour channel your scatter uses - so colour by the same field (``color=alt.Color("cell_line:N")``) and they match (colour is a lookup, so no sort param is needed, unlike ``add_comparisons``). Readouts stack in the ``position`` corner, each a colour swatch (matching the series) plus the coefficient in neutral ink; one record is registered per group. Note: with ``ci=True``, give your scatter an explicit y-axis title (``alt.Y("val:Q", title="…")``) - otherwise Vega merges the band's internal upper-bound field into the axis title (a Vega title-merge quirk that also affects the single-series ``ci`` path).
 - **`line`** (`bool`) - Draw the OLS fit line. Default ``True``. Only applies to ``method="pearson"`` (a no-op for the rank methods). Set ``False`` to suppress it and, e.g., compose your own line from the returned/recorded slope and intercept.
 - **`position`** (`str | None`) - Corner preset (an ``add_text`` position, e.g. ``'topLeft'``) for the readout. Default ``'topLeft'``. ``None`` computes the result for the report/metadata but draws no label.
 - **`label`** (`str | None`) - Override string for the corner readout. ``None`` builds it from the parts below.

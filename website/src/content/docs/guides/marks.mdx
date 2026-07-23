@@ -27,12 +27,17 @@ Overlay mean error bars with `errorbars=True`; `errorbarExtent` chooses `"sem"` 
 
 ## Violin plot
 
-`mark_violin()` pairs a kernel-density silhouette with an embedded boxplot. The silhouette and the
-box are styled independently:
+`mark_violin()` pairs an outlined kernel-density silhouette with Prism-style inner statistics -
+a solid median line and dashed quartile lines, each spanning the violin's width at that value.
+`inner=` picks the display: `"quartiles"` (default), `"median"` (median line only), `"box"` (an
+embedded boxplot), or `None` (silhouette only); `innerColor` restyles the lines:
 
 <Example name="violin" alt="Violin plot of horsepower by car origin" />
 
-<Example name="violin_styled" alt="Styled violin plot with a custom palette and white median" />
+Remove the outline with `stroke=None`, and end the violin sharply at the observed data extremes
+with `trim=True`; `bandwidth` tunes the KDE smoothness:
+
+<Example name="violin_styled" alt="Styled violin plot with a custom palette, no outline, and trimmed tails" />
 
 ## Boxplot
 
