@@ -814,7 +814,11 @@ def add_multilabel(
                 x = enc._kwds.get("x", alt.Undefined)
                 if x is not alt.Undefined and isinstance(x, alt.X):
                     axis = x._kwds.get("axis", alt.Undefined)
-                    if axis is alt.Undefined or axis is None:
+                    # An explicit axis=None means the layer HIDES its axis (e.g.
+                    # mark_violin's internal pixel-x layers) - leave it hidden.
+                    # Replacing it with Axis(labels=False) re-enables the domain
+                    # line and ticks (a phantom axis above the chart).
+                    if axis is alt.Undefined:
                         x._kwds["axis"] = alt.Axis(labels=False, title=None)
                     elif isinstance(axis, alt.Axis):
                         axis._kwds["labels"] = False

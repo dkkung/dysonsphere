@@ -142,6 +142,21 @@ class TestAddMultilabel:
         result = add_multilabel(strip, ML_GROUPS, categories=ML_CATS)
         assert isinstance(result, alt.VConcatChart)
 
+    def test_preserves_hidden_axes(self):
+        # Regression: a layer's explicit axis=None (e.g. mark_violin's internal pixel-x
+        # layers) must STAY None - replacing it with Axis(labels=False) re-enables the
+        # domain line and ticks, drawing a phantom axis above the chart.
+        from dysonsphere.marks import mark_violin
+
+        theme(chartWidth=100)
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ML_CATS * 20, "v": rng.normal(0, 1, 60).tolist()})
+        violin = mark_violin(df, "g", "v", ML_CATS)
+        spec = add_multilabel(violin, ML_GROUPS, categories=ML_CATS).to_dict()
+        chart_panel = spec["vconcat"][0]
+        hidden = [lyr for lyr in chart_panel["layer"] if lyr.get("encoding", {}).get("x", {}).get("field") == "__x"]
+        assert hidden and all(lyr["encoding"]["x"].get("axis") is None for lyr in hidden)
+
     def test_accepts_concat_chart(self):
         # A vconcat stack (e.g. western_blot's image strips): _strip_x_labels recurses into the
         # panels, so the table lands below the whole stack. The param annotation includes the

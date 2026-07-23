@@ -122,7 +122,7 @@ def mark_violin(
     medianColor: str = "white",
     palette: str | list[str] | None = None,
     fillOpacity: float | None = None,
-    stroke: str | None = None,
+    stroke: str | bool | None = True,
     strokeWidth: float | None = None,
     legend: bool = False,
     xLabelAngle: float | None = None,
@@ -164,9 +164,9 @@ def mark_violin(
         ``None`` draws the violin outline only.
     innerColor:
         Color of the median/quartile lines (``"quartiles"``/``"median"``).
-        ``None`` (default) resolves darkmode-aware (black in light mode, white in
-        dark mode) when the chart is built - pass a callable to ``ds.save()`` so
-        dark variants re-resolve.
+        ``None`` (default) means ``"black"`` in both light and dark mode - the
+        lines sit inside the mark fill, not on the background, so they are
+        deliberately not darkmode-sensitive.
     boxplotSize:
         Width of the boxplot box in pixels (``inner="box"`` only).
     boxplotColor:
@@ -182,7 +182,10 @@ def mark_violin(
         Fill opacity of the violin. Inherits ``markFillOpacity`` from theme
         when ``None``.
     stroke:
-        Outline color of the violin. Defaults to ``None`` (no outline).
+        Outline color of the violin. ``True`` (default) uses the theme's
+        ``markStroke`` (black - kept black in dark mode too, outlining the light
+        palette fills like ``mark_strip``'s points); ``False`` or ``None``
+        disables the outline; a string sets the color directly.
     strokeWidth:
         Width of the violin outline. Inherits ``markStrokeWidth`` from theme
         when ``None``.
@@ -222,21 +225,18 @@ def mark_violin(
         right = ds.mark_violin(df, "group", "value", CATEGORIES)
         ds.save(alt.hconcat(left, right), "comparison")
 
-        # Prism-style look: outlined violin, median/quartile lines, sharp tips
-        chart = ds.mark_violin(
-            df, "group", "value", CATEGORIES,
-            trim=True,
-            stroke="black",
-        )
+        # Prism-style look with sharp tips at the data extremes
+        chart = ds.mark_violin(df, "group", "value", CATEGORIES, trim=True)
 
-        # classic embedded boxplot, with optional outline and custom colors
+        # bare silhouette: remove the default outline
+        chart = ds.mark_violin(df, "group", "value", CATEGORIES, stroke=None)
+
+        # classic embedded boxplot with custom colors
         chart = ds.mark_violin(
             df, "group", "value", CATEGORIES,
             inner="box",
             boxplotSize=10,
             palette="#AAAAAA",
-            stroke="black",
-            strokeWidth=0.5,
         )
     """
     from scipy.stats import gaussian_kde
@@ -261,10 +261,16 @@ def mark_violin(
         fillOpacity = _opt("markFillOpacity")
     if strokeWidth is None:
         strokeWidth = _opt("markStrokeWidth")
+    if stroke is True:
+        # The house mark outline: the theme's markStroke, kept black in darkmode
+        # too - it outlines the light palette fills, like mark_strip's points.
+        stroke = "black" if _opt("darkmode") else _opt("markStroke")
+    elif stroke is False:
+        stroke = None
     if innerColor is None:
-        # Build-time darkmode read, like add_shade - a save() across backgrounds
-        # needs a callable so the dark variant re-resolves.
-        innerColor = "white" if _opt("darkmode") else "black"
+        # Deliberately NOT darkmode-sensitive: the lines sit inside the mark fill,
+        # not on the background, so black reads in both modes.
+        innerColor = "black"
     mark_size = _opt("markSize")
     chart_width = _opt("chartWidth")  # x:Q domain of the violin layer
     # mark_boxplot lowers to a band scale with paddingInner=paddingOuter=bandPadding
