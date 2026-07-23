@@ -396,9 +396,12 @@ def mark_violin(
         pixel_x_scale = alt.Scale(domain=[0, chart_width], padding=0)
 
         def _stat_layer(rows: list[dict[str, Any]], **rule_kwargs: Any) -> alt.Chart:
+            # strokeCap="butt": config.rule's round caps paint strokeWidth/2 beyond
+            # each endpoint, poking the (double-weight) median past the violin
+            # outline; butt caps end the line exactly on the outline path.
             return (
                 alt.Chart(_internal_data(rows))
-                .mark_rule(color=boxplotColor, **rule_kwargs)
+                .mark_rule(color=boxplotColor, strokeCap="butt", **rule_kwargs)
                 .encode(
                     x=alt.X("__x:Q", scale=pixel_x_scale, axis=None),
                     x2=alt.X2("__x2:Q"),

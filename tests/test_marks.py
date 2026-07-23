@@ -151,8 +151,12 @@ class TestViolinInner:
         quartiles = [lyr["mark"] for lyr in _rule_layers(spec) if len(lyr["data"]["values"]) == 1]
         assert len(quartiles) == 2 * len(CATEGORIES)
         assert median["strokeDash"] == [0, 0]
+        # Butt caps: the theme's round rule caps would paint strokeWidth/2 beyond the
+        # endpoints, poking the median past the violin outline.
+        assert median["strokeCap"] == "butt"
         for quartile in quartiles:
             assert quartile["strokeDash"] == alt.theme.options["dashedWidth"]
+            assert quartile["strokeCap"] == "butt"
             assert median["strokeWidth"] == 2 * quartile["strokeWidth"]
 
     def test_quartile_dashes_centred_on_line_midpoint(self, group_df):
