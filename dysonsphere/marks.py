@@ -9,7 +9,7 @@ import polars as pl
 from .labels import label_expr
 from .theme import _opt
 from .transforms import add_beeswarm, add_jitter
-from .utils import _internal_data, band_geometry, ensure_polars
+from .utils import _internal_data, _nice_domain, band_geometry, ensure_polars
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -266,15 +266,7 @@ def mark_violin(
     # scale resolution that squishes the violin when hconcated with any
     # chart that also uses xOffset (e.g. mark_strip).
     violin_rows = []
-    median_rows = []
-    quartile_rows = []
-    # Data units per pixel on the y axis, for converting the inner lines' stroke
-    # thickness. Approximate (the rendered domain is niced outward beyond the data
-    # extent, making the true px->data factor smaller) - the same convention as
-    # add_comparisons' yPad math, and conservative in the safe direction here.
-    y_all = df[yCol].to_numpy()
-    y_span = float(y_all.max() - y_all.min())
-    data_per_px = y_span / _opt("chartHeight")
+    group_kde = []
     for i, group in enumerate(categories):
         x_center = geo.centers[i]
         vals = df.filter(pl.col(xCol) == group)[yCol].to_numpy()
@@ -291,32 +283,7 @@ def mark_violin(
         y_grid = np.linspace(y_min, y_max, steps)
         density = kde(y_grid)
         density_norm = density / density.max()
-
-        if inner == "quartiles":
-            for q, rows, thickness in zip(
-                np.quantile(vals, [0.25, 0.5, 0.75]),
-                (quartile_rows, median_rows, quartile_rows),
-                (strokeWidth, strokeWidth * 2, strokeWidth),
-            ):
-                # Clip the line to the violin outline. Its stroked rectangle's corners
-                # sit at q +/- half the line thickness, where a sharply bending outline
-                # can be much narrower than at q itself - so take the MINIMUM density
-                # over that whole interval (plus half the outline width, whose ink is
-                # the visual boundary), not the density at q alone, or the corners
-                # poke past the outline at extreme bends.
-                h = (thickness / 2 + strokeWidth / 2) * data_per_px
-                qf = float(q)
-                window = density_norm[(y_grid >= qf - h) & (y_grid <= qf + h)]
-                edges = np.interp([qf - h, qf, qf + h], y_grid, density_norm)
-                d = float(min(edges.min(), window.min() if window.size else np.inf))
-                rows.append(
-                    {
-                        "__group": group,
-                        "__y": qf,
-                        "__x": x_center - d * half_width,
-                        "__x2": x_center + d * half_width,
-                    }
-                )
+        group_kde.append((group, x_center, vals, y_grid, density_norm))
 
         for order, (y, d) in enumerate(zip(y_grid, density_norm)):
             violin_rows.append(
@@ -347,6 +314,54 @@ def mark_violin(
                 "__order": 2 * steps,
             }
         )
+
+    median_rows: list[dict[str, Any]] = []
+    quartile_rows: list[dict[str, Any]] = []
+    if inner == "quartiles":
+        # Pixel->data conversion for the median's stroke thickness. The rendered y
+        # domain is Vega-Lite's nice-rounded union of the violin grids and zero
+        # (zero=True is the y-channel default; verified empirically) - utils'
+        # _nice_domain is the same d3 algorithm, so the estimate tracks it closely.
+        grid_lo = min(g[3][0] for g in group_kde)
+        grid_hi = max(g[3][-1] for g in group_kde)
+        dom_lo, dom_hi = _nice_domain(min(grid_lo, 0.0), max(grid_hi, 0.0))
+        data_per_px = (dom_hi - dom_lo) / _opt("chartHeight")
+        h_med = strokeWidth * data_per_px  # half the median band's 2*strokeWidth thickness
+
+        for group, x_center, vals, y_grid, density_norm in group_kde:
+            q1, q2, q3 = (float(q) for q in np.quantile(vals, [0.25, 0.5, 0.75]))
+            for q in (q1, q3):
+                # Clip the line to the violin outline: half-width = the KDE density
+                # at the quantile's y, in the same normalized units as the outline.
+                d = float(np.interp(q, y_grid, density_norm))
+                quartile_rows.append(
+                    {
+                        "__group": group,
+                        "__y": q,
+                        "__x": x_center - d * half_width,
+                        "__x2": x_center + d * half_width,
+                    }
+                )
+            # The median is TRUE-CLIPPED to the violin border: a straight stroked
+            # line is a rectangle, and on a squat violin the outline sweeps inward
+            # by whole pixels across the line's own thickness, so its corners jut
+            # past the border no matter where it ends. Instead the median is a thin
+            # polygon spanning q2 +/- half its thickness whose left/right edges
+            # FOLLOW the outline - every grid point in the band plus interpolated
+            # band edges, rendered as a mark_area.
+            band_lo = max(q2 - h_med, float(y_grid[0]))
+            band_hi = min(q2 + h_med, float(y_grid[-1]))
+            band_ys = sorted({band_lo, *(float(y) for y in y_grid if band_lo < y < band_hi), q2, band_hi})
+            for y in band_ys:
+                d = float(np.interp(y, y_grid, density_norm))
+                median_rows.append(
+                    {
+                        "__group": group,
+                        "__y": y,
+                        "__x": x_center - d * half_width,
+                        "__x2": x_center + d * half_width,
+                    }
+                )
 
     violin_df = pl.DataFrame(violin_rows)
 
@@ -402,36 +417,50 @@ def mark_violin(
 
     if inner == "quartiles":
         # Same pinned pixel x scale as the violin layer so the shared-scale merge
-        # can't shift the segments; median solid at double weight, quartiles dashed.
-        # strokeDash is pinned on both - config.rule is dashed under the theme's
-        # dashedRule default, which must not leak into the median. Each quartile
-        # line is its OWN layer because the dash pattern must be centred on the
-        # line's midpoint via strokeDashOffset (SVG phases dashes from the path
-        # start, so an uncentred short line renders left-heavy, visibly off-centre)
-        # - and strokeDashOffset is a mark property, per layer not per datum.
+        # can't shift the marks. Quartiles = dashed rules (strokeDash pinned -
+        # config.rule is dashed under the theme's dashedRule default); the median =
+        # a solid outline-clipped area band at double weight. Each quartile line is
+        # its OWN layer because its dash pattern is SCALED TO FIT its length (an
+        # integer number of cycles plus one dash), so every line both starts AND
+        # ends with a full dash touching the outline - a fixed pattern ends
+        # wherever the length lands in the cycle, up to a whole gap of blank before
+        # the endpoint (the ink visibly stops short of the outline), and strokeDash
+        # is a mark property, per layer not per datum.
         pixel_x_scale = alt.Scale(domain=[0, chart_width], padding=0)
 
-        def _stat_layer(rows: list[dict[str, Any]], **rule_kwargs: Any) -> alt.Chart:
-            # strokeCap="butt": config.rule's round caps paint strokeWidth/2 beyond
-            # each endpoint, poking the (double-weight) median past the violin
-            # outline; butt caps end the line exactly on the outline path.
-            return (
-                alt.Chart(_internal_data(rows))
-                .mark_rule(color=boxplotColor, strokeCap="butt", **rule_kwargs)
+        dash_len, gap_len = _opt("dashedWidth")[:2]
+        cycle = dash_len + gap_len
+        for row in quartile_rows:
+            length = row["__x2"] - row["__x"]
+            # Fit n full cycles + one closing dash into the length; a line shorter
+            # than one dash degenerates to a single full-length dash (solid).
+            n = max(0, round((length - dash_len) / cycle)) if cycle else 0
+            scale_factor = length / (n * cycle + dash_len) if length > 0 else 1
+            fitted = [dash_len * scale_factor, gap_len * scale_factor]
+            layers.append(
+                alt.Chart(_internal_data([row]))
+                # strokeCap="butt": config.rule's round caps would paint
+                # strokeWidth/2 of ink beyond each endpoint, past the outline.
+                .mark_rule(color=boxplotColor, strokeCap="butt", strokeWidth=strokeWidth, strokeDash=fitted)
                 .encode(
                     x=alt.X("__x:Q", scale=pixel_x_scale, axis=None),
                     x2=alt.X2("__x2:Q"),
                     y=s.y("__y:Q"),
                 )
             )
-
-        dash = _opt("dashedWidth")
-        cycle = sum(dash)
-        for row in quartile_rows:
-            # Centre a dash on the midpoint: phase(length/2) == dash[0]/2.
-            offset = (dash[0] / 2 - (row["__x2"] - row["__x"]) / 2) % cycle if cycle else 0
-            layers.append(_stat_layer([row], strokeWidth=strokeWidth, strokeDash=dash, strokeDashOffset=offset))
-        layers.append(_stat_layer(median_rows, strokeWidth=strokeWidth * 2, strokeDash=[0, 0]))
+        # The median band polygon (see the row builder above). Fill/stroke pinned to
+        # dodge the config.area grey-fill/stroke leak; detail= splits the single
+        # layer into one polygon per group without touching a colour scale.
+        layers.append(
+            alt.Chart(_internal_data(median_rows))
+            .mark_area(fill=boxplotColor, opacity=1, fillOpacity=1, stroke=None, strokeWidth=0)
+            .encode(
+                x=alt.X("__x:Q", scale=pixel_x_scale, axis=None),
+                x2=alt.X2("__x2:Q"),
+                y=s.y("__y:Q"),
+                detail=alt.Detail("__group:N"),
+            )
+        )
 
     layers.append(axis_host)
     return cast(alt.LayerChart, alt.layer(*layers).resolve_axis(x="independent"))

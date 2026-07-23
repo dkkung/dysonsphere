@@ -124,14 +124,19 @@ def _violin_rows(spec):
     return spec["datasets"][violin["data"]["name"]]
 
 
+def _median_area(spec):
+    return next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "area")
+
+
 class TestViolinInner:
     def test_quartiles_replaces_boxplot_with_rule_layers(self, group_df):
         spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
         types = [_mark_type(lyr) for lyr in spec["layer"]]
         assert "boxplot" not in types
-        # One single-row layer per quartile line (each needs its own strokeDashOffset)
-        # plus one median layer.
-        assert types.count("rule") == 2 * len(CATEGORIES) + 1
+        # One single-row rule layer per quartile line (each carries its own fitted
+        # dash pattern) plus one area layer for the outline-clipped median band.
+        assert types.count("rule") == 2 * len(CATEGORIES)
+        assert types.count("area") == 1
 
     def test_quartile_line_values_match_data(self, group_df):
         spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
@@ -139,51 +144,64 @@ class TestViolinInner:
         for lyr in _rule_layers(spec):
             for row in lyr["data"]["values"]:
                 ys.setdefault(row["__group"], set()).add(round(row["__y"], 9))
+        med_ys: dict[str, set[float]] = {}
+        for row in _median_area(spec)["data"]["values"]:
+            med_ys.setdefault(row["__group"], set()).add(round(row["__y"], 9))
         for group in CATEGORIES:
             vals = group_df.filter(pl.col("group") == group)["value"].to_numpy()
-            expected = {round(float(q), 9) for q in np.quantile(vals, [0.25, 0.5, 0.75])}
-            assert ys[group] == expected
+            q1, q2, q3 = np.quantile(vals, [0.25, 0.5, 0.75])
+            assert ys[group] == {round(float(q1), 9), round(float(q3), 9)}
+            # The median band's rows include the exact median (its midline).
+            assert round(float(q2), 9) in med_ys[group]
 
-    def test_median_solid_and_heavier_than_dashed_quartiles(self, group_df):
-        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
-        # The median layer has one row per group; each quartile line is a single-row layer.
-        median = next(lyr["mark"] for lyr in _rule_layers(spec) if len(lyr["data"]["values"]) == len(CATEGORIES))
-        quartiles = [lyr["mark"] for lyr in _rule_layers(spec) if len(lyr["data"]["values"]) == 1]
+    def test_median_band_and_dashed_quartiles(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles", boxplotColor="red").to_dict()
+        # The median is an outline-clipped area band: fill wired to boxplotColor,
+        # stroke pinned off to dodge the config.area leak.
+        median = _median_area(spec)["mark"]
+        assert median["fill"] == "red"
+        assert median["stroke"] is None
+        assert median["strokeWidth"] == 0
+        quartiles = [lyr["mark"] for lyr in _rule_layers(spec)]
         assert len(quartiles) == 2 * len(CATEGORIES)
-        assert median["strokeDash"] == [0, 0]
-        # Butt caps: the theme's round rule caps would paint strokeWidth/2 beyond the
-        # endpoints, poking the median past the violin outline.
-        assert median["strokeCap"] == "butt"
+        dash_len, gap_len = alt.theme.options["dashedWidth"][:2]
         for quartile in quartiles:
-            assert quartile["strokeDash"] == alt.theme.options["dashedWidth"]
+            # The dash pattern is per-line scaled-to-fit, so only its proportions
+            # match the theme's dashedWidth.
+            a, b = quartile["strokeDash"]
+            assert a / b == pytest.approx(dash_len / gap_len)
+            # Butt caps: the theme's round rule caps would paint strokeWidth/2 of
+            # ink beyond the endpoints, past the outline.
             assert quartile["strokeCap"] == "butt"
-            assert median["strokeWidth"] == 2 * quartile["strokeWidth"]
+            assert quartile["color"] == "red"
 
-    def test_quartile_dashes_centred_on_line_midpoint(self, group_df):
-        # SVG phases dashes from the path start, so each quartile layer carries a
-        # strokeDashOffset placing a dash's centre exactly at the line's midpoint -
-        # without it short lines render left-heavy (visibly off-centre ink).
+    def test_quartile_dashes_fit_line_exactly(self, group_df):
+        # Each quartile line's dash pattern is scaled so an integer number of cycles
+        # plus one closing dash fits its length exactly - the line starts AND ends
+        # with a full dash touching the outline. A fixed pattern can end in a gap,
+        # leaving the ink visibly short of the outline.
         spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
-        dash = alt.theme.options["dashedWidth"]
-        cycle = sum(dash)
         for lyr in _rule_layers(spec):
-            if len(lyr["data"]["values"]) != 1:
-                continue
             row = lyr["data"]["values"][0]
             length = row["__x2"] - row["__x"]
-            phase_at_mid = (length / 2 + lyr["mark"]["strokeDashOffset"]) % cycle
-            assert phase_at_mid == pytest.approx(dash[0] / 2)
+            a, b = lyr["mark"]["strokeDash"]
+            # length == n*(a+b) + a for a non-negative integer n
+            n = (length - a) / (a + b)
+            assert n == pytest.approx(round(n), abs=1e-9)
+            assert round(n) >= 0
+            assert "strokeDashOffset" not in lyr["mark"]
 
-    def test_quartile_lines_clipped_inside_violin_outline(self, group_df):
+    def test_inner_marks_clipped_inside_violin_outline(self, group_df):
         spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles").to_dict()
         outline = {}
         for row in _violin_rows(spec):
             lo, hi = outline.setdefault(row["__group"], [float("inf"), float("-inf")])
             outline[row["__group"]] = [min(lo, row["__x"]), max(hi, row["__x"])]
-        for lyr in _rule_layers(spec):
-            for row in lyr["data"]["values"]:
-                lo, hi = outline[row["__group"]]
-                assert lo <= row["__x"] < row["__x2"] <= hi + 1e-9
+        inner_rows = [row for lyr in _rule_layers(spec) for row in lyr["data"]["values"]]
+        inner_rows += _median_area(spec)["data"]["values"]
+        for row in inner_rows:
+            lo, hi = outline[row["__group"]]
+            assert lo <= row["__x"] < row["__x2"] <= hi + 1e-9
 
     def test_quartiles_keeps_nominal_x_axis_on_bar_host(self, group_df):
         # The invisible zero-row host layer must carry the nominal x axis with the
