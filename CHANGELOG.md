@@ -8,8 +8,11 @@
   statistic display inside the violin: `"box"` (the embedded boxplot, unchanged default),
   `"quartiles"` (a solid median line and dashed quartile lines, each spanning the violin's width
   at that value - the GraphPad Prism look), or `None` (outline only). In the `"quartiles"` and
-  `None` modes an invisible zero-row layer hosts the category x-axis in place of the boxplot.
-  `boxplotColor` also colors the quartile/median lines.
+  `None` modes an invisible zero-row bar layer hosts the category x-axis in place of the boxplot
+  (a bar keeps the band scale, so ticks stay centred under the violins). Each dashed quartile
+  line carries a `strokeDashOffset` centring its dash pattern on the line's midpoint, so the
+  dashes read symmetric instead of left-heavy. `boxplotColor` also colors the quartile/median
+  lines.
 - **`mark_violin(trim=True)`: sharp tips at the data range.** Evaluates the KDE only on the
   group's observed min-max, so the violin ends exactly at the data extremes instead of
   overshooting past them. Default remains untrimmed.
@@ -22,6 +25,9 @@
 - **Untrimmed violin tails now extend 2 KDE bandwidths past the data extremes** (was a fixed
   ±1 in data units, which over- or under-shot on data scales far from ~1-100). Existing violins
   render with slightly different tail lengths.
+- **The violin outline is now a closed path** - it repeats its first point so the bottom edge
+  gets a stroked cap like the top. Invisible on untrimmed violins (the end density is near
+  zero) but required under `trim=True`, where an open outline left a visible gap.
 
 ## [3.9.0] - 2026-07-20
 

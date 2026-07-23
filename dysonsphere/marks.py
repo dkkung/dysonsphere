@@ -320,6 +320,17 @@ def mark_violin(
                     "__order": steps + order,
                 }
             )
+        # Close the outline: repeat the first point so the bottom edge gets a stroked
+        # cap like the top (where the two sides already meet). Matters under trim=True,
+        # where the end density is far from zero and the gap is visible.
+        violin_rows.append(
+            {
+                "__group": group,
+                "__y": float(y_grid[0]),
+                "__x": x_center + float(density_norm[0]) * half_width,
+                "__order": 2 * steps,
+            }
+        )
 
     violin_df = pl.DataFrame(violin_rows)
 
@@ -365,29 +376,43 @@ def mark_violin(
     # Without the boxplot no layer carries the nominal x axis, so an invisible
     # zero-row layer on the user's df hosts it (the add_log_ticks trick: the pinned
     # category domain drives the axis, transform_filter("false") renders nothing,
-    # and sharing df means no phantom dataset for read(what="data")).
-    axis_host = alt.Chart(df).transform_filter("false").mark_point(opacity=0).encode(x=s.x())
+    # and sharing df means no phantom dataset for read(what="data")). It must be a
+    # BAR mark: a point mark makes Vega-Lite type the x:N scale as a POINT scale,
+    # whose tick positions don't match the band-scale centres the violin geometry
+    # uses - a bar forces the band scale even at zero rows, seating the ticks on
+    # the violin centres exactly as the boxplot did.
+    axis_host = alt.Chart(df).transform_filter("false").mark_bar(opacity=0).encode(x=s.x())
     layers: list[Any] = [violin]
 
     if inner == "quartiles":
         # Same pinned pixel x scale as the violin layer so the shared-scale merge
         # can't shift the segments; median solid at double weight, quartiles dashed.
         # strokeDash is pinned on both - config.rule is dashed under the theme's
-        # dashedRule default, which must not leak into the median.
+        # dashedRule default, which must not leak into the median. Each quartile
+        # line is its OWN layer because the dash pattern must be centred on the
+        # line's midpoint via strokeDashOffset (SVG phases dashes from the path
+        # start, so an uncentred short line renders left-heavy, visibly off-centre)
+        # - and strokeDashOffset is a mark property, per layer not per datum.
         pixel_x_scale = alt.Scale(domain=[0, chart_width], padding=0)
-        for rows, dash, width in (
-            (quartile_rows, _opt("dashedWidth"), strokeWidth),
-            (median_rows, [0, 0], strokeWidth * 2),
-        ):
-            layers.append(
+
+        def _stat_layer(rows: list[dict[str, Any]], **rule_kwargs: Any) -> alt.Chart:
+            return (
                 alt.Chart(_internal_data(rows))
-                .mark_rule(color=boxplotColor, strokeWidth=width, strokeDash=dash)
+                .mark_rule(color=boxplotColor, **rule_kwargs)
                 .encode(
                     x=alt.X("__x:Q", scale=pixel_x_scale, axis=None),
                     x2=alt.X2("__x2:Q"),
                     y=s.y("__y:Q"),
                 )
             )
+
+        dash = _opt("dashedWidth")
+        cycle = sum(dash)
+        for row in quartile_rows:
+            # Centre a dash on the midpoint: phase(length/2) == dash[0]/2.
+            offset = (dash[0] / 2 - (row["__x2"] - row["__x"]) / 2) % cycle if cycle else 0
+            layers.append(_stat_layer([row], strokeWidth=strokeWidth, strokeDash=dash, strokeDashOffset=offset))
+        layers.append(_stat_layer(median_rows, strokeWidth=strokeWidth * 2, strokeDash=[0, 0]))
 
     layers.append(axis_host)
     return cast(alt.LayerChart, alt.layer(*layers).resolve_axis(x="independent"))
