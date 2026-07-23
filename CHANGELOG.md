@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased]
+
+### New features
+
+- **`mark_violin(inner=...)`: Prism-style quartile lines.** A new `inner` parameter picks the
+  statistic display inside the violin: `"box"` (the embedded boxplot, unchanged default),
+  `"quartiles"` (a solid median line and dashed quartile lines, each spanning the violin's width
+  at that value - the GraphPad Prism look), or `None` (outline only). In the `"quartiles"` and
+  `None` modes an invisible zero-row layer hosts the category x-axis in place of the boxplot.
+  `boxplotColor` also colors the quartile/median lines.
+- **`mark_violin(trim=True)`: sharp tips at the data range.** Evaluates the KDE only on the
+  group's observed min-max, so the violin ends exactly at the data extremes instead of
+  overshooting past them. Default remains untrimmed.
+- **`mark_violin(bandwidth=...)`: KDE smoothness control.** Forwards to
+  `scipy.stats.gaussian_kde`'s `bw_method` (same as `add_quasirandom`); smaller values give a
+  tighter, less smoothed outline.
+
+### Changes
+
+- **Untrimmed violin tails now extend 2 KDE bandwidths past the data extremes** (was a fixed
+  ±1 in data units, which over- or under-shot on data scales far from ~1-100). Existing violins
+  render with slightly different tail lengths.
+
 ## [3.9.0] - 2026-07-20
 
 ### New features
