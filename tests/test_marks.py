@@ -170,14 +170,37 @@ class TestViolinInner:
         assert types.count("rule") == 0
         assert "boxplot" not in types
 
-    def test_inner_color_default_is_darkmode_aware(self, group_df):
-        theme(chartWidth=200, chartHeight=200, darkmode=True)
-        spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
-        assert _median_area(spec)["mark"]["fill"] == "white"
-        assert all(lyr["mark"]["color"] == "white" for lyr in _rule_layers(spec))
-        theme(chartWidth=200, chartHeight=200)
-        spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
-        assert _median_area(spec)["mark"]["fill"] == "black"
+    def test_inner_color_default_is_black_in_both_modes(self, group_df):
+        # Deliberately NOT darkmode-sensitive: the lines sit inside the mark fill,
+        # not on the background.
+        for dark in (False, True):
+            theme(chartWidth=200, chartHeight=200, darkmode=dark)
+            spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
+            assert _median_area(spec)["mark"]["fill"] == "black"
+            assert all(lyr["mark"]["color"] == "black" for lyr in _rule_layers(spec))
+
+    def test_stroke_defaults_to_outlined(self, group_df):
+        # The default violin is outlined with the theme's markStroke - black in
+        # dark mode too (it outlines the light palette fills, like mark_strip).
+        for dark in (False, True):
+            theme(chartWidth=200, chartHeight=200, darkmode=dark)
+            spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
+            violin = next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "line")
+            assert violin["mark"]["stroke"] == "black"
+            assert violin["mark"]["strokeOpacity"] == 1
+
+    def test_stroke_false_disables_outline(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, stroke=False).to_dict()
+        violin = next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "line")
+        assert violin["mark"]["strokeOpacity"] == 0
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, stroke=None).to_dict()
+        violin = next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "line")
+        assert violin["mark"]["strokeOpacity"] == 0
+
+    def test_stroke_string_used_directly(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, stroke="red").to_dict()
+        violin = next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "line")
+        assert violin["mark"]["stroke"] == "red"
 
     def test_median_band_and_dashed_quartiles(self, group_df):
         spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="quartiles", innerColor="red").to_dict()
