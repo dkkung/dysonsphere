@@ -16,7 +16,7 @@ from dysonsphere.export import (
     _flip_ticks_inward,
     _illustrator_font_family,
     _italicize_stat_symbols,
-    _layer_axes_to_front,
+    _layer_axes_below_marks,
     _simplify_svg,
     _typeset_scripts,
     save,
@@ -654,23 +654,30 @@ class TestFlipTicksInward:
         )
 
 
-# ── _layer_axes_to_front() ───────────────────────────────────────────────────
+# ── _layer_axes_below_marks() ────────────────────────────────────────────────
 
 
-class TestLayerAxesToFront:
-    def test_non_grid_axis_moved_to_end(self, tmp_path):
+class TestLayerAxesBelowMarks:
+    def test_axis_placed_after_grid_before_marks(self, tmp_path):
+        # A datum plotted exactly on an axis renders OVER the axis line - data wins
+        # over chrome - while axis chrome still covers the grid.
         svg = textwrap.dedent(f"""\
             <svg xmlns="{NS}">
-              <g class="mark-group role-axis">
+              <g class="mark-group role-axis" id="axis">
                 <g><line x1="0" y1="0" x2="10" y2="0"/></g>
+              </g>
+              <g class="mark-group role-axis" id="grid">
+                <g><g class="mark-rule role-axis-grid">
+                  <line x1="0" y1="0" x2="100" y2="0"/>
+                </g></g>
               </g>
               <g class="data-layer"/>
             </svg>
         """)
         root = ET.fromstring(svg)
-        _layer_axes_to_front(root)
-        children = list(root)
-        assert children[-1].get("class") == "mark-group role-axis"
+        _layer_axes_below_marks(root)
+        ids = [c.get("id") or c.get("class") for c in root]
+        assert ids == ["grid", "axis", "data-layer"]
 
     def test_grid_axis_stays_in_place(self, tmp_path):
         svg = textwrap.dedent(f"""\
@@ -684,23 +691,34 @@ class TestLayerAxesToFront:
             </svg>
         """)
         root = ET.fromstring(svg)
-        _layer_axes_to_front(root)
+        _layer_axes_below_marks(root)
         children = list(root)
         assert children[0].get("class") == "mark-group role-axis"
+        assert children[-1].get("class") == "data-layer"
 
     def test_background_fill_and_stroke_split(self, tmp_path):
-        # viewFill + closed: fill stays behind marks, stroke clone appended in front
+        # viewFill + closed: fill stays at the very back, stroke clone sits above
+        # the grid but BELOW the data marks.
         svg = textwrap.dedent(f"""\
             <svg xmlns="{NS}">
               <path class="background" fill="#eeeeee" stroke="black"/>
+              <g class="mark-group role-axis" id="grid">
+                <g><g class="mark-rule role-axis-grid">
+                  <line x1="0" y1="0" x2="100" y2="0"/>
+                </g></g>
+              </g>
               <g class="data-layer"/>
             </svg>
         """)
         root = ET.fromstring(svg)
-        _layer_axes_to_front(root)
-        paths = list(root.iter(f"{{{NS}}}path"))
-        assert any(p.get("stroke") == "none" for p in paths)  # original → stroke removed
-        assert any(p.get("fill") == "none" for p in paths)  # clone → fill=none
+        _layer_axes_below_marks(root)
+        children = list(root)
+        assert children[0].get("class") == "background"
+        assert children[0].get("stroke") == "none"  # original → fill-only, stays back
+        assert children[1].get("id") == "grid"
+        assert children[2].get("fill") == "none"  # stroke-only clone above grid
+        assert children[2].get("stroke") == "black"
+        assert children[-1].get("class") == "data-layer"  # marks render last
 
 
 # ── scaffolding marks vs real data marks ─────────────────────────────────────

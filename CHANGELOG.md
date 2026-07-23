@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changes
+
+- **Data marks now render above axis lines and closed borders in `save()`/`show()` output.**
+  A datum plotted exactly on an axis draws over the axis line instead of being cut by it. The
+  stacking order in exported SVG/PNG is view fill, then grid, then axes and the closed border,
+  then marks; the grid still never paints over the border.
+
 ### Fixes
 
 - `add_multilabel` no longer re-enables a layer's explicitly hidden x axis (`axis=None`, e.g.
