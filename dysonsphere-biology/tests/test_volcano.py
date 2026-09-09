@@ -10,6 +10,7 @@ import altair as alt
 import dysonsphere_biology as dsbio
 import polars as pl
 import pytest
+import vl_convert as vlc
 
 import dysonsphere as ds
 
@@ -40,13 +41,13 @@ def test_entry_point_registered():
 def test_builds_layerchart_with_expected_layers():
     chart = ds.biology.volcano(_df())
     assert isinstance(chart, alt.LayerChart)
-    # points + 3 threshold rules (two vertical +-fc, one horizontal p), no labels by default
-    assert len(chart.to_dict()["layer"]) == 4
+    # points + neutral legend carrier + 3 threshold rules (two vertical +-fc, one horizontal p)
+    assert len(chart.to_dict()["layer"]) == 5
 
 
 def test_no_threshold_lines():
     chart = ds.biology.volcano(_df(), thresholdLines=False)
-    assert len(chart.to_dict()["layer"]) == 1
+    assert len(chart.to_dict()["layer"]) == 2
 
 
 def test_significance_classification():
@@ -135,10 +136,94 @@ def test_label_rejects_unknown_string():
 
 
 def test_palette_and_nscolor_override():
-    # colors ride in the scale range, not the data, so assert via the spec's color scale
+    # The established tuple order is (gained, lost); quantitative ranges run low to high.
     chart = ds.biology.volcano(_df(), palette=("#111111", "#222222"), nonDifferentialColor="#333333")
-    color_scale = chart.to_dict()["layer"][0]["encoding"]["color"]["scale"]
-    assert color_scale["range"] == ["#111111", "#222222", "#333333"]
+    spec = chart.to_dict()
+    assert spec["layer"][0]["encoding"]["color"]["scale"]["range"] == ["#222222", "#111111"]
+    assert spec["layer"][1]["encoding"]["color"]["scale"]["range"] == ["#333333"]
+
+
+def test_palette_validation_and_case_sensitive_name():
+    for palette in [("#111111", ""), ("#111111", 2), [], ["#111111", ""]]:
+        with pytest.raises(ValueError, match="palette"):
+            ds.biology.volcano(_df(), palette=palette)
+    with pytest.raises(ValueError, match="unknown palette"):
+        ds.biology.volcano(_df(), palette="Div1")
+
+
+@pytest.mark.parametrize("palette", ["div1", ["#222222", "#dddddd"]])
+def test_named_and_list_palette_override_locally(palette):
+    scale = ds.biology.volcano(_df(), palette=palette).to_dict()["layer"][0]["encoding"]["color"]["scale"]
+    assert scale["range"] == (ds.palettes.colors[palette] if isinstance(palette, str) else palette)
+
+
+def test_default_palette_natively_inherits_diverging_range():
+    ds.theme(divergingPalette="redblue")
+    spec = ds.biology.volcano(_df()).to_dict()
+    scale = spec["layer"][0]["encoding"]["color"]["scale"]
+    assert scale == {"domain": [-1, 1], "domainMid": 0}
+    assert spec["config"]["range"]["diverging"]["scheme"] == "redblue"
+
+
+@pytest.mark.parametrize("darkmode,neutral", [(False, "#DBDBDB"), (True, "#2F2F2F")])
+def test_rendered_default_neutral_legend_matches_point(darkmode, neutral):
+    ds.theme(darkmode=darkmode)
+    svg = vlc.vegalite_to_svg(ds.biology.volcano(_df(), thresholdLines=False).to_dict())
+    points, swatches = _rendered_point_and_legend_fills(svg)
+    assert neutral.lower() in points
+    assert neutral.lower() in swatches
+
+
+def test_rendered_custom_palette_and_neutral_have_matching_symbol_swatches():
+    ds.theme(divergingPalette=["#112233", "#eeeeee", "#445566"])
+    svg = vlc.vegalite_to_svg(ds.biology.volcano(_df(), thresholdLines=False, nonDifferentialColor="#778899").to_dict())
+    for color in ("rgb(17, 34, 51)", "rgb(68, 85, 102)", "#778899"):
+        assert color.lower() in _rendered_point_and_legend_fills(svg)[0]
+        assert color.lower() in _rendered_point_and_legend_fills(svg)[1]
+
+
+def test_legend_false_removes_both_legends():
+    spec = ds.biology.volcano(_df(), legend=False).to_dict()
+    assert "legends" not in vlc.vegalite_to_vega(spec)
+    _, swatches = _rendered_point_and_legend_fills(vlc.vegalite_to_svg(spec))
+    assert not swatches
+
+
+@pytest.mark.parametrize(
+    "diverging,endpoints",
+    [
+        (["#112233", "#eeeeee", "#445566"], {"rgb(17, 34, 51)", "rgb(68, 85, 102)"}),
+        ("redblue", {"rgb(19, 75, 133)", "rgb(140, 13, 37)"}),
+    ],
+)
+@pytest.mark.parametrize("darkmode,neutral", [(False, "#DBDBDB"), (True, "#2F2F2F")])
+def test_callable_save_renders_inherited_palette_and_neutral(tmp_path, diverging, endpoints, darkmode, neutral):
+    ds.theme(divergingPalette=diverging)
+    out = tmp_path / "callable_volcano"
+    ds.save(
+        lambda: ds.biology.volcano(_df(), thresholdLines=False),
+        out,
+        format="svg",
+        background="dark" if darkmode else "light",
+    )
+    fills = _rendered_fills(out.with_suffix(".svg").read_text())
+    assert neutral.lower() in fills
+    assert endpoints <= fills
+
+
+def test_parent_composition_after_theme_switch_renders_inherited_scales():
+    ds.theme(divergingPalette="redblue")
+    chart = alt.hconcat(
+        ds.biology.volcano(_df(), labels="gene", subset=2, thresholdLines=False),
+        ds.biology.volcano(_df(), thresholdLines=False),
+    )
+    ds.theme(divergingPalette=["#112233", "#eeeeee", "#445566"])
+    svg = vlc.vegalite_to_svg(chart.to_dict())
+    points, swatches = _rendered_point_and_legend_fills(svg)
+    for color in ("rgb(17, 34, 51)", "rgb(68, 85, 102)"):
+        assert color in points
+        assert color in swatches
+    assert set(_label_texts(chart)) == {"up2", "zero_p"}
 
 
 def test_axis_titles_render():
@@ -170,6 +255,21 @@ def test_read_filters_generated_label_sidecar(tmp_path):
     assert sorted(frame["__dysonsphere_volcano_row"].to_list()) == list(range(df.height))
 
 
+def test_user_significance_score_column_is_preserved(tmp_path):
+    helper = "__dysonsphere_volcano_significance_score"
+    df = _df().with_columns(
+        pl.Series("significance_score", range(_df().height)),
+        pl.Series(helper, range(10, 10 + _df().height)),
+        pl.Series(helper + "_", range(20, 20 + _df().height)),
+    )
+    out = tmp_path / "volcano_collision"
+    ds.save(lambda: ds.biology.volcano(df), out, format="json")
+    frame = ds.metadata.read(out.with_suffix(".json"), what="data")
+    assert set(frame.columns) == set(df.columns) | {"neglog10p", "significance"}
+    for column in ("significance_score", helper, helper + "_"):
+        assert dict(zip(frame["gene"], frame[column])) == dict(zip(df["gene"], df[column]))
+
+
 def test_provenance_records_biology_extension(tmp_path):
     # End-to-end via the REAL entry point: a saved volcano records dysonsphere-biology's version in
     # provenance (ext.tag_extension self-tagging -> save() scans it -> environment[dysonsphere-extensions]).
@@ -198,3 +298,27 @@ def _label_texts(chart):
 
     walk(chart.to_dict())
     return out
+
+
+def _rendered_point_and_legend_fills(svg):
+    """Return normalized fills for plotted points and symbol-legend descendants."""
+    import xml.etree.ElementTree as et
+
+    root = et.fromstring(svg)
+    points = {
+        element.attrib["fill"].lower()
+        for element in root.iter()
+        if element.attrib.get("aria-roledescription") == "point" and "fill" in element.attrib
+    }
+    swatches = set()
+    for element in root.iter():
+        if element.attrib.get("aria-roledescription") == "legend":
+            swatches.update(child.attrib["fill"].lower() for child in element.iter() if "fill" in child.attrib)
+    return points, swatches
+
+
+def _rendered_fills(svg):
+    """Return normalized fill colors from a saved SVG whose accessibility roles were stripped."""
+    import re
+
+    return {fill.lower() for fill in re.findall(r'fill="([^\"]+)"', svg)}

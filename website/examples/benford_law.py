@@ -17,7 +17,7 @@ from dysonsphere.palettes import colors
 
 ds.theme(chartWidth=215, chartHeight=175)
 dark = bool(alt.theme.options.get("darkmode"))
-ACCENT = colors["cat_blues"][5 if dark else 9]
+ACCENT = colors["cat2_blues"][5 if dark else 9]
 
 # leading digit of 2**n for n = 1..2000 (Python big integers, tallied in the browser)
 tally = Counter(int(str(2**n)[0]) for n in range(1, 2001))

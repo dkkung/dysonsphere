@@ -13,7 +13,7 @@ from dysonsphere.palettes import colors
 
 ds.theme(chartWidth=265, chartHeight=160)
 dark = bool(alt.theme.options.get("darkmode"))  # the site injects darkmode per light/dark spec
-LINE = colors["cat_teals"][5 if dark else 8]
+LINE = colors["cat2_teals"][5 if dark else 8]
 
 # decimal year; monthly-mean CO2 (ppm) at Mauna Loa
 YEAR = [

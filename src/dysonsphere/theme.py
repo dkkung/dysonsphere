@@ -837,10 +837,10 @@ def _dysonsphere_theme() -> dict[str, Any]:
             },
             "range": {
                 "category": category_range,
-                "diverging": {"scheme": _scheme("divergingPalette", colors["ds_div_3"])},
-                "heatmap": {"scheme": _scheme("heatmapPalette", colors["mpl_viridis"])},
+                "diverging": {"scheme": _scheme("divergingPalette", colors["div1"])},
+                "heatmap": {"scheme": _scheme("heatmapPalette", colors["viridis"])},
                 "ordinal": {"scheme": _scheme("ordinalPalette", colors["greys"])},
-                "ramp": {"scheme": _scheme("rampPalette", colors["mpl_viridis"])},
+                "ramp": {"scheme": _scheme("rampPalette", colors["viridis"])},
             },
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",

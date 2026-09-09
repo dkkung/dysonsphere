@@ -3,6 +3,7 @@ import polars as pl
 import pytest
 
 import dysonsphere as ds
+from dysonsphere.palettes import colors
 from dysonsphere.table import (
     _contrast_expr,
     _fmt_power,
@@ -289,6 +290,16 @@ class TestFormatting:
 
 
 class TestCellColor:
+    @pytest.mark.parametrize("name", ["viridis", "Blues", "blues"])
+    def test_palette_names_are_shared_and_case_sensitive(self, df, name):
+        spec = mark_table(df, cellPalette={"log2FC": name}, stripePalette=name).to_dict()
+        scales = [layer.get("encoding", {}).get("color", {}).get("scale", {}) for layer in spec["layer"]]
+        assert any(scale.get("range") == colors[name] for scale in scales)
+        with pytest.raises(ValueError, match="unknown palette"):
+            mark_table(df, cellPalette={"log2FC": "Viridis"})
+        with pytest.raises(ValueError, match="unknown palette"):
+            mark_table(df, stripePalette="Viridis")
+
     def test_non_numeric_column_raises(self, df):
         with pytest.raises(ValueError, match="must be numeric"):
             mark_table(df, cellPalette={"gene": "greys"})

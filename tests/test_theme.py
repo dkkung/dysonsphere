@@ -1,8 +1,11 @@
+import hashlib
+import json
 from typing import Any, cast
 
 import altair as alt
 import pytest
 
+from dysonsphere.palettes import colors
 from dysonsphere.theme import (
     _dysonsphere_theme,
     _load_style_overrides,
@@ -186,11 +189,18 @@ class TestRangePalettes:
         theme()
         assert self._range("category") == categorical(1)  # bare array, positional
         assert self._scheme("ordinal") == colors["greys"]
-        assert self._scheme("diverging") == colors["ds_div_3"]  # the ds_3 family diverging (purple<->teal)
+        assert self._scheme("diverging") == colors["div1"]
         # continuous defaults: viridis - its mid-range stays separable when values are
         # scattered rather than smoothly graded (an RNA-seq matrix, not a density map)
-        assert self._scheme("heatmap") == colors["mpl_viridis"]
-        assert self._scheme("ramp") == colors["mpl_viridis"]
+        assert self._scheme("heatmap") == colors["viridis"]
+        assert self._scheme("ramp") == colors["viridis"]
+
+    @pytest.mark.parametrize("darkmode", [False, True])
+    def test_complete_default_range_baseline(self, darkmode):
+        theme(darkmode=darkmode)
+        ranges = _dysonsphere_theme()["config"]["range"]
+        digest = hashlib.sha256(json.dumps(ranges, separators=(",", ":")).encode()).hexdigest()
+        assert digest == "92f22343bbe5ac3adeda22b515b3b58bcde2ffb287b6e2458b14674754fc56a7"
 
     def test_category_is_bare_array(self):
         # nominal scales map positionally, so category must NOT be {"scheme": ...}
@@ -202,15 +212,19 @@ class TestRangePalettes:
 
         theme(categoryPalette="reds")
         assert self._range("category") == colors["reds"]
-        assert self._scheme("diverging") == colors["ds_div_3"]  # others untouched
+        assert self._scheme("diverging") == colors["div1"]  # others untouched
 
     def test_per_type_override_raw_list(self):
         theme(rampPalette=["#ffffff", "#000000"])
         assert self._scheme("ramp") == ["#ffffff", "#000000"]
 
     def test_per_type_vega_scheme_passthrough(self):
+        theme(heatmapPalette="bluegreen")
+        assert self._scheme("heatmap") == "bluegreen"
+
+    def test_registered_name_takes_precedence_over_vega_scheme(self):
         theme(heatmapPalette="viridis")
-        assert self._scheme("heatmap") == "viridis"
+        assert self._scheme("heatmap") == colors["viridis"]
 
     def test_category_vega_scheme_passthrough(self):
         # a Vega scheme *name* for category still needs the {"scheme": ...} wrapper

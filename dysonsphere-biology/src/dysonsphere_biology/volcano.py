@@ -54,7 +54,7 @@ def volcano(
     pThreshold: float = 0.05,
     subset: str | int | list[str] | None = None,
     thresholdLines: bool = True,
-    palette: tuple[str, str] | None = None,
+    palette: str | list[str] | tuple[str, str] | None = None,
     nonDifferentialColor: str | None = None,
     markOpacity: float = 0.85,
     legend: bool = True,
@@ -69,9 +69,9 @@ def volcano(
     (The third label describes the analytical call, not significance - a point can be significant
     yet miss the fold-change threshold, so ``"ns"`` would be wrong for it.)
 
-    Colors are resolved from the active theme at call time (darkmode-aware grey for the
-    non-differential points), so build inside a ``ds.save(lambda: volcano(...))`` callable for
-    correct light/dark export.
+    Gained/lost colors inherit the active theme's diverging range when ``palette`` is omitted.
+    The neutral remains a separate darkmode-aware grey, so build inside a
+    ``ds.save(lambda: volcano(...))`` callable for correct light/dark export.
 
     Parameters
     ----------
@@ -93,8 +93,8 @@ def volcano(
     thresholdLines:
         Draw the fold-change / p-value guide lines (default ``True``).
     palette:
-        ``(gained, lost)`` hex colors. Defaults to the ``ds_div_1`` diverging endpoints
-        (teal = gained, gold = lost).
+        A registered palette name, an explicit low-to-high color list, or the existing
+        ``(gained, lost)`` endpoint tuple. Omission inherits the active theme's diverging range.
     nonDifferentialColor:
         Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
     markOpacity:
@@ -123,14 +123,30 @@ def volcano(
     data = data.sort(pl.col(_SIG_COL) != _NONDIFF)
 
     darkmode = bool(ext.opt("darkmode"))
-    gained_color, lost_color = (
-        palette if palette is not None else (ds.palettes.colors["ds_div_1"][-1], ds.palettes.colors["ds_div_1"][0])
-    )
     ns_color = (
         nonDifferentialColor
         if nonDifferentialColor is not None
         else (ds.palettes.colors["greys"][10] if darkmode else ds.palettes.colors["greys"][1])
     )
+    scale_range = None
+    if isinstance(palette, tuple):
+        if len(palette) != 2 or any(not isinstance(color, str) or not color.strip() for color in palette):
+            raise ValueError("palette tuple must contain exactly two non-empty (gained, lost) color strings")
+        scale_range = [palette[1], palette[0]]
+    elif isinstance(palette, str):
+        if palette not in ds.palettes.colors:
+            raise ValueError(f"unknown palette name {palette!r}")
+        scale_range = ds.palettes.colors[palette]
+    elif isinstance(palette, list):
+        if not palette or any(not isinstance(color, str) or not color.strip() for color in palette):
+            raise ValueError("palette must be a non-empty list of non-empty color strings")
+        scale_range = palette
+    elif palette is not None:
+        raise ValueError("palette must be a registered name, color list, (gained, lost) tuple, or None")
+
+    score_col = "__dysonsphere_volcano_significance_score"
+    while score_col in data.columns:
+        score_col += "_"
 
     x_title = "log2 fold change" if xTitle is _UNSET else xTitle
     y_title = "-log10 P" if yTitle is _UNSET else yTitle
@@ -139,19 +155,48 @@ def volcano(
     # opacity is overridden.
     points = (
         alt.Chart(data)
+        .transform_calculate(
+            **{score_col: f"datum.{_SIG_COL} === '{_GAINED}' ? 1 : datum.{_SIG_COL} === '{_LOST}' ? -1 : 0"}
+        )
         .mark_point(opacity=markOpacity)
         .encode(
             x=alt.X(f"{log2fc}:Q", title=x_title),
             y=alt.Y(f"{_NEGLOG_COL}:Q", title=y_title),
             color=alt.Color(
-                f"{_SIG_COL}:N",
-                scale=alt.Scale(domain=[_GAINED, _LOST, _NONDIFF], range=[gained_color, lost_color, ns_color]),
-                legend=alt.Legend(title=None) if legend else None,
+                f"{score_col}:Q",
+                scale=alt.Scale(domain=[-1, 1], domainMid=0, **({"range": scale_range} if scale_range else {})),
+                legend=(
+                    alt.Legend(
+                        title=None,
+                        type="symbol",
+                        values=[1, -1],
+                        labelExpr="datum.value === 1 ? 'Gained' : 'Lost'",
+                    )
+                    if legend
+                    else None
+                ),
+                condition={"test": f"datum.{_SIG_COL} === '{_NONDIFF}'", "value": ns_color},
             ),
         )
     )
 
     layers: list[ext.AltairChart] = [points]
+    if legend:
+        # A separate one-entry symbol legend keeps the neutral independent of the diverging scale.
+        # Its source is filtered away before drawing, so no helper data or invisible mark is exported.
+        neutral_legend = (
+            alt.Chart(data)
+            .transform_filter("false")
+            .mark_point()
+            .encode(
+                color=alt.Color(
+                    f"{_SIG_COL}:N",
+                    scale=alt.Scale(domain=[_NONDIFF], range=[ns_color]),
+                    legend=alt.Legend(title=None, values=[_NONDIFF]),
+                )
+            )
+        )
+        layers.append(neutral_legend)
 
     if thresholdLines:
         # Dashed theme-styled reference guides at the +-fold-change and p-value cutoffs. ds.rule
@@ -160,7 +205,7 @@ def volcano(
         layers.append(ds.rule(fcThreshold, axis="x"))
         layers.append(ds.rule(-math.log10(pThreshold), axis="y"))
 
-    chart: ext.AltairChart = alt.layer(*layers)
+    chart: ext.AltairChart = alt.layer(*layers).resolve_scale(color="independent")
     if subset is not None:
         # ds.labels returns a LayerChart; compose with + (it also self-pins the x/y scale).
         chart = chart + _label_layer(data, subset, log2fc, labels)

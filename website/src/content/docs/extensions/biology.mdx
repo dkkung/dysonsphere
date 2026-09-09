@@ -27,7 +27,7 @@ ds.biology.volcano(df, labels="gene", subset=8)
 
 `volcano()` draws log2 fold change against −log₁₀ p, classifies each point as gained / lost /
 non-differential by the fold-change and p-value thresholds, colors it with the diverging
-`ds_div_1` endpoints (teal = gained, gold = lost), and layers on optional threshold guides and
+active theme's diverging range, keeps a separate darkmode-aware neutral grey, and layers on optional threshold guides and
 gene labels:
 
 <Example name="volcano" alt="Volcano plot of differential expression with labeled top genes" />
@@ -46,7 +46,7 @@ force-repel engine (deterministic, connector-linked), and the point ranking is d
 | `pThreshold` | `0.05` | P-value cutoff; horizontal guide at −log₁₀ of it |
 | `subset` | `None` | `int` (top-N by score), `"significant"` (all hits), or `list[str]` (named genes) |
 | `thresholdLines` | `True` | Draw the fold-change / p-value guide lines |
-| `palette` | `ds_div_1` ends | `(gained, lost)` hex colors |
+| `palette` | theme diverging range | Registered name, low-to-high color list, or `(gained, lost)` tuple |
 | `nonDifferentialColor` | theme grey | Non-differential point color (darkmode-aware) |
 | `legend` | `True` | Show the significance color legend |
 
@@ -54,7 +54,7 @@ See the full signature and every parameter in the
 [`dysonsphere_biology.volcano` reference](/extensions/volcano/).
 
 :::note
-Colors resolve from the active theme at call time (including the darkmode-aware grey), so for a
+Gained/lost colors inherit the theme's diverging scale natively; the neutral grey resolves at call time, so for a
 correct light/dark export wrap the call in a `ds.save()` callable:
 
 ```python

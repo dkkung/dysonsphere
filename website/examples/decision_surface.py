@@ -66,7 +66,7 @@ scatter = (
         # saturated corners, and the paler stops stop telling the two classes apart
         color=alt.Color(
             "class:N",
-            scale=alt.Scale(range=[colors["ds_div_3"][3], colors["ds_div_3"][9]]),
+            scale=alt.Scale(range=[colors["div1"][3], colors["div1"][9]]),
             legend=None,
         ),
     )

@@ -277,6 +277,28 @@ class TestMarkColors:
         with pytest.raises(ValueError, match="palette|fill"):
             constructor(group_df, "group", "value", CATEGORIES, **kwargs)
 
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    @pytest.mark.parametrize("name", ["viridis", "Blues", "blues"])
+    def test_palette_names_are_shared_and_case_sensitive(self, constructor, name, group_df):
+        kwargs = {"palette": name}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        spec = constructor(group_df, "group", "value", CATEGORIES, **kwargs).to_dict()
+        assert any(
+            layer.get("encoding", {}).get("color", {}).get("scale", {}).get("range") == colors[name]
+            for layer in spec["layer"]
+        )
+
+        with pytest.raises(ValueError, match="unknown palette"):
+            constructor(
+                group_df,
+                "group",
+                "value",
+                CATEGORIES,
+                palette="Viridis",
+                **({"inner": None} if constructor is mark_violin else {}),
+            )
+
     def test_named_palette_can_come_from_project_config(self, group_df, monkeypatch, tmp_path):
         import os
 

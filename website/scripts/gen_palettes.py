@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 
 import dysonsphere as ds
+from dysonsphere.palettes import _CMOCEAN_PALETTES, _MATPLOTLIB_DISCRETE_PALETTES, _MATPLOTLIB_PALETTES
 
 OUT = Path("website/src/generated/palettes.json")
 
@@ -26,8 +27,8 @@ def main() -> None:
     for name, colors in ds.palettes.colors.items():
         # By stop count: diverging ramps carry 13 (neutral midpoint), sequential ramps 12; the
         # remaining short palettes (nucleotides, proteins, the matplotlib sets) are qualitative.
-        # The assembled qualitative palettes (ds_cat_2 carries 12 stops) are hue-cycling, not ramps.
-        if name in ("ds_cat_1", "ds_cat_2"):
+        # The assembled qualitative palettes are hue-cycling, not ramps.
+        if name in {"cat1", "cat2", "cat3"} | _MATPLOTLIB_DISCRETE_PALETTES:
             kind = "qualitative"
         elif len(colors) == 13:
             kind = "diverging"
@@ -35,7 +36,10 @@ def main() -> None:
             kind = "sequential"
         else:
             kind = "qualitative"
-        palettes.append({"name": name, "kind": kind, "colors": list(colors)})
+        source = (
+            "cmocean" if name in _CMOCEAN_PALETTES else "matplotlib" if name in _MATPLOTLIB_PALETTES else "dysonsphere"
+        )
+        palettes.append({"name": name, "kind": kind, "source": source, "colors": list(colors)})
     OUT.write_text(json.dumps(palettes), encoding="utf-8")
     print(f"wrote {len(palettes)} palettes to {OUT}")
 
