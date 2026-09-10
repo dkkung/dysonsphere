@@ -162,7 +162,7 @@ def save(
         ``"html"`` is the **interactive** tier: it renders live in the browser via Vega, so
         it is fully themed, carries the metadata block, and gets exact tick positions (that
         fix lives in the theme config), but it does NOT get dysonsphere's static SVG
-        post-processors (superscript typesetting, Illustrator-friendly flattening). In
+        post-processors (superscript typesetting, Illustrator-friendly flattening).
         ``tickDirection="in"`` is deliberately **not** applied to HTML:
         the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that
         works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different

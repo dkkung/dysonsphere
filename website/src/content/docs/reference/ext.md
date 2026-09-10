@@ -75,6 +75,20 @@ The unique view-name marker survives composition and is stripped from the writte
 An existing name is carried inside it so statistical identity is not overwritten and a
 user-supplied name can be restored when internal markers are removed.
 
+## `internal_data`
+
+```python
+def internal_data(
+    data: list[dict[str, Any]] | pl.DataFrame | Any,
+) -> Any: ...
+```
+
+Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
+
+Accepts a list of record dicts (returned as an ``alt.Data``) or a polars/pandas
+DataFrame (returned as a polars DataFrame with the sentinel column added).  Pass the
+result straight to ``alt.Chart(...)``.
+
 ## `opt`
 
 ```python
@@ -90,17 +104,3 @@ present in ``alt.theme.options``, so the fallback only matters when a chart help
 called before any ``theme()``; it then sees the fully derived built-in defaults
 (``markSize`` 10.0, ``axisOffset`` 0, …), computed once and cached. Unknown keys
 raise ``KeyError``.
-
-## `internal_data`
-
-```python
-def internal_data(
-    data: list[dict[str, Any]] | pl.DataFrame | Any,
-) -> Any: ...
-```
-
-Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
-
-Accepts a list of record dicts (returned as an ``alt.Data``) or a polars/pandas
-DataFrame (returned as a polars DataFrame with the sentinel column added).  Pass the
-result straight to ``alt.Chart(...)``.

@@ -17,7 +17,7 @@ register themselves under the ``dysonsphere.extensions`` entry-point group in th
     biology = "dysonsphere_biology"
 
 Core discovers them lazily. Accessing ``dysonsphere.<name>`` (resolved by the package-level
-``__getattr__`` in ``src/dysonsphere/__init__.py``) imports and returns the registered module, so
+``__getattr__`` in ``dysonsphere/__init__.py``) imports and returns the registered module, so
 ``dysonsphere.biology.volcano(df)`` works once ``dysonsphere-biology`` is pip-installed. The
 extension is also importable directly (``import dysonsphere_biology``); the entry point only
 adds the ``dysonsphere.<name>`` alias and lets core enumerate what is installed.
