@@ -1740,7 +1740,7 @@ def comparisons(
         ``ds.theme()`` when not set.
     fontSize:
         Font size of the p-value / corner labels. Defaults to the theme's primary
-        ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
+        ``fontSize`` (``6`` under the built-in defaults), matching the axis font.
     reverse:
         List of ``(group1, group2)`` tuples identifying brackets to flip —
         text moves below the bar and ticks point upward, and the bracket hangs
@@ -2780,7 +2780,7 @@ def correlation(
         Pixel nudges for the readout, forwarded to ``text``.
     fontSize:
         Font size of the readout. Defaults to the theme's primary ``fontSize``
-        (``7`` under the built-in defaults), matching the axis font.
+        (``6`` under the built-in defaults), matching the axis font.
     sigFigs, notation:
         Significant figures / number format for the readout (coefficient, r², p-value,
         and fit equation), as in ``comparisons``. ``sigFigs=None`` reads the theme.

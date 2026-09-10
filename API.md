@@ -158,8 +158,8 @@ notes are local working material, not dependencies of this framework or part of 
   reject a valid renderer format or introduce a separate formatting contract.
 - Document pixels, symbol area, data coordinates, and dimensionless proportions distinctly.
   Allow fractional values where supported; counts and indices remain integers.
-- Theme `fontSize` is the nominal publication point size at intrinsic export size. SVG renderers expose
-  the same number as a CSS/SVG user-unit value, while raster export scales from 72 intrinsic units per
+- Theme `fontSize` defaults to 6 and is the nominal publication point size at intrinsic export size.
+  SVG renderers expose the same number as a CSS/SVG user-unit value, while raster export scales from 72 intrinsic units per
   inch. Preserve the value without a 4/3 conversion. `markSize` remains the shared sizing basis: symbol
   marks interpret derived values as area, while composite widths and gaps derive linear pixel values.
 - Use Padding for gaps/insets and Offset for signed displacement. Names such as Width should
