@@ -9,37 +9,154 @@ from pathlib import Path
 # Everything else here is internal (underscore or not).
 __all__ = ["colors", "palette", "categorical", "export_swatches"]
 
-_QUALITATIVE_HUES = {
-    "ds_cat_1": ("cat_teals", "cat_blues", "cat_purples", "cat_greens", "cat_golds"),
-    "ds_cat_2": ("blues", "pinks", "yellows", "greens"),
-    "ds_cat_3": ("greys", "cat3_blues", "cat3_greens", "cat3_purples", "cat3_teals"),
-}
-_DEFAULT_QUALITATIVE_PALETTE = "ds_cat_3"
-
-# ds_cat_3's flat palette: tier-major over grey/blue/green/purple/teal.
-# Explicit stops, not the usual (1, 4, 7)
-_CAT3_FLAT = (
-    ("greys", 3),
-    ("cat3_blues", 5),
-    ("cat3_greens", 6),
-    ("cat3_purples", 6),
-    ("cat3_teals", 4),
-    ("greys", 7),
-    ("cat3_blues", 8),
-    ("cat3_greens", 9),
-    ("cat3_purples", 9),
-    ("cat3_teals", 8),
+_CMOCEAN_PALETTES = frozenset(
+    {
+        "algae",
+        "amp",
+        "balance",
+        "curl",
+        "deep",
+        "delta",
+        "dense",
+        "diff",
+        "haline",
+        "ice",
+        "matter",
+        "oxy",
+        "phase",
+        "rain",
+        "solar",
+        "speed",
+        "tarn",
+        "tempo",
+        "thermal",
+        "topo",
+        "turbid",
+    }
 )
-_QUALITATIVE_FLAT = {"ds_cat_3": _CAT3_FLAT}
+_MATPLOTLIB_PALETTES = frozenset(
+    {
+        "Accent",
+        "Blues",
+        "BrBG",
+        "BuGn",
+        "BuPu",
+        "CMRmap",
+        "Dark2",
+        "GnBu",
+        "Greens",
+        "Greys",
+        "Oranges",
+        "OrRd",
+        "PRGn",
+        "Paired",
+        "Pastel1",
+        "Pastel2",
+        "PiYG",
+        "PuBu",
+        "PuBuGn",
+        "PuOr",
+        "PuRd",
+        "Purples",
+        "RdBu",
+        "RdGy",
+        "RdPu",
+        "RdYlBu",
+        "RdYlGn",
+        "Reds",
+        "Set1",
+        "Set2",
+        "Set3",
+        "Spectral",
+        "Wistia",
+        "YlGn",
+        "YlGnBu",
+        "YlOrBr",
+        "YlOrRd",
+        "afmhot",
+        "autumn",
+        "binary",
+        "bone",
+        "brg",
+        "bwr",
+        "cividis",
+        "cool",
+        "coolwarm",
+        "copper",
+        "cubehelix",
+        "flag",
+        "gist_earth",
+        "gist_gray",
+        "gist_heat",
+        "gist_ncar",
+        "gist_rainbow",
+        "gist_stern",
+        "gist_yarg",
+        "gnuplot",
+        "gnuplot2",
+        "gray",
+        "hot",
+        "hsv",
+        "inferno",
+        "jet",
+        "magma",
+        "nipy_spectral",
+        "ocean",
+        "pink",
+        "plasma",
+        "prism",
+        "rainbow",
+        "seismic",
+        "spring",
+        "summer",
+        "tab10",
+        "tab20",
+        "tab20b",
+        "tab20c",
+        "terrain",
+        "turbo",
+        "twilight",
+        "twilight_shifted",
+        "viridis",
+        "winter",
+    }
+)
+_PORTED_PALETTE_NAMES = _CMOCEAN_PALETTES | _MATPLOTLIB_PALETTES
+_MATPLOTLIB_DISCRETE_PALETTES = frozenset(
+    {"Accent", "Dark2", "Paired", "Pastel1", "Pastel2", "Set1", "Set2", "Set3", "tab10", "tab20", "tab20b", "tab20c"}
+)
+
+_QUALITATIVE_HUES = {
+    "cat1": ("greys", "cat1_blues", "cat1_greens", "cat1_purples", "cat1_teals"),
+    "cat2": ("cat2_teals", "cat2_blues", "cat2_purples", "cat2_greens", "cat2_golds"),
+    "cat3": ("blues", "pinks", "yellows", "greens"),
+}
+_DEFAULT_QUALITATIVE_PALETTE = "cat1"
+
+# cat1's flat palette: tier-major over grey/blue/green/purple/teal.
+# Explicit stops, not the usual (1, 4, 7)
+_CAT1_FLAT = (
+    ("greys", 3),
+    ("cat1_blues", 5),
+    ("cat1_greens", 6),
+    ("cat1_purples", 6),
+    ("cat1_teals", 4),
+    ("greys", 7),
+    ("cat1_blues", 8),
+    ("cat1_greens", 9),
+    ("cat1_purples", 9),
+    ("cat1_teals", 8),
+)
+_QUALITATIVE_FLAT = {"cat1": _CAT1_FLAT}
 
 # Usable stop window per qualitative family for grouped mode
 _QUALITATIVE_RANGES = {
-    "ds_cat_3": {
+    "cat1": {
         "greys": (3, 10),
-        "cat3_blues": (1, 11),
-        "cat3_greens": (6, 11),
-        "cat3_purples": (1, 10),
-        "cat3_teals": (3, 10),
+        "cat1_blues": (1, 11),
+        "cat1_greens": (6, 11),
+        "cat1_purples": (1, 10),
+        "cat1_teals": (3, 10),
     }
 }
 
@@ -58,8 +175,9 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
 
         - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major**
           (cycle the hues at the light tier, then mid, then dark) so adjacent categories
-          differ in hue. Returns ``3 * len(hues)`` colors. The default palette's flat
-          form is what ``config.range.category`` uses.
+          differ in hue. Canonical families return ``3 * len(hues)`` colors; the default
+          ``cat1`` uses a curated 10-color sequence. The default palette's flat form is what
+          ``config.range.category`` uses.
         - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered
           **hue-major** - each consecutive block of ``members`` categories is one hue
           climbing through ``members`` lightness levels. Returns ``len(hues) * members``
@@ -76,16 +194,16 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
         ``palette("cat_azures", n=5)`` - usually communicates that better than a
         categorical palette pretending they're unordered.
     palette:
-        Which qualitative palette to build. ``"ds_cat_1"`` (default) is the muted,
-        australis-harmonious five-hue set (also stored as ``colors["ds_cat_1"]`` and
-        wired to ``config.range.category``); ``"ds_cat_2"`` is the legacy four-hue pastel
-        set (``colors["ds_cat_2"]``); ``"ds_cat_3"`` is the saturated cool set - two greys
-        plus blue, green, purple and teal (``colors["ds_cat_3"]``).
+        Which qualitative palette to build. ``"cat1"`` (default) is the saturated cool set -
+        grey, blue, green, purple, and teal (also stored as ``colors["cat1"]`` and wired to
+        ``config.range.category``); ``"cat2"`` is the muted, australis-harmonious five-hue
+        set (``colors["cat2"]``); ``"cat3"`` is the legacy four-hue pastel set
+        (``colors["cat3"]``).
 
-        ``ds_cat_3`` differs from the other two in how its stops are chosen: its flat
+        ``cat1`` differs from the other two in how its stops are chosen: its flat
         palette uses explicit stops (not the canonical ``(1, 4, 7)``), and in grouped
         mode each family spreads across its own usable window rather than a shared
-        ``1``-``10``. That caps it at ``members=6``, set by ``cat3_greens``.
+        ``1``-``10``. That caps it at ``members=6``, set by ``cat1_greens``.
 
     Raises
     ------
@@ -100,7 +218,7 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
 
         alt.Color("g:N")                                       # picks it up automatically
         alt.Color("g:N", scale=alt.Scale(range=categorical()))  # explicit
-        alt.Color("g:N", scale=alt.Scale(range=categorical(palette="ds_cat_2")))  # pastel
+        alt.Color("g:N", scale=alt.Scale(range=categorical(palette="cat3")))  # pastel
 
     Paired data, members adjacent within each group::
 
@@ -168,7 +286,7 @@ def palette(
     Parameters
     ----------
     name:
-        Key in the ``colors`` dict (e.g. ``"mpl_YlGnBu"``).
+        Case-sensitive key in the ``colors`` dict (e.g. ``"YlGnBu"``).
     n:
         Number of colors to return (evenly spaced). Takes priority over ``step``.
     start:
@@ -192,23 +310,23 @@ def palette(
     --------
     All colors in the palette:
 
-        palette("mpl_YlGnBu")
+        palette("YlGnBu")
 
     Last 4 colors:
 
-        palette("mpl_YlGnBu", start=5)
+        palette("YlGnBu", start=5)
 
     Four evenly-spaced colors across the full palette:
 
-        palette("mpl_YlGnBu", n=4)
+        palette("YlGnBu", n=4)
 
     Every second color from index 0 to 6 (returns indices 0, 2, 4, 6):
 
-        palette("mpl_YlGnBu", end=6, step=2)
+        palette("YlGnBu", end=6, step=2)
 
     Four evenly-spaced colors, reversed:
 
-        palette("mpl_YlGnBu", n=4, reverse=True)
+        palette("YlGnBu", n=4, reverse=True)
     """
     palette = colors[name]
     total = len(palette)
@@ -419,7 +537,7 @@ colors = {
     # especially in the blue region.
     #
     # Sequential recipe (_cielab, now removed):
-    #   1. Start from mpl base palette (e.g. mpl_Blues) in CIELAB.
+    #   1. Start from the Matplotlib base palette (e.g. Blues) in CIELAB.
     #   2. At each of N base stops, set C* = 0.65 × max_gamut_chroma(L*, hue).
     #   3. Densify the piecewise-linear path; resample 12 stops at equal CIELAB arc-length.
     #   Result: MAD(Oklab ΔE) ≈ 5–25% (cross-space metric mismatch).
@@ -462,20 +580,6 @@ colors = {
         "#95DDC4",
         "#ADEDC0",
     ],
-    "bluerlagoon": [
-        "#183A93",
-        "#264582",
-        "#325585",
-        "#3D668E",
-        "#487695",
-        "#52879D",
-        "#5D99A6",
-        "#68A9AF",
-        "#73BBB7",
-        "#7ECEBF",
-        "#8ADFC3",
-        "#A5EFBC",
-    ],
     "blues": [
         "#DFE9F7",
         "#C6D9F1",
@@ -489,20 +593,6 @@ colors = {
         "#2F597F",
         "#264A69",
         "#1D3A58",
-    ],
-    "bluestlagoon": [
-        "#11369E",
-        "#20448A",
-        "#2C558C",
-        "#366694",
-        "#40779A",
-        "#4A88A1",
-        "#549AA9",
-        "#5EABB2",
-        "#68BDB9",
-        "#72D0BF",
-        "#7DE2C2",
-        "#9BF2B7",
     ],
     "borealis": [
         "#230347",
@@ -560,9 +650,9 @@ colors = {
         "#552D7D",
         "#3A2570",
     ],
-    # Base ramps for ds_cat_3, fitted so its colors land on stops (see _CAT3_FLAT).
-    # cat3_greens rides the full gamut, so only stops 6-11 are usable in the palette.
-    "cat3_blues": [
+    # Base ramps for cat1, fitted so its colors land on stops (see _CAT1_FLAT).
+    # cat1_greens rides the full gamut, so only stops 6-11 are usable in the palette.
+    "cat1_blues": [
         "#BCCFEE",
         "#A5BEE8",
         "#8FAEE3",
@@ -576,7 +666,7 @@ colors = {
         "#193464",
         "#11274E",
     ],
-    "cat3_greens": [
+    "cat1_greens": [
         "#00F57F",
         "#00E274",
         "#00CE6A",
@@ -590,7 +680,7 @@ colors = {
         "#00421D",
         "#003315",
     ],
-    "cat3_purples": [
+    "cat1_purples": [
         "#C4BEE5",
         "#B3ABDE",
         "#A398D6",
@@ -604,7 +694,7 @@ colors = {
         "#2A1D4D",
         "#1C1337",
     ],
-    "cat3_teals": [
+    "cat1_teals": [
         "#7AEFE4",
         "#6FDAD1",
         "#65C6BD",
@@ -619,13 +709,13 @@ colors = {
         "#0E2624",
     ],
     # Qualitative base ramps: the five australis-harmonious hues sliced by
-    # categorical() to build the ds_cat_1 palette. Tuned for colorblindness -
+    # categorical() to build the cat2 palette. Tuned for colorblindness -
     # the three cool hues (teal/blue/purple) are pulled apart in hue AND given
     # distinct lightnesses so a CVD viewer separates them by lightness when hue
     # collapses; green + gold are the yellow-side anchors. Teal leads, gold is
     # the warm end. Distinct de-novo ramps, NOT slices of the saturated
     # blues/greens/etc. (See print_palettes.py for the recipe.)
-    "cat_blues": [
+    "cat2_blues": [
         "#CFE0F4",
         "#B7D0EE",
         "#A0C0E8",
@@ -639,7 +729,7 @@ colors = {
         "#2C3D63",
         "#1F2E54",
     ],
-    "cat_golds": [
+    "cat2_golds": [
         "#FAEFD7",
         "#F5E1B3",
         "#EAD199",
@@ -653,7 +743,7 @@ colors = {
         "#6D572F",
         "#5D4A27",
     ],
-    "cat_greens": [
+    "cat2_greens": [
         "#C4EAC4",
         "#B3DAB5",
         "#A2C9A6",
@@ -667,7 +757,7 @@ colors = {
         "#274F39",
         "#1E402F",
     ],
-    "cat_purples": [
+    "cat2_purples": [
         "#C8C6ED",
         "#B7B3E4",
         "#A7A0D1",
@@ -681,7 +771,7 @@ colors = {
         "#2E1E45",
         "#211035",
     ],
-    "cat_teals": [
+    "cat2_teals": [
         "#69BAC3",
         "#5CA7B1",
         "#51959F",
@@ -712,8 +802,6 @@ colors = {
     # ── Showcase multi-hue sequential (Oklab, 65% gamut chroma, equal arc length) ─
     # Curated keyframe paths through Oklab designed to be perceptually uniform AND
     # aesthetically distinct from the mpl viridis/magma/plasma/inferno family.
-    # bluerlagoons: intermediate saturation (chroma scaled to 87.5% of bluestlagoon*).
-    # bluelagoons: desaturated companions (chroma scaled to 75% of bluestlagoon*).
     "cyans": [
         "#A1F6F5",
         "#86E6E5",
@@ -784,7 +872,7 @@ colors = {
         "#81FDCB",
         "#E3FFE6",
     ],
-    "GnBu": [
+    "greenblue": [
         "#DDF583",
         "#B7E87A",
         "#93DB85",
@@ -927,20 +1015,6 @@ colors = {
         "#F0C2D7",
         "#F7E2E6",
     ],
-    "neongreens": [
-        "#DFFFE8",
-        "#B5FECE",
-        "#83FEB3",
-        "#32FC97",
-        "#2CE589",
-        "#27CE7B",
-        "#21B76D",
-        "#1CA15F",
-        "#178C52",
-        "#127745",
-        "#0D6338",
-        "#08502C",
-    ],
     "oranges": [
         "#FFF3EB",
         "#FEE2D0",
@@ -1053,7 +1127,7 @@ colors = {
         "#C4A61F",
         "#B99C1D",
     ],
-    "YlGnBu": [
+    "yellowgreenblue": [
         "#F6E9A2",
         "#D7DC81",
         "#ADD475",
@@ -1164,20 +1238,6 @@ colors = {
         "#50294F",
         "#3B1D3A",
         "#271126",
-    ],
-    "neongreens2": [
-        "#7FFE9F",
-        "#31FB7D",
-        "#2BE370",
-        "#26CB64",
-        "#20B357",
-        "#1B9C4B",
-        "#158640",
-        "#107034",
-        "#0B5B29",
-        "#07471F",
-        "#043415",
-        "#02220B",
     ],
     "oranges2": [
         "#FDD5BA",
@@ -1361,20 +1421,6 @@ colors = {
         "#C98EC6",
         "#C585C2",
     ],
-    "neongreens3": [
-        "#E1F4E6",
-        "#D4F0DC",
-        "#C6ECD2",
-        "#B8E9C7",
-        "#ADE3BE",
-        "#A6DBB7",
-        "#A0D2B0",
-        "#9ACAA9",
-        "#93C2A2",
-        "#8DBA9C",
-        "#87B295",
-        "#81AA8E",
-    ],
     "oranges3": [
         "#F4EDE8",
         "#EFE5DE",
@@ -1459,7 +1505,7 @@ colors = {
         "#B0A681",
         "#A89F7B",
     ],
-    "mpl_afmhot": [
+    "afmhot": [
         "#000000",
         "#0E0000",
         "#340000",
@@ -1473,7 +1519,7 @@ colors = {
         "#FFFFA8",
         "#FFFFFF",
     ],
-    "mpl_autumn": [
+    "autumn": [
         "#FF0000",
         "#FF3E00",
         "#FF5B00",
@@ -1487,7 +1533,7 @@ colors = {
         "#FFEE00",
         "#FFFF00",
     ],
-    "mpl_binary": [
+    "binary": [
         "#FFFFFF",
         "#E1E1E1",
         "#C3C3C3",
@@ -1501,7 +1547,7 @@ colors = {
         "#020202",
         "#000000",
     ],
-    "mpl_Blues": [
+    "Blues": [
         "#F7FBFF",
         "#DBE8F5",
         "#BDD7EB",
@@ -1515,7 +1561,7 @@ colors = {
         "#084184",
         "#08306B",
     ],
-    "mpl_bone": [
+    "bone": [
         "#000000",
         "#020204",
         "#121119",
@@ -1529,7 +1575,7 @@ colors = {
         "#D6E4E4",
         "#FFFFFF",
     ],
-    "mpl_brg": [
+    "brg": [
         "#0000FF",
         "#3E01C3",
         "#671598",
@@ -1543,7 +1589,7 @@ colors = {
         "#37D400",
         "#00FF00",
     ],
-    "mpl_BuGn": [
+    "BuGn": [
         "#F7FCFD",
         "#D4EEEC",
         "#B2E1D6",
@@ -1557,7 +1603,7 @@ colors = {
         "#005723",
         "#00441B",
     ],
-    "mpl_BuPu": [
+    "BuPu": [
         "#F7FCFD",
         "#DAE7F1",
         "#BDD1E5",
@@ -1571,7 +1617,7 @@ colors = {
         "#660562",
         "#4D004B",
     ],
-    "mpl_cividis": [
+    "cividis": [
         "#00224D",
         "#123165",
         "#2C426E",
@@ -1585,7 +1631,7 @@ colors = {
         "#E8D250",
         "#FDE737",
     ],
-    "mpl_CMRmap": [
+    "CMRmap": [
         "#000000",
         "#03031A",
         "#151550",
@@ -1599,7 +1645,7 @@ colors = {
         "#E9EA97",
         "#FFFFFF",
     ],
-    "mpl_cool": [
+    "cool": [
         "#00FFFF",
         "#18EBFF",
         "#2CD6FF",
@@ -1613,7 +1659,7 @@ colors = {
         "#E11EFF",
         "#FF00FF",
     ],
-    "mpl_copper": [
+    "copper": [
         "#000000",
         "#030101",
         "#140B06",
@@ -1627,7 +1673,7 @@ colors = {
         "#F9A66A",
         "#FFC77E",
     ],
-    "mpl_cubehelix": [
+    "cubehelix": [
         "#000000",
         "#03040D",
         "#151732",
@@ -1641,7 +1687,7 @@ colors = {
         "#CBE0EF",
         "#FFFFFF",
     ],
-    "mpl_flag": [
+    "flag": [
         "#FF0000",
         "#E10000",
         "#C30000",
@@ -1655,7 +1701,7 @@ colors = {
         "#030000",
         "#000000",
     ],
-    "mpl_gist_earth": [
+    "gist_earth": [
         "#000000",
         "#01030E",
         "#041434",
@@ -1669,7 +1715,7 @@ colors = {
         "#EAD4C7",
         "#FDFAFA",
     ],
-    "mpl_gist_gray": [
+    "gist_gray": [
         "#000000",
         "#020202",
         "#121212",
@@ -1683,7 +1729,7 @@ colors = {
         "#E1E1E1",
         "#FFFFFF",
     ],
-    "mpl_gist_heat": [
+    "gist_heat": [
         "#000000",
         "#0B0000",
         "#2E0000",
@@ -1697,7 +1743,7 @@ colors = {
         "#FFDCBA",
         "#FFFFFF",
     ],
-    "mpl_gist_ncar": [
+    "gist_ncar": [
         "#000080",
         "#0038E2",
         "#0087F0",
@@ -1711,7 +1757,7 @@ colors = {
         "#E5AAFB",
         "#FEF7FE",
     ],
-    "mpl_gist_rainbow": [
+    "gist_rainbow": [
         "#FF0028",
         "#FF8004",
         "#EFC400",
@@ -1725,7 +1771,7 @@ colors = {
         "#B722EB",
         "#FF00BF",
     ],
-    "mpl_gist_stern": [
+    "gist_stern": [
         "#000000",
         "#190104",
         "#4F0A1A",
@@ -1739,7 +1785,7 @@ colors = {
         "#E1E18F",
         "#FFFFFF",
     ],
-    "mpl_gist_yarg": [
+    "gist_yarg": [
         "#FFFFFF",
         "#E1E1E1",
         "#C3C3C3",
@@ -1753,7 +1799,7 @@ colors = {
         "#020202",
         "#000000",
     ],
-    "mpl_GnBu": [
+    "GnBu": [
         "#F7FCF0",
         "#D9F0D4",
         "#BAE3BD",
@@ -1767,7 +1813,7 @@ colors = {
         "#085395",
         "#084081",
     ],
-    "mpl_gnuplot": [
+    "gnuplot": [
         "#000000",
         "#09001C",
         "#280057",
@@ -1781,7 +1827,7 @@ colors = {
         "#F5C800",
         "#FFFF00",
     ],
-    "mpl_gnuplot2": [
+    "gnuplot2": [
         "#000000",
         "#000027",
         "#000070",
@@ -1795,7 +1841,7 @@ colors = {
         "#FFF07B",
         "#FFFFFF",
     ],
-    "mpl_gray": [
+    "gray": [
         "#000000",
         "#020202",
         "#121212",
@@ -1809,7 +1855,7 @@ colors = {
         "#E1E1E1",
         "#FFFFFF",
     ],
-    "mpl_Greens": [
+    "Greens": [
         "#F7FCF5",
         "#DAF0D5",
         "#BCE4B6",
@@ -1823,7 +1869,7 @@ colors = {
         "#005723",
         "#00441B",
     ],
-    "mpl_Greys": [
+    "Greys": [
         "#FFFFFF",
         "#E1E1E1",
         "#C3C3C3",
@@ -1837,7 +1883,7 @@ colors = {
         "#020202",
         "#000000",
     ],
-    "mpl_hot": [
+    "hot": [
         "#0A0000",
         "#310000",
         "#5D0000",
@@ -1851,7 +1897,7 @@ colors = {
         "#FFFFA5",
         "#FFFFFF",
     ],
-    "mpl_hsv": [
+    "hsv": [
         "#FF0000",
         "#FF8700",
         "#EBCE00",
@@ -1865,7 +1911,7 @@ colors = {
         "#FE1BAA",
         "#FF0017",
     ],
-    "mpl_inferno": [
+    "inferno": [
         "#000003",
         "#080222",
         "#200C4A",
@@ -1879,7 +1925,7 @@ colors = {
         "#FAD858",
         "#FCFEA4",
     ],
-    "mpl_jet": [
+    "jet": [
         "#00007F",
         "#0000D9",
         "#0055FF",
@@ -1893,7 +1939,7 @@ colors = {
         "#C60F00",
         "#7F0000",
     ],
-    "mpl_magma": [
+    "magma": [
         "#000003",
         "#070321",
         "#1D1047",
@@ -1907,7 +1953,7 @@ colors = {
         "#FED296",
         "#FBFCBF",
     ],
-    "mpl_nipy_spectral": [
+    "nipy_spectral": [
         "#000000",
         "#100035",
         "#3B0091",
@@ -1921,7 +1967,7 @@ colors = {
         "#E77D6E",
         "#CCCCCC",
     ],
-    "mpl_ocean": [
+    "ocean": [
         "#007F00",
         "#005E1C",
         "#00422F",
@@ -1935,7 +1981,7 @@ colors = {
         "#C6E2EC",
         "#FFFFFF",
     ],
-    "mpl_Oranges": [
+    "Oranges": [
         "#FFF5EB",
         "#FDE1C6",
         "#FDCD9E",
@@ -1949,7 +1995,7 @@ colors = {
         "#973004",
         "#7F2704",
     ],
-    "mpl_OrRd": [
+    "OrRd": [
         "#FFF7EC",
         "#FDE4C1",
         "#FDCE98",
@@ -1963,7 +2009,7 @@ colors = {
         "#9A0000",
         "#7F0000",
     ],
-    "mpl_pink": [
+    "pink": [
         "#1E0000",
         "#340F0D",
         "#4A2321",
@@ -1977,7 +2023,7 @@ colors = {
         "#EDEDC6",
         "#FFFFFF",
     ],
-    "mpl_plasma": [
+    "plasma": [
         "#0C0786",
         "#3B0799",
         "#6208A4",
@@ -1991,7 +2037,7 @@ colors = {
         "#F9D625",
         "#EFF821",
     ],
-    "mpl_prism": [
+    "prism": [
         "#FF0000",
         "#FFBF00",
         "#BCDB79",
@@ -2005,7 +2051,7 @@ colors = {
         "#FB9A00",
         "#54FE00",
     ],
-    "mpl_PuBu": [
+    "PuBu": [
         "#FFF7FB",
         "#E7E3EF",
         "#CED0E5",
@@ -2019,7 +2065,7 @@ colors = {
         "#034871",
         "#023858",
     ],
-    "mpl_PuBuGn": [
+    "PuBuGn": [
         "#FFF7FB",
         "#EBE1EF",
         "#CED0E5",
@@ -2033,7 +2079,7 @@ colors = {
         "#015948",
         "#014636",
     ],
-    "mpl_PuRd": [
+    "PuRd": [
         "#F7F4F9",
         "#E4DBEB",
         "#D7C0DD",
@@ -2047,7 +2093,7 @@ colors = {
         "#830034",
         "#67001F",
     ],
-    "mpl_Purples": [
+    "Purples": [
         "#FCFBFD",
         "#E7E5F1",
         "#D0D1E6",
@@ -2061,7 +2107,7 @@ colors = {
         "#50218C",
         "#3F007D",
     ],
-    "mpl_rainbow": [
+    "rainbow": [
         "#7F00FF",
         "#5753FB",
         "#357CF7",
@@ -2075,7 +2121,7 @@ colors = {
         "#FF6734",
         "#FF0000",
     ],
-    "mpl_RdPu": [
+    "RdPu": [
         "#FFF7F3",
         "#FCDAD7",
         "#FBBEBD",
@@ -2089,7 +2135,7 @@ colors = {
         "#670272",
         "#49006A",
     ],
-    "mpl_Reds": [
+    "Reds": [
         "#FFF5F0",
         "#FDDCCD",
         "#FDC2AA",
@@ -2103,7 +2149,7 @@ colors = {
         "#830510",
         "#67000C",
     ],
-    "mpl_spring": [
+    "spring": [
         "#FF00FF",
         "#FF26DB",
         "#FF41BE",
@@ -2117,7 +2163,7 @@ colors = {
         "#FFE91A",
         "#FFFF00",
     ],
-    "mpl_summer": [
+    "summer": [
         "#007F66",
         "#1B8C66",
         "#349866",
@@ -2131,7 +2177,7 @@ colors = {
         "#E9F466",
         "#FFFF66",
     ],
-    "mpl_terrain": [
+    "terrain": [
         "#333399",
         "#286CD2",
         "#009ED0",
@@ -2145,7 +2191,7 @@ colors = {
         "#D3C6C4",
         "#FFFFFF",
     ],
-    "mpl_turbo": [
+    "turbo": [
         "#30123B",
         "#3F367C",
         "#465BC4",
@@ -2160,7 +2206,7 @@ colors = {
         "#7A0402",
     ],
     # sequential
-    "mpl_twilight": [
+    "twilight": [
         "#E1D8E2",
         "#9EB9CA",
         "#7690C0",
@@ -2174,7 +2220,7 @@ colors = {
         "#D0AD99",
         "#E1D8E1",
     ],
-    "mpl_twilight_shifted": [
+    "twilight_shifted": [
         "#2F1337",
         "#4C2474",
         "#5E49A0",
@@ -2189,7 +2235,7 @@ colors = {
         "#2F1436",
     ],
     # qualitative
-    "mpl_viridis": [
+    "viridis": [
         "#440154",
         "#472270",
         "#433E82",
@@ -2203,7 +2249,7 @@ colors = {
         "#CAE02D",
         "#FDE724",
     ],
-    "mpl_winter": [
+    "winter": [
         "#0000FF",
         "#0038E4",
         "#0054D6",
@@ -2218,7 +2264,7 @@ colors = {
         "#00FF7F",
     ],
     # diverging
-    "mpl_Wistia": [
+    "Wistia": [
         "#E4FF7A",
         "#EEF658",
         "#F9EC33",
@@ -2232,7 +2278,7 @@ colors = {
         "#FD8C00",
         "#FC7F00",
     ],
-    "mpl_YlGn": [
+    "YlGn": [
         "#FFFFE5",
         "#F2FAB5",
         "#D0EC9E",
@@ -2246,7 +2292,7 @@ colors = {
         "#005830",
         "#004529",
     ],
-    "mpl_YlGnBu": [
+    "YlGnBu": [
         "#FFFFD9",
         "#E2F3B2",
         "#B6E2B6",
@@ -2260,7 +2306,7 @@ colors = {
         "#192A7A",
         "#081D58",
     ],
-    "mpl_YlOrBr": [
+    "YlOrBr": [
         "#FFFFE5",
         "#FEF1B0",
         "#FED97F",
@@ -2274,7 +2320,7 @@ colors = {
         "#822D05",
         "#662505",
     ],
-    "mpl_YlOrRd": [
+    "YlOrRd": [
         "#FFFFCC",
         "#FEEA9B",
         "#FED26F",
@@ -2289,7 +2335,7 @@ colors = {
         "#800026",
     ],
     # sequential 2
-    "cmocean_algae": [
+    "algae": [
         "#D6F9CF",
         "#BCE6B1",
         "#A0D494",
@@ -2303,7 +2349,7 @@ colors = {
         "#173722",
         "#112414",
     ],
-    "cmocean_amp": [
+    "amp": [
         "#F1ECEC",
         "#E7D3CC",
         "#DEB9AD",
@@ -2317,7 +2363,7 @@ colors = {
         "#570D1D",
         "#3C0911",
     ],
-    "cmocean_deep": [
+    "deep": [
         "#FDFDCC",
         "#D2EEB7",
         "#A5DEA9",
@@ -2331,7 +2377,7 @@ colors = {
         "#34294C",
         "#271A2C",
     ],
-    "cmocean_dense": [
+    "dense": [
         "#E6F0F0",
         "#BFDDE7",
         "#9DC9E3",
@@ -2345,21 +2391,7 @@ colors = {
         "#4C1440",
         "#360E24",
     ],
-    "cmocean_gray": [
-        "#000000",
-        "#020202",
-        "#121212",
-        "#272727",
-        "#3E3D3D",
-        "#575656",
-        "#70706F",
-        "#8A8A89",
-        "#A6A6A5",
-        "#C3C2C1",
-        "#E0E0DF",
-        "#FEFEFD",
-    ],
-    "cmocean_haline": [
+    "haline": [
         "#29186B",
         "#252A8E",
         "#1A429C",
@@ -2373,7 +2405,7 @@ colors = {
         "#D6E376",
         "#FDEE99",
     ],
-    "cmocean_ice": [
+    "ice": [
         "#030512",
         "#12132B",
         "#242449",
@@ -2387,7 +2419,7 @@ colors = {
         "#C1E6E9",
         "#EAFCFD",
     ],
-    "cmocean_matter": [
+    "matter": [
         "#FDEDB0",
         "#FBCF95",
         "#F7B17C",
@@ -2401,7 +2433,7 @@ colors = {
         "#4B144F",
         "#2F0F3D",
     ],
-    "cmocean_oxy": [
+    "oxy": [
         "#3F0505",
         "#67060C",
         "#71302C",
@@ -2415,7 +2447,7 @@ colors = {
         "#E6D42C",
         "#DCAE19",
     ],
-    "cmocean_phase": [
+    "phase": [
         "#A7770C",
         "#C65E3B",
         "#D5476B",
@@ -2429,7 +2461,7 @@ colors = {
         "#748D1C",
         "#A7770C",
     ],
-    "cmocean_rain": [
+    "rain": [
         "#EEEDF2",
         "#E0D6CD",
         "#CCC2A9",
@@ -2443,7 +2475,7 @@ colors = {
         "#242F48",
         "#211A38",
     ],
-    "cmocean_solar": [
+    "solar": [
         "#331317",
         "#4E1B1F",
         "#6B2423",
@@ -2457,7 +2489,7 @@ colors = {
         "#DEE13D",
         "#E0FD4A",
     ],
-    "cmocean_speed": [
+    "speed": [
         "#FEFCCD",
         "#F0E4A1",
         "#DECE74",
@@ -2471,7 +2503,7 @@ colors = {
         "#183820",
         "#172312",
     ],
-    "cmocean_tempo": [
+    "tempo": [
         "#FEF5F4",
         "#E1E2D6",
         "#C2D1B9",
@@ -2485,7 +2517,7 @@ colors = {
         "#18324F",
         "#141D43",
     ],
-    "cmocean_thermal": [
+    "thermal": [
         "#032333",
         "#0E2D5E",
         "#2C3684",
@@ -2499,7 +2531,7 @@ colors = {
         "#F4D749",
         "#E7FA5A",
     ],
-    "cmocean_turbid": [
+    "turbid": [
         "#E8F5AB",
         "#DEDD8D",
         "#D3C470",
@@ -2513,9 +2545,8 @@ colors = {
         "#382C25",
         "#221E1B",
     ],
-    # --- matplotlib colormaps (9-color samples at linspace(0,1,9)) ---
-    # perceptually uniform sequential
-    "BrGn": [
+    # --- Native diverging palettes ---
+    "brgn": [
         "#7D4816",
         "#92643E",
         "#A68062",
@@ -2575,22 +2606,7 @@ colors = {
         "#4B9B64",
         "#2B854D",
     ],
-    "brownsneongreens": [
-        "#B16E45",
-        "#BE8463",
-        "#CA9B80",
-        "#D5B19D",
-        "#E1C8BA",
-        "#ECDFD8",
-        "#F6F6F6",
-        "#D7E8DC",
-        "#B8DAC2",
-        "#98CCA9",
-        "#77BE90",
-        "#52B078",
-        "#1CA15F",
-    ],
-    "BrTe": [
+    "brte": [
         "#6D4330",
         "#8A5C49",
         "#A47865",
@@ -2650,7 +2666,7 @@ colors = {
         "#9C62B7",
         "#8A43A9",
     ],
-    "ds_div_1": [
+    "div2": [
         "#6F572A",
         "#876E43",
         "#9E875F",
@@ -2665,7 +2681,7 @@ colors = {
         "#36717C",
         "#1A5762",
     ],
-    "ds_div_3": [
+    "div1": [
         "#443E60",
         "#5F597E",
         "#7C759B",
@@ -2680,7 +2696,7 @@ colors = {
         "#37736E",
         "#1B5954",
     ],
-    "GdBu": [
+    "gdbu": [
         "#674824",
         "#83623D",
         "#9D7D5A",
@@ -2755,7 +2771,7 @@ colors = {
         "#4B9B64",
         "#2A854C",
     ],
-    "greyslavender": [
+    "greyslavenders": [
         "#636363",
         "#7A7A7A",
         "#919191",
@@ -2784,21 +2800,6 @@ colors = {
         "#B67CB3",
         "#A55EA2",
         "#933F91",
-    ],
-    "greysneongreens": [
-        "#636363",
-        "#7A7A7A",
-        "#919191",
-        "#AAAAAA",
-        "#C2C2C2",
-        "#DCDCDC",
-        "#F6F6F6",
-        "#D7E8DC",
-        "#B8DAC2",
-        "#98CCA9",
-        "#77BE90",
-        "#52B078",
-        "#1CA15F",
     ],
     # ── Diverging — "2"-suffix sequential single-hue pairs ────────────────────────
     # Outer tips taken from index 7 of each "2" sequential palette.
@@ -2922,21 +2923,6 @@ colors = {
         "#4B9B64",
         "#2A854C",
     ],
-    "lavendersneongreens": [
-        "#7263AB",
-        "#867BB8",
-        "#9B93C5",
-        "#B1ABD2",
-        "#C7C4DE",
-        "#DEDDEA",
-        "#F6F6F6",
-        "#D7E8DC",
-        "#B8DAC2",
-        "#98CCA9",
-        "#77BE90",
-        "#52B078",
-        "#1CA15F",
-    ],
     "magentasblues": [
         "#933F91",
         "#A55EA2",
@@ -2982,22 +2968,7 @@ colors = {
         "#4B9B64",
         "#2A854C",
     ],
-    "magentasneongreens": [
-        "#933F91",
-        "#A55EA2",
-        "#B67CB3",
-        "#C79AC4",
-        "#D7B9D5",
-        "#E7D7E5",
-        "#F6F6F6",
-        "#D7E8DC",
-        "#B8DAC2",
-        "#98CCA9",
-        "#77BE90",
-        "#52B078",
-        "#1CA15F",
-    ],
-    "MgGn": [
+    "mggn": [
         "#67377A",
         "#845197",
         "#9F6FB2",
@@ -3056,21 +3027,6 @@ colors = {
         "#9B93C5",
         "#867BB8",
         "#7263AB",
-    ],
-    "orangesneongreens": [
-        "#E97D1C",
-        "#ED9350",
-        "#F1A775",
-        "#F4BB96",
-        "#F5CFB6",
-        "#F6E3D6",
-        "#F6F6F6",
-        "#D7E8DC",
-        "#B8DAC2",
-        "#98CCA9",
-        "#77BE90",
-        "#52B078",
-        "#1CA15F",
     ],
     "orangespurples": [
         "#E97D1C",
@@ -3147,22 +3103,7 @@ colors = {
         "#4B9B64",
         "#2A854C",
     ],
-    "pinksneongreens": [
-        "#C35082",
-        "#CE6D94",
-        "#D989A7",
-        "#E2A4BA",
-        "#EABFCE",
-        "#F1DBE2",
-        "#F6F6F6",
-        "#D7E8DC",
-        "#B8DAC2",
-        "#98CCA9",
-        "#77BE90",
-        "#52B078",
-        "#1CA15F",
-    ],
-    "PkTe": [
+    "pkte": [
         "#7A3060",
         "#905077",
         "#A57090",
@@ -3180,7 +3121,7 @@ colors = {
     # ── Diverging — sequential single-hue pairs ───────────────────────────────
     # Outer tips taken from index 7 of each sequential palette (4th from dark
     # end); 13 stops interpolated at equal Oklab arc-length through #F6F6F6.
-    "PuGn": [
+    "pugn": [
         "#584182",
         "#725B9F",
         "#8D78B9",
@@ -3225,22 +3166,7 @@ colors = {
         "#4B9B64",
         "#2A854C",
     ],
-    "purplesneongreens": [
-        "#8A50CE",
-        "#9B6ED7",
-        "#AC8ADE",
-        "#BEA5E5",
-        "#D0C0EC",
-        "#E3DBF1",
-        "#F6F6F6",
-        "#D7E8DC",
-        "#B8DAC2",
-        "#98CCA9",
-        "#77BE90",
-        "#52B078",
-        "#1CA15F",
-    ],
-    "RdBu": [
+    "rdbu": [
         "#7F3745",
         "#9C515E",
         "#B76E79",
@@ -3255,7 +3181,7 @@ colors = {
         "#3770A3",
         "#1A5586",
     ],
-    "RdYlBu": [
+    "rdylbu": [
         "#8A3530",
         "#9F564B",
         "#B47667",
@@ -3329,21 +3255,6 @@ colors = {
         "#9B93C5",
         "#867BB8",
         "#7263AB",
-    ],
-    "redsneongreens": [
-        "#BC4A5A",
-        "#C96872",
-        "#D4858B",
-        "#DFA1A5",
-        "#E8BDBF",
-        "#F0DADA",
-        "#F6F6F6",
-        "#D7E8DC",
-        "#B8DAC2",
-        "#98CCA9",
-        "#77BE90",
-        "#52B078",
-        "#1CA15F",
     ],
     "redsviolets": [
         "#BC4A5A",
@@ -3480,21 +3391,6 @@ colors = {
         "#45924A",
         "#267A2F",
     ],
-    "brownsneongreens2": [
-        "#91432A",
-        "#AB5D44",
-        "#C37962",
-        "#D09887",
-        "#D3B9B0",
-        "#E0D8D6",
-        "#F6F6F6",
-        "#D6DCD7",
-        "#B1C6B5",
-        "#87B590",
-        "#60A06E",
-        "#408852",
-        "#226E39",
-    ],
     "cyanslavenders2": [
         "#206666",
         "#3E7F7F",
@@ -3630,22 +3526,7 @@ colors = {
         "#8F648D",
         "#764B75",
     ],
-    "greysneongreens2": [
-        "#5A5A5A",
-        "#727272",
-        "#8B8B8B",
-        "#A4A4A4",
-        "#BFBFBF",
-        "#DADADA",
-        "#F6F6F6",
-        "#D3DFD5",
-        "#AECBB2",
-        "#8CB393",
-        "#6D9B76",
-        "#51835C",
-        "#386A44",
-    ],
-    # mpl_Purples as Oklab starting point — paler/cooler than purples_oklab
+    # Matplotlib Purples as Oklab starting point - paler/cooler than purples_oklab
     "greysoranges2": [
         "#5A5A5A",
         "#727272",
@@ -3766,21 +3647,6 @@ colors = {
         "#45924A",
         "#267A2F",
     ],
-    "lavendersneongreens2": [
-        "#584E94",
-        "#7168AE",
-        "#8A83C6",
-        "#A39FCC",
-        "#BDBCD1",
-        "#D9D9DF",
-        "#F6F6F6",
-        "#D6DCD7",
-        "#B2C5B5",
-        "#8AB292",
-        "#60A06E",
-        "#408752",
-        "#226E39",
-    ],
     "magentasblues2": [
         "#902591",
         "#A749A7",
@@ -3826,21 +3692,6 @@ colors = {
         "#45924A",
         "#267A2F",
     ],
-    "magentasneongreens2": [
-        "#7D437C",
-        "#975D96",
-        "#AF79AE",
-        "#C596C3",
-        "#D4B6D2",
-        "#E0D7DF",
-        "#F6F6F6",
-        "#D4DDD5",
-        "#ABCBB0",
-        "#83B88D",
-        "#60A06E",
-        "#408752",
-        "#226E39",
-    ],
     "orangesblues2": [
         "#884C1D",
         "#A26539",
@@ -3885,21 +3736,6 @@ colors = {
         "#8A84C0",
         "#7069A8",
         "#58508E",
-    ],
-    "orangesneongreens2": [
-        "#884C1D",
-        "#A26539",
-        "#B98058",
-        "#CE9C7B",
-        "#D3BBAB",
-        "#E0D9D4",
-        "#F6F6F6",
-        "#D6DCD7",
-        "#B1C7B4",
-        "#87B690",
-        "#669E72",
-        "#478656",
-        "#2C6D3E",
     ],
     "orangespurples2": [
         "#884C1D",
@@ -3976,21 +3812,6 @@ colors = {
         "#45924A",
         "#267A2F",
     ],
-    "pinksneongreens2": [
-        "#8C3E5E",
-        "#A75876",
-        "#BF7490",
-        "#D094A9",
-        "#D4B7C0",
-        "#E0D7DA",
-        "#F6F6F6",
-        "#D6DCD7",
-        "#B0C7B4",
-        "#85B68F",
-        "#60A06E",
-        "#408852",
-        "#226E39",
-    ],
     "purplesblues2": [
         "#7628BA",
         "#8851C5",
@@ -4020,21 +3841,6 @@ colors = {
         "#66A968",
         "#45924A",
         "#267A2F",
-    ],
-    "purplesneongreens2": [
-        "#694A8E",
-        "#8163A8",
-        "#9A7FC0",
-        "#B09CCD",
-        "#C3BAD2",
-        "#DBD8DF",
-        "#F6F6F6",
-        "#D6DCD7",
-        "#B1C6B4",
-        "#87B590",
-        "#60A06E",
-        "#408852",
-        "#226E39",
     ],
     "redsblues2": [
         "#A4253B",
@@ -4095,21 +3901,6 @@ colors = {
         "#887FCE",
         "#7260C9",
         "#5A44AD",
-    ],
-    "redsneongreens2": [
-        "#903E46",
-        "#AB585E",
-        "#C47579",
-        "#D09597",
-        "#D3B7B8",
-        "#E0D8D8",
-        "#F6F6F6",
-        "#D6DCD7",
-        "#B2C6B5",
-        "#88B490",
-        "#60A06E",
-        "#408852",
-        "#226E39",
     ],
     "redsviolets2": [
         "#A4253B",
@@ -4246,21 +4037,6 @@ colors = {
         "#98B699",
         "#87A989",
     ],
-    "brownsneongreens3": [
-        "#BC967B",
-        "#C7A58D",
-        "#CCB6A6",
-        "#D3C6BD",
-        "#DCD6D2",
-        "#E8E6E5",
-        "#F6F6F6",
-        "#E5E7E6",
-        "#D3D9D5",
-        "#BFCDC3",
-        "#AAC1B1",
-        "#93B79E",
-        "#82AA8E",
-    ],
     "cyanslavenders3": [
         "#81A7A7",
         "#92B5B4",
@@ -4396,21 +4172,6 @@ colors = {
         "#BDA4BB",
         "#B194AF",
     ],
-    "greysneongreens3": [
-        "#9E9E9E",
-        "#ACACAC",
-        "#BABABA",
-        "#C9C9C9",
-        "#D8D8D8",
-        "#E7E7E7",
-        "#F6F6F6",
-        "#E4E8E5",
-        "#D0DCD3",
-        "#BBD0C1",
-        "#A9C3B1",
-        "#97B5A1",
-        "#86A891",
-    ],
     "greysoranges3": [
         "#9E9E9E",
         "#ACACAC",
@@ -4531,21 +4292,6 @@ colors = {
         "#9CB39D",
         "#87A889",
     ],
-    "lavendersneongreens3": [
-        "#9B9AC2",
-        "#A9A9C5",
-        "#B8B8CB",
-        "#C7C7D2",
-        "#D7D7DC",
-        "#E6E6E8",
-        "#F6F6F6",
-        "#E5E7E6",
-        "#D4D9D5",
-        "#C1CCC4",
-        "#ADBFB3",
-        "#99B4A1",
-        "#82AA8F",
-    ],
     "magentasblues3": [
         "#B393B1",
         "#BBA4B9",
@@ -4591,21 +4337,6 @@ colors = {
         "#92B895",
         "#80AB83",
     ],
-    "magentasneongreens3": [
-        "#B492B2",
-        "#C1A2BF",
-        "#CDB2CB",
-        "#D4C3D2",
-        "#DDD5DC",
-        "#E8E6E8",
-        "#F6F6F6",
-        "#E5E7E5",
-        "#D1DAD4",
-        "#BCCFC1",
-        "#A5C5AF",
-        "#93B79E",
-        "#81AA8E",
-    ],
     "orangesblues3": [
         "#BB967E",
         "#C1A695",
@@ -4650,21 +4381,6 @@ colors = {
         "#B8B8CB",
         "#A9A9C5",
         "#9B9AC2",
-    ],
-    "orangesneongreens3": [
-        "#BD957B",
-        "#C7A58E",
-        "#CCB5A7",
-        "#D3C6BD",
-        "#DCD6D2",
-        "#E8E6E5",
-        "#F6F6F6",
-        "#E5E7E6",
-        "#D3D9D5",
-        "#BFCCC3",
-        "#AAC1B1",
-        "#94B79E",
-        "#81AA8E",
     ],
     "orangespurples3": [
         "#BD957B",
@@ -4741,21 +4457,6 @@ colors = {
         "#97B498",
         "#80AB83",
     ],
-    "pinksneongreens3": [
-        "#BF8F9D",
-        "#C8A0AB",
-        "#CCB2B9",
-        "#D3C4C8",
-        "#DCD5D7",
-        "#E8E6E6",
-        "#F6F6F6",
-        "#E5E7E6",
-        "#D3D9D5",
-        "#C0CCC3",
-        "#ABC1B1",
-        "#94B69F",
-        "#81AA8E",
-    ],
     "purplesblues3": [
         "#A696BB",
         "#B1A6C1",
@@ -4785,21 +4486,6 @@ colors = {
         "#ADBFAE",
         "#98B49A",
         "#82AA85",
-    ],
-    "purplesneongreens3": [
-        "#A795BE",
-        "#B3A5C5",
-        "#BEB6CB",
-        "#CBC6D2",
-        "#D8D6DC",
-        "#E7E6E8",
-        "#F6F6F6",
-        "#E5E7E6",
-        "#D3D9D5",
-        "#C0CCC3",
-        "#ABC0B1",
-        "#95B69F",
-        "#81AA8E",
     ],
     "redsblues3": [
         "#BF9191",
@@ -4860,21 +4546,6 @@ colors = {
         "#B8B8CB",
         "#A9A9C5",
         "#9B9AC2",
-    ],
-    "redsneongreens3": [
-        "#C29090",
-        "#C8A1A1",
-        "#CCB3B3",
-        "#D3C4C4",
-        "#DCD5D5",
-        "#E8E6E6",
-        "#F6F6F6",
-        "#E5E7E6",
-        "#D4D9D5",
-        "#C0CCC4",
-        "#ACC0B2",
-        "#96B59F",
-        "#81AA8E",
     ],
     "redsviolets3": [
         "#C58E8E",
@@ -4966,7 +4637,7 @@ colors = {
         "#B3A6C4",
         "#A597B8",
     ],
-    "mpl_BrBG": [
+    "BrBG": [
         "#543005",
         "#7F4C0D",
         "#A66D25",
@@ -4980,7 +4651,7 @@ colors = {
         "#065F56",
         "#003C30",
     ],
-    "mpl_bwr": [
+    "bwr": [
         "#0000FF",
         "#4345FF",
         "#686DFF",
@@ -4994,7 +4665,7 @@ colors = {
         "#FF6260",
         "#FF0000",
     ],
-    "mpl_coolwarm": [
+    "coolwarm": [
         "#3A4CC0",
         "#4E6AD7",
         "#6587EC",
@@ -5008,7 +4679,7 @@ colors = {
         "#CA3F3A",
         "#B30326",
     ],
-    "mpl_PiYG": [
+    "PiYG": [
         "#8E0152",
         "#B72577",
         "#D45299",
@@ -5022,7 +4693,7 @@ colors = {
         "#448521",
         "#276419",
     ],
-    "mpl_PRGn": [
+    "PRGn": [
         "#40004B",
         "#662673",
         "#894D98",
@@ -5036,7 +4707,7 @@ colors = {
         "#196A31",
         "#00441B",
     ],
-    "mpl_PuOr": [
+    "PuOr": [
         "#7F3B08",
         "#AE5809",
         "#D57E25",
@@ -5050,7 +4721,7 @@ colors = {
         "#4B2476",
         "#2D004B",
     ],
-    "mpl_RdBu": [
+    "RdBu": [
         "#67001F",
         "#9A1A2C",
         "#C6433F",
@@ -5064,7 +4735,7 @@ colors = {
         "#18538D",
         "#053061",
     ],
-    "mpl_RdGy": [
+    "RdGy": [
         "#67001F",
         "#9E1D2D",
         "#CA4D45",
@@ -5078,7 +4749,7 @@ colors = {
         "#3B3B3B",
         "#1A1A1A",
     ],
-    "mpl_RdYlBu": [
+    "RdYlBu": [
         "#A50026",
         "#D0342C",
         "#EB673F",
@@ -5092,7 +4763,7 @@ colors = {
         "#405FA9",
         "#313695",
     ],
-    "mpl_RdYlGn": [
+    "RdYlGn": [
         "#A50026",
         "#CD302C",
         "#E85E3B",
@@ -5106,7 +4777,7 @@ colors = {
         "#1B8948",
         "#006837",
     ],
-    "mpl_seismic": [
+    "seismic": [
         "#00004C",
         "#00009C",
         "#0101F5",
@@ -5120,7 +4791,7 @@ colors = {
         "#C40000",
         "#7F0000",
     ],
-    "mpl_Spectral": [
+    "Spectral": [
         "#9E0142",
         "#C53549",
         "#E55F4D",
@@ -5135,7 +4806,7 @@ colors = {
         "#5E4FA2",
     ],
     # cyclic
-    "cmocean_balance": [
+    "balance": [
         "#171C42",
         "#203784",
         "#285DB3",
@@ -5149,7 +4820,7 @@ colors = {
         "#750E21",
         "#3C0911",
     ],
-    "cmocean_curl": [
+    "curl": [
         "#141D43",
         "#19485D",
         "#227573",
@@ -5163,7 +4834,7 @@ colors = {
         "#6C1A53",
         "#330D35",
     ],
-    "cmocean_delta": [
+    "delta": [
         "#101F3F",
         "#19417D",
         "#236CA2",
@@ -5177,7 +4848,7 @@ colors = {
         "#154D25",
         "#172312",
     ],
-    "cmocean_diff": [
+    "diff": [
         "#07223F",
         "#234661",
         "#4C6A80",
@@ -5191,7 +4862,7 @@ colors = {
         "#444118",
         "#1C2206",
     ],
-    "cmocean_tarn": [
+    "tarn": [
         "#16230D",
         "#3E4512",
         "#756320",
@@ -5205,7 +4876,7 @@ colors = {
         "#164A66",
         "#0F1E4F",
     ],
-    "cmocean_topo": [
+    "topo": [
         "#271A2C",
         "#3C4378",
         "#467B98",
@@ -5241,19 +4912,19 @@ colors = {
         "#898989",  # glycine — grey (greys[5])
         "#E97D1C",  # cysteine — orange (oranges[7])
     ],
-    # --- cmocean colormaps (9-color samples at linspace(0,1,9)) ---
-    "mpl_Accent": [
+    # --- Matplotlib qualitative palettes ---
+    # Complete ListedColormap colors from Matplotlib 3.11.1 (matplotlib.org), preserving upstream order.
+    "Accent": [
         "#7FC97F",
         "#BEAED4",
         "#FDC086",
         "#FFFF99",
         "#386CB0",
         "#F0027F",
-        "#BF5B16",
-        "#666666",
+        "#BF5B17",
         "#666666",
     ],
-    "mpl_Dark2": [
+    "Dark2": [
         "#1B9E77",
         "#D95F02",
         "#7570B3",
@@ -5262,20 +4933,22 @@ colors = {
         "#E6AB02",
         "#A6761D",
         "#666666",
-        "#666666",
     ],
-    "mpl_Paired": [
+    "Paired": [
         "#A6CEE3",
         "#1F78B4",
+        "#B2DF8A",
         "#33A02C",
         "#FB9A99",
+        "#E31A1C",
         "#FDBF6F",
         "#FF7F00",
+        "#CAB2D6",
         "#6A3D9A",
         "#FFFF99",
         "#B15928",
     ],
-    "mpl_Pastel1": [
+    "Pastel1": [
         "#FBB4AE",
         "#B3CDE3",
         "#CCEBC5",
@@ -5286,7 +4959,7 @@ colors = {
         "#FDDAEC",
         "#F2F2F2",
     ],
-    "mpl_Pastel2": [
+    "Pastel2": [
         "#B3E2CD",
         "#FDCDAC",
         "#CBD5E8",
@@ -5295,9 +4968,8 @@ colors = {
         "#FFF2AE",
         "#F1E2CC",
         "#CCCCCC",
-        "#CCCCCC",
     ],
-    "mpl_Set1": [
+    "Set1": [
         "#E41A1C",
         "#377EB8",
         "#4DAF4A",
@@ -5308,7 +4980,7 @@ colors = {
         "#F781BF",
         "#999999",
     ],
-    "mpl_Set2": [
+    "Set2": [
         "#66C2A5",
         "#FC8D62",
         "#8DA0CB",
@@ -5317,61 +4989,97 @@ colors = {
         "#FFD92F",
         "#E5C494",
         "#B3B3B3",
-        "#B3B3B3",
     ],
-    "mpl_Set3": [
+    "Set3": [
         "#8DD3C7",
         "#FFFFB3",
+        "#BEBADA",
         "#FB8072",
         "#80B1D3",
+        "#FDB462",
         "#B3DE69",
         "#FCCDE5",
+        "#D9D9D9",
         "#BC80BD",
         "#CCEBC5",
         "#FFED6F",
     ],
-    "mpl_tab10": [
+    "tab10": [
         "#1F77B4",
         "#FF7F0E",
         "#2CA02C",
         "#D62728",
+        "#9467BD",
         "#8C564B",
         "#E377C2",
         "#7F7F7F",
         "#BCBD22",
         "#17BECF",
     ],
-    "mpl_tab20": [
+    "tab20": [
         "#1F77B4",
+        "#AEC7E8",
         "#FF7F0E",
+        "#FFBB78",
+        "#2CA02C",
         "#98DF8A",
+        "#D62728",
         "#FF9896",
+        "#9467BD",
+        "#C5B0D5",
         "#8C564B",
+        "#C49C94",
         "#E377C2",
+        "#F7B6D2",
+        "#7F7F7F",
         "#C7C7C7",
+        "#BCBD22",
         "#DBDB8D",
+        "#17BECF",
         "#9EDAE5",
     ],
-    "mpl_tab20b": [
+    "tab20b": [
         "#393B79",
+        "#5254A3",
         "#6B6ECF",
+        "#9C9EDE",
+        "#637939",
         "#8CA252",
+        "#B5CF6B",
         "#CEDB9C",
+        "#8C6D31",
+        "#BD9E39",
         "#E7BA52",
+        "#E7CB94",
         "#843C39",
+        "#AD494A",
+        "#D6616B",
         "#E7969C",
+        "#7B4173",
         "#A55194",
+        "#CE6DBD",
         "#DE9ED6",
     ],
-    "mpl_tab20c": [
+    "tab20c": [
         "#3182BD",
+        "#6BAED6",
         "#9ECAE1",
+        "#C6DBEF",
+        "#E6550D",
         "#FD8D3C",
+        "#FDAE6B",
         "#FDD0A2",
+        "#31A354",
+        "#74C476",
         "#A1D99B",
+        "#C7E9C0",
         "#756BB1",
+        "#9E9AC8",
+        "#BCBDDC",
         "#DADAEB",
+        "#636363",
         "#969696",
+        "#BDBDBD",
         "#D9D9D9",
     ],
     # miscellaneous
@@ -5379,9 +5087,8 @@ colors = {
 
 
 # Assembled qualitative palettes, stored as named entries so config.range.category can
-# reference the default and both appear in swatch exports. ds_cat_1 (the muted 5-hue set)
-# is the default; ds_cat_2 is the legacy pastel set. Derived by slicing the base hues, so
+# reference the default and all appear in swatch exports. Derived by slicing the base hues, so
 # they must stay AFTER the colors literal above.
-colors["ds_cat_1"] = categorical(1, palette="ds_cat_1")
-colors["ds_cat_2"] = categorical(1, palette="ds_cat_2")
-colors["ds_cat_3"] = categorical(1, palette="ds_cat_3")
+colors["cat2"] = categorical(1, palette="cat2")
+colors["cat3"] = categorical(1, palette="cat3")
+colors["cat1"] = categorical(1, palette="cat1")

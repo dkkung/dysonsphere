@@ -31,6 +31,19 @@ notes are local working material, not dependencies of this framework or part of 
   empty list, repeated colors when oversampling, inclusive end, and n taking precedence over step.
   When n is supplied, require a nonnegative integer and reject booleans and non-integer values,
   including integral floats. This tightens validation without changing valid sampling behavior.
+- Palette lookup is case-sensitive. Native palette names are lowercase; imported palette names
+  preserve their upstream spelling and case without source-package prefixes. Registered names take
+  precedence over renderer-native schemes in every palette-valued consumer.
+- The 12 discrete Matplotlib category palettes expose their complete upstream color lists.
+- The native `neongreens` family and every diverging palette derived from it are removed; no aliases
+  or replacement colors are provided. Ordinary `greens` and the `cat1_greens`/`cat2_greens` families
+  are distinct and remain available.
+- Native `greenblue` and `yellowgreenblue` are distinct from the case-sensitive imported Matplotlib
+  palettes `GnBu` and `YlGnBu`. The `bluerlagoon` and `bluestlagoon` variants are removed;
+  `bluelagoon` and `lagoon` remain available.
+- Volcano gained/lost colors natively inherit the active theme's diverging range when `palette=None`;
+  explicit tuples retain `(gained, lost)` order. The neutral remains separately darkmode-aware, and
+  the legend remains a discrete three-category symbol legend with swatches matching the points.
 - Choose one canonical public path per operation; do not present every operation equally at
   multiple paths. Major-version compatibility policy is explicit. V4 is a clean break: no old-name
   function/parameter aliases or adapters for earlier API or saved-chart contracts are required.

@@ -181,7 +181,7 @@ def assemble(
 
     Size only: Vega-Lite's ``config`` is spec-level, so palettes, fonts and axis styling
     cannot differ between charts in one figure. Set those on the encoding instead - e.g.
-    ``alt.Color(..., scale=alt.Scale(range=ds.palette("ds_cat_2", 3)))`` - which is per-view
+    ``alt.Color(..., scale=alt.Scale(range=ds.palette("cat3", 3)))`` - which is per-view
     and survives. Scales are not shared: concat resolves them independently already.
 
     Parameters

@@ -4,6 +4,25 @@
 
 ### Changes
 
+- **Breaking:** palette names no longer use `mpl_` or `cmocean_` prefixes; upstream suffix spelling
+  and case are preserved. Native names are lowercase, and qualitative sets are now `cat1`, `cat2`,
+  and `cat3` (the former `ds_cat_3`, `ds_cat_1`, and `ds_cat_2`, respectively). Its constituent
+  ramps are correspondingly `cat1_blues`, `cat1_greens`, `cat1_purples`, and `cat1_teals`.
+  The coordinated diverging palettes are `div1` (formerly `ds_div_3`) and `div2` (formerly
+  `ds_div_1`), and the former `cat_*` constituents of `cat2` now use `cat2_*`. `cmocean_gray` is
+  removed, `greyslavender` is corrected to the family-consistent `greyslavenders`, and the
+  `neongreens`, `neongreens2`, and `neongreens3` ramps and all 24 diverging palettes derived from
+  them are removed. Native `gnbu`/`ylgnbu` are now `greenblue`/`yellowgreenblue` without aliases;
+  imported `GnBu`/`YlGnBu` retain their upstream names. `bluerlagoon` and `bluestlagoon` are removed,
+  while `bluelagoon` and `lagoon` remain. Categorical and ramp defaults, sampling, and surviving
+  family order are unchanged.
+- Matplotlib's 12 discrete category palettes now contain their complete upstream color lists rather
+  than nine-stop samples: `Accent` (8), `Dark2` (8), `Paired` (12), `Pastel1` (9), `Pastel2` (8),
+  `Set1` (9), `Set2` (8), `Set3` (12), `tab10` (10), `tab20` (20), `tab20b` (20), and `tab20c` (20).
+  These lists exactly match Matplotlib 3.11.1; continuous Matplotlib and cmocean palettes remain unchanged.
+- Volcano plots now inherit gained/lost colors from the active theme's diverging range instead of
+  defaulting to the fixed `div2` endpoints (formerly `ds_div_1`). Their separate darkmode-aware
+  neutral color remains, with three discrete legend entries and a neutral swatch matching the points.
 - **Breaking:** `theme(inwardTicks=...)` is replaced by `theme(tickDirection="in" | "out")` with
   default `"out"`; the old keyword and TOML key are removed without an alias.
 - **Breaking:** `theme()` now has explicit typed keyword-only styling options (`style` remains positional)

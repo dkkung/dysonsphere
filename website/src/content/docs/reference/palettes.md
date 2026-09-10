@@ -30,8 +30,8 @@ generated de novo, so retuning a base hue regenerates this palette automatically
 
 **Parameters**
 
-- **`members`** (`int`) - Colors per associated group. - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major** (cycle the hues at the light tier, then mid, then dark) so adjacent categories differ in hue. Returns ``3 * len(hues)`` colors. The default palette's flat form is what ``config.range.category`` uses. - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered **hue-major** - each consecutive block of ``members`` categories is one hue climbing through ``members`` lightness levels. Returns ``len(hues) * members`` colors. Sort your categories so a group's members are adjacent, then pass this as the color scale range. Up to ``4`` members the lightness stops are the classic tier stops (``1, 4, 7, 10`` - three ramp steps apart, matching the flat palette's tiers); beyond ``4`` the stops spread evenly across the usable ramp (``1``-``10``), which **shrinks the within-hue contrast** with every extra member - fine at normal mark sizes for ``5``-``6``, increasingly ambiguous past that, and capped at ``10`` where distinct stops run out. If your "members" are actually ordinal (a dose series, timepoints), a sequential slice per group - ``palette("cat_azures", n=5)`` - usually communicates that better than a categorical palette pretending they're unordered.
-- **`palette`** (`str`) - Which qualitative palette to build. ``"ds_cat_1"`` (default) is the muted, australis-harmonious five-hue set (also stored as ``colors["ds_cat_1"]`` and wired to ``config.range.category``); ``"ds_cat_2"`` is the legacy four-hue pastel set (``colors["ds_cat_2"]``); ``"ds_cat_3"`` is the saturated cool set - two greys plus blue, green, purple and teal (``colors["ds_cat_3"]``). ``ds_cat_3`` differs from the other two in how its stops are chosen: its flat palette uses explicit stops (not the canonical ``(1, 4, 7)``), and in grouped mode each family spreads across its own usable window rather than a shared ``1``-``10``. That caps it at ``members=6``, set by ``cat3_greens``.
+- **`members`** (`int`) - Colors per associated group. - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major** (cycle the hues at the light tier, then mid, then dark) so adjacent categories differ in hue. Canonical families return ``3 * len(hues)`` colors; the default ``cat1`` uses a curated 10-color sequence. The default palette's flat form is what ``config.range.category`` uses. - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered **hue-major** - each consecutive block of ``members`` categories is one hue climbing through ``members`` lightness levels. Returns ``len(hues) * members`` colors. Sort your categories so a group's members are adjacent, then pass this as the color scale range. Up to ``4`` members the lightness stops are the classic tier stops (``1, 4, 7, 10`` - three ramp steps apart, matching the flat palette's tiers); beyond ``4`` the stops spread evenly across the usable ramp (``1``-``10``), which **shrinks the within-hue contrast** with every extra member - fine at normal mark sizes for ``5``-``6``, increasingly ambiguous past that, and capped at ``10`` where distinct stops run out. If your "members" are actually ordinal (a dose series, timepoints), a sequential slice per group - ``palette("cat_azures", n=5)`` - usually communicates that better than a categorical palette pretending they're unordered.
+- **`palette`** (`str`) - Which qualitative palette to build. ``"cat1"`` (default) is the saturated cool set - grey, blue, green, purple, and teal (also stored as ``colors["cat1"]`` and wired to ``config.range.category``); ``"cat2"`` is the muted, australis-harmonious five-hue set (``colors["cat2"]``); ``"cat3"`` is the legacy four-hue pastel set (``colors["cat3"]``). ``cat1`` differs from the other two in how its stops are chosen: its flat palette uses explicit stops (not the canonical ``(1, 4, 7)``), and in grouped mode each family spreads across its own usable window rather than a shared ``1``-``10``. That caps it at ``members=6``, set by ``cat1_greens``.
 
 **Examples**
 
@@ -40,7 +40,7 @@ Flat categorical (the default; also automatic via ``config.range.category``)::
 
     alt.Color("g:N")                                       # picks it up automatically
     alt.Color("g:N", scale=alt.Scale(range=categorical()))  # explicit
-    alt.Color("g:N", scale=alt.Scale(range=categorical(palette="ds_cat_2")))  # pastel
+    alt.Color("g:N", scale=alt.Scale(range=categorical(palette="cat3")))  # pastel
 
 Paired data, members adjacent within each group::
 
@@ -73,7 +73,7 @@ When ``n`` is provided, evenly samples ``n`` colors between ``start`` and
 
 **Parameters**
 
-- **`name`** (`str`) - Key in the ``colors`` dict (e.g. ``"mpl_YlGnBu"``).
+- **`name`** (`str`) - Case-sensitive key in the ``colors`` dict (e.g. ``"YlGnBu"``).
 - **`n`** (`int | None`) - Number of colors to return (evenly spaced). Takes priority over ``step``.
 - **`start`** (`int`) - Index of the first color to include. Defaults to 0.
 - **`end`** (`int | None`) - Index of the last color to include (inclusive). Defaults to the last index in the palette.
@@ -85,23 +85,23 @@ When ``n`` is provided, evenly samples ``n`` colors between ``start`` and
 ```python
 All colors in the palette:
 
-    palette("mpl_YlGnBu")
+    palette("YlGnBu")
 
 Last 4 colors:
 
-    palette("mpl_YlGnBu", start=5)
+    palette("YlGnBu", start=5)
 
 Four evenly-spaced colors across the full palette:
 
-    palette("mpl_YlGnBu", n=4)
+    palette("YlGnBu", n=4)
 
 Every second color from index 0 to 6 (returns indices 0, 2, 4, 6):
 
-    palette("mpl_YlGnBu", end=6, step=2)
+    palette("YlGnBu", end=6, step=2)
 
 Four evenly-spaced colors, reversed:
 
-    palette("mpl_YlGnBu", n=4, reverse=True)
+    palette("YlGnBu", n=4, reverse=True)
 ```
 
 ## `export_swatches`
