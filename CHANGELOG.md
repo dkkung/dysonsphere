@@ -74,6 +74,8 @@
 
 ### Fixes
 
+- Beeswarm and quasirandom transforms support multiple grouping columns on all supported Polars
+  versions, including the Polars 1.33 runtime used by Chart Studio.
 - Fixed subtitle font sizing and error-band border stroke opacity/width theme wiring.
 - Inner band padding now accepts the renderer-supported endpoint `1`; shared pixel geometry matches
   D3's centered zero-width singleton behavior instead of dividing by zero.
