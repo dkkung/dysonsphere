@@ -45,6 +45,10 @@ class TestThemeDefaults:
         assert "HelveticaNeue" in families
         assert families[-1] == "sans-serif"
 
+    def test_default_font_size(self):
+        theme()
+        assert alt.theme.options["fontSize"] == 6
+
     def test_mark_size_default(self):
         theme(chartWidth=200, chartHeight=100)
         assert alt.theme.options["markSize"] == pytest.approx(10.0)

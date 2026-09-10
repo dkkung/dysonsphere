@@ -43,7 +43,7 @@ def test_png_ppi_scales_from_svg_72_units_per_inch(tmp_path):
     png = (tmp_path / "font_scale.png").read_bytes()
     png_width = struct.unpack(">I", png[16:20])[0]
     assert png_width == int(svg_width * 1200 / 72)
-    assert 'font-size="7px"' in svg
+    assert 'font-size="6px"' in svg
 
 
 def _write(tmp_path, name, content):
@@ -941,9 +941,9 @@ class TestFixSuperscriptLabels:
         assert text_el.text == "P = 1.94×10"
         tspan = text_el.find(f"{{{NS}}}tspan")
         assert tspan is not None
-        # no font-size on the <text>, so the exponent scales to the theme fontSize (7): 7*2/3, -7*5/12
-        assert tspan.get("dy") == "-2.92"
-        assert tspan.get("font-size") == "4.67"
+        # no font-size on the <text>, so the exponent scales to the theme fontSize (6): 6*2/3, -6*5/12
+        assert tspan.get("dy") == "-2.5"
+        assert tspan.get("font-size") == "4"
         assert tspan.text == "−14"
 
     def test_power_notation_single_digit(self):

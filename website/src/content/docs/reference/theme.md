@@ -88,7 +88,7 @@ documented meaning for auto-derived fills, frame state, offsets, and mark dimens
 Runtime introspection displays ``<omitted>`` for omitted styling defaults; generated source
 signatures may show the private ``_UNSET`` marker. Neither is a value callers pass.
 
-By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=7`` is a positive, fractional nominal
+By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=6`` is a positive, fractional nominal
 publication point size; SVG markup exposes the same number as a renderer user-unit value, and raster
 export scales from 72 intrinsic units per inch. Axis, tick, legend, radius, and linear composite
 dimensions are pixels;

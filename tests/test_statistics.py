@@ -1626,8 +1626,8 @@ class TestGroupedCorrelation:
         assert len(texts) == 3 and len(swatches) == 3
         assert all("color" not in lyr.get("encoding", {}) for lyr in texts)  # neutral ink
         assert all(lyr["encoding"]["color"]["field"] == "line" for lyr in swatches)  # coloured swatch
-        # the swatch scales with the font (symbolSize = fontSize*6 at the default fontSize 7)
-        assert all(lyr["mark"]["size"] == pytest.approx(42.0) for lyr in swatches)
+        # the swatch scales with the font (symbolSize = fontSize*6 at the default fontSize 6)
+        assert all(lyr["mark"]["size"] == pytest.approx(36.0) for lyr in swatches)
 
     def test_rank_method_no_lines(self, grouped_df):
         # spearman reports the coefficient (readouts) but draws no fit line

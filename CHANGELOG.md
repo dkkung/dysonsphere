@@ -4,6 +4,7 @@
 
 ### Changes
 
+- The default theme now defaults to `fontSize=6` instead of `fontSize=7`.
 - **Breaking:** palette names no longer use `mpl_` or `cmocean_` prefixes; upstream suffix spelling
   and case are preserved. Native names are lowercase, and qualitative sets are now `cat1`, `cat2`,
   and `cat3` (the former `ds_cat_3`, `ds_cat_1`, and `ds_cat_2`, respectively). Its constituent
