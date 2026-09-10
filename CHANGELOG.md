@@ -74,6 +74,7 @@
 
 ### Fixes
 
+- Updated the website's transitive TOML parser to a patched release for GHSA-7w5x-hrqm-74c2.
 - Chart Studio now applies its browser SVG inward-tick correction when the executed chart's resolved
   theme records `tickDirection="in"`.
 - Beeswarm and quasirandom transforms support multiple grouping columns on all supported Polars
