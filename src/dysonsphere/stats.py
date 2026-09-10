@@ -2679,8 +2679,7 @@ def _add_grouped_correlation(
     # failure cannot leave earlier groups in the global report queue.
     for g_layers, record in staged:
         marker = _emit_report(record, report, save)
-        g_layers[0] = g_layers[0].properties(name=marker)
-        layers.extend(g_layers)
+        layers.append(alt.layer(*g_layers).properties(name=marker))
 
     if not layers:
         layers.append(_empty_layer())

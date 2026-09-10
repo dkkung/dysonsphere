@@ -4,6 +4,12 @@
 
 ### Changes
 
+- Current-version JSON exports now preserve statistical records with their owning chart components
+  across `load()` and re-export, while regenerating report prose, provenance, and export identity.
+  Re-export now fails closed if a loaded record's saved analytical panel context changed; presentation
+  edits and intact panel composition remain supported. Lookup transforms, runtime parameters and
+  selections, external data, and non-deterministic expressions are conservatively unsupported.
+
 - The default theme now defaults to `fontSize=6` instead of `fontSize=7`.
 - **Breaking:** palette names no longer use `mpl_` or `cmocean_` prefixes; upstream suffix spelling
   and case are preserved. Native names are lowercase, and qualitative sets are now `cat1`, `cat2`,

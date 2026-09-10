@@ -142,3 +142,19 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   or a reason for a save to fail.
   References: `metadata.py::_call_expression`; `test_metadata.py::TestCallExpression`;
   `test_metadata.py::TestSaveUsermeta`.
+
+- **Loaded statistics retain component ownership, not historical exports.** Current-version JSON
+  stores records once and compact owner-to-record-and-context bindings; persistent owning-node names survive the
+  saved spec and ordinary Altair composition. `load()` allocates fresh owner identities and imports
+  exact records, while re-export regenerates prose, provenance, and export identity. Each owner binds
+  the record to a compact digest of its effective analytical panel (data, transforms, mappings,
+  parameters, and annotation sidecars). Load validates the guard transactionally and every save checks
+  it again, failing closed after analytical edits while allowing presentation changes and intact panel
+  composition. Lookup transforms and runtime parameters/selections are rejected rather than treated as
+  guardable; expressions are limited to deterministic `datum` operations with a small pure-function
+  allowlist. Imported records are retained privately by record/context hash - not attached as Python
+  chart attributes - so repeated loads do not accumulate an
+  owner map and `clear_stats()` continues to clear only pending live calculations. Runtime statistical
+  markers remain separate and are still stripped. References: `metadata.py::_prepare_statistics_owners`,
+  `_restore_statistics_owners`, `_statistics_context`; `_statistics.py::_loaded_report`;
+  `test_metadata.py::TestReadLoad`.

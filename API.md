@@ -254,6 +254,18 @@ notes are local working material, not dependencies of this framework or part of 
 - Metadata inspection and chart reconstruction depend on the producing environment. V4 does not
   preserve backward compatibility with earlier releases; do not add legacy loading adapters.
   Existing formats may still work naturally, but that is not a compatibility commitment.
+- Current-version JSON exports persist compact statistical record ownership separately from the
+  records themselves. `load()` restores that ownership so records follow their chart component
+  through composition, extraction, and re-export. It preserves recorded results and their source
+  checksum without recomputation; each new save generates current provenance and export identity.
+  Loaded records are guarded by a digest of their saved analytical panel context. Re-export fails
+  closed if source rows, mappings, transforms, parameters, or annotation values changed; rebuild the
+  annotation from its source data instead. Presentation-only edits and intact panel composition or
+  extraction remain valid. Lookup transforms, nonempty parameters/selections, external data, and
+  expressions beyond deterministic operations on `datum` cannot be preserved. `load(raw=True)` only
+  returns the untouched specification and does not restore runtime ownership.
+  `stats.clear_stats()` clears pending live calculations without detaching records restored with a
+  loaded chart. Saving with metadata disabled removes the internal ownership identities as well.
 - Source renames do not automatically rename stored metadata keys or checksum formats.
 
 ## Growth and Maintenance

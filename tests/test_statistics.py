@@ -983,11 +983,13 @@ class TestReportRegistry:
         assert len(st._REPORTS) == 2
         # marker names are unique (nonce) even for identical content, so a spec never has dup names
         assert m1 != m2
-        assert st._marker_hash(m1) == st._marker_hash(m2)  # same content → same hash
-        assert st._marker_hash(m1) != st._marker_hash(m3)
-        # select returns the records for the requested hashes, in registration order
-        got = st._select_reports([st._marker_hash(m1), st._marker_hash(m3)])
-        assert got == [same, other]
+        h1, h2, h3 = st._marker_hash(m1), st._marker_hash(m2), st._marker_hash(m3)
+        assert h1 is not None and h2 is not None and h3 is not None
+        assert h1 == h2  # same content → same hash
+        assert h1 != h3
+        assert st._live_report(h1) == same
+        assert st._live_report(h3) == other
+        assert st._live_report("missing") is None
 
     def test_make_record_structure(self):
         r = st._run_omnibus("anova", _GROUPS, MULTI)
@@ -1586,6 +1588,10 @@ class TestGroupedCorrelation:
             rows += [{"x": float(a), "y": float(b), "line": g} for a, b in zip(x, y)]
         return pl.DataFrame(rows)
 
+    @staticmethod
+    def _layers(spec):
+        return [leaf for group in spec["layer"] for leaf in group.get("layer", [group])]
+
     def test_returns_layerchart(self, grouped_df):
         assert isinstance(correlation(grouped_df, "x", "y", groupBy="line"), alt.LayerChart)
 
@@ -1606,23 +1612,23 @@ class TestGroupedCorrelation:
         spec = correlation(grouped_df, "x", "y", groupBy="line").to_dict()
         line_colors = [
             lyr["encoding"]["color"]["field"]
-            for lyr in spec["layer"]
+            for lyr in self._layers(spec)
             if lyr["mark"].get("type") == "line" and "color" in lyr.get("encoding", {})
         ]
         assert line_colors and all(f == "line" for f in line_colors)
 
     def test_one_fit_line_and_readout_per_group(self, grouped_df):
         spec = correlation(grouped_df, "x", "y", groupBy="line").to_dict()
-        n_lines = sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "line")
-        n_text = sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "text")
+        n_lines = sum(1 for lyr in self._layers(spec) if lyr["mark"].get("type") == "line")
+        n_text = sum(1 for lyr in self._layers(spec) if lyr["mark"].get("type") == "text")
         assert n_lines == 3 and n_text == 3
 
     def test_readout_text_neutral_with_colored_swatch(self, grouped_df):
         # the colour link is a per-group SWATCH (a filled point, legend-symbol sized); the readout
         # text stays neutral (no color encoding) so it's legible even for pale palette colours.
         spec = correlation(grouped_df, "x", "y", groupBy="line").to_dict()
-        texts = [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "text"]
-        swatches = [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "point"]
+        texts = [lyr for lyr in self._layers(spec) if lyr["mark"].get("type") == "text"]
+        swatches = [lyr for lyr in self._layers(spec) if lyr["mark"].get("type") == "point"]
         assert len(texts) == 3 and len(swatches) == 3
         assert all("color" not in lyr.get("encoding", {}) for lyr in texts)  # neutral ink
         assert all(lyr["encoding"]["color"]["field"] == "line" for lyr in swatches)  # coloured swatch
@@ -1632,16 +1638,16 @@ class TestGroupedCorrelation:
     def test_rank_method_no_lines(self, grouped_df):
         # spearman reports the coefficient (readouts) but draws no fit line
         spec = correlation(grouped_df, "x", "y", groupBy="line", method="spearman").to_dict()
-        assert not [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "line"]
-        assert sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "text") == 3
+        assert not [lyr for lyr in self._layers(spec) if lyr["mark"].get("type") == "line"]
+        assert sum(1 for lyr in self._layers(spec) if lyr["mark"].get("type") == "text") == 3
 
     def test_position_none_no_readouts(self, grouped_df):
         spec = correlation(grouped_df, "x", "y", groupBy="line", position=None).to_dict()
-        assert not [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "text"]
+        assert not [lyr for lyr in self._layers(spec) if lyr["mark"].get("type") == "text"]
 
     def test_ci_band_per_group(self, grouped_df):
         spec = correlation(grouped_df, "x", "y", groupBy="line", ci=True).to_dict()
-        assert sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "area") == 3
+        assert sum(1 for lyr in self._layers(spec) if lyr["mark"].get("type") == "area") == 3
 
     @pytest.mark.parametrize("as_path", [False, True])
     def test_grouped_save_report_uses_shared_dispatch(self, grouped_df, tmp_path, as_path):

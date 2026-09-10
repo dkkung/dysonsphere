@@ -135,9 +135,17 @@ def load(
 
 Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).
 
-JSON only — the PNG/SVG carry the metadata block but not the full spec.
+JSON only — the PNG/SVG carry the metadata block but not the full spec. Statistical records
+saved by the current version are restored with their owning chart components, so composition,
+panel extraction, and a later :func:`save` preserve only the records still represented. The
+numerical results and their source-data checksums are preserved, not recomputed. Loaded records
+retain a guard over their saved analytical panel; changing data, mappings, transforms, parameters,
+or annotation values makes a later save fail closed and requires rebuilding the annotation from
+source data. Presentation edits and intact panel composition remain valid. Files from earlier
+versions receive no adapter. Lookup transforms, runtime parameters/selections, external data, and
+expressions beyond deterministic operations on ``datum`` cannot be preserved.
 
 **Parameters**
 
-- **`raw`** (`bool`) - ``False`` (default) returns a composable Altair object (of the right type). Its theme ``config`` is stripped (Altair's schema rejects a few of dysonsphere's config values), so it comes back unstyled — see ``applyTheme``. ``True`` returns the raw Vega-Lite spec ``dict`` instead, ``config`` intact, which re-renders pixel-identically (e.g. via ``vl_convert``) but is not a composable Altair object.
+- **`raw`** (`bool`) - ``False`` (default) returns a composable Altair object (of the right type). Its theme ``config`` is stripped (Altair's schema rejects a few of dysonsphere's config values), so it comes back unstyled — see ``applyTheme``. ``True`` returns the raw Vega-Lite spec ``dict`` instead, ``config`` intact, which re-renders pixel-identically (e.g. via ``vl_convert``) but is not a composable Altair object. Raw mode does not restore chart-owned statistical records into runtime state.
 - **`applyTheme`** (`bool`) - For ``raw=False``: ``True`` (default) re-applies the theme baked into the file via ``ds.theme(**saved_args)`` so the object renders exactly as saved. Like any ``ds.theme()`` call this **replaces the active theme globally**. ``False`` leaves the current theme untouched (the object is styled by whatever theme is active).

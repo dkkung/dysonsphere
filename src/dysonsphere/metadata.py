@@ -15,6 +15,8 @@ import struct
 import sys
 import uuid
 import zlib
+from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +36,7 @@ from .utils import _frame_checksum as frame_checksum
 __all__ = ["VerifyResult", "frame_checksum", "read", "verify"]
 
 _REPORT_PREFIX = "dysonsphere-report-"
+_STAT_OWNER_PREFIX = "__dsstatistics_owner_"
 
 # Namespace for the derived (reproducible-build) exportIdentifier - see `_derive_export_id`.
 _EXPORT_ID_NAMESPACE = "https://github.com/dkkung/dysonsphere/export/"
@@ -260,61 +263,432 @@ def _build_provenance(
     }
 
 
-def _scan_marker_hashes(spec) -> set[str]:
-    """Collect the record hashes from every ``__dysonsphere_`` marker ``name`` in a spec."""
-    from ._statistics import _marker_hash
+def _persistent_owner(name: object) -> str | None:
+    """Return a persistent statistics owner from a view name, including extension wrappers."""
+    _, underlying = discovery._unwrap_extension_markers(name)
+    if not isinstance(underlying, str) or not underlying.startswith(_STAT_OWNER_PREFIX):
+        return None
+    owner = underlying[len(_STAT_OWNER_PREFIX) :]
+    return owner if owner and re.fullmatch(r"[0-9a-f]{48}", owner) else None
+
+
+_CHART_CHILD_KEYS = ("layer", "hconcat", "vconcat", "concat")
+
+
+def _walk_chart_nodes(spec: dict[str, Any], visit: Callable[[dict[str, Any]], None]) -> None:
+    """Walk Vega-Lite chart/spec nodes, never arbitrary data rows or metadata dictionaries."""
+    visit(spec)
+    for key in _CHART_CHILD_KEYS:
+        children = spec.get(key)
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, dict):
+                    _walk_chart_nodes(cast(dict[str, Any], child), visit)
+    child = spec.get("spec")
+    if isinstance(child, dict):
+        _walk_chart_nodes(cast(dict[str, Any], child), visit)
+
+
+_CONTEXT_ERROR = (
+    "preserved statistical context changed; rebuild the annotation from its source data with "
+    "ds.stats.comparisons() or ds.stats.correlation()"
+)
+_PRESENTATION_MARK = {
+    "color",
+    "fill",
+    "stroke",
+    "opacity",
+    "fillOpacity",
+    "strokeOpacity",
+    "strokeWidth",
+    "strokeDash",
+    "size",
+    "font",
+    "fontSize",
+    "fontStyle",
+    "fontWeight",
+    "align",
+    "baseline",
+    "dx",
+    "dy",
+    "angle",
+    "cornerRadius",
+    "cursor",
+    "tooltip",
+}
+_PURE_EXPRESSION_FUNCTIONS = {
+    "abs",
+    "ceil",
+    "clamp",
+    "exp",
+    "floor",
+    "if",
+    "indexof",
+    "isFinite",
+    "isNaN",
+    "isValid",
+    "length",
+    "log",
+    "lower",
+    "max",
+    "min",
+    "pow",
+    "replace",
+    "round",
+    "sqrt",
+    "substring",
+    "toNumber",
+    "toString",
+    "upper",
+}
+
+
+def _validate_statistics_expression(expression: str) -> None:
+    """Accept only bounded, deterministic expressions over the current datum."""
+    without_strings = re.sub(r"(['\"])(?:\\.|(?!\1).)*\1", "", expression)
+    without_numbers = re.sub(
+        r"(?<![\w$])(?:0[xX][0-9a-fA-F]+|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)", "", without_strings
+    )
+    # Ignore only static dotted field names. Bracket contents remain tokenized because they may
+    # themselves be computed expressions (datum[random()] must not look like a static field).
+    without_dotted_fields = re.sub(r"(?<=\bdatum)\.[A-Za-z_$][\w$]*", "", without_numbers)
+    identifiers = set(re.findall(r"[A-Za-z_$][\w$]*", without_dotted_fields))
+    allowed = _PURE_EXPRESSION_FUNCTIONS | {"datum", "true", "false", "null"}
+    if identifiers - allowed:
+        raise ValueError(
+            "unsupported statistical context: expressions may use only deterministic datum values and pure functions"
+        )
+
+
+def _validate_statistics_descriptor(value: Any) -> None:
+    """Reject dataflow constructs whose runtime inputs cannot be guarded by a saved spec."""
+    if isinstance(value, dict):
+        if "lookup" in value:
+            raise ValueError("unsupported statistical context: lookup transforms cannot be preserved")
+        if "sample" in value:
+            raise ValueError("unsupported statistical context: nondeterministic sample transforms cannot be preserved")
+        if "param" in value or "selection" in value:
+            raise ValueError("unsupported statistical context: runtime parameters and selections cannot be preserved")
+        for key, child in value.items():
+            if key in {"calculate", "expr"} and isinstance(child, str):
+                _validate_statistics_expression(child)
+            elif key in {"filter", "test"} and isinstance(child, str):
+                _validate_statistics_expression(child)
+            else:
+                _validate_statistics_descriptor(child)
+    elif isinstance(value, list):
+        for child in value:
+            _validate_statistics_descriptor(child)
+
+
+def _statistics_context(spec: dict[str, Any], target: dict[str, Any]) -> str:
+    """Hash the effective analytical leaves in the target owner's concat panel."""
+    datasets: dict[str, Any] = (
+        cast(dict[str, Any], spec.get("datasets")) if isinstance(spec.get("datasets"), dict) else {}
+    )
+    ancestors: list[dict[str, Any]] | None = None
+
+    def locate(node: dict[str, Any], chain: list[dict[str, Any]]) -> None:
+        nonlocal ancestors
+        if node is target:
+            ancestors = chain
+            return
+        for key in _CHART_CHILD_KEYS:
+            for child in node.get(key, []) if isinstance(node.get(key), list) else []:
+                if ancestors is None and isinstance(child, dict):
+                    locate(child, [*chain, node])
+        child = node.get("spec")
+        if ancestors is None and isinstance(child, dict):
+            locate(child, [*chain, node])
+
+    locate(spec, [])
+    if ancestors is None:
+        raise ValueError("statistical owner is not part of the chart")
+    panel = spec
+    inherited_nodes: list[dict[str, Any]] = []
+    for index, ancestor in enumerate(ancestors):
+        if any(isinstance(ancestor.get(key), list) for key in ("hconcat", "vconcat", "concat")):
+            panel = ancestors[index + 1] if index + 1 < len(ancestors) else target
+            inherited_nodes = ancestors[: index + 1]
+
+    def data_value(value: Any) -> Any:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValueError("unsupported statistical context: data must be an object")
+        if "url" in value:
+            raise ValueError("unsupported statistical context: external data cannot be preserved")
+        if isinstance(value.get("name"), str):
+            name = value["name"]
+            if name not in datasets:
+                raise ValueError("unsupported statistical context: named data cannot be resolved")
+            return {**{k: v for k, v in value.items() if k != "name"}, "values": datasets[name]}
+        if "values" not in value:
+            raise ValueError("unsupported statistical context: dynamic data cannot be preserved")
+        return value
+
+    def encoding_value(encoding: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for channel, definition in encoding.items():
+            if channel in {"color", "fill", "stroke", "opacity", "size"} and isinstance(definition, dict):
+                if "field" not in definition and "condition" not in definition and "expr" not in definition:
+                    continue
+            if not isinstance(definition, dict):
+                out[channel] = definition
+                continue
+            item = {k: v for k, v in definition.items() if k not in {"axis", "legend"}}
+            if isinstance(item.get("scale"), dict):
+                scale = {k: v for k, v in item["scale"].items() if k not in {"range", "scheme"}}
+                if scale:
+                    item["scale"] = scale
+                else:
+                    item.pop("scale")
+            out[channel] = item
+        return out
+
+    inherited: dict[str, Any] = {}
+    inherited_transforms: list[Any] = []
+
+    def reject_parameters(node: dict[str, Any]) -> None:
+        if ("params" in node and node["params"] != []) or "selection" in node:
+            raise ValueError("unsupported statistical context: runtime parameters and selections cannot be preserved")
+
+    for node in inherited_nodes:
+        reject_parameters(node)
+        if "data" in node:
+            inherited["data"] = data_value(node["data"])
+        node_transforms = node.get("transform", []) if isinstance(node.get("transform"), list) else []
+        _validate_statistics_descriptor(node_transforms)
+        inherited_transforms.extend(node_transforms)
+        if isinstance(node.get("encoding"), dict):
+            _validate_statistics_descriptor(node["encoding"])
+            inherited["encoding"] = {**inherited.get("encoding", {}), **encoding_value(node["encoding"])}
+        for key in ("facet", "repeat"):
+            if key in node:
+                inherited[key] = node[key]
+
+    leaves: list[Any] = []
+
+    def collect(node: dict[str, Any], state: dict[str, Any]) -> None:
+        from ._statistics import _marker_hash
+
+        _, underlying = discovery._unwrap_extension_markers(node.get("name"))
+        owner = _persistent_owner(node.get("name"))
+        live_owner = _marker_hash(underlying) if isinstance(underlying, str) else None
+        if node is not target and (owner is not None or live_owner is not None):
+            return
+        current = deepcopy(state)
+        reject_parameters(node)
+        if "data" in node:
+            current["data"] = data_value(node["data"])
+        transforms = node.get("transform")
+        if isinstance(transforms, list):
+            _validate_statistics_descriptor(transforms)
+            current["transform"] = [*current.get("transform", []), *transforms]
+        if isinstance(node.get("encoding"), dict):
+            _validate_statistics_descriptor(node["encoding"])
+            current["encoding"] = {**current.get("encoding", {}), **encoding_value(node["encoding"])}
+        for key in ("facet", "repeat", "resolve"):
+            if key in node:
+                current[key] = node[key]
+        children: list[dict[str, Any]] = []
+        for key in _CHART_CHILD_KEYS:
+            children.extend(child for child in node.get(key, []) if isinstance(child, dict))
+        if isinstance(node.get("spec"), dict):
+            children.append(node["spec"])
+        if children:
+            for child in children:
+                collect(child, current)
+            return
+        mark = node.get("mark")
+        if isinstance(mark, dict):
+            analytical_mark = {k: v for k, v in mark.items() if k not in _PRESENTATION_MARK}
+            _validate_statistics_descriptor(analytical_mark)
+            current["mark"] = analytical_mark
+        elif mark is not None:
+            current["mark"] = mark
+        leaves.append(current)
+
+    inherited["transform"] = inherited_transforms
+    collect(panel, inherited)
+    serialized = sorted(json.dumps(leaf, sort_keys=True, separators=(",", ":")) for leaf in leaves)
+    return hashlib.sha256(json.dumps(serialized, separators=(",", ":")).encode()).hexdigest()
+
+
+def _prepare_statistics_owners(spec: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, dict[str, str]]]:
+    """Canonicalize available live/imported owners and return records in chart traversal order."""
+    from ._statistics import _live_report, _loaded_report, _marker_hash, _record_hash
+
+    selected: dict[str, dict[str, Any]] = {}
+    bindings: dict[str, dict[str, str]] = {}
+    occurrence = 0
+
+    def prepare(node: dict[str, Any]) -> None:
+        nonlocal occurrence
+        name = node.get("name")
+        _, underlying = discovery._unwrap_extension_markers(name)
+        live_hash = _marker_hash(underlying) if isinstance(underlying, str) else None
+        loaded_owner = _persistent_owner(name)
+        record_hash = live_hash if live_hash is not None else (loaded_owner[:16] if loaded_owner is not None else None)
+        saved_context = loaded_owner[16:32] if loaded_owner is not None else None
+        record = (
+            _live_report(record_hash)
+            if live_hash is not None and record_hash is not None
+            else (
+                _loaded_report(record_hash, saved_context)
+                if record_hash is not None and saved_context is not None
+                else None
+            )
+        )
+        if record is None:
+            return
+        actual_hash = _record_hash(record)
+        context_hash = _statistics_context(spec, node)
+        if saved_context is not None and context_hash[:16] != saved_context:
+            raise ValueError(_CONTEXT_ERROR)
+        occurrence += 1
+        nonce = hashlib.sha256(f"{actual_hash}:{occurrence}".encode()).hexdigest()[:16]
+        owner = actual_hash + context_hash[:16] + nonce
+        node["name"] = f"{_STAT_OWNER_PREFIX}{owner}"
+        selected.setdefault(actual_hash, record)
+        bindings[owner] = {"record": actual_hash, "context": f"sha256:{context_hash}"}
+
+    _walk_chart_nodes(spec, prepare)
+    return list(selected.values()), bindings
+
+
+def _restore_statistics_owners(spec: dict[str, Any]) -> tuple[dict[str, Any], list[tuple[dict[str, Any], str]]]:
+    """Validate bindings transactionally and return a copy with fresh runtime owner identities."""
+    from ._statistics import _record_hash
+
+    restored = deepcopy(spec)
+    usermeta = restored.get("usermeta")
+    if usermeta is None:
+        return restored, []
+    if not isinstance(usermeta, dict):
+        raise ValueError("saved usermeta must be an object")
+    block = usermeta.get("dysonsphere")
+    if block is None:
+        return restored, []
+    if not isinstance(block, dict):
+        raise ValueError("saved dysonsphere metadata must be an object")
+    if "statisticsBindings" not in block:
+        return restored, []
+    bindings = block["statisticsBindings"]
+    records = block.get("statistics")
+    if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
+        raise ValueError("saved statisticsBindings require a statistics record list")
+    from ._statistics import _render_report
+
+    for record in records:
+        try:
+            json.dumps(record, allow_nan=False)
+            if record.get("kind") not in {"pairwise", "omnibus", "correlation"}:
+                raise ValueError
+            checksum = record.get("dataChecksum")
+            if checksum is not None and not (
+                isinstance(checksum, str) and re.fullmatch(r"multiset-sha256:[0-9a-f]{64}", checksum)
+            ):
+                raise ValueError
+            _render_report(record)
+        except (KeyError, TypeError, ValueError, OverflowError) as error:
+            raise ValueError("saved statistics contain a malformed record") from error
+    by_hash = {_record_hash(record): record for record in records}
+    if not isinstance(bindings, dict) or not all(
+        isinstance(owner, str)
+        and re.fullmatch(r"[0-9a-f]{48}", owner)
+        and isinstance(binding, dict)
+        and set(binding) == {"record", "context"}
+        and isinstance(binding.get("record"), str)
+        and re.fullmatch(r"[0-9a-f]{16}", binding["record"])
+        and isinstance(binding.get("context"), str)
+        and re.fullmatch(r"sha256:[0-9a-f]{64}", binding["context"])
+        for owner, binding in bindings.items()
+    ):
+        raise ValueError("saved statisticsBindings must map owners to record and context identifiers")
+    typed_bindings = cast(dict[str, dict[str, str]], bindings)
+    if any(binding["record"] not in by_hash for binding in typed_bindings.values()):
+        raise ValueError("saved statisticsBindings reference an unknown statistical record")
+    if any(
+        owner[:16] != binding["record"] or owner[16:32] != binding["context"][7:23]
+        for owner, binding in typed_bindings.items()
+    ):
+        raise ValueError("saved statisticsBindings associate an owner with the wrong record")
 
     found: set[str] = set()
 
-    def walk(o):
-        if isinstance(o, dict):
-            name = o.get("name", "")
-            _, underlying_name = discovery._unwrap_extension_markers(name)
-            name = underlying_name or ""
-            h = _marker_hash(name)
-            if h:
-                found.add(h)
-            for v in o.values():
-                walk(v)
-        elif isinstance(o, list):
-            for v in o:
-                walk(v)
+    def validate_owner(node: dict[str, Any]) -> None:
+        if (owner := _persistent_owner(node.get("name"))) is not None:
+            if owner not in typed_bindings:
+                raise ValueError("saved chart contains an unbound statistical owner")
+            found.add(owner)
 
-    walk(spec)
-    return found
+    _walk_chart_nodes(restored, validate_owner)
+    if found != set(typed_bindings):
+        raise ValueError("saved statisticsBindings contain an owner absent from the chart")
+    owner_nodes: dict[str, dict[str, Any]] = {}
+
+    def collect_owner(node: dict[str, Any]) -> None:
+        if (owner := _persistent_owner(node.get("name"))) is not None:
+            owner_nodes[owner] = node
+
+    _walk_chart_nodes(restored, collect_owner)
+    for owner, node in owner_nodes.items():
+        if _statistics_context(restored, node) != typed_bindings[owner]["context"][7:]:
+            raise ValueError(_CONTEXT_ERROR)
+    fresh_owners = {
+        owner: binding["record"] + binding["context"][7:23] + uuid.uuid4().hex[:16]
+        for owner, binding in typed_bindings.items()
+    }
+
+    def freshen(node: dict[str, Any]) -> None:
+        if (owner := _persistent_owner(node.get("name"))) is not None:
+            node["name"] = f"{_STAT_OWNER_PREFIX}{fresh_owners[owner]}"
+
+    _walk_chart_nodes(restored, freshen)
+    imported: dict[tuple[str, str], tuple[dict[str, Any], str]] = {}
+    for binding in typed_bindings.values():
+        key = (binding["record"], binding["context"][7:])
+        imported.setdefault(key, (deepcopy(by_hash[binding["record"]]), binding["context"][7:]))
+    return restored, list(imported.values())
 
 
-def _strip_markers(spec) -> None:
-    """Remove internal marker names from a spec dict, restoring carried user names."""
+def _strip_markers(spec, *, statistics_owners: bool = False) -> None:
+    """Remove runtime markers from chart nodes, optionally including persistent statistics owners."""
     from ._statistics import _MARKER_PREFIX
 
-    def walk(o):
-        if isinstance(o, dict):
-            name = o.get("name")
-            marker_names, underlying_name = discovery._unwrap_extension_markers(name)
-            if marker_names:
-                name = underlying_name
-                if name is None:
-                    del o["name"]
-                else:
-                    o["name"] = name
-            if isinstance(name, str) and name.startswith(_MARKER_PREFIX):
+    def strip_node(o: dict[str, Any]) -> None:
+        name = o.get("name")
+        marker_names, underlying_name = discovery._unwrap_extension_markers(name)
+        if marker_names:
+            name = underlying_name
+            if name is None:
                 del o["name"]
-            for v in o.values():
-                walk(v)
-        elif isinstance(o, list):
-            for v in o:
-                walk(v)
+            else:
+                o["name"] = name
+        if isinstance(name, str) and name.startswith(_MARKER_PREFIX):
+            del o["name"]
+        elif statistics_owners and _persistent_owner(name) is not None:
+            del o["name"]
 
-    walk(spec)
+    _walk_chart_nodes(spec, strip_node)
 
 
 def _spec_checksum(spec) -> str:
-    """``sha256:<hex>`` of the canonical Vega-Lite spec with ``usermeta`` removed (assumes
-    markers are already stripped).  Sorted keys + compact separators make it reproducible;
-    re-validate by stripping ``usermeta`` from the file and re-hashing.
+    """``sha256:<hex>`` of the canonical Vega-Lite spec with ``usermeta`` removed.
+
+    Runtime markers are already stripped. Persistent statistics owners retain their record and
+    analytical-context hashes in canonical form but discard the fresh nonce, so ownership affects
+    integrity while repeated loads remain reproducible. Sorted keys + compact separators make the
+    result stable.
     """
-    clean = {k: v for k, v in spec.items() if k != "usermeta"}
+    clean = deepcopy({k: v for k, v in spec.items() if k != "usermeta"})
+
+    def normalize_owner(node: dict[str, Any]) -> None:
+        if (owner := _persistent_owner(node.get("name"))) is not None:
+            node["name"] = f"{_STAT_OWNER_PREFIX}{owner[:32]}"
+
+    _walk_chart_nodes(clean, normalize_owner)
     canon = json.dumps(clean, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(canon.encode()).hexdigest()
 
@@ -375,6 +749,7 @@ def _build_block(
     extensions: dict[str, str],
     chart_expression: str | None,
     description: str | None,
+    statistics_bindings: dict[str, dict[str, str]] | None = None,
 ) -> tuple[dict[str, Any], str, dict[str, str] | None]:
     """Assemble the ``dysonsphere`` metadata block from the drained statistical records.
 
@@ -395,6 +770,9 @@ def _build_block(
     the block in *both* channels — after ``report`` in the JSON ``usermeta``, and last in the
     report-free structured blob — so it is machine-readable from all three formats' embedded
     JSON (this is in addition to the native ``description``/``<desc>``/``iTXt Description``).
+
+    ``statistics_bindings`` maps each compact persistent owner to its record and analytical-context
+    hashes. Records remain serialized once in ``statistics`` rather than being copied into owners.
     """
     from ._statistics import _render_report
     from .theme import _BUILTIN_DEFAULTS
@@ -410,6 +788,8 @@ def _build_block(
     ds_block: dict[str, Any] = {"provenance": provenance}
     if records:
         ds_block["statistics"] = records
+    if statistics_bindings:
+        ds_block["statisticsBindings"] = statistics_bindings
     ds_block["theme"] = {k: v for k, v in alt.theme.options.items() if k in _BUILTIN_DEFAULTS}
     # The SVG/PNG structured blob is report-free (they get per-section readable channels) but
     # DOES carry `description` — as the last member, mirroring the JSON.  ensure_ascii=False
@@ -715,8 +1095,8 @@ def _identities(item: Any, index: int) -> tuple[str, dict[str, str | None]]:
     # save() runs the same spec transforms before hashing, so an in-memory chart has to go through
     # them too or it can never match the file it was saved to.
     spec = _apply_spec_fixes(item.to_dict())
-    # save() strips the statistics markers before hashing, and their names carry a counter that
-    # increments per build - leaving them in would make two identical charts look different.
+    # Match save()'s record + analytical-context identity while discarding owner nonces.
+    _prepare_statistics_owners(spec)
     _strip_markers(spec)
     frames = _user_datasets(spec)
     return f"chart[{index}]", {
