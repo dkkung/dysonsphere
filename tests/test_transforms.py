@@ -95,6 +95,11 @@ class TestBeeswarm:
         result = beeswarm(group_df, column="value", groupBy=["group"], outCol="my_swarm")
         assert "my_swarm" in result.columns
 
+    def test_multiple_grouping_columns_preserve_rows(self):
+        data = pl.DataFrame({"group": ["B", "A", "B", "A"], "condition": [2, 1, 1, 2], "value": [4.0, 1.0, 3.0, 2.0]})
+        result = beeswarm(data, column="value", groupBy=["group", "condition"])
+        assert result.select(data.columns).equals(data)
+
 
 class TestQuasirandom:
     def test_adds_offset_column(self, group_df):
@@ -113,6 +118,18 @@ class TestQuasirandom:
         # the offset must line up with its own row after the group_by/sort round-trip
         result = quasirandom(group_df, column="value", groupBy=["group"])
         assert result["value"].to_list() == group_df["value"].to_list()
+
+    def test_multiple_grouping_columns_preserve_rows(self):
+        data = pl.DataFrame(
+            {
+                "row": [3, 0, 2, 1, 4, 5],
+                "group": ["B", "A", "B", "A", "A", "A"],
+                "condition": [2, 1, 1, 2, 1, 1],
+                "value": [4.0, 1.0, 3.0, 2.0, 1.5, 2.5],
+            }
+        )
+        result = quasirandom(data, column="value", groupBy=["group", "condition"])
+        assert result.select(data.columns).equals(data)
 
     def test_width_and_bandwidth_accepted(self, group_df):
         result = quasirandom(group_df, column="value", groupBy=["group"], width=20.0, bandwidth=0.5)

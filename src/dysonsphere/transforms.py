@@ -336,7 +336,7 @@ def _grouped_offsets(
     """
     return (
         df.with_row_index("__offset_idx")
-        .group_by(groupBy)
+        .group_by(*groupBy)
         .map_groups(
             lambda g: g.with_columns(
                 pl.Series(
@@ -497,7 +497,7 @@ def quasirandom(
     missing = [name for name in [column, *groupBy] if name not in data.columns]
     if missing:
         raise ValueError(f"quasirandom data column(s) not found: {missing}.")
-    for group_key, group_data in data.group_by(groupBy, maintain_order=True):
+    for group_key, group_data in data.group_by(*groupBy, maintain_order=True):
         group = group_key[0] if len(groupBy) == 1 else group_key
         _validate_observations(group_data[column].to_list(), column, group, kind="quasirandom KDE column")
     try:
