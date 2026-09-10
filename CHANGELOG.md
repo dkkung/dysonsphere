@@ -74,6 +74,7 @@
 
 ### Fixes
 
+- Updated the website's transitive TOML parser to a patched release for GHSA-7w5x-hrqm-74c2.
 - Fixed subtitle font sizing and error-band border stroke opacity/width theme wiring.
 - Inner band padding now accepts the renderer-supported endpoint `1`; shared pixel geometry matches
   D3's centered zero-width singleton behavior instead of dividing by zero.
