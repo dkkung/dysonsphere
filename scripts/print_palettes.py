@@ -16,9 +16,8 @@ sequential and diverging palettes:
        Interpolate (L, hue) linearly between keyframes; at each
        interpolated point compute chroma as in recipe 1.  Same arc-length
        resample.
-       Used for: ember, dusk, moss, gnbu, ylgnbu, candy, oranges, lagoon,
-                 bluestgrotto/bluergrotto/bluegrotto ladder, the celestial
-                 family nebula/cosmos/borealis/australis (all with an
+       Used for: ember, dusk, moss, greenblue, yellowgreenblue, candy, oranges, lagoon,
+                 bluelagoon, and the celestial family nebula/cosmos/borealis/australis (all with an
                  absolute max_chroma cap, see build_multihue;
                  cosmos/borealis/australis also with FRAC=0.95), and the
                  metal pair brass/pewter (per-keyframe max_chroma lists).
@@ -30,13 +29,11 @@ sequential and diverging palettes:
        centre.  Each arm sampled at HALF stops at equal arc length;
        concatenated as arm2 + [centre] + reversed(arm1).
        Odd N=13 so the pivot lands exactly on the V-corner.
-       Used for: rdbu, pugn, brte, gdbu, mggn, ylpu (FRAC=0.85)
-                 and _sat variants of each (FRAC=1.0).
+       Used for: rdbu, pugn, brte, gdbu, and mggn (FRAC=0.85).
 
   Recipe 4. Chroma-scaling desaturation
        Preserve L, scale (a, b) by < 1.  Used to derive the lighter
-       bluegrotto / bluergrotto companions from the saturated
-       bluestgrotto base.
+       bluelagoon from its saturated construction path.
 
 Color spaces:
   - Oklab (Ottosson 2020) is the working space for all current palettes.
@@ -53,8 +50,8 @@ against palettes.py or to extend with new families.
 
 Note: a few palettes in palettes.py have been hand-tweaked beyond the
 canonical recipe (e.g. lagoon's stop 11 was symmetrically reflected to
-flatten the final ΔE step; the bluergrotto family was iterated to
-sharpen the purple→blue transition).  Where this script and palettes.py
+flatten the final ΔE step; bluelagoon was iterated to sharpen the
+purple-to-blue transition).  Where this script and palettes.py
 diverge, palettes.py is the source of truth — this script documents the
 recipe, not exact byte-for-byte output.
 """
@@ -72,7 +69,6 @@ N_DENSE = 4000  # dense path resolution before arc-length resampling
 # Default chroma fractions (of gamut max at each L)
 SEQ_FRAC = 0.65  # sequential single-hue and multi-hue
 DIVERG_FRAC = 0.85  # diverging base palettes
-DIVERG_SAT_FRAC = 1.0  # *_sat diverging variants
 PASTEL_FRAC = 0.35  # sequential single-hue "3" (pastel) variants
 PASTEL_L_LO = 0.70  # dark end: stays medium-light (true pastel territory)
 PASTEL_L_HI = 0.95  # light end: nearly white
@@ -475,7 +471,7 @@ SEQ_SINGLE_FRAC = {
     "cat1_teals": 0.70,
 }
 
-# All 14 base single-hue palettes in gallery order — used to build "3" pastel set.
+# Base single-hue palettes in gallery order - used to build the "3" pastel set.
 SEQ_SINGLE_NAMES = [
     "blues",
     "greens",
@@ -490,7 +486,6 @@ SEQ_SINGLE_NAMES = [
     "yellows",
     "cyans",
     "magentas",
-    "neongreens",
 ]
 
 # Multi-hue Oklab keyframes.  Format: name → [(L, hue_deg), ...] light → dark.
@@ -523,7 +518,7 @@ SEQ_MULTI_OKLAB = {
         (0.20, 150),
     ],
     # Yellow-green → green → blue (matplotlib analogue).
-    "gnbu": [
+    "greenblue": [
         (0.93, 110),
         (0.78, 130),
         (0.62, 160),
@@ -531,7 +526,7 @@ SEQ_MULTI_OKLAB = {
         (0.32, 230),
         (0.20, 250),
     ],
-    "ylgnbu": [
+    "yellowgreenblue": [
         (0.93, 100),
         (0.78, 115),
         (0.62, 145),
@@ -563,15 +558,6 @@ SEQ_MULTI_OKLAB = {
         (0.62, 180),
         (0.42, 220),
         (0.20, 250),
-    ],
-    # Showcase: purple-anchored cool sweep with uniform per-segment rotation.
-    "bluestgrotto": [
-        (0.27, 285),
-        (0.41, 260),
-        (0.55, 230),
-        (0.68, 200),
-        (0.80, 178),
-        (0.93, 155),
     ],
     # Viridis alternative: deep slate-teal → indigo → periwinkle → orchid →
     # pale rose (stored dark-first, viridis polarity).  Chroma capped at
@@ -683,6 +669,16 @@ SEQ_MULTI_OKLAB = {
 }
 
 # Per-palette frac overrides for build_multihue (default SEQ_FRAC).
+# Saturated construction path retained only as the basis for the shipped bluelagoon recipe.
+BLUELAGOON_KEYFRAMES = [
+    (0.27, 285),
+    (0.41, 260),
+    (0.55, 230),
+    (0.68, 200),
+    (0.80, 178),
+    (0.93, 155),
+]
+
 SEQ_MULTI_FRAC = {
     "eclipse": 0.95,
     "cosmos": 0.95,
@@ -763,15 +759,13 @@ def build_focus():
 
 
 # Diverging arm endpoints.  Format: name → (arm2_dark, arm1_dark) hex.
-# Center is always #F6F6F6.  Both the base and _sat variants share these
-# endpoints; the difference is FRAC (0.85 vs 1.0).
+# Center is always #F6F6F6.
 DIVERG_OKLAB = {
     "rdbu": ("#7C3745", "#215080"),
     "pugn": ("#574380", "#1A5929"),
     "brte": ("#684637", "#1C5464"),
     "gdbu": ("#614931", "#1C5464"),
     "mggn": ("#6A397E", "#1A5919"),
-    "ylpu": ("#574E11", "#2D4D84"),
 }
 
 # Pairs of "2"-suffix sequential palettes for diverging construction.
@@ -794,23 +788,18 @@ DIVERG_SEQ2_PAIRS = [
     ("reds2", "cyans2"),
     ("reds2", "lavenders2"),
     ("reds2", "violets2"),
-    ("reds2", "neongreens2"),
     ("pinks2", "cyans2"),
     ("pinks2", "greens2"),
-    ("pinks2", "neongreens2"),
     ("oranges2", "blues2"),
     ("oranges2", "cyans2"),
     ("oranges2", "purples2"),
     ("oranges2", "lavenders2"),
     ("oranges2", "violets2"),
-    ("oranges2", "neongreens2"),
     ("yellows2", "blues2"),
     ("yellows2", "purples2"),
     ("yellows2", "lavenders2"),
     ("browns2", "greens2"),
     ("browns2", "cyans2"),
-    ("browns2", "neongreens2"),
-    ("magentas2", "neongreens2"),
     ("magentas2", "greens2"),
     ("magentas2", "blues2"),
     ("magentas2", "cyans2"),
@@ -819,15 +808,12 @@ DIVERG_SEQ2_PAIRS = [
     ("cyans2", "purples2"),
     ("cyans2", "lavenders2"),
     ("cyans2", "violets2"),
-    ("purples2", "neongreens2"),
-    ("lavenders2", "neongreens2"),
     ("greys2", "greens2"),
     ("greys2", "yellows2"),
     ("greys2", "oranges2"),
     ("greys2", "cyans2"),
     ("greys2", "magentas2"),
     ("greys2", "violets2"),
-    ("greys2", "neongreens2"),
 ]
 
 DIVERG_SEQ3_PAIRS = [
@@ -848,23 +834,18 @@ DIVERG_SEQ3_PAIRS = [
     ("reds3", "cyans3"),
     ("reds3", "lavenders3"),
     ("reds3", "violets3"),
-    ("reds3", "neongreens3"),
     ("pinks3", "cyans3"),
     ("pinks3", "greens3"),
-    ("pinks3", "neongreens3"),
     ("oranges3", "blues3"),
     ("oranges3", "cyans3"),
     ("oranges3", "purples3"),
     ("oranges3", "lavenders3"),
     ("oranges3", "violets3"),
-    ("oranges3", "neongreens3"),
     ("yellows3", "blues3"),
     ("yellows3", "purples3"),
     ("yellows3", "lavenders3"),
     ("browns3", "greens3"),
     ("browns3", "cyans3"),
-    ("browns3", "neongreens3"),
-    ("magentas3", "neongreens3"),
     ("magentas3", "greens3"),
     ("magentas3", "blues3"),
     ("magentas3", "cyans3"),
@@ -873,15 +854,12 @@ DIVERG_SEQ3_PAIRS = [
     ("cyans3", "purples3"),
     ("cyans3", "lavenders3"),
     ("cyans3", "violets3"),
-    ("purples3", "neongreens3"),
-    ("lavenders3", "neongreens3"),
     ("greys3", "greens3"),
     ("greys3", "yellows3"),
     ("greys3", "oranges3"),
     ("greys3", "cyans3"),
     ("greys3", "magentas3"),
     ("greys3", "violets3"),
-    ("greys3", "neongreens3"),
 ]
 
 
@@ -917,10 +895,6 @@ def main():
     print("\n# ─── Diverging (Oklab, FRAC=0.85) ────────────────────────────────")
     for name, (arm2, arm1) in DIVERG_OKLAB.items():
         _print_palette(name, build_diverging(arm2, arm1, frac=DIVERG_FRAC))
-
-    print("\n# ─── Diverging maximally saturated (Oklab, FRAC=1.0) ─────────────")
-    for name, (arm2, arm1) in DIVERG_OKLAB.items():
-        _print_palette(f"{name}_sat", build_diverging(arm2, arm1, frac=DIVERG_SAT_FRAC))
 
     print("\n# ─── Diverging — '2'-suffix single-hue pairs ──────────────────────────────")
     for arm1, arm2 in DIVERG_SEQ2_PAIRS:
@@ -959,11 +933,8 @@ def main():
     for _n, _hue in (("warmgreys", 85.0), ("coolgreys", 258.0)):
         _print_palette(_n, tint_greys(_hue, 0.010))
 
-    print("\n# ─── Desaturation ladder example (bluestgrotto → bluergrotto → bluegrotto)")
-    base = build_multihue(SEQ_MULTI_OKLAB["bluestgrotto"])
-    _print_palette("bluestgrotto", base)
-    _print_palette("bluergrotto", desaturate(base, 0.875))
-    _print_palette("bluegrotto", desaturate(base, 0.75))
+    print("\n# ─── Desaturated purple-to-mint sweep ─────────────────────────────")
+    _print_palette("bluelagoon", desaturate(build_multihue(BLUELAGOON_KEYFRAMES), 0.75))
 
 
 if __name__ == "__main__":

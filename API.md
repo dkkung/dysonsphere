@@ -35,6 +35,12 @@ notes are local working material, not dependencies of this framework or part of 
   preserve their upstream spelling and case without source-package prefixes. Registered names take
   precedence over renderer-native schemes in every palette-valued consumer.
 - The 12 discrete Matplotlib category palettes expose their complete upstream color lists.
+- The native `neongreens` family and every diverging palette derived from it are removed; no aliases
+  or replacement colors are provided. Ordinary `greens` and the `cat1_greens`/`cat2_greens` families
+  are distinct and remain available.
+- Native `greenblue` and `yellowgreenblue` are distinct from the case-sensitive imported Matplotlib
+  palettes `GnBu` and `YlGnBu`. The `bluerlagoon` and `bluestlagoon` variants are removed;
+  `bluelagoon` and `lagoon` remain available.
 - Volcano gained/lost colors natively inherit the active theme's diverging range when `palette=None`;
   explicit tuples retain `(gained, lost)` order. The neutral remains separately darkmode-aware, and
   the legend remains a discrete three-category symbol legend with swatches matching the points.

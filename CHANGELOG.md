@@ -10,7 +10,12 @@
   ramps are correspondingly `cat1_blues`, `cat1_greens`, `cat1_purples`, and `cat1_teals`.
   The coordinated diverging palettes are `div1` (formerly `ds_div_3`) and `div2` (formerly
   `ds_div_1`), and the former `cat_*` constituents of `cat2` now use `cat2_*`. `cmocean_gray` is
-  removed. Categorical and ramp defaults, sampling, and family order are unchanged.
+  removed, `greyslavender` is corrected to the family-consistent `greyslavenders`, and the
+  `neongreens`, `neongreens2`, and `neongreens3` ramps and all 24 diverging palettes derived from
+  them are removed. Native `gnbu`/`ylgnbu` are now `greenblue`/`yellowgreenblue` without aliases;
+  imported `GnBu`/`YlGnBu` retain their upstream names. `bluerlagoon` and `bluestlagoon` are removed,
+  while `bluelagoon` and `lagoon` remain. Categorical and ramp defaults, sampling, and surviving
+  family order are unchanged.
 - Matplotlib's 12 discrete category palettes now contain their complete upstream color lists rather
   than nine-stop samples: `Accent` (8), `Dark2` (8), `Paired` (12), `Pastel1` (9), `Pastel2` (8),
   `Set1` (9), `Set2` (8), `Set3` (12), `tab10` (10), `tab20` (20), `tab20b` (20), and `tab20c` (20).

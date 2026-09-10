@@ -1,4 +1,5 @@
 import hashlib
+import importlib.util
 import json
 import math
 import re
@@ -31,7 +32,6 @@ SEQUENTIAL = [
     "oranges",
     "browns",
     "pinks",
-    "neongreens",
 ]
 SEQUENTIAL_2 = [f"{n}2" for n in SEQUENTIAL]
 SEQUENTIAL_3 = [f"{n}3" for n in SEQUENTIAL]
@@ -454,8 +454,8 @@ def _digest(value) -> str:
 
 
 def test_registry_name_migration_exact_parity():
-    assert len(colors) == 344
-    assert _digest(colors) == "af2ec4d2a52fcedb89c856c4bb9621fbced3123d0ed44a309497b8b9efabc8b4"
+    assert len(colors) == 315
+    assert _digest(colors) == "4d46342974fc6d67e2dcdfe12da73c0afc48ed37b29f107c6fac3c4c3384c671"
     for removed in (
         "cmocean_gray",
         "mpl_viridis",
@@ -468,14 +468,33 @@ def test_registry_name_migration_exact_parity():
         "cat3_teals",
     ):
         assert removed not in colors
-    assert {"gray", "greys", "Greys", "gnbu", "GnBu", "ylgnbu", "YlGnBu"} <= colors.keys()
-    assert colors["gnbu"] != colors["GnBu"]
-    assert colors["ylgnbu"] != colors["YlGnBu"]
+    assert {"gray", "greys", "Greys", "greenblue", "GnBu", "yellowgreenblue", "YlGnBu"} <= colors.keys()
+    assert colors["greenblue"] != colors["GnBu"]
+    assert colors["yellowgreenblue"] != colors["YlGnBu"]
+    assert _digest(colors["greenblue"]) == "f2544b8324a44a221971ea1f6f0905d82c054e66e38e2f04c121519b59b6af0f"
+    assert _digest(colors["GnBu"]) == "679ef045c95c5231a041d43e0ff65f004fe7e9e78c0becd84a82f723b2906844"
+    assert _digest(colors["yellowgreenblue"]) == "daf85baa7248b7190d149303992529803b98f4bc3d0568fc6425d0294faf6a57"
+    assert _digest(colors["YlGnBu"]) == "baa0bb23103c336626367fee486e9610bea3978a7cc9411f157b2e0034c28974"
     assert len(_PORTED_PALETTE_NAMES) == 104
     assert _PORTED_PALETTE_NAMES <= colors.keys()
 
 
 def test_current_registry_reconstructs_prechange_ordered_baseline():
+    # The inverse comparison intentionally excludes the approved palette removals; its
+    # digest still guards every surviving pre-change palette and its order.
+    removed_neongreens = {
+        "neongreens",
+        "neongreens2",
+        "neongreens3",
+    } | {
+        f"{arm}neongreens{suffix}"
+        for arm in ("browns", "greys", "lavenders", "magentas", "oranges", "pinks", "purples", "reds")
+        for suffix in ("", "2", "3")
+    }
+    assert len(removed_neongreens) == 27
+    removed_palettes = removed_neongreens | {"bluerlagoon", "bluestlagoon"}
+    assert len(removed_palettes) == 29
+    assert not removed_palettes & colors.keys()
     intentional_discrete_changes = {
         "Accent",
         "Dark2",
@@ -491,8 +510,8 @@ def test_current_registry_reconstructs_prechange_ordered_baseline():
         "tab20c",
     }
     native_old_names = {
-        "gnbu": "GnBu",
-        "ylgnbu": "YlGnBu",
+        "greenblue": "GnBu",
+        "yellowgreenblue": "YlGnBu",
         "brgn": "BrGn",
         "brte": "BrTe",
         "gdbu": "GdBu",
@@ -515,6 +534,7 @@ def test_current_registry_reconstructs_prechange_ordered_baseline():
         "cat2_teals": "cat_teals",
         "div1": "ds_div_3",
         "div2": "ds_div_1",
+        "greyslavenders": "greyslavender",
     }
     old_gray = [
         "#000000",
@@ -543,8 +563,42 @@ def test_current_registry_reconstructs_prechange_ordered_baseline():
         else:
             old_name = native_old_names.get(name, name)
         reconstructed[old_name] = stops
-    assert len(reconstructed) == 333
-    assert _digest(reconstructed) == "ae9fbea82894c8683246616cec5dca449cf3fcbb39d0f7efecc82f319e793781"
+    assert len(reconstructed) == 304
+    assert _digest(reconstructed) == "65a0b45c5f4fb9f96d5e610fd3fd977659a5f9c476766629232109eaa89d871c"
+
+
+def test_authoring_recipe_omits_unshipped_diverging_candidates():
+    spec = importlib.util.spec_from_file_location("print_palettes", "scripts/print_palettes.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    names = []
+    setattr(module, "_print_palette", lambda name, _hexes: names.append(name))
+    module.main()
+    assert len(module.DIVERG_SEQ2_PAIRS) == 43
+    assert len(module.DIVERG_SEQ3_PAIRS) == 43
+    expected_pairs = {arm1.removesuffix("2") + arm2 for arm1, arm2 in module.DIVERG_SEQ2_PAIRS} | {
+        arm1.removesuffix("3") + arm2 for arm1, arm2 in module.DIVERG_SEQ3_PAIRS
+    }
+    assert expected_pairs <= colors.keys()
+    assert "greyslavenders2" in names
+    assert "greyslavenders3" in names
+    assert {"greenblue", "yellowgreenblue", "lagoon"} <= set(names)
+    assert {"gnbu", "ylgnbu", "bluerlagoon", "bluestlagoon"}.isdisjoint(names)
+    assert {"bluestgrotto", "bluergrotto", "bluegrotto"}.isdisjoint(names)
+    assert "ylpu" not in names
+    assert not any(name.endswith("_sat") for name in names)
+    assert not any("neongreen" in name for name in names)
+
+
+def test_neongreens_family_is_fully_removed_without_affecting_green_families():
+    assert not any("neongreen" in name for name in colors)
+    assert {"greens", "greens2", "greens3", "cat1_greens", "cat2_greens"} <= colors.keys()
+
+
+def test_lagoon_cleanup_retains_only_authorized_variants():
+    assert {"lagoon", "bluelagoon"} <= colors.keys()
+    assert {"bluerlagoon", "bluestlagoon", "gnbu", "ylgnbu"}.isdisjoint(colors)
 
 
 def test_matplotlib_discrete_palettes_are_complete_upstream_lists():
