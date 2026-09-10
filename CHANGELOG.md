@@ -108,6 +108,7 @@
 
 ### Internal
 
+- Regenerated maintained website chart specifications and API references against the v4 source.
 - Website development can opt Chart Studio into a locally served candidate core wheel with
   `PUBLIC_DYSONSPHERE_WHEEL_URL`; production builds continue to install dysonsphere from PyPI.
 - Retire root plotting/build scripts, the Illustrator wrapper, and the old `docs/` gallery.
