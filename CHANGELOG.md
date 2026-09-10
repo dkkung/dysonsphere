@@ -74,6 +74,8 @@
 
 ### Fixes
 
+- Chart Studio now applies its browser SVG inward-tick correction when the executed chart's resolved
+  theme records `tickDirection="in"`.
 - Beeswarm and quasirandom transforms support multiple grouping columns on all supported Polars
   versions, including the Polars 1.33 runtime used by Chart Studio.
 - Fixed subtitle font sizing and error-band border stroke opacity/width theme wiring.
@@ -105,6 +107,8 @@
 
 ### Internal
 
+- Website development can opt Chart Studio into a locally served candidate core wheel with
+  `PUBLIC_DYSONSPHERE_WHEEL_URL`; production builds continue to install dysonsphere from PyPI.
 - Retire root plotting/build scripts, the Illustrator wrapper, and the old `docs/` gallery.
   Maintained examples and generators live under `website/`; palette recipes live at
   `scripts/print_palettes.py`. Keep the two README logos at their existing URLs.

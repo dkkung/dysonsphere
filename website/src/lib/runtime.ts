@@ -18,6 +18,12 @@
 // never shown in user code.
 
 const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v314.0.2/full/';
+// Local candidate wheels are an explicit dev-only override. Production builds always install
+// dysonsphere from PyPI, even if a PUBLIC_DYSONSPHERE_WHEEL_URL happens to be present.
+const DYSONSPHERE_INSTALL_TARGET =
+	import.meta.env.DEV && import.meta.env.PUBLIC_DYSONSPHERE_WHEEL_URL
+		? import.meta.env.PUBLIC_DYSONSPHERE_WHEEL_URL
+		: 'dysonsphere';
 
 export interface DsRuntime {
 	runChart(code: string, dark: boolean): string;
@@ -157,11 +163,14 @@ export function getRuntime(): Promise<DsRuntime> {
 		// fails outright. Install dysonsphere without deps and pull the importable ones
 		// explicitly; vl_convert is imported lazily only when save() renders, which the studio
 		// never does. vega-datasets so example snippets (the classic datasets) run unchanged.
+		// Pass the URL through Pyodide globals rather than interpolating it into Python source.
+		pyodide.globals.set('_dysonsphere_install_target', DYSONSPHERE_INSTALL_TARGET);
 		await pyodide.runPythonAsync(`
 import micropip
 await micropip.install(["altair", "numpy", "polars", "pyarrow", "scipy", "vega-datasets"])
-await micropip.install("dysonsphere", deps=False)
+await micropip.install(_dysonsphere_install_target, deps=False)
 `);
+		pyodide.globals.delete('_dysonsphere_install_target');
 
 		await pyodide.runPythonAsync(PY_BOOTSTRAP);
 		// Bridge the release gap: palettes the site knows but the installed PyPI release

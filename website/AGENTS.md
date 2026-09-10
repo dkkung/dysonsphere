@@ -57,6 +57,9 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
 ## Commands
 
 - Dev server: `npm run dev` (it daemonizes; manage with `astro dev stop` / `status` / `logs`).
+- To preview current core source in Studio without publishing, build a wheel outside the repository,
+  serve it with CORS, then start dev with `PUBLIC_DYSONSPHERE_WHEEL_URL=http://127.0.0.1:<port>/<wheel> npm run dev`.
+  The override is honored only in Astro dev mode; production builds always install `dysonsphere` from PyPI.
 - Build: `npm run build` (local, serves at `/`). Deploy-equivalent build:
   `DEPLOY_SITE=https://dkkung.github.io DEPLOY_BASE=/dysonsphere npm run build` - the env vars
   set Astro's `site`/`base` (see astro.config.mjs); CI (`.github/workflows/pages.yml`) builds
