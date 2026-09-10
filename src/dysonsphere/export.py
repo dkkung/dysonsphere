@@ -7,6 +7,7 @@ import tempfile
 import uuid
 import xml.etree.ElementTree as ET
 from contextlib import ExitStack
+from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Union, cast
 
@@ -263,8 +264,6 @@ def save(
     # are actually present, and embed ONLY those records — so a record from a chart that was
     # built but never saved can't contaminate this save.  `exportIdentifier` + `timestamp` are
     # generated once (shared by every variant of this export); the checksum is per-variant.
-    from ._statistics import _select_reports
-
     # Under SOURCE_DATE_EPOCH both are pinned so two saves of one figure are byte-identical:
     # the timestamp comes from the epoch, and the run id is derived from the first variant's
     # content below (it needs the checksums, which are only computed inside the loop).
@@ -301,19 +300,29 @@ def save(
         if _want_render or "html" in _formats:
             import vl_convert as vlc
 
+        # Resolve and validate every variant before writing anything. Besides making multi-background
+        # exports transactional, this calls a callable exactly once per variant and keeps the object
+        # used by the SVG renderer paired with the exact preflighted spec.
+        _variants: list[tuple[str, _AltairChart, dict[str, Any]]] = []
         for bg in _backgrounds:
             alt.theme.options["darkmode"] = bg == "dark"
-            # The spec is captured at the chart's logical transparency (for the JSON + the
-            # checksum); the SVG/PNG re-render below at the `transparent` param's value.
             alt.theme.options["transparent"] = original_transparent
             base_obj = _resolve_base()
-            # Non-finite floats become null before the spec is hashed OR written, so the checksum still
-            # revalidates against the file and the JSON never carries a bare NaN (not valid JSON).
             spec = _apply_spec_fixes(_json_safe(base_obj.to_dict()))
-            _hashes = metadata._scan_marker_hashes(spec) if saveMetadata else set()
-            _records = _select_reports(_hashes)
+            # The guard also runs when metadata will be stripped; loaded results must never silently
+            # survive a changed analytical panel in any output tier.
+            metadata._prepare_statistics_owners(deepcopy(spec))
+            _variants.append((bg, base_obj, spec))
+
+        for bg, base_obj, original_spec in _variants:
+            alt.theme.options["darkmode"] = bg == "dark"
+            alt.theme.options["transparent"] = original_transparent
+            spec = deepcopy(original_spec)
+            # Scan extension wrappers before a wrapped live-statistics marker is replaced by its
+            # persistent owner. Loaded persistent owners remain compatible with fresh extension tags.
             _exts = discovery._used_extensions(spec) if saveMetadata else {}  # extensions that made it
-            metadata._strip_markers(spec)  # markers are internal — never in the written output
+            _records, _bindings = metadata._prepare_statistics_owners(spec) if saveMetadata else ([], {})
+            metadata._strip_markers(spec, statistics_owners=not saveMetadata)
             _usermeta = _usermeta_json = _report_sections = None
             if saveMetadata:
                 _checksum = metadata._spec_checksum(spec)
@@ -330,6 +339,7 @@ def save(
                     extensions=_exts,
                     chart_expression=_chart_expression,
                     description=description,
+                    statistics_bindings=_bindings,
                 )
 
             if "json" in _formats:
@@ -446,7 +456,15 @@ def show(
 def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict[str, Any]":
     """Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).
 
-    JSON only — the PNG/SVG carry the metadata block but not the full spec.
+    JSON only — the PNG/SVG carry the metadata block but not the full spec. Statistical records
+    saved by the current version are restored with their owning chart components, so composition,
+    panel extraction, and a later :func:`save` preserve only the records still represented. The
+    numerical results and their source-data checksums are preserved, not recomputed. Loaded records
+    retain a guard over their saved analytical panel; changing data, mappings, transforms, parameters,
+    or annotation values makes a later save fail closed and requires rebuilding the annotation from
+    source data. Presentation edits and intact panel composition remain valid. Files from earlier
+    versions receive no adapter. Lookup transforms, runtime parameters/selections, external data, and
+    expressions beyond deterministic operations on ``datum`` cannot be preserved.
 
     Parameters
     ----------
@@ -455,7 +473,8 @@ def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_A
         theme ``config`` is stripped (Altair's schema rejects a few of dysonsphere's
         config values), so it comes back unstyled — see ``applyTheme``. ``True`` returns
         the raw Vega-Lite spec ``dict`` instead, ``config`` intact, which re-renders
-        pixel-identically (e.g. via ``vl_convert``) but is not a composable Altair object.
+        pixel-identically (e.g. via ``vl_convert``) but is not a composable Altair object. Raw mode
+        does not restore chart-owned statistical records into runtime state.
     applyTheme:
         For ``raw=False``: ``True`` (default) re-applies the theme baked into the file via
         ``ds.theme(**saved_args)`` so the object renders exactly as saved. Like any
@@ -468,15 +487,40 @@ def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_A
     spec = json.loads(p.read_text(encoding="utf-8"))
     if raw:
         return spec
-    if applyTheme:
-        theme_args = ((spec.get("usermeta") or {}).get("dysonsphere") or {}).get("theme")
-        if theme_args:
-            from .theme import theme as _theme
+    spec, imported_records = metadata._restore_statistics_owners(spec)
+    theme_args = ((spec.get("usermeta") or {}).get("dysonsphere") or {}).get("theme") if applyTheme else None
+    # Inline named datasets before dropping their top-level container. Top-level export properties
+    # otherwise make two loaded charts invalid as children of a new Altair composition.
+    datasets = cast(dict[str, Any], spec.get("datasets")) if isinstance(spec.get("datasets"), dict) else {}
 
-            _theme(**theme_args)
-    # Strip config (schema-incompatible) and usermeta before parsing into an Altair object.
-    stripped = {k: v for k, v in spec.items() if k not in ("config", "usermeta")}
-    return cast("_AltairChart", alt.Chart.from_dict(stripped))
+    def inline_named_data(node: dict[str, Any]) -> None:
+        data = node.get("data")
+        if isinstance(data, dict) and isinstance(data.get("name"), str) and data["name"] in datasets:
+            node["data"] = {**data, "values": datasets[data["name"]]}
+            del node["data"]["name"]
+        for transform in node.get("transform", []) if isinstance(node.get("transform"), list) else []:
+            source = transform.get("from", {}).get("data") if isinstance(transform, dict) else None
+            if isinstance(source, dict) and isinstance(source.get("name"), str):
+                name = source["name"]
+                if name not in datasets:
+                    raise ValueError(f"saved chart lookup references missing named dataset {name!r}")
+                transform["from"]["data"] = {**source, "values": datasets[name]}
+                del transform["from"]["data"]["name"]
+
+    metadata._walk_chart_nodes(spec, inline_named_data)
+    # Strip export-only top-level properties before parsing into a composable Altair object.
+    stripped = {k: v for k, v in spec.items() if k not in ("$schema", "background", "config", "datasets", "usermeta")}
+    chart = cast("_AltairChart", alt.Chart.from_dict(stripped))
+    if theme_args:
+        from .theme import theme as _theme
+
+        _theme(**theme_args)
+    if imported_records:
+        from ._statistics import _register_loaded_report
+
+        for record, context_hash in imported_records:
+            _register_loaded_report(record, context_hash)
+    return chart
 
 
 def _align_grid_to_content(root: ET.Element, axis_offset: float) -> None:

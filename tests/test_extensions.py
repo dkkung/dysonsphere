@@ -9,8 +9,8 @@ import polars as pl
 import pytest
 
 import dysonsphere as ds
+from dysonsphere import _statistics, metadata
 from dysonsphere import discovery as ext
-from dysonsphere import metadata
 
 
 @pytest.fixture(autouse=True)
@@ -140,9 +140,10 @@ def test_tag_extension_carries_statistics_marker_through_spec_roundtrip():
     spec = ext._tag_extension(_tiny_chart().properties(name=marker), "biology").to_dict()
     roundtripped = json.loads(json.dumps(spec))
 
-    assert metadata._scan_marker_hashes(roundtripped) == {"0123456789abcdef"}
     parsed = ext._parse_extension_marker(roundtripped["name"])
     assert parsed is not None and parsed[0] == "biology"
+    _, underlying = ext._unwrap_extension_markers(roundtripped["name"])
+    assert underlying == marker and _statistics._marker_hash(underlying) == "0123456789abcdef"
     metadata._strip_markers(roundtripped)
     assert "name" not in roundtripped
 
@@ -159,7 +160,8 @@ def test_nested_extension_tags_preserve_all_identity():
     spec = tagged.to_dict()
 
     assert ext._unwrap_extension_markers(spec["name"]) == (["other", "biology"], marker)
-    assert metadata._scan_marker_hashes(spec) == {"0123456789abcdef"}
+    _, underlying = ext._unwrap_extension_markers(spec["name"])
+    assert underlying == marker and _statistics._marker_hash(underlying) == "0123456789abcdef"
     fake = types.SimpleNamespace(dist=types.SimpleNamespace(version="1.0"))
     with pytest.MonkeyPatch.context() as monkeypatch:
         monkeypatch.setattr(ext, "_extension_entry_points", lambda: {"biology": fake, "other": fake})
