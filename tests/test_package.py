@@ -160,6 +160,21 @@ class TestPackageNamespace:
         assert result.height == data.height
         assert f"{algorithm}_x" in result.columns
 
+    def test_studio_applies_inward_ticks_from_resolved_theme(self):
+        studio = Path(__file__).resolve().parents[1] / "website/src/components/Studio.astro"
+        source = studio.read_text(encoding="utf-8")
+        assert "spec.usermeta?.dysonsphere?.theme?.tickDirection === 'in'" in source
+        assert "flipTicksInward(chartEl)" in source
+
+    def test_studio_candidate_wheel_is_dev_only_and_passed_safely(self):
+        runtime = Path(__file__).resolve().parents[1] / "website/src/lib/runtime.ts"
+        source = runtime.read_text(encoding="utf-8")
+        assert "import.meta.env.DEV && import.meta.env.PUBLIC_DYSONSPHERE_WHEEL_URL" in source
+        assert ": 'dysonsphere';" in source
+        assert "globals.set('_dysonsphere_install_target', DYSONSPHERE_INSTALL_TARGET)" in source
+        assert "micropip.install(_dysonsphere_install_target, deps=False)" in source
+        assert 'micropip.install("dysonsphere", deps=False)' not in source
+
     def test_labels_function_survives_module_imports(self):
         for name in ("display_labels", "marks", "annotations", "transforms"):
             importlib.import_module(f"dysonsphere.{name}")
