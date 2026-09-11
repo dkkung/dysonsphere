@@ -5,9 +5,12 @@
 ### Changes
 
 - Rule segments support optional arrow, circle, and square endpoint caps plus pixel clearances.
+  Arrowheads use a compact 2 px minimum depth; circle and square cap sizes are unchanged.
   Decorations follow resolved SVG geometry across diagonal rules, reversed scales, and facets in
   `save()`/`show()` SVG and PNG output; bare Altair and interactive HTML retain the underlying rule.
   Omitted cap gaps use the existing theme-derived point-label connector clearance.
+- Point-label connectors support `connectorCap="arrow"`, pointing toward each target while reusing
+  the existing connector gap without changing label placement or text-end clearance.
 
 - **Breaking:** `rule()` now uses explicit keyword coordinates (`x`, `y`, `x2`, and `y2`) for
   horizontal, vertical, bounded, and diagonal segments. Equation rules accept `slope`, an optional

@@ -390,7 +390,8 @@ def rule(
         primary endpoint and end is the secondary endpoint, preserving explicit endpoint/span order
         even on reversed scales. For an implicit full-span horizontal rule start/end are the left/right
         plot edges; for a full-span vertical rule they are the top/bottom edges. Decorations are sized
-        from the rendered rule width, with a modest 4 px minimum.
+        from the rendered rule width, with a 2 px minimum for arrows and a 4 px minimum for circles
+        and squares.
     startGap, endGap:
         Nonnegative finite pixel clearance between the target coordinate and the decoration's
         outermost tip/edge. ``None`` derives the same theme-aware marker clearance used by point-label
@@ -1051,6 +1052,7 @@ def labels(
     stroke: str | bool = True,
     cornerRadius: float | bool = True,
     connector: bool = True,
+    connectorCap: Literal["arrow"] | None = None,
     connectorColor: str | None = None,
     connectorOpacity: float | None = None,
     connectorStrokeDash: bool | list[int | float] = False,
@@ -1116,6 +1118,15 @@ def labels(
         -> ``0`` (square); an explicit float -> that radius in px. Ignored when no chip is drawn.
     connector:
         Whether to draw the line connecting each point to its label (default ``True``).
+    connectorCap:
+        Optional ``"arrow"`` at the point-facing end of each connector. The arrow points toward the
+        target point and uses the existing ``connectorGap`` exactly once; no additional cap gap is
+        added. ``None`` (default) leaves connector specs and rendering unchanged. A valid cap is a
+        harmless inactive setting when ``connector=False``. Caps are applied in ``ds.save()`` SVG/PNG
+        and ``ds.show()``, not bare Altair or interactive HTML. If the post-gap rendered connector is
+        too short for the fixed arrow geometry, that connector is omitted rather than shrinking the
+        arrow or moving the label; all requested labels remain shown. This also applies when
+        ``alwaysShowConnectors=True``.
     connectorColor:
         Connector line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware).
         Connectors otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke,
@@ -1158,6 +1169,8 @@ def labels(
         column contains a missing, non-numeric, or non-finite value. Coordinate validation covers
         rows outside the selected subset because they still define the plot domain and obstacles.
     """
+    if connectorCap not in (None, "arrow"):
+        raise ValueError(f"connectorCap must be 'arrow' or None, got {connectorCap!r}")
     df, xCol, yCol = data, x, y
     from ._placement import _repel_labels, _sample_spread
     from .utils import _ensure_polars, _nice_domain
@@ -1205,6 +1218,10 @@ def labels(
         text_kwargs["fontStyle"] = fontStyle
     # connectorStrokeDash: False -> solid ([0, 0]); True -> the theme's dashedWidth; a list -> as given.
     rule_kwargs: dict[str, Any] = {"strokeDash": _resolve_dash(connectorStrokeDash)}
+    if connectorCap == "arrow":
+        # Connector coordinates already include marker- and text-end clearances. Decorate the
+        # point-facing primary endpoint with zero additional gap so clearance is applied once.
+        rule_kwargs["description"] = _rule_cap_marker("arrow", None, 0.0, 0.0)
     if connectorColor is not None:
         rule_kwargs["color"] = connectorColor
     # connectorOpacity only sets the mark's opacity, leaving color to the (darkmode-aware) default or

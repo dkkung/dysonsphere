@@ -160,9 +160,12 @@ def _decorate_rule_segments(root: ET.Element) -> None:
         ux, uy = dx / length, dy / length
         px, py = -uy, ux
         stroke_width = float(line.get("stroke-width") or 1)
-        cap_size = max(4.0, 4.0 * stroke_width)
-        start_extent = start_gap + (cap_size if start_cap is not None else 0)
-        end_extent = end_gap + (cap_size if end_cap is not None else 0)
+
+        def cap_size(cap: str | None) -> float:
+            return max(2.0, 2.0 * stroke_width) if cap == "arrow" else max(4.0, 4.0 * stroke_width)
+
+        start_extent = start_gap + (cap_size(start_cap) if start_cap is not None else 0)
+        end_extent = end_gap + (cap_size(end_cap) if end_cap is not None else 0)
         if start_extent + end_extent >= length:
             # Never move a decoration beyond the opposite target or silently reduce a requested
             # clearance. There is no drawable segment when the full endpoint extents do not fit.
@@ -173,9 +176,10 @@ def _decorate_rule_segments(root: ET.Element) -> None:
             tip_x, tip_y = x + ix * gap, y + iy * gap
             if cap is None:
                 return tip_x, tip_y, None
+            size = cap_size(cap)
             if cap == "arrow":
-                base_x, base_y = tip_x + ix * cap_size, tip_y + iy * cap_size
-                half_width = cap_size * 0.6
+                base_x, base_y = tip_x + ix * size, tip_y + iy * size
+                half_width = size * 0.6
                 path = ET.Element(f"{{{_SVG_NS}}}path")
                 path.set(
                     "d",
@@ -183,7 +187,7 @@ def _decorate_rule_segments(root: ET.Element) -> None:
                     f"L{point_text(base_x - px * half_width, base_y - py * half_width)}Z",
                 )
                 return base_x, base_y, path
-            half = cap_size / 2
+            half = size / 2
             center_x, center_y = tip_x + ix * half, tip_y + iy * half
             if cap == "circle":
                 shape = ET.Element(

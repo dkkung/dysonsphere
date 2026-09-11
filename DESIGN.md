@@ -96,6 +96,12 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   a callable like other construction-time geometry.
   References: `annotations.py::_automatic_marker_gap`, `labels`, `rule`.
 
+- **Label connector arrows decorate existing connector geometry.** `labels` already resolves its
+  point- and text-end clearances before emitting a connector. Its point-facing arrow therefore uses
+  the shared rule-cap marker with zero additional SVG gap, preserving placement and applying
+  `connectorGap` once. A connector too short for the fixed cap is omitted without moving its label.
+  References: `annotations.py::labels`; `export.py::_decorate_rule_segments`.
+
 - **Extensions have their own distributions.** Keep optional dependencies and release schedules
   outside core. Extras would couple releases; namespace-package restructuring would disrupt the
   core import path for little gain. Discovery supplies `ds.biology` without either change, and

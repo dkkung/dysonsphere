@@ -212,6 +212,25 @@ class TestLabels:
         marks = self._connector_marks(labels(df, "x", "y", "g", connectorOpacity=0.25))
         assert marks and all(m["opacity"] == 0.25 and "color" not in m for m in marks)
 
+    def test_connector_cap_default_leaves_spec_unchanged(self, df):
+        implicit = labels(df, "x", "y", "g", alwaysShowConnectors=True).to_dict()
+        explicit = labels(df, "x", "y", "g", connectorCap=None, alwaysShowConnectors=True).to_dict()
+        assert implicit == explicit
+        assert all("description" not in mark for mark in self._connector_marks(labels(df, "x", "y", "g")))
+
+    def test_connector_arrow_reuses_existing_start_and_text_end_geometry(self, df):
+        plain = labels(df, "x", "y", "g", connectorGap=0, alwaysShowConnectors=True).to_dict()
+        arrow = labels(df, "x", "y", "g", connectorGap=0, connectorCap="arrow", alwaysShowConnectors=True).to_dict()
+        plain_enc = [layer["encoding"] for layer in plain["layer"] if layer["mark"]["type"] == "rule"]
+        arrow_layers = [layer for layer in arrow["layer"] if layer["mark"]["type"] == "rule"]
+        assert [layer["encoding"] for layer in arrow_layers] == plain_enc
+        assert all(layer["mark"]["description"].startswith("__dsrulecap_") for layer in arrow_layers)
+
+    def test_connector_cap_validation_even_when_connector_disabled(self, df):
+        with pytest.raises(ValueError, match="connectorCap"):
+            labels(df, "x", "y", "g", connector=False, connectorCap="circle")  # ty: ignore[invalid-argument-type]
+        assert isinstance(labels(df, "x", "y", "g", connector=False, connectorCap="arrow"), alt.LayerChart)
+
     def test_connector_gap_shortens_line(self, df):
         import math
 

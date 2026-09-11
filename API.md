@@ -61,6 +61,9 @@ notes are local working material, not dependencies of this framework or part of 
   order. Omitted gaps with a cap derive the same theme-aware point clearance used by label
   connectors; capless omitted gaps are 0 and explicit zero is preserved. This rendered geometry is
   part of the shared SVG/PNG/save/show pipeline, not bare Altair or HTML.
+- Point-label connectors optionally use `connectorCap="arrow"` at their point-facing end. Their
+  existing `connectorGap` is applied once; no second cap gap is introduced. As with rule caps, this
+  decoration is available in the shared SVG/PNG/save/show pipeline, not bare Altair or HTML.
 - `add_*` operations take an existing chart and return an augmented chart.
 - Keep `mark_*` for general-purpose composite mark constructors, matching Altair vocabulary.
 - Keep `multilabel` as the name of the condition-table system.

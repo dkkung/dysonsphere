@@ -31,6 +31,16 @@ the labels with `fontSize`, `color`, and `fontStyle` (e.g. `fontStyle="italic"` 
 species names), and give them a background chip with `fill` / `fillOpacity` / `stroke` /
 `cornerRadius` (drawn only when `fill` is set) to keep them readable over a dense scatter.
 
+Set `connectorCap="arrow"` to point each connector toward its target. The existing `connectorGap`
+controls target clearance and is applied once; label placement and text-end clearance do not change.
+Arrowheads appear in `ds.save()` SVG/PNG and `ds.show()`, not raw Altair or interactive HTML, so use
+an export for the decorated result:
+
+```python
+arrow_labels = points + ds.labels(data, "x", "y", "name", connectorCap="arrow")
+ds.save(arrow_labels, "arrow-labels", format=["svg", "png"])
+```
+
 <Example name="labels" alt="Scatter plot with eight auto-placed, connector-linked point labels" />
 
 ## Superscripts and subscripts

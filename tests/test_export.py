@@ -12,6 +12,7 @@ import pytest
 
 from dysonsphere.annotations import _rule_cap_marker
 from dysonsphere.export import (
+    _TRANSLATE,
     _align_grid_to_content,
     _decorate_rule_segments,
     _fix_font_for_illustrator,
@@ -41,6 +42,14 @@ class TestRuleCaps:
         return tuple(map(float, match.groups()))
 
     @staticmethod
+    def _arrow_dimensions(path):
+        points = [tuple(map(float, point)) for point in re.findall(r"(?:M|L)([\d.e+-]+),([\d.e+-]+)", path)]
+        assert len(points) == 3
+        tip, left, right = points
+        base_midpoint = ((left[0] + right[0]) / 2, (left[1] + right[1]) / 2)
+        return math.dist(tip, base_midpoint), math.dist(left, right)
+
+    @staticmethod
     def _tree(start_cap=None, end_cap=None, start_gap=0, end_gap=0, *, length=100):
         marker = _rule_cap_marker(start_cap, end_cap, start_gap, end_gap)
         root = ET.fromstring(
@@ -54,14 +63,15 @@ class TestRuleCaps:
     def test_both_arrows_apply_tip_gap_and_shorten_shaft(self):
         root = self._tree("arrow", "arrow", 3, 3)
         line = next(root.iter(f"{{{NS}}}line"))
-        assert line.get("transform") == "translate(7,0)"  # 3 px daylight + 4 px arrow depth
-        assert line.get("x2") == "86"
+        assert line.get("transform") == "translate(5,0)"  # 3 px daylight + 2 px arrow depth
+        assert line.get("x2") == "90"
         caps = list(root.iter(f"{{{NS}}}path"))
         assert len(caps) == 2
         assert all(cap.get("fill") == "#123456" and cap.get("opacity") == "0.4" for cap in caps)
         paths = {cap.get("d", "") for cap in caps}
         assert any(path.startswith("M3,0L") for path in paths)
         assert any(path.startswith("M97,0L") for path in paths)
+        assert all(self._arrow_dimensions(path) == pytest.approx((2.0, 2.4)) for path in paths)
 
     @pytest.mark.parametrize("cls", ["__dsrulecap_", "__dsrulecap_bad", "__dsrulecap_1_zz", "__dsrulecap_1_ff"])
     def test_malformed_user_class_is_ignored(self, cls):
@@ -82,8 +92,14 @@ class TestRuleCaps:
         line = next(root.iter(f"{{{NS}}}line"))
         assert line.get("transform") == "translate(7,0)"  # outer edge 3; 4 px decoration depth
 
+    def test_mixed_caps_use_each_shapes_extent(self):
+        root = self._tree("arrow", "circle", 3, 3)
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("transform") == "translate(5,0)"
+        assert line.get("x2") == "88"
+
     def test_short_segment_hides_shaft_and_keeps_caps(self):
-        root = self._tree("arrow", "arrow", 3, 3, length=10)
+        root = self._tree("arrow", "arrow", 3, 3, length=9)
         assert next(root.iter(f"{{{NS}}}line")).get("display") == "none"
         assert not list(root.iter(f"{{{NS}}}path"))
 
@@ -211,6 +227,88 @@ class TestRuleCaps:
         cap = next(el for el in root.iter() if el.get("class") == "ds-rule-cap")
         assert cap.get("opacity") == "0"
         assert cap.get("fill-opacity") == "0.25"
+
+
+class TestLabelConnectorCaps:
+    @staticmethod
+    def _translate(transform):
+        match = _TRANSLATE.match(transform)
+        assert match is not None
+        return tuple(map(float, match.groups()))
+
+    @staticmethod
+    def _dense_labels(connector_cap=None, *, connector_gap=None, connector_opacity=None):
+        import dysonsphere as ds
+
+        df = pl.DataFrame(
+            {
+                "x": [5.0, 5.05, 4.95, 5.0, 5.1, 4.9],
+                "y": [5.0, 5.0, 5.0, 5.05, 4.95, 5.1],
+                "label": ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"],
+            }
+        )
+        kwargs = {
+            "xDomain": (0.0, 10.0),
+            "yDomain": (0.0, 10.0),
+            "alwaysShowConnectors": True,
+            "connectorCap": connector_cap,
+            "connectorGap": connector_gap,
+            "connectorOpacity": connector_opacity,
+        }
+        return df, ds.labels(df, "x", "y", "label", **kwargs)  # ty: ignore[invalid-argument-type]
+
+    def test_export_arrow_tip_is_existing_connector_start_no_double_gap(self, tmp_path):
+        theme(chartWidth=140, chartHeight=100, viewPadding=False)
+        _, plain = self._dense_labels(connector_gap=0)
+        _, arrow = self._dense_labels("arrow", connector_gap=0)
+        save(plain, tmp_path / "plain", format="svg", saveMetadata=False)
+        save(arrow, tmp_path / "arrow", format="svg", saveMetadata=False)
+        plain_root = ET.fromstring((tmp_path / "plain.svg").read_text())
+        arrow_root = ET.fromstring((tmp_path / "arrow.svg").read_text())
+        plain_starts = {
+            self._translate(line.get("transform", ""))
+            for line in plain_root.iter(f"{{{NS}}}line")
+            if line.get("stroke") == "black" and _TRANSLATE.match(line.get("transform", ""))
+        }
+        tips = [
+            TestRuleCaps._arrow_tip(cap.get("d", "")) for cap in arrow_root.iter() if cap.get("class") == "ds-rule-cap"
+        ]
+        assert tips
+        assert all(any(math.dist(tip, start) < 1e-9 for start in plain_starts) for tip in tips)
+        dimensions = [
+            TestRuleCaps._arrow_dimensions(cap.get("d", ""))
+            for cap in arrow_root.iter()
+            if cap.get("class") == "ds-rule-cap"
+        ]
+        assert all(dimension == pytest.approx((2.0, 2.4)) for dimension in dimensions)
+
+    def test_connector_arrow_preserves_color_opacity_and_roundtrip_data(self, tmp_path):
+        import dysonsphere as ds
+
+        theme(chartWidth=140, chartHeight=100)
+        df, arrows = self._dense_labels("arrow", connector_opacity=0.35)
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        chart = (base + arrows).configure_rule(strokeOpacity=0.4)
+        save(chart, tmp_path / "labels", format=["svg", "json"])
+        root = ET.fromstring((tmp_path / "labels.svg").read_text())
+        caps = [element for element in root.iter() if element.get("class") == "ds-rule-cap"]
+        assert caps and all(cap.get("opacity") == "0.35" and cap.get("fill-opacity") == "0.4" for cap in caps)
+        loaded = ds.load(tmp_path / "labels.json")
+        save(cast(Any, loaded), tmp_path / "loaded", format="svg", saveMetadata=False)
+        assert 'class="ds-rule-cap"' in (tmp_path / "loaded.svg").read_text()
+        assert ds.metadata.read(tmp_path / "labels.json", what="data").equals(df)
+
+    def test_too_short_arrow_connector_is_omitted_but_label_remains(self, tmp_path):
+        theme(chartWidth=100, chartHeight=100)
+        df = pl.DataFrame({"x": [5.0], "y": [5.0], "label": ["a"]})
+        import dysonsphere as ds
+
+        chart = ds.labels(df, "x", "y", "label", connectorCap="arrow", alwaysShowConnectors=True)
+        save(chart, tmp_path / "short", format="svg", saveMetadata=False)
+        svg = (tmp_path / "short.svg").read_text()
+        assert ">a</text>" in svg
+        # A sub-arrow-depth connector is omitted as a whole; no intersecting/shrunken arrow is emitted.
+        assert 'class="ds-rule-cap"' not in svg
 
 
 def test_png_ppi_scales_from_svg_72_units_per_inch(tmp_path):
