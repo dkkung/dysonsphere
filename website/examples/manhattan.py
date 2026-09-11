@@ -44,7 +44,7 @@ points = (
     )
 )
 
-sig = ds.rule(7.3, label="P = 5×10⁻⁸", strokeDash=True, labelAlign="right")
+sig = ds.rule(y=7.3, label="P = 5×10⁻⁸", strokeDash=True, labelAlign="right")
 
 hits_df = pl.DataFrame(hit_rows)
 gene_labels = ds.labels(

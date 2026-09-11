@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 import tempfile
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 
 from . import discovery, metadata
 from .theme import _opt
-from .utils import _SHADE_PREFIX, _SUP, _apply_spec_fixes, _json_safe
+from .utils import _RULE_CAP_PREFIX, _SHADE_PREFIX, _SUP, _apply_spec_fixes, _json_safe
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -78,8 +79,9 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     """
     import vl_convert as vlc
 
-    spec = _apply_spec_fixes(base_obj.to_dict())  # marker names are in the spec but never render into SVG
+    spec = _apply_spec_fixes(base_obj.to_dict())
     root = ET.fromstring(vlc.vegalite_to_svg(spec))  # parsed ONCE; every fixer mutates this tree
+    _decorate_rule_segments(root)  # marker classes and unsimplified line transforms are still intact
     axis_offset = 0 if _opt("closed") else _opt("axisOffset")
     if axis_offset:
         _align_grid_to_content(root, axis_offset)
@@ -95,6 +97,137 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
     Path(svg_path).write_text(svg, encoding="utf-8")
     return svg
+
+
+_LINE_TRANSLATE = re.compile(r"^translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)$")
+
+
+def _rule_cap_options(cls: str) -> tuple[str | None, str | None, float, float] | None:
+    """Decode the durable rule-decoration payload carried by a rendered line's aria-label."""
+    marker = next((part for part in cls.split() if part.startswith(_RULE_CAP_PREFIX)), None)
+    if marker is None:
+        return None
+    token = re.match(r"[0-9a-f]+", marker[len(_RULE_CAP_PREFIX) :])
+    if token is None:
+        return None
+    try:
+        start_cap, end_cap, start_gap, end_gap = json.loads(bytes.fromhex(token.group()).decode())
+        return start_cap, end_cap, float(start_gap), float(end_gap)
+    except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+
+def _decorate_rule_segments(root: ET.Element) -> None:
+    """Apply pixel-accurate caps and gaps to opted-in rule lines in the rendered SVG tree.
+
+    Geometry is measured after Vega has resolved scales, facets, dimensions, and reversals. Each
+    original line is shortened in its own SVG coordinate system and cap elements are inserted beside
+    it, preserving editable SVG objects. Screen-coincident segments and segments too short to fit
+    the full endpoint insets are omitted, including their caps, rather than reducing clearance.
+
+    This low-level segment operation deliberately knows nothing about ``rule`` data coordinates and
+    can be reused for connector marks once a separate connector-cap API is approved.
+    """
+    decorated = [
+        (line, options)
+        for line in root.iter(f"{{{_SVG_NS}}}line")
+        if (options := _rule_cap_options(line.get("aria-label", ""))) is not None
+    ]
+    if not decorated:
+        return
+    parents = {child: parent for parent in root.iter() for child in parent}
+
+    def point_text(x: float, y: float) -> str:
+        return f"{x:.12g},{y:.12g}"
+
+    for line, options in decorated:
+        start_cap, end_cap, start_gap, end_gap = options
+        parent = parents.get(line)
+        if parent is None:
+            continue
+        match = _LINE_TRANSLATE.match(line.get("transform", ""))
+        if match is None:
+            continue
+        x0 = float(match.group(1)) + float(line.get("x1") or line.get("x") or 0)
+        y0 = float(match.group(2)) + float(line.get("y1") or line.get("y") or 0)
+        x1 = float(match.group(1)) + float(line.get("x2") or 0)
+        y1 = float(match.group(2)) + float(line.get("y2") or 0)
+        dx, dy = x1 - x0, y1 - y0
+        length = math.hypot(dx, dy)
+        if length <= 1e-12:
+            line.set("display", "none")
+            continue
+        ux, uy = dx / length, dy / length
+        px, py = -uy, ux
+        stroke_width = float(line.get("stroke-width") or 1)
+
+        def cap_size(cap: str | None) -> float:
+            return 4.0 * math.sqrt(stroke_width) if cap == "arrow" else max(4.0, 4.0 * stroke_width)
+
+        start_extent = start_gap + (cap_size(start_cap) if start_cap is not None else 0)
+        end_extent = end_gap + (cap_size(end_cap) if end_cap is not None else 0)
+        if start_extent + end_extent >= length:
+            # Never move a decoration beyond the opposite target or silently reduce a requested
+            # clearance. There is no drawable segment when the full endpoint extents do not fit.
+            line.set("display", "none")
+            continue
+
+        def cap_geometry(cap: str | None, x: float, y: float, ix: float, iy: float, gap: float):
+            tip_x, tip_y = x + ix * gap, y + iy * gap
+            if cap is None:
+                return tip_x, tip_y, None
+            size = cap_size(cap)
+            if size == 0:
+                return tip_x, tip_y, None
+            if cap == "arrow":
+                base_x, base_y = tip_x + ix * size, tip_y + iy * size
+                half_width = size * 0.6
+                path = ET.Element(f"{{{_SVG_NS}}}path")
+                path.set(
+                    "d",
+                    f"M{point_text(tip_x, tip_y)}L{point_text(base_x + px * half_width, base_y + py * half_width)}"
+                    f"L{point_text(base_x - px * half_width, base_y - py * half_width)}Z",
+                )
+                return base_x, base_y, path
+            half = size / 2
+            center_x, center_y = tip_x + ix * half, tip_y + iy * half
+            if cap == "circle":
+                shape = ET.Element(
+                    f"{{{_SVG_NS}}}circle",
+                    {"cx": f"{center_x:.12g}", "cy": f"{center_y:.12g}", "r": f"{half:.12g}"},
+                )
+            else:
+                corners = [
+                    (center_x + sx * ix * half + sy * px * half, center_y + sx * iy * half + sy * py * half)
+                    for sx, sy in ((-1, -1), (-1, 1), (1, 1), (1, -1))
+                ]
+                shape = ET.Element(f"{{{_SVG_NS}}}path", {"d": "M" + "L".join(point_text(*p) for p in corners) + "Z"})
+            # Meet the decoration at its inward edge rather than drawing underneath it; this
+            # avoids darkening translucent caps through alpha overlap.
+            return center_x + ix * half, center_y + iy * half, shape
+
+        sx, sy, start_shape = cap_geometry(start_cap, x0, y0, ux, uy, start_gap)
+        ex, ey, end_shape = cap_geometry(end_cap, x1, y1, -ux, -uy, end_gap)
+        for shape in (start_shape, end_shape):
+            if shape is None:
+                continue
+            shape.set("class", "ds-rule-cap")
+            shape.set("fill", line.get("stroke", "black"))
+            shape.set("stroke", "none")
+            shape.set("opacity", line.get("opacity", "1"))
+            shape.set("fill-opacity", line.get("stroke-opacity", "1"))
+            shape.set("pointer-events", "none")
+            parent.insert(list(parent).index(line) + 1, shape)
+        remaining = (ex - sx) * ux + (ey - sy) * uy
+        if remaining <= 0:
+            line.set("display", "none")
+        else:
+            line.set("transform", f"translate({sx:.12g},{sy:.12g})")
+            line.set("x1", "0")
+            line.set("y1", "0")
+            line.set("x2", f"{ex - sx:.12g}")
+            line.set("y2", f"{ey - sy:.12g}")
+            line.set("stroke-linecap", "butt")
 
 
 def save(

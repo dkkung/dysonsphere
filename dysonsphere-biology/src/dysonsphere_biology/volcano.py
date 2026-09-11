@@ -201,9 +201,9 @@ def volcano(
     if thresholdLines:
         # Dashed theme-styled reference guides at the +-fold-change and p-value cutoffs. ds.rule
         # positions by alt.datum, so it composes here without nulling the axis titles.
-        layers.append(ds.rule(-fcThreshold, axis="x"))
-        layers.append(ds.rule(fcThreshold, axis="x"))
-        layers.append(ds.rule(-math.log10(pThreshold), axis="y"))
+        layers.append(ds.rule(x=-fcThreshold))
+        layers.append(ds.rule(x=fcThreshold))
+        layers.append(ds.rule(y=-math.log10(pThreshold)))
 
     chart: ext.AltairChart = alt.layer(*layers).resolve_scale(color="independent")
     if subset is not None:

@@ -27,6 +27,6 @@ base = (
         y=alt.Y("mortality:Q", title="Maternal mortality (%)", scale=alt.Scale(domain=[0, 18], nice=False)),
     )
 )
-rule = ds.rule(1847, axis="x", label="handwashing introduced", labelAlign="top", labelPosition="left")
+rule = ds.rule(x=1847, label="handwashing introduced", labelAlign="top", labelPosition="left")
 
 chart = base + rule

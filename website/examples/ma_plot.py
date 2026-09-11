@@ -55,8 +55,8 @@ points = (
     )
 )
 
-zero = ds.rule(0.0)  # M = 0: no change
-thresh = ds.rule([-1.0, 1.0], strokeDash=True)  # 2-fold-change guides
+zero = ds.rule(y=0.0)  # M = 0: no change
+thresh = ds.rule(y=[-1.0, 1.0], strokeDash=True)  # 2-fold-change guides
 
 gene_labels = ds.labels(df, "A", "M", "gene", subset=df["gene"].is_not_null(), fontStyle="italic")
 

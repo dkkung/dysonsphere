@@ -371,6 +371,9 @@ _INTERNAL_COL = "__dysonsphere__"
 # grid and axes. Deliberately NOT the `__dysonsphere_` prefix: `metadata._strip_markers` deletes
 # that from written output, which would break the fixer after a `ds.load()` round trip.
 _SHADE_PREFIX = "__dsshade_"
+# Durable rule-decoration marker. Unlike transient statistics/extension markers, this remains in
+# saved Vega-Lite JSON so SVG/PNG rendering after ``load()`` can reapply the decoration geometry.
+_RULE_CAP_PREFIX = "__dsrulecap_"
 
 # Unicode superscript digits 0-9 - the SINGLE source for every notation label that renders an
 # exponent: nonlinear.log_label_expr (10ⁿ / bⁿ log labels), stats._superscript (p-value
