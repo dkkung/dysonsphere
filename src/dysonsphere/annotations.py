@@ -390,8 +390,8 @@ def rule(
         primary endpoint and end is the secondary endpoint, preserving explicit endpoint/span order
         even on reversed scales. For an implicit full-span horizontal rule start/end are the left/right
         plot edges; for a full-span vertical rule they are the top/bottom edges. Decorations are sized
-        from the rendered rule width, with a 2 px minimum for arrows and a 4 px minimum for circles
-        and squares.
+        from the rendered rule width. Arrow depth is ``4 * sqrt(strokeWidth)`` pixels (2 px at the
+        default 0.25 px stroke), while circles and squares have a 4 px minimum size.
     startGap, endGap:
         Nonnegative finite pixel clearance between the target coordinate and the decoration's
         outermost tip/edge. ``None`` derives the same theme-aware marker clearance used by point-label

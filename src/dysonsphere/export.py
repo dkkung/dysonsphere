@@ -162,7 +162,7 @@ def _decorate_rule_segments(root: ET.Element) -> None:
         stroke_width = float(line.get("stroke-width") or 1)
 
         def cap_size(cap: str | None) -> float:
-            return max(2.0, 2.0 * stroke_width) if cap == "arrow" else max(4.0, 4.0 * stroke_width)
+            return 4.0 * math.sqrt(stroke_width) if cap == "arrow" else max(4.0, 4.0 * stroke_width)
 
         start_extent = start_gap + (cap_size(start_cap) if start_cap is not None else 0)
         end_extent = end_gap + (cap_size(end_cap) if end_cap is not None else 0)
@@ -177,6 +177,8 @@ def _decorate_rule_segments(root: ET.Element) -> None:
             if cap is None:
                 return tip_x, tip_y, None
             size = cap_size(cap)
+            if size == 0:
+                return tip_x, tip_y, None
             if cap == "arrow":
                 base_x, base_y = tip_x + ix * size, tip_y + iy * size
                 half_width = size * 0.6

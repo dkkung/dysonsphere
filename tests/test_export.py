@@ -50,12 +50,12 @@ class TestRuleCaps:
         return math.dist(tip, base_midpoint), math.dist(left, right)
 
     @staticmethod
-    def _tree(start_cap=None, end_cap=None, start_gap=0, end_gap=0, *, length=100):
+    def _tree(start_cap=None, end_cap=None, start_gap=0, end_gap=0, *, length=100, stroke_width=1):
         marker = _rule_cap_marker(start_cap, end_cap, start_gap, end_gap)
         root = ET.fromstring(
             f'<svg xmlns="{NS}"><g><g class="mark-rule role-mark">'
             f'<line aria-label="{marker}" transform="translate(0,0)" x2="{length}" y2="0" stroke="#123456" '
-            'stroke-width="1" opacity="0.4"/></g></g></svg>'
+            f'stroke-width="{stroke_width}" opacity="0.4"/></g></g></svg>'
         )
         _decorate_rule_segments(root)
         return root
@@ -63,15 +63,25 @@ class TestRuleCaps:
     def test_both_arrows_apply_tip_gap_and_shorten_shaft(self):
         root = self._tree("arrow", "arrow", 3, 3)
         line = next(root.iter(f"{{{NS}}}line"))
-        assert line.get("transform") == "translate(5,0)"  # 3 px daylight + 2 px arrow depth
-        assert line.get("x2") == "90"
+        assert line.get("transform") == "translate(7,0)"  # 3 px daylight + 4 px arrow depth
+        assert line.get("x2") == "86"
         caps = list(root.iter(f"{{{NS}}}path"))
         assert len(caps) == 2
         assert all(cap.get("fill") == "#123456" and cap.get("opacity") == "0.4" for cap in caps)
         paths = {cap.get("d", "") for cap in caps}
         assert any(path.startswith("M3,0L") for path in paths)
         assert any(path.startswith("M97,0L") for path in paths)
-        assert all(self._arrow_dimensions(path) == pytest.approx((2.0, 2.4)) for path in paths)
+        assert all(self._arrow_dimensions(path) == pytest.approx((4.0, 4.8)) for path in paths)
+
+    @pytest.mark.parametrize(("stroke_width", "depth"), [(0.25, 2.0), (0.5, math.sqrt(8)), (1, 4.0), (4, 8.0)])
+    def test_arrow_dimensions_follow_square_root_stroke_scaling(self, stroke_width, depth):
+        root = self._tree("arrow", None, stroke_width=stroke_width)
+        cap = next(element for element in root.iter(f"{{{NS}}}path") if element.get("class") == "ds-rule-cap")
+        assert self._arrow_dimensions(cap.get("d", "")) == pytest.approx((depth, 1.2 * depth))
+
+    def test_zero_width_arrow_has_no_cap_artifact(self):
+        root = self._tree("arrow", None, stroke_width=0)
+        assert not [element for element in root.iter() if element.get("class") == "ds-rule-cap"]
 
     @pytest.mark.parametrize("cls", ["__dsrulecap_", "__dsrulecap_bad", "__dsrulecap_1_zz", "__dsrulecap_1_ff"])
     def test_malformed_user_class_is_ignored(self, cls):
@@ -85,18 +95,19 @@ class TestRuleCaps:
         assert not list(root.iter(f"{{{NS}}}path"))
 
     @pytest.mark.parametrize(("cap", "tag"), [("circle", "circle"), ("square", "path")])
-    def test_circle_and_square_outer_edge_and_style(self, cap, tag):
-        root = self._tree(cap, None, 3, 0)
+    @pytest.mark.parametrize(("stroke_width", "size"), [(0.25, 4), (1, 4), (4, 16)])
+    def test_circle_and_square_outer_edge_and_style(self, cap, tag, stroke_width, size):
+        root = self._tree(cap, None, 3, 0, stroke_width=stroke_width)
         shape = next(root.iter(f"{{{NS}}}{tag}"))
         assert shape.get("class") == "ds-rule-cap"
         line = next(root.iter(f"{{{NS}}}line"))
-        assert line.get("transform") == "translate(7,0)"  # outer edge 3; 4 px decoration depth
+        assert line.get("transform") == f"translate({3 + size},0)"
 
     def test_mixed_caps_use_each_shapes_extent(self):
         root = self._tree("arrow", "circle", 3, 3)
         line = next(root.iter(f"{{{NS}}}line"))
-        assert line.get("transform") == "translate(5,0)"
-        assert line.get("x2") == "88"
+        assert line.get("transform") == "translate(7,0)"
+        assert line.get("x2") == "86"
 
     def test_short_segment_hides_shaft_and_keeps_caps(self):
         root = self._tree("arrow", "arrow", 3, 3, length=9)
@@ -258,7 +269,7 @@ class TestLabelConnectorCaps:
         return df, ds.labels(df, "x", "y", "label", **kwargs)  # ty: ignore[invalid-argument-type]
 
     def test_export_arrow_tip_is_existing_connector_start_no_double_gap(self, tmp_path):
-        theme(chartWidth=140, chartHeight=100, viewPadding=False)
+        theme(chartWidth=140, chartHeight=100, viewPadding=False, axisWidth=0.5)
         _, plain = self._dense_labels(connector_gap=0)
         _, arrow = self._dense_labels("arrow", connector_gap=0)
         save(plain, tmp_path / "plain", format="svg", saveMetadata=False)
@@ -280,7 +291,7 @@ class TestLabelConnectorCaps:
             for cap in arrow_root.iter()
             if cap.get("class") == "ds-rule-cap"
         ]
-        assert all(dimension == pytest.approx((2.0, 2.4)) for dimension in dimensions)
+        assert all(dimension == pytest.approx((math.sqrt(8), 1.2 * math.sqrt(8))) for dimension in dimensions)
 
     def test_connector_arrow_preserves_color_opacity_and_roundtrip_data(self, tmp_path):
         import dysonsphere as ds

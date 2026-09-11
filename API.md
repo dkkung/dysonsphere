@@ -60,7 +60,9 @@ notes are local working material, not dependencies of this framework or part of 
 - Rule endpoint caps are `arrow`, `circle`, or `square`; start/end follow primary/secondary endpoint
   order. Omitted gaps with a cap derive the same theme-aware point clearance used by label
   connectors; capless omitted gaps are 0 and explicit zero is preserved. This rendered geometry is
-  part of the shared SVG/PNG/save/show pipeline, not bare Altair or HTML.
+  part of the shared SVG/PNG/save/show pipeline, not bare Altair or HTML. Arrow depth is
+  `4 * sqrt(rendered strokeWidth)` pixels (2 px at the default 0.25 px stroke), with width 1.2 times
+  its depth; circle and square sizes retain their 4 px minimum.
 - Point-label connectors optionally use `connectorCap="arrow"` at their point-facing end. Their
   existing `connectorGap` is applied once; no second cap gap is introduced. As with rule caps, this
   decoration is available in the shared SVG/PNG/save/show pipeline, not bare Altair or HTML.

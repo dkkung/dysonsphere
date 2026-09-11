@@ -5,7 +5,8 @@
 ### Changes
 
 - Rule segments support optional arrow, circle, and square endpoint caps plus pixel clearances.
-  Arrowheads use a compact 2 px minimum depth; circle and square cap sizes are unchanged.
+  Arrowhead depth scales gently as `4 * sqrt(strokeWidth)` pixels (2 px at the default 0.25 px
+  stroke); circle and square cap sizes are unchanged.
   Decorations follow resolved SVG geometry across diagonal rules, reversed scales, and facets in
   `save()`/`show()` SVG and PNG output; bare Altair and interactive HTML retain the underlying rule.
   Omitted cap gaps use the existing theme-derived point-label connector clearance.
