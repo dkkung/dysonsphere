@@ -179,6 +179,48 @@ class TestLegendPadding:
         assert alt.theme.options["legendRowPadding"] == 2
 
 
+class TestLegendGradientLength:
+    def test_default_and_override(self):
+        theme()
+        assert alt.theme.options["legendGradientLength"] is None
+        theme(legendGradientLength=0.75)
+        assert alt.theme.options["legendGradientLength"] == 0.75
+
+    def test_explicit_none_restores_orientation_aware_default(self):
+        theme(legendGradientLength=None)
+        assert alt.theme.options["legendGradientLength"] is None
+
+    @pytest.mark.parametrize("value", [True, False, 0, -1, float("inf"), float("nan")])
+    def test_requires_positive_finite_number(self, value):
+        error = TypeError if isinstance(value, bool) else ValueError
+        with pytest.raises(error, match="legendGradientLength"):
+            theme(legendGradientLength=value)
+
+
+class TestLegendGradientThickness:
+    @staticmethod
+    def _thickness():
+        return _dysonsphere_theme()["config"]["legend"]["gradientThickness"]
+
+    def test_default_and_override(self):
+        theme()
+        assert alt.theme.options["legendGradientThickness"] == 5
+        assert self._thickness() == 5
+        theme(legendGradientThickness=7.5)
+        assert alt.theme.options["legendGradientThickness"] == 7.5
+        assert self._thickness() == 7.5
+
+    @pytest.mark.parametrize("value", [True, False, 0, -1, float("inf"), float("nan")])
+    def test_requires_positive_finite_number(self, value):
+        error = TypeError if isinstance(value, bool) else ValueError
+        with pytest.raises(error, match="legendGradientThickness"):
+            theme(legendGradientThickness=value)
+
+    def test_independent_of_mark_and_chart_dimensions(self):
+        theme(chartWidth=300, chartHeight=40, markSize=80)
+        assert self._thickness() == 5
+
+
 class TestRangePalettes:
     def _range(self, kind):
         # Raw range value: a bare array for `category` (positional), {"scheme": ...} otherwise.

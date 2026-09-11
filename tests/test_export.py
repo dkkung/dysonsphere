@@ -426,18 +426,85 @@ class TestShow:
 
 
 class TestGradientLegendTitles:
-    """Gradient-legend titles stay at Vega's default (horizontal, on top) — the never-released
-    ``legendTitleGradientOrientation`` injection was removed; ``save()`` must not touch legends."""
+    """Gradient-legend titles stay at Vega's default (horizontal, on top)."""
 
     def test_save_does_not_inject_title_orient(self, tmp_path):
         df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "v": [0.1, 0.5, 0.9]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q")
         save(chart, str(tmp_path / "grad"), format=["svg", "json"], background="light")
         spec = json.loads((tmp_path / "grad.json").read_text(encoding="utf-8"))
-        assert "legend" not in spec["encoding"]["color"]
+        assert spec["encoding"]["color"]["legend"]["gradientLength"] == 40
+        assert "titleOrient" not in spec["encoding"]["color"]["legend"]
         svg = (tmp_path / "grad.svg").read_text(encoding="utf-8")
         title = re.search(r"<text[^>]*>v</text>", svg)  # gradient legend title stays horizontal
         assert title and "rotate" not in title.group(0)
+
+    def test_lengths_follow_actual_view_dimensions_and_direction(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        vertical = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q").properties(width=160, height=80)
+        horizontal = vertical.encode(color=alt.Color("v:Q", legend=alt.Legend(orient="bottom")))
+        v_spec = _apply_spec_fixes(vertical.to_dict())
+        h_spec = _apply_spec_fixes(horizontal.to_dict())
+        assert v_spec["encoding"]["color"]["legend"]["gradientLength"] == 30
+        assert h_spec["encoding"]["color"]["legend"]["gradientLength"] == 160
+
+    def test_default_vertical_allocation_includes_title(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q").properties(height=180)
+        spec = _apply_spec_fixes(chart.to_dict())
+        assert spec["encoding"]["color"]["legend"]["gradientLength"] == 80
+
+    def test_native_gradient_direction_precedence(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        unit = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q").properties(width=160, height=80)
+        configured = unit.configure_legend(direction="vertical", gradientDirection="horizontal")
+        spec = _apply_spec_fixes(configured.to_dict())
+        assert spec["encoding"]["color"]["legend"]["gradientLength"] == 160
+
+    @pytest.mark.parametrize(
+        ("title", "expected"),
+        [(None, 40), ("Override", 30), (["First", "Second"], 24)],
+    )
+    def test_native_legend_title_controls_reserved_space(self, title, expected):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        chart = (
+            alt.Chart(df)
+            .mark_point()
+            .encode(x="x:Q", y="y:Q", color=alt.Color("v:Q", title="Encoding", legend=alt.Legend(title=title)))
+            .properties(width=160, height=80)
+        )
+        spec = _apply_spec_fixes(chart.to_dict())
+        assert spec["encoding"]["color"]["legend"]["gradientLength"] == expected
+
+    def test_configured_symbol_legend_is_not_sized_as_gradient(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q")
+        raw_spec = chart.to_dict()
+        raw_spec["config"]["legend"]["type"] = "symbol"
+        spec = _apply_spec_fixes(raw_spec)
+        assert "legend" not in spec["encoding"]["color"]
+        assert "gradientLength" not in spec["config"]["legend"]
+
+    def test_factor_facets_and_explicit_overrides(self):
+        theme(legendGradientLength=0.5)
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9], "g": ["a", "b"]})
+        unit = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q").properties(width=120, height=100)
+        facet_spec = _apply_spec_fixes(unit.facet(column="g:N").to_dict())
+        assert facet_spec["spec"]["encoding"]["color"]["legend"]["gradientLength"] == 40
+
+        field = unit.encode(color=alt.Color("v:Q", legend=alt.Legend(gradientLength=37)))
+        assert _apply_spec_fixes(field.to_dict())["encoding"]["color"]["legend"]["gradientLength"] == 37
+        configured = unit.configure_legend(gradientLength=41)
+        configured_spec = _apply_spec_fixes(configured.to_dict())
+        assert configured_spec["config"]["legend"]["gradientLength"] == 41
+        assert "legend" not in configured_spec["encoding"]["color"]
+
+    def test_native_gradient_thickness_overrides_theme(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        unit = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q")
+        field = unit.encode(color=alt.Color("v:Q", legend=alt.Legend(gradientThickness=8)))
+        assert field.to_dict()["encoding"]["color"]["legend"]["gradientThickness"] == 8
+        assert unit.configure_legend(gradientThickness=9).to_dict()["config"]["legend"]["gradientThickness"] == 9
 
 
 # ── save() transparency ──────────────────────────────────────────────────────

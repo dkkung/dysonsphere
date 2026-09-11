@@ -51,6 +51,8 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "gridColor": colors["greys"][0],
     "legend": True,
     "legendColumnPadding": 4,
+    "legendGradientLength": None,
+    "legendGradientThickness": 5,
     "legendOffset": None,
     "legendRowPadding": 2,
     "legendStroke": False,
@@ -253,8 +255,9 @@ def _validate_options(p: dict[str, Any]) -> None:
         if nonnegative and value < 0:
             raise ValueError(f"{key} must be nonnegative; got {value!r}")
 
-    for key in ("chartWidth", "chartHeight", "fontSize"):
+    for key in ("chartWidth", "chartHeight", "fontSize", "legendGradientThickness"):
         number(key, positive=True)
+    number("legendGradientLength", positive=True, allow_none=True)
     for key in ("axisWidth", "tickSize", "legendColumnPadding", "legendRowPadding"):
         number(key, nonnegative=True)
     for key in ("markSize", "markStrokeWidth"):
@@ -344,6 +347,8 @@ def theme(
     gridColor: str = _UNSET,
     legend: bool = _UNSET,
     legendColumnPadding: int | float = _UNSET,
+    legendGradientLength: int | float | None = _UNSET,
+    legendGradientThickness: int | float = _UNSET,
     legendOffset: int | float | None = _UNSET,
     legendRowPadding: int | float = _UNSET,
     legendStroke: bool = _UNSET,
@@ -400,8 +405,13 @@ def theme(
     By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=6`` is a positive, fractional nominal
     publication point size; SVG markup exposes the same number as a renderer user-unit value, and raster
     export scales from 72 intrinsic units per inch. Axis, tick, legend, radius, and linear composite
-    dimensions are pixels;
-    signed axis/legend offsets and label angles are supported. ``markSize=None`` derives one tenth of
+    dimensions are pixels. ``legendGradientLength=None`` allocates half the panel height to a
+    vertical title-plus-gradient span and the full panel width to a horizontal gradient. A positive
+    number is instead a dimensionless factor applied to either orientation at spec-resolution time;
+    ``legendGradientThickness`` is a positive pixel width independent of marks and chart dimensions.
+    Continuous legends require ``ds.save()`` or ``ds.show()`` to resolve their sizing marker; bare
+    Altair/notebook rendering may fail. Signed axis/legend offsets and label angles are supported.
+    ``markSize=None`` derives one tenth of
     the smaller canvas dimension and is the common basis for symbol areas and composite dimensions;
     ``markStrokeWidth=None`` derives from ``axisWidth``.
 
@@ -797,8 +807,10 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 # reads loose on a horizontal legend next to this theme's 2/4px gaps.
                 "columnPadding": opts["legendColumnPadding"],
                 "rowPadding": opts["legendRowPadding"],
-                "gradientLength": opts["markSize"] * 5,
-                "gradientThickness": opts["markSize"] * 0.5,
+                # Save/show replace this non-executable ExprRef marker with panel geometry.
+                # Bare Altair rendering cannot resolve it; explicit configure_legend lengths win.
+                "gradientLength": {"expr": f"dysonsphereLegendGradientLength({opts['legendGradientLength']!r})"},
+                "gradientThickness": opts["legendGradientThickness"],
                 "gradientOpacity": opts["markFillOpacity"],
                 "gradientStrokeColor": "white" if opts["darkmode"] else "black",
                 "gradientStrokeWidth": opts["markStrokeWidth"],

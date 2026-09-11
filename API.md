@@ -146,6 +146,16 @@ notes are local working material, not dependencies of this framework or part of 
   ordinary single-underscore column names are not subscript instructions.
 - Gradient legend titles default to horizontal, above the legend. Save/show do not inject title
   orientation; callers can customize individual legends through Altair.
+- Theme `legendGradientLength` defaults to `None`: in shared spec-resolution paths, horizontal
+  gradients use the full owning-panel width while vertical title-plus-gradient layouts use half the
+  owning-panel height. A positive finite numeric value instead factors the full panel span in both
+  orientations, with vertical title space subtracted after scaling. Explicit native legend or
+  legend-config `gradientLength` values win. Endpoint labels may extend beyond the panel span.
+  `legendGradientThickness` is an independent positive finite pixel width, default 5; explicit
+  native legend or legend-config `gradientThickness` values win.
+  Render continuous legends through `ds.save()` or `ds.show()`, including `ds.save(format="html")`
+  for interactive output. Bare Altair/notebook rendering bypasses marker resolution and may fail
+  with an unrecognized `dysonsphereLegendGradientLength` function.
 - Multilabel `rowValueAngle` rotates values in text, plusminus, and symbol styles, never row labels.
   Scalars apply throughout; top-level lists follow row order; mappings select rows and may contain
   per-cell lists in category order. Rotating a circle may make no visible change. Automatic text

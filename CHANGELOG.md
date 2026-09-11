@@ -4,6 +4,12 @@
 
 ### Changes
 
+- Continuous color legends now track their owning panel dimensions by default. The new
+  `theme(legendGradientLength=None)` default uses half-height vertical and full-width horizontal
+  allocation; a positive numeric value scales either full panel span. Meanwhile,
+  `theme(legendGradientThickness=5)` independently sets thickness in pixels. Explicit native
+  gradient lengths and thicknesses win. Continuous legends require rendering through `ds.save()`
+  or `ds.show()`; bare Altair/notebook rendering may fail on the unresolved sizing marker.
 - The default theme now defaults to `fontSize=6` instead of `fontSize=7`.
 - **Breaking:** palette names no longer use `mpl_` or `cmocean_` prefixes; upstream suffix spelling
   and case are preserved. Native names are lowercase, and qualitative sets are now `cat1`, `cat2`,
