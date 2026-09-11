@@ -1,3 +1,4 @@
+import math
 import re
 
 import altair as alt
@@ -272,6 +273,32 @@ class TestLabels:
                 checked += 1
                 pending = None
         assert checked
+
+    def test_default_marker_gap_uses_shared_automatic_formula(self):
+        from dysonsphere.annotations import _automatic_marker_gap
+
+        theme(chartWidth=100, chartHeight=100)
+        df = pl.DataFrame({"x": [10.0, 50.0, 90.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
+        spec = labels(
+            df,
+            "x",
+            "y",
+            "g",
+            alwaysShowConnectors=True,
+            xDomain=(0.0, 100.0),
+            yDomain=(0.0, 100.0),
+        ).to_dict()
+        anchors = [(10.0, 20.0), (50.0, 80.0), (90.0, 40.0)]
+        starts = [
+            (encoding["x"]["datum"], encoding["y"]["datum"])
+            for layer in spec["layer"]
+            if layer["mark"]["type"] == "rule"
+            for encoding in [layer["encoding"]]
+        ]
+        expected = _automatic_marker_gap()
+        assert starts and all(
+            min(math.dist(start, anchor) for anchor in anchors) == pytest.approx(expected) for start in starts
+        )
 
     def test_reversed_axis_labels_stay_in_panel(self):
         # reversed axis mirrors markers at render; offsets must mirror too (3.13.0 spilled labels)
@@ -569,6 +596,55 @@ class TestRule:
     def test_bounded_axis_fixed_coordinate_list_is_supported(self):
         spec = rule(x=2, x2=8, y=[3, 7]).to_dict()
         assert [layer["encoding"]["y"]["datum"] for layer in spec["layer"]] == [3.0, 7.0]
+
+    @pytest.mark.parametrize("name", ["startCap", "endCap"])
+    def test_invalid_cap_rejected(self, name):
+        with pytest.raises(ValueError, match=name):
+            rule(y=1, **{name: "triangle"})  # ty: ignore[invalid-argument-type]
+
+    @pytest.mark.parametrize("name", ["startGap", "endGap"])
+    @pytest.mark.parametrize("value", [True, -1, float("nan"), float("inf")])
+    def test_invalid_gap_rejected(self, name, value):
+        with pytest.raises(ValueError, match=name):
+            rule(y=1, **{name: value})
+
+    def test_cap_options_create_durable_marker_but_plain_rule_does_not(self):
+        from dysonsphere.utils import _RULE_CAP_PREFIX
+
+        assert rule(y=1, startCap="arrow").to_dict()["mark"]["description"].startswith(_RULE_CAP_PREFIX)
+        assert "description" not in rule(y=1).to_dict()["mark"]
+
+    def test_explicit_zero_gap_is_distinct_from_cap_default(self):
+        from dysonsphere.annotations import _automatic_marker_gap
+        from dysonsphere.export import _rule_cap_options
+
+        zero_name = rule(y=1, startCap="circle", startGap=0).to_dict()["mark"]["description"]
+        auto_name = rule(y=1, startCap="circle").to_dict()["mark"]["description"]
+        assert _rule_cap_options(zero_name) == ("circle", None, 0.0, 0.0)
+        assert _rule_cap_options(auto_name) == ("circle", None, _automatic_marker_gap(), 0.0)
+
+    def test_automatic_cap_gap_exactly_matches_labels_formula_and_theme(self):
+        from dysonsphere.annotations import _automatic_marker_gap
+        from dysonsphere.export import _rule_cap_options
+
+        theme(markSize=50, markStrokeWidth=1.5, axisWidth=0.75)
+        expected = math.sqrt(50 / (2 * math.pi)) + 1.5 + 2 * 0.75
+        assert _automatic_marker_gap() == pytest.approx(expected)
+        marker = rule(y=1, startCap="arrow").to_dict()["mark"]["description"]
+        assert _rule_cap_options(marker) == ("arrow", None, pytest.approx(expected), 0.0)
+
+    def test_explicit_rule_gap_is_theme_invariant_and_capless_default_is_zero(self):
+        from dysonsphere.export import _rule_cap_options
+
+        theme(markSize=10, axisWidth=0.25)
+        explicit_a = rule(y=1, startCap="arrow", startGap=1.25).to_dict()["mark"]["description"]
+        theme(markSize=100, axisWidth=2)
+        explicit_b = rule(y=1, startCap="arrow", startGap=1.25).to_dict()["mark"]["description"]
+        options_a = _rule_cap_options(explicit_a)
+        options_b = _rule_cap_options(explicit_b)
+        assert options_a is not None and options_b is not None
+        assert options_a[2] == options_b[2] == 1.25
+        assert "description" not in rule(y=1).to_dict()["mark"]
 
     def test_positional_coordinate_rejected(self):
         with pytest.raises(TypeError):

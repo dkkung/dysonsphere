@@ -81,6 +81,21 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   endpoints, generated scale-name expressions, or export-only rewriting.
   References: `annotations.py::rule`; `test_annotations.py::TestRule`.
 
+- **Rule caps use resolved SVG segment geometry.** Vega-Lite does not expose a facet-local rendered
+  direction for sibling cap marks. Durable rule markers therefore carry cap/gap intent through JSON
+  round trips, while the common SVG pipeline measures the rendered line and adds editable SVG
+  decoration objects before simplification. This keeps reversed scales, facets, and aspect ratios
+  correct without scale-name expressions. Bare Altair and HTML remain intentionally undecorated.
+  References: `annotations.py::_rule_cap_marker`; `export.py::_decorate_rule_segments`;
+  `test_export.py::TestRuleCaps`.
+
+- **Automatic point-facing gaps share one construction-time formula.** Label connectors and capped
+  rules use `sqrt(markSize / (2*pi)) + markStrokeWidth + 2*axisWidth`: point edge radius, marker
+  stroke, and painted daylight. Extracting this formula must not change labels' existing point- or
+  text-end geometry. Rule markers store the resolved pixels, so multi-theme exports rebuild through
+  a callable like other construction-time geometry.
+  References: `annotations.py::_automatic_marker_gap`, `labels`, `rule`.
+
 - **Extensions have their own distributions.** Keep optional dependencies and release schedules
   outside core. Extras would couple releases; namespace-package restructuring would disrupt the
   core import path for little gain. Discovery supplies `ds.biology` without either change, and

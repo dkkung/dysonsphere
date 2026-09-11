@@ -4,6 +4,11 @@
 
 ### Changes
 
+- Rule segments support optional arrow, circle, and square endpoint caps plus pixel clearances.
+  Decorations follow resolved SVG geometry across diagonal rules, reversed scales, and facets in
+  `save()`/`show()` SVG and PNG output; bare Altair and interactive HTML retain the underlying rule.
+  Omitted cap gaps use the existing theme-derived point-label connector clearance.
+
 - **Breaking:** `rule()` now uses explicit keyword coordinates (`x`, `y`, `x2`, and `y2`) for
   horizontal, vertical, bounded, and diagonal segments. Equation rules accept `slope`, an optional
   `intercept`, and a required numeric `span`; the former positional `value` and `axis` API is removed.

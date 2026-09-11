@@ -57,6 +57,10 @@ notes are local working material, not dependencies of this framework or part of 
   secondary `x2`/`y2` endpoints for bounded and diagonal segments, and `slope` plus a required
   numeric `span` for equation segments. Equation segments assume linear quantitative axes; the
   standalone layer does not inspect a chart it may later be composed with.
+- Rule endpoint caps are `arrow`, `circle`, or `square`; start/end follow primary/secondary endpoint
+  order. Omitted gaps with a cap derive the same theme-aware point clearance used by label
+  connectors; capless omitted gaps are 0 and explicit zero is preserved. This rendered geometry is
+  part of the shared SVG/PNG/save/show pipeline, not bare Altair or HTML.
 - `add_*` operations take an existing chart and return an augmented chart.
 - Keep `mark_*` for general-purpose composite mark constructors, matching Altair vocabulary.
 - Keep `multilabel` as the name of the condition-table system.

@@ -37,3 +37,21 @@ Equation mode computes a segment over a required numeric x extent, for example
 `ds.rule(slope=2, intercept=1, span=(0, 5))`. It represents `y = slope*x + intercept` only when
 composed with linear quantitative x and y scales. On nonlinear scales, calculate suitable visual
 coordinates yourself and use explicit endpoints.
+
+`startCap` and `endCap` add `"arrow"`, `"circle"`, or `"square"` endpoint decorations. Their
+`startGap`/`endGap` clearances derive from the theme's marker size, marker stroke, and rule width when
+a cap is present, and default to 0 otherwise; explicit gaps also shorten capless rules. Start/end
+preserve explicit endpoint or span order regardless of scale direction;
+implicit full horizontal rules use left/right and implicit full vertical rules use top/bottom:
+
+```python
+decorated = targets + ds.rule(
+    x=2, y=3, x2=8, y2=8,
+    startCap="arrow", endCap="arrow",
+)
+ds.save(decorated, "decorated", format=["svg", "png"])
+```
+
+Caps and gaps are corrected from rendered SVG geometry, so they follow facets, reversed scales, and
+chart aspect ratio in `ds.save()` SVG/PNG and `ds.show()`. Bare Altair display and interactive HTML
+show the underlying undecorated, ungapped rule.

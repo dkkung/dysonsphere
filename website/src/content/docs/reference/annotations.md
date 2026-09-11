@@ -39,6 +39,10 @@ def rule(
     strokeDash: bool | list[int | float] | None = None,
     opacity: float = 1.0,
     fontSize: float | None = None,
+    startCap: Literal['arrow', 'circle', 'square'] | None = None,
+    endCap: Literal['arrow', 'circle', 'square'] | None = None,
+    startGap: float | None = None,
+    endGap: float | None = None,
     data: pl.DataFrame | pd.DataFrame | None = None,
 ) -> alt.Chart | alt.LayerChart: ...
 ```
@@ -68,6 +72,10 @@ Returns a layer that the caller composes with ``+``.
 - **`strokeDash`** (`bool | list[int | float] | None`) - ``None`` (default) inherits the theme's ``dashedRule`` setting. ``False`` forces a solid line. ``True`` uses the theme's ``dashedWidth`` pattern. A list (e.g. ``[4, 2]``) uses that pattern directly.
 - **`opacity`** (`float`) - Line opacity. Defaults to ``1.0``.
 - **`fontSize`** (`float | None`) - Label font size. ``None`` inherits from the active theme.
+- **`startCap`** (`Literal['arrow', 'circle', 'square'] | None`) - Optional endpoint decoration: ``"arrow"``, ``"circle"``, or ``"square"``. Start is the primary endpoint and end is the secondary endpoint, preserving explicit endpoint/span order even on reversed scales. For an implicit full-span horizontal rule start/end are the left/right plot edges; for a full-span vertical rule they are the top/bottom edges. Decorations are sized from the rendered rule width, with a modest 4 px minimum.
+- **`endCap`** (`Literal['arrow', 'circle', 'square'] | None`) - Optional endpoint decoration: ``"arrow"``, ``"circle"``, or ``"square"``. Start is the primary endpoint and end is the secondary endpoint, preserving explicit endpoint/span order even on reversed scales. For an implicit full-span horizontal rule start/end are the left/right plot edges; for a full-span vertical rule they are the top/bottom edges. Decorations are sized from the rendered rule width, with a modest 4 px minimum.
+- **`startGap`** (`float | None`) - Nonnegative finite pixel clearance between the target coordinate and the decoration's outermost tip/edge. ``None`` derives the same theme-aware marker clearance used by point-label connectors when that endpoint has a cap, and means 0 otherwise; explicit 0 is respected. Gaps also shorten capless rules. The resolved value is stored at construction, so use a callable with ``ds.save()`` when exporting across themes with different geometry. Caps and gaps are applied by the shared SVG pipeline (and therefore PNG export), not bare Altair display or interactive HTML. A screen-coincident or too-short segment is omitted rather than shrinking a requested gap or drawing decorations beyond the opposite target.
+- **`endGap`** (`float | None`) - Nonnegative finite pixel clearance between the target coordinate and the decoration's outermost tip/edge. ``None`` derives the same theme-aware marker clearance used by point-label connectors when that endpoint has a cap, and means 0 otherwise; explicit 0 is respected. Gaps also shorten capless rules. The resolved value is stored at construction, so use a callable with ``ds.save()`` when exporting across themes with different geometry. Caps and gaps are applied by the shared SVG pipeline (and therefore PNG export), not bare Altair display or interactive HTML. A screen-coincident or too-short segment is omitted rather than shrinking a requested gap or drawing decorations beyond the opposite target.
 - **`data`** (`pl.DataFrame | pd.DataFrame | None`) - Facet-safe (datum) mode. ``None`` (default) builds the rule from its own small internal dataset — the normal behavior, but **incompatible with faceting** (Altair requires every layer of a faceted chart to share one data variable). Pass the **same DataFrame you gave the base chart** to switch to datum mode: the rule then shares that data and is positioned by a constant ``alt.datum`` instead of a sidecar dataset, so ``(base + rule(..., data=df))`` can be faceted and the line repeats in every panel. Accepts a polars or pandas DataFrame.
 
 **Examples**

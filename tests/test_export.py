@@ -10,8 +10,10 @@ import altair as alt
 import polars as pl
 import pytest
 
+from dysonsphere.annotations import _rule_cap_marker
 from dysonsphere.export import (
     _align_grid_to_content,
+    _decorate_rule_segments,
     _fix_font_for_illustrator,
     _fix_subscript_labels,
     _fix_superscript_labels,
@@ -19,6 +21,7 @@ from dysonsphere.export import (
     _illustrator_font_family,
     _italicize_stat_symbols,
     _layer_axes_below_marks,
+    _rule_cap_options,
     _simplify_svg,
     _sink_border_below_shade,
     _typeset_scripts,
@@ -28,6 +31,186 @@ from dysonsphere.theme import theme
 from dysonsphere.utils import _apply_spec_fixes, _suppress_nice
 
 NS = "http://www.w3.org/2000/svg"
+
+
+class TestRuleCaps:
+    @staticmethod
+    def _arrow_tip(path):
+        match = re.match(r"M([\d.e+-]+),([\d.e+-]+)L", path)
+        assert match is not None
+        return tuple(map(float, match.groups()))
+
+    @staticmethod
+    def _tree(start_cap=None, end_cap=None, start_gap=0, end_gap=0, *, length=100):
+        marker = _rule_cap_marker(start_cap, end_cap, start_gap, end_gap)
+        root = ET.fromstring(
+            f'<svg xmlns="{NS}"><g><g class="mark-rule role-mark">'
+            f'<line aria-label="{marker}" transform="translate(0,0)" x2="{length}" y2="0" stroke="#123456" '
+            'stroke-width="1" opacity="0.4"/></g></g></svg>'
+        )
+        _decorate_rule_segments(root)
+        return root
+
+    def test_both_arrows_apply_tip_gap_and_shorten_shaft(self):
+        root = self._tree("arrow", "arrow", 3, 3)
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("transform") == "translate(7,0)"  # 3 px daylight + 4 px arrow depth
+        assert line.get("x2") == "86"
+        caps = list(root.iter(f"{{{NS}}}path"))
+        assert len(caps) == 2
+        assert all(cap.get("fill") == "#123456" and cap.get("opacity") == "0.4" for cap in caps)
+        paths = {cap.get("d", "") for cap in caps}
+        assert any(path.startswith("M3,0L") for path in paths)
+        assert any(path.startswith("M97,0L") for path in paths)
+
+    @pytest.mark.parametrize("cls", ["__dsrulecap_", "__dsrulecap_bad", "__dsrulecap_1_zz", "__dsrulecap_1_ff"])
+    def test_malformed_user_class_is_ignored(self, cls):
+        assert _rule_cap_options(cls) is None
+
+    def test_capless_custom_gaps_shorten_to_exact_clearance(self):
+        root = self._tree(start_gap=5, end_gap=10)
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("transform") == "translate(5,0)"
+        assert line.get("x2") == "85"
+        assert not list(root.iter(f"{{{NS}}}path"))
+
+    @pytest.mark.parametrize(("cap", "tag"), [("circle", "circle"), ("square", "path")])
+    def test_circle_and_square_outer_edge_and_style(self, cap, tag):
+        root = self._tree(cap, None, 3, 0)
+        shape = next(root.iter(f"{{{NS}}}{tag}"))
+        assert shape.get("class") == "ds-rule-cap"
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("transform") == "translate(7,0)"  # outer edge 3; 4 px decoration depth
+
+    def test_short_segment_hides_shaft_and_keeps_caps(self):
+        root = self._tree("arrow", "arrow", 3, 3, length=10)
+        assert next(root.iter(f"{{{NS}}}line")).get("display") == "none"
+        assert not list(root.iter(f"{{{NS}}}path"))
+
+    def test_huge_gap_omits_whole_segment_without_retreating_past_target(self):
+        root = self._tree("arrow", "arrow", 100, 3, length=20)
+        assert next(root.iter(f"{{{NS}}}line")).get("display") == "none"
+        assert not list(root.iter(f"{{{NS}}}path"))
+
+    def test_coincident_segment_is_unchanged(self):
+        root = self._tree("arrow", "arrow", 3, 3, length=0)
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("display") == "none"
+        assert not list(root.iter(f"{{{NS}}}path"))
+
+    def test_export_reversed_nonsquare_independent_facets(self, tmp_path):
+        import dysonsphere as ds
+        from dysonsphere.annotations import _automatic_marker_gap
+
+        theme(chartWidth=180, chartHeight=90, viewPadding=False)
+        df = pl.DataFrame({"g": ["a", "a", "b", "b"], "x": [2, 8, 2, 8], "y": [3, 9, 3, 9]})
+        base = (
+            alt.Chart(df)
+            .mark_point()
+            .encode(
+                x=alt.X("x:Q", scale=alt.Scale(domain=[0, 10], reverse=True)),
+                y=alt.Y("y:Q", scale=alt.Scale(domain=[0, 10])),
+            )
+        )
+        decorated = ds.rule(x=2, y=3, x2=8, y2=9, startCap="arrow", endCap="arrow", data=df)
+        chart = (base + decorated).facet(column="g:N").resolve_scale(x="independent", y="independent")
+        save(chart, tmp_path / "facets", format="svg", saveMetadata=False)
+        svg = (tmp_path / "facets.svg").read_text()
+        assert svg.count('class="ds-rule-cap"') == 4
+        # Local rendered coordinates: reversed x maps 2->144 and 8->36 in 180 px; y maps
+        # 3->63 and 9->9 in 90 px. Every start tip is exactly the shared automatic gap inward along
+        # that screen vector, proving direction/aspect come from rendered SVG geometry, not data slope.
+        rendered_root = ET.fromstring(svg)
+        tips = [
+            self._arrow_tip(el.get("d", ""))
+            for el in rendered_root.iter()
+            if el.get("class") == "ds-rule-cap" and el.tag.endswith("path")
+        ]
+        ux, uy = -108 / math.hypot(108, 54), -54 / math.hypot(108, 54)
+        gap = _automatic_marker_gap()
+        expected = [(144 + ux * gap, 63 + uy * gap), (36 - ux * gap, 9 - uy * gap)]
+        assert all(any(math.dist(tip, want) < 1e-6 for tip in tips) for want in expected)
+
+        zero = ds.rule(x=2, y=3, x2=8, y2=9, startCap="arrow", endCap="arrow", startGap=0, endGap=0)
+        zero_chart = (
+            alt.Chart(df.head(2))
+            .mark_point()
+            .encode(
+                x=alt.X("x:Q", scale=alt.Scale(domain=[0, 10], reverse=True)),
+                y=alt.Y("y:Q", scale=alt.Scale(domain=[0, 10])),
+            )
+            + zero
+        )
+        save(zero_chart, tmp_path / "zero", format="svg", saveMetadata=False)
+        zero_svg = (tmp_path / "zero.svg").read_text()
+        zero_root = ET.fromstring(zero_svg)
+        zero_tips = [
+            self._arrow_tip(el.get("d", ""))
+            for el in zero_root.iter()
+            if el.get("class") == "ds-rule-cap" and el.tag.endswith("path")
+        ]
+        assert any(math.dist(tip, (144, 63)) < 1e-6 for tip in zero_tips)
+        assert any(math.dist(tip, (36, 9)) < 1e-6 for tip in zero_tips)
+
+    def test_markers_scope_only_their_rule_marks(self, tmp_path):
+        import dysonsphere as ds
+
+        theme()
+        df = pl.DataFrame({"x": [0.0, 10.0], "y": [0.0, 10.0]})
+        native_rule = alt.Chart(df).mark_rule(color="green").encode(x="x:Q", y="y:Q", x2="y:Q", y2="x:Q")
+        native_line = alt.Chart(df).mark_line(color="blue").encode(x="x:Q", y="y:Q")
+        arrows = ds.rule(y=[2, 4], label=["a", "b"], startCap="arrow")
+        circle = ds.rule(x=6, startCap="circle")
+        repeated = ds.rule(x=1, y=8, x2=3, y2=9, endCap="square")
+        chart = native_rule + native_line + arrows + circle + repeated + repeated
+        save(chart, tmp_path / "scoped", format="svg", saveMetadata=False)
+        root = ET.fromstring((tmp_path / "scoped.svg").read_text())
+        caps = [el for el in root.iter() if el.get("class") == "ds-rule-cap"]
+        assert len(caps) == 5  # two list rules, one circle, and the same square-rule object twice
+        # Native neighboring marks retain their renderer geometry and colors.
+        assert any(el.get("stroke") == "green" and el.get("display") is None for el in root.iter())
+        assert any(el.get("stroke") == "blue" and el.get("display") is None for el in root.iter())
+
+    def test_json_load_roundtrip_reapplies_caps(self, tmp_path):
+        import dysonsphere as ds
+
+        theme()
+        chart = ds.rule(x=1, y=1, x2=9, y2=8, startCap="arrow", endCap="square")
+        save(chart, tmp_path / "original", format=["json", "svg"], saveMetadata=False)
+        loaded = ds.load(tmp_path / "original.json")
+        save(cast(Any, loaded), tmp_path / "loaded", format="svg", saveMetadata=False)
+        assert (tmp_path / "loaded.svg").read_text().count('class="ds-rule-cap"') == 2
+
+    def test_cap_marker_does_not_leak_internal_data(self, tmp_path):
+        import dysonsphere as ds
+
+        theme()
+        df = pl.DataFrame({"x": [1.0, 9.0], "y": [2.0, 8.0]})
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        chart = base + ds.rule(x=1, y=2, x2=9, y2=8, startCap="arrow", endGap=4)
+        save(chart, tmp_path / "data", format="json")
+        recovered = ds.metadata.read(tmp_path / "data.json", what="data")
+        assert recovered.equals(df)
+
+    def test_fresh_equivalent_cap_builds_have_stable_spec_checksum(self):
+        import dysonsphere as ds
+        from dysonsphere.metadata import _spec_checksum
+
+        first = ds.rule(x=1, y=2, x2=8, y2=9, startCap="arrow", endGap=4).to_dict()
+        second = ds.rule(x=1, y=2, x2=8, y2=9, startCap="arrow", endGap=4).to_dict()
+        assert first == second
+        assert _spec_checksum(first) == _spec_checksum(second)
+
+    def test_export_caps_preserve_rule_opacity_and_stroke_opacity(self, tmp_path):
+        import dysonsphere as ds
+
+        theme()
+        chart = ds.rule(x=1, y=1, x2=9, y2=8, startCap="circle", opacity=0).configure_rule(strokeOpacity=0.25)
+        save(chart, tmp_path / "opacity", format="svg", saveMetadata=False)
+        root = ET.fromstring((tmp_path / "opacity.svg").read_text())
+        cap = next(el for el in root.iter() if el.get("class") == "ds-rule-cap")
+        assert cap.get("opacity") == "0"
+        assert cap.get("fill-opacity") == "0.25"
 
 
 def test_png_ppi_scales_from_svg_72_units_per_inch(tmp_path):

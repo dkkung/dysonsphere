@@ -7,9 +7,10 @@ engine lives in ``_placement.py``). Statistical annotations (``comparisons``,
 ``correlation``) live in ``stats.py``.
 """
 
+import json
 import math
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import altair as alt
 import polars as pl
@@ -19,7 +20,15 @@ if TYPE_CHECKING:
 
 from ._statistics import _validate_observations
 from .theme import _opt
-from .utils import _SHADE_PREFIX, _band_geometry, _empty_layer, _ensure_polars, _internal_data, _resolve_dash
+from .utils import (
+    _RULE_CAP_PREFIX,
+    _SHADE_PREFIX,
+    _band_geometry,
+    _empty_layer,
+    _ensure_polars,
+    _internal_data,
+    _resolve_dash,
+)
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -36,6 +45,23 @@ def _rule_number(name: str, value: Any) -> float:
     if not math.isfinite(result):
         raise ValueError(f"{name} must be a finite number, got {value!r}")
     return result
+
+
+def _automatic_marker_gap() -> float:
+    """Return the established theme-derived point-to-decoration clearance in pixels.
+
+    The formula is point edge radius ``sqrt(markSize / (2*pi))`` + marker stroke + two connector
+    stroke widths of daylight. Labels retain their existing geometry by calling this helper, and
+    capped rules use the same default rather than a separate fixed distance.
+    """
+    return math.sqrt(_opt("markSize") / (2 * math.pi)) + _opt("markStrokeWidth") + 2.0 * _opt("axisWidth")
+
+
+def _rule_cap_marker(start_cap: str | None, end_cap: str | None, start_gap: float, end_gap: float) -> str:
+    """Build a durable mark-description payload carrying one rule's decoration request."""
+    payload = json.dumps([start_cap, end_cap, start_gap, end_gap], separators=(",", ":")).encode()
+    token = payload.hex()
+    return f"{_RULE_CAP_PREFIX}{token}"
 
 
 def _rule_mark_kwargs(
@@ -280,6 +306,10 @@ def rule(
     strokeDash: bool | list[int | float] | None = None,
     opacity: float = 1.0,
     fontSize: float | None = None,
+    startCap: Literal["arrow", "circle", "square"] | None = None,
+    endCap: Literal["arrow", "circle", "square"] | None = None,
+    startGap: float | None = None,
+    endGap: float | None = None,
     data: "pl.DataFrame | pd.DataFrame | None" = None,
 ) -> alt.Chart | alt.LayerChart:
     """
@@ -355,6 +385,21 @@ def rule(
         Line opacity. Defaults to ``1.0``.
     fontSize:
         Label font size. ``None`` inherits from the active theme.
+    startCap, endCap:
+        Optional endpoint decoration: ``"arrow"``, ``"circle"``, or ``"square"``. Start is the
+        primary endpoint and end is the secondary endpoint, preserving explicit endpoint/span order
+        even on reversed scales. For an implicit full-span horizontal rule start/end are the left/right
+        plot edges; for a full-span vertical rule they are the top/bottom edges. Decorations are sized
+        from the rendered rule width, with a modest 4 px minimum.
+    startGap, endGap:
+        Nonnegative finite pixel clearance between the target coordinate and the decoration's
+        outermost tip/edge. ``None`` derives the same theme-aware marker clearance used by point-label
+        connectors when that endpoint has a cap, and means 0 otherwise; explicit 0 is respected.
+        Gaps also shorten capless rules. The resolved value is stored at construction, so use a
+        callable with ``ds.save()`` when exporting across themes with different geometry. Caps and
+        gaps are applied by the shared SVG pipeline (and therefore PNG export), not bare Altair display
+        or interactive HTML. A screen-coincident or too-short segment is omitted rather than shrinking
+        a requested gap or drawing decorations beyond the opposite target.
     data:
         Facet-safe (datum) mode. ``None`` (default) builds the rule from its own small internal
         dataset — the normal behavior, but **incompatible with faceting** (Altair requires every
@@ -405,6 +450,22 @@ def rule(
         diagonal = base + ds.rule(x=2, y=3, x2=8, y2=9)
         equation = base + ds.rule(slope=2, intercept=1, span=(0, 5))
     """
+    valid_caps = ("arrow", "circle", "square")
+    for name, cap in (("startCap", startCap), ("endCap", endCap)):
+        if cap is not None and cap not in valid_caps:
+            raise ValueError(f"{name} must be 'arrow', 'circle', 'square', or None, got {cap!r}")
+
+    def resolve_gap(name: str, gap: float | None, cap: str | None) -> float:
+        if gap is None:
+            return _automatic_marker_gap() if cap is not None else 0.0
+        value = _rule_number(name, gap)
+        if value < 0:
+            raise ValueError(f"{name} must be nonnegative, got {gap!r}")
+        return value
+
+    start_gap = resolve_gap("startGap", startGap, startCap)
+    end_gap = resolve_gap("endGap", endGap, endCap)
+    decorate = startCap is not None or endCap is not None or start_gap != 0 or end_gap != 0
     # Validate equation coefficients before dispatch or arithmetic. In particular, bool is not a
     # numeric coordinate, including `intercept=False` despite its equality to zero in Python.
     intercept_value = _rule_number("intercept", intercept)
@@ -433,6 +494,10 @@ def rule(
         raise ValueError("x2/y2 and span are mutually exclusive.")
 
     mark_kwargs = _rule_mark_kwargs(color, strokeWidth, strokeDash, opacity)
+    if decorate:
+        # Description is durable mark-local metadata that Vega renders as the line's aria-label. It
+        # cannot encompass label/native siblings or collide when the same chart is composed twice.
+        mark_kwargs["description"] = _rule_cap_marker(startCap, endCap, start_gap, end_gap)
     fs = fontSize if fontSize is not None else _opt("fontSize")
 
     # Reduce axis-aligned endpoint forms to the established axis-rule implementation. This preserves
@@ -1232,11 +1297,7 @@ def labels(
             # not depending on the connector's angle (nonuniform-LOOKING gaps from uniform
             # geometry, verified 2026-07-05). Two leaves ~0.5px painted daylight.
             daylight = 2.0 * _opt("axisWidth")
-            gap_cap = (
-                connectorGap
-                if connectorGap is not None
-                else math.sqrt(_opt("markSize") / (2 * math.pi)) + _opt("markStrokeWidth") + daylight
-            )
+            gap_cap = connectorGap if connectorGap is not None else _automatic_marker_gap()
             seg = math.hypot(ex - ax, ey - ay)  # point -> label box edge (the connector length)
             # The gaps are UNIFORM - they never shrink, so every drawn connector sits the same
             # visible distance off its dot and its label. (The old min(gap_cap, seg*0.25) shrink
