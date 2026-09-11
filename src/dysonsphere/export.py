@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 import tempfile
 import uuid
 import xml.etree.ElementTree as ET
 from contextlib import ExitStack
+from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Union, cast
 
@@ -17,7 +19,7 @@ if TYPE_CHECKING:
 
 from . import discovery, metadata
 from .theme import _opt
-from .utils import _SHADE_PREFIX, _SUP, _apply_spec_fixes, _json_safe
+from .utils import _RULE_CAP_PREFIX, _SHADE_PREFIX, _SUP, _apply_spec_fixes, _json_safe
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -77,8 +79,9 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     """
     import vl_convert as vlc
 
-    spec = _apply_spec_fixes(base_obj.to_dict())  # marker names are in the spec but never render into SVG
+    spec = _apply_spec_fixes(base_obj.to_dict())
     root = ET.fromstring(vlc.vegalite_to_svg(spec))  # parsed ONCE; every fixer mutates this tree
+    _decorate_rule_segments(root)  # marker classes and unsimplified line transforms are still intact
     axis_offset = 0 if _opt("closed") else _opt("axisOffset")
     if axis_offset:
         _align_grid_to_content(root, axis_offset)
@@ -94,6 +97,137 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
     Path(svg_path).write_text(svg, encoding="utf-8")
     return svg
+
+
+_LINE_TRANSLATE = re.compile(r"^translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)$")
+
+
+def _rule_cap_options(cls: str) -> tuple[str | None, str | None, float, float] | None:
+    """Decode the durable rule-decoration payload carried by a rendered line's aria-label."""
+    marker = next((part for part in cls.split() if part.startswith(_RULE_CAP_PREFIX)), None)
+    if marker is None:
+        return None
+    token = re.match(r"[0-9a-f]+", marker[len(_RULE_CAP_PREFIX) :])
+    if token is None:
+        return None
+    try:
+        start_cap, end_cap, start_gap, end_gap = json.loads(bytes.fromhex(token.group()).decode())
+        return start_cap, end_cap, float(start_gap), float(end_gap)
+    except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+
+def _decorate_rule_segments(root: ET.Element) -> None:
+    """Apply pixel-accurate caps and gaps to opted-in rule lines in the rendered SVG tree.
+
+    Geometry is measured after Vega has resolved scales, facets, dimensions, and reversals. Each
+    original line is shortened in its own SVG coordinate system and cap elements are inserted beside
+    it, preserving editable SVG objects. Screen-coincident segments and segments too short to fit
+    the full endpoint insets are omitted, including their caps, rather than reducing clearance.
+
+    This low-level segment operation deliberately knows nothing about ``rule`` data coordinates and
+    can be reused for connector marks once a separate connector-cap API is approved.
+    """
+    decorated = [
+        (line, options)
+        for line in root.iter(f"{{{_SVG_NS}}}line")
+        if (options := _rule_cap_options(line.get("aria-label", ""))) is not None
+    ]
+    if not decorated:
+        return
+    parents = {child: parent for parent in root.iter() for child in parent}
+
+    def point_text(x: float, y: float) -> str:
+        return f"{x:.12g},{y:.12g}"
+
+    for line, options in decorated:
+        start_cap, end_cap, start_gap, end_gap = options
+        parent = parents.get(line)
+        if parent is None:
+            continue
+        match = _LINE_TRANSLATE.match(line.get("transform", ""))
+        if match is None:
+            continue
+        x0 = float(match.group(1)) + float(line.get("x1") or line.get("x") or 0)
+        y0 = float(match.group(2)) + float(line.get("y1") or line.get("y") or 0)
+        x1 = float(match.group(1)) + float(line.get("x2") or 0)
+        y1 = float(match.group(2)) + float(line.get("y2") or 0)
+        dx, dy = x1 - x0, y1 - y0
+        length = math.hypot(dx, dy)
+        if length <= 1e-12:
+            line.set("display", "none")
+            continue
+        ux, uy = dx / length, dy / length
+        px, py = -uy, ux
+        stroke_width = float(line.get("stroke-width") or 1)
+
+        def cap_size(cap: str | None) -> float:
+            return 4.0 * math.sqrt(stroke_width) if cap == "arrow" else max(4.0, 4.0 * stroke_width)
+
+        start_extent = start_gap + (cap_size(start_cap) if start_cap is not None else 0)
+        end_extent = end_gap + (cap_size(end_cap) if end_cap is not None else 0)
+        if start_extent + end_extent >= length:
+            # Never move a decoration beyond the opposite target or silently reduce a requested
+            # clearance. There is no drawable segment when the full endpoint extents do not fit.
+            line.set("display", "none")
+            continue
+
+        def cap_geometry(cap: str | None, x: float, y: float, ix: float, iy: float, gap: float):
+            tip_x, tip_y = x + ix * gap, y + iy * gap
+            if cap is None:
+                return tip_x, tip_y, None
+            size = cap_size(cap)
+            if size == 0:
+                return tip_x, tip_y, None
+            if cap == "arrow":
+                base_x, base_y = tip_x + ix * size, tip_y + iy * size
+                half_width = size * 0.6
+                path = ET.Element(f"{{{_SVG_NS}}}path")
+                path.set(
+                    "d",
+                    f"M{point_text(tip_x, tip_y)}L{point_text(base_x + px * half_width, base_y + py * half_width)}"
+                    f"L{point_text(base_x - px * half_width, base_y - py * half_width)}Z",
+                )
+                return base_x, base_y, path
+            half = size / 2
+            center_x, center_y = tip_x + ix * half, tip_y + iy * half
+            if cap == "circle":
+                shape = ET.Element(
+                    f"{{{_SVG_NS}}}circle",
+                    {"cx": f"{center_x:.12g}", "cy": f"{center_y:.12g}", "r": f"{half:.12g}"},
+                )
+            else:
+                corners = [
+                    (center_x + sx * ix * half + sy * px * half, center_y + sx * iy * half + sy * py * half)
+                    for sx, sy in ((-1, -1), (-1, 1), (1, 1), (1, -1))
+                ]
+                shape = ET.Element(f"{{{_SVG_NS}}}path", {"d": "M" + "L".join(point_text(*p) for p in corners) + "Z"})
+            # Meet the decoration at its inward edge rather than drawing underneath it; this
+            # avoids darkening translucent caps through alpha overlap.
+            return center_x + ix * half, center_y + iy * half, shape
+
+        sx, sy, start_shape = cap_geometry(start_cap, x0, y0, ux, uy, start_gap)
+        ex, ey, end_shape = cap_geometry(end_cap, x1, y1, -ux, -uy, end_gap)
+        for shape in (start_shape, end_shape):
+            if shape is None:
+                continue
+            shape.set("class", "ds-rule-cap")
+            shape.set("fill", line.get("stroke", "black"))
+            shape.set("stroke", "none")
+            shape.set("opacity", line.get("opacity", "1"))
+            shape.set("fill-opacity", line.get("stroke-opacity", "1"))
+            shape.set("pointer-events", "none")
+            parent.insert(list(parent).index(line) + 1, shape)
+        remaining = (ex - sx) * ux + (ey - sy) * uy
+        if remaining <= 0:
+            line.set("display", "none")
+        else:
+            line.set("transform", f"translate({sx:.12g},{sy:.12g})")
+            line.set("x1", "0")
+            line.set("y1", "0")
+            line.set("x2", f"{ex - sx:.12g}")
+            line.set("y2", f"{ey - sy:.12g}")
+            line.set("stroke-linecap", "butt")
 
 
 def save(
@@ -263,8 +397,6 @@ def save(
     # are actually present, and embed ONLY those records — so a record from a chart that was
     # built but never saved can't contaminate this save.  `exportIdentifier` + `timestamp` are
     # generated once (shared by every variant of this export); the checksum is per-variant.
-    from ._statistics import _select_reports
-
     # Under SOURCE_DATE_EPOCH both are pinned so two saves of one figure are byte-identical:
     # the timestamp comes from the epoch, and the run id is derived from the first variant's
     # content below (it needs the checksums, which are only computed inside the loop).
@@ -301,19 +433,29 @@ def save(
         if _want_render or "html" in _formats:
             import vl_convert as vlc
 
+        # Resolve and validate every variant before writing anything. Besides making multi-background
+        # exports transactional, this calls a callable exactly once per variant and keeps the object
+        # used by the SVG renderer paired with the exact preflighted spec.
+        _variants: list[tuple[str, _AltairChart, dict[str, Any]]] = []
         for bg in _backgrounds:
             alt.theme.options["darkmode"] = bg == "dark"
-            # The spec is captured at the chart's logical transparency (for the JSON + the
-            # checksum); the SVG/PNG re-render below at the `transparent` param's value.
             alt.theme.options["transparent"] = original_transparent
             base_obj = _resolve_base()
-            # Non-finite floats become null before the spec is hashed OR written, so the checksum still
-            # revalidates against the file and the JSON never carries a bare NaN (not valid JSON).
             spec = _apply_spec_fixes(_json_safe(base_obj.to_dict()))
-            _hashes = metadata._scan_marker_hashes(spec) if saveMetadata else set()
-            _records = _select_reports(_hashes)
+            # The guard also runs when metadata will be stripped; loaded results must never silently
+            # survive a changed analytical panel in any output tier.
+            metadata._prepare_statistics_owners(deepcopy(spec))
+            _variants.append((bg, base_obj, spec))
+
+        for bg, base_obj, original_spec in _variants:
+            alt.theme.options["darkmode"] = bg == "dark"
+            alt.theme.options["transparent"] = original_transparent
+            spec = deepcopy(original_spec)
+            # Scan extension wrappers before a wrapped live-statistics marker is replaced by its
+            # persistent owner. Loaded persistent owners remain compatible with fresh extension tags.
             _exts = discovery._used_extensions(spec) if saveMetadata else {}  # extensions that made it
-            metadata._strip_markers(spec)  # markers are internal — never in the written output
+            _records, _bindings = metadata._prepare_statistics_owners(spec) if saveMetadata else ([], {})
+            metadata._strip_markers(spec, statistics_owners=not saveMetadata)
             _usermeta = _usermeta_json = _report_sections = None
             if saveMetadata:
                 _checksum = metadata._spec_checksum(spec)
@@ -330,6 +472,7 @@ def save(
                     extensions=_exts,
                     chart_expression=_chart_expression,
                     description=description,
+                    statistics_bindings=_bindings,
                 )
 
             if "json" in _formats:
@@ -446,7 +589,15 @@ def show(
 def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict[str, Any]":
     """Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).
 
-    JSON only — the PNG/SVG carry the metadata block but not the full spec.
+    JSON only — the PNG/SVG carry the metadata block but not the full spec. Statistical records
+    saved by the current version are restored with their owning chart components, so composition,
+    panel extraction, and a later :func:`save` preserve only the records still represented. The
+    numerical results and their source-data checksums are preserved, not recomputed. Loaded records
+    retain a guard over their saved analytical panel; changing data, mappings, transforms, parameters,
+    or annotation values makes a later save fail closed and requires rebuilding the annotation from
+    source data. Presentation edits and intact panel composition remain valid. Files from earlier
+    versions receive no adapter. Lookup transforms, runtime parameters/selections, external data, and
+    expressions beyond deterministic operations on ``datum`` cannot be preserved.
 
     Parameters
     ----------
@@ -455,7 +606,8 @@ def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_A
         theme ``config`` is stripped (Altair's schema rejects a few of dysonsphere's
         config values), so it comes back unstyled — see ``applyTheme``. ``True`` returns
         the raw Vega-Lite spec ``dict`` instead, ``config`` intact, which re-renders
-        pixel-identically (e.g. via ``vl_convert``) but is not a composable Altair object.
+        pixel-identically (e.g. via ``vl_convert``) but is not a composable Altair object. Raw mode
+        does not restore chart-owned statistical records into runtime state.
     applyTheme:
         For ``raw=False``: ``True`` (default) re-applies the theme baked into the file via
         ``ds.theme(**saved_args)`` so the object renders exactly as saved. Like any
@@ -468,15 +620,40 @@ def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_A
     spec = json.loads(p.read_text(encoding="utf-8"))
     if raw:
         return spec
-    if applyTheme:
-        theme_args = ((spec.get("usermeta") or {}).get("dysonsphere") or {}).get("theme")
-        if theme_args:
-            from .theme import theme as _theme
+    spec, imported_records = metadata._restore_statistics_owners(spec)
+    theme_args = ((spec.get("usermeta") or {}).get("dysonsphere") or {}).get("theme") if applyTheme else None
+    # Inline named datasets before dropping their top-level container. Top-level export properties
+    # otherwise make two loaded charts invalid as children of a new Altair composition.
+    datasets = cast(dict[str, Any], spec.get("datasets")) if isinstance(spec.get("datasets"), dict) else {}
 
-            _theme(**theme_args)
-    # Strip config (schema-incompatible) and usermeta before parsing into an Altair object.
-    stripped = {k: v for k, v in spec.items() if k not in ("config", "usermeta")}
-    return cast("_AltairChart", alt.Chart.from_dict(stripped))
+    def inline_named_data(node: dict[str, Any]) -> None:
+        data = node.get("data")
+        if isinstance(data, dict) and isinstance(data.get("name"), str) and data["name"] in datasets:
+            node["data"] = {**data, "values": datasets[data["name"]]}
+            del node["data"]["name"]
+        for transform in node.get("transform", []) if isinstance(node.get("transform"), list) else []:
+            source = transform.get("from", {}).get("data") if isinstance(transform, dict) else None
+            if isinstance(source, dict) and isinstance(source.get("name"), str):
+                name = source["name"]
+                if name not in datasets:
+                    raise ValueError(f"saved chart lookup references missing named dataset {name!r}")
+                transform["from"]["data"] = {**source, "values": datasets[name]}
+                del transform["from"]["data"]["name"]
+
+    metadata._walk_chart_nodes(spec, inline_named_data)
+    # Strip export-only top-level properties before parsing into a composable Altair object.
+    stripped = {k: v for k, v in spec.items() if k not in ("$schema", "background", "config", "datasets", "usermeta")}
+    chart = cast("_AltairChart", alt.Chart.from_dict(stripped))
+    if theme_args:
+        from .theme import theme as _theme
+
+        _theme(**theme_args)
+    if imported_records:
+        from ._statistics import _register_loaded_report
+
+        for record, context_hash in imported_records:
+            _register_loaded_report(record, context_hash)
+    return chart
 
 
 def _align_grid_to_content(root: ET.Element, axis_offset: float) -> None:

@@ -178,6 +178,10 @@ def _validate_family_size(n_comparisons: Any, actual: int, *, correction: str | 
 # ``name``, which DOES survive ``+``) is what ties a queued record back to its chart.
 _MARKER_PREFIX = "__dysonsphere_"
 _REPORTS: dict[str, dict[str, Any]] = {}  # content-hash -> record
+# Records reconstructed from a current-version export are deduplicated by record and analytical
+# context. Unlike pending live records, these survive clear_stats(); repeated loads therefore do not
+# add process-lifetime entries for each fresh owner nonce.
+_LOADED_REPORTS: dict[tuple[str, str], dict[str, Any]] = {}
 _marker_counter = 0
 
 # Machine-readable names for the effect-size symbols used in the text report.
@@ -216,10 +220,26 @@ def _marker_hash(name: str) -> str | None:
     return name[len(_MARKER_PREFIX) :].rsplit("_", 1)[0]
 
 
-def _select_reports(hashes) -> list[dict[str, Any]]:
-    """Records for the given hashes, in registration order (naturally de-duped by hash)."""
-    want = set(hashes)
-    return [r for h, r in _REPORTS.items() if h in want]
+def _register_loaded_report(record: dict[str, Any], context_hash: str) -> None:
+    """Retain one imported record for one saved analytical context."""
+    _LOADED_REPORTS[(_record_hash(record), context_hash)] = record
+
+
+def _live_report(record_hash: str) -> dict[str, Any] | None:
+    """Return a pending live record without consulting retained imported records."""
+    return _REPORTS.get(record_hash)
+
+
+def _loaded_report(record_hash: str, context_hash: str) -> dict[str, Any] | None:
+    """Return an imported record/context pair without consulting the live queue."""
+    return next(
+        (
+            record
+            for (saved_record, saved_context), record in _LOADED_REPORTS.items()
+            if saved_record == record_hash and saved_context.startswith(context_hash)
+        ),
+        None,
+    )
 
 
 def clear_stats() -> None:

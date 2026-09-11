@@ -91,6 +91,34 @@ Source references below are relative to `src/dysonsphere/`; test references are 
 
 ## Composition and Annotations
 
+- **Equation rules require an explicit x span.** A standalone native Altair annotation cannot
+  discover another chart's resolved domains or facet-local scale names. Equation mode therefore
+  computes ordinary datum endpoints from `slope`, `intercept`, and a required numeric `span`, with
+  linear quantitative axes as a documented caller responsibility. Do not introduce arbitrary
+  endpoints, generated scale-name expressions, or export-only rewriting.
+  References: `annotations.py::rule`; `test_annotations.py::TestRule`.
+
+- **Rule caps use resolved SVG segment geometry.** Vega-Lite does not expose a facet-local rendered
+  direction for sibling cap marks. Durable rule markers therefore carry cap/gap intent through JSON
+  round trips, while the common SVG pipeline measures the rendered line and adds editable SVG
+  decoration objects before simplification. This keeps reversed scales, facets, and aspect ratios
+  correct without scale-name expressions. Bare Altair and HTML remain intentionally undecorated.
+  References: `annotations.py::_rule_cap_marker`; `export.py::_decorate_rule_segments`;
+  `test_export.py::TestRuleCaps`.
+
+- **Automatic point-facing gaps share one construction-time formula.** Label connectors and capped
+  rules use `sqrt(markSize / (2*pi)) + markStrokeWidth + 2*axisWidth`: point edge radius, marker
+  stroke, and painted daylight. Extracting this formula must not change labels' existing point- or
+  text-end geometry. Rule markers store the resolved pixels, so multi-theme exports rebuild through
+  a callable like other construction-time geometry.
+  References: `annotations.py::_automatic_marker_gap`, `labels`, `rule`.
+
+- **Label connector arrows decorate existing connector geometry.** `labels` already resolves its
+  point- and text-end clearances before emitting a connector. Its point-facing arrow therefore uses
+  the shared rule-cap marker with zero additional SVG gap, preserving placement and applying
+  `connectorGap` once. A connector too short for the resolved cap is omitted without moving its label.
+  References: `annotations.py::labels`; `export.py::_decorate_rule_segments`.
+
 - **Extensions have their own distributions.** Keep optional dependencies and release schedules
   outside core. Extras would couple releases; namespace-package restructuring would disrupt the
   core import path for little gain. Discovery supplies `ds.biology` without either change, and
@@ -159,3 +187,19 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   or a reason for a save to fail.
   References: `metadata.py::_call_expression`; `test_metadata.py::TestCallExpression`;
   `test_metadata.py::TestSaveUsermeta`.
+
+- **Loaded statistics retain component ownership, not historical exports.** Current-version JSON
+  stores records once and compact owner-to-record-and-context bindings; persistent owning-node names survive the
+  saved spec and ordinary Altair composition. `load()` allocates fresh owner identities and imports
+  exact records, while re-export regenerates prose, provenance, and export identity. Each owner binds
+  the record to a compact digest of its effective analytical panel (data, transforms, mappings,
+  parameters, and annotation sidecars). Load validates the guard transactionally and every save checks
+  it again, failing closed after analytical edits while allowing presentation changes and intact panel
+  composition. Lookup transforms and runtime parameters/selections are rejected rather than treated as
+  guardable; expressions are limited to deterministic `datum` operations with a small pure-function
+  allowlist. Imported records are retained privately by record/context hash - not attached as Python
+  chart attributes - so repeated loads do not accumulate an
+  owner map and `clear_stats()` continues to clear only pending live calculations. Runtime statistical
+  markers remain separate and are still stripped. References: `metadata.py::_prepare_statistics_owners`,
+  `_restore_statistics_owners`, `_statistics_context`; `_statistics.py::_loaded_report`;
+  `test_metadata.py::TestReadLoad`.

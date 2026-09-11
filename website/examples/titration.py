@@ -35,6 +35,6 @@ curve = (
 
 chart = (
     curve
-    + ds.rule(25.0, axis="x", label="equivalence", labelAlign="top", labelPosition="right")
-    + ds.rule(4.76, axis="y", strokeDash=True, label="pKa", labelAlign="left")
+    + ds.rule(x=25.0, label="equivalence", labelAlign="top", labelPosition="right")
+    + ds.rule(y=4.76, strokeDash=True, label="pKa", labelAlign="left")
 )

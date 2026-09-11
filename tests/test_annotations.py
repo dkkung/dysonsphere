@@ -1,3 +1,4 @@
+import math
 import re
 
 import altair as alt
@@ -211,6 +212,25 @@ class TestLabels:
         marks = self._connector_marks(labels(df, "x", "y", "g", connectorOpacity=0.25))
         assert marks and all(m["opacity"] == 0.25 and "color" not in m for m in marks)
 
+    def test_connector_cap_default_leaves_spec_unchanged(self, df):
+        implicit = labels(df, "x", "y", "g", alwaysShowConnectors=True).to_dict()
+        explicit = labels(df, "x", "y", "g", connectorCap=None, alwaysShowConnectors=True).to_dict()
+        assert implicit == explicit
+        assert all("description" not in mark for mark in self._connector_marks(labels(df, "x", "y", "g")))
+
+    def test_connector_arrow_reuses_existing_start_and_text_end_geometry(self, df):
+        plain = labels(df, "x", "y", "g", connectorGap=0, alwaysShowConnectors=True).to_dict()
+        arrow = labels(df, "x", "y", "g", connectorGap=0, connectorCap="arrow", alwaysShowConnectors=True).to_dict()
+        plain_enc = [layer["encoding"] for layer in plain["layer"] if layer["mark"]["type"] == "rule"]
+        arrow_layers = [layer for layer in arrow["layer"] if layer["mark"]["type"] == "rule"]
+        assert [layer["encoding"] for layer in arrow_layers] == plain_enc
+        assert all(layer["mark"]["description"].startswith("__dsrulecap_") for layer in arrow_layers)
+
+    def test_connector_cap_validation_even_when_connector_disabled(self, df):
+        with pytest.raises(ValueError, match="connectorCap"):
+            labels(df, "x", "y", "g", connector=False, connectorCap="circle")  # ty: ignore[invalid-argument-type]
+        assert isinstance(labels(df, "x", "y", "g", connector=False, connectorCap="arrow"), alt.LayerChart)
+
     def test_connector_gap_shortens_line(self, df):
         import math
 
@@ -272,6 +292,32 @@ class TestLabels:
                 checked += 1
                 pending = None
         assert checked
+
+    def test_default_marker_gap_uses_shared_automatic_formula(self):
+        from dysonsphere.annotations import _automatic_marker_gap
+
+        theme(chartWidth=100, chartHeight=100)
+        df = pl.DataFrame({"x": [10.0, 50.0, 90.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
+        spec = labels(
+            df,
+            "x",
+            "y",
+            "g",
+            alwaysShowConnectors=True,
+            xDomain=(0.0, 100.0),
+            yDomain=(0.0, 100.0),
+        ).to_dict()
+        anchors = [(10.0, 20.0), (50.0, 80.0), (90.0, 40.0)]
+        starts = [
+            (encoding["x"]["datum"], encoding["y"]["datum"])
+            for layer in spec["layer"]
+            if layer["mark"]["type"] == "rule"
+            for encoding in [layer["encoding"]]
+        ]
+        expected = _automatic_marker_gap()
+        assert starts and all(
+            min(math.dist(start, anchor) for anchor in anchors) == pytest.approx(expected) for start in starts
+        )
 
     def test_reversed_axis_labels_stay_in_panel(self):
         # reversed axis mirrors markers at render; offsets must mirror too (3.13.0 spilled labels)
@@ -460,29 +506,168 @@ class TestRuleMarkKwargs:
 
 class TestRule:
     def test_no_label_returns_chart(self):
-        result = rule(0.5)
+        result = rule(y=0.5)
         assert isinstance(result, alt.Chart)
 
     def test_with_label_returns_layer_chart(self):
-        result = rule(0.5, label="threshold")
+        result = rule(y=0.5, label="threshold")
         assert isinstance(result, alt.LayerChart)
 
     def test_multiple_values_returns_layer(self):
         # One datum layer per value (single-value stays a bare Chart, see test_no_label_returns_chart).
-        result = rule([0.25, 0.5, 0.75])
+        result = rule(y=[0.25, 0.5, 0.75])
         assert isinstance(result, alt.LayerChart)
 
     def test_multiple_values_with_labels_returns_layer(self):
-        result = rule([0.25, 0.75], label=["low", "high"])
+        result = rule(y=[0.25, 0.75], label=["low", "high"])
         assert isinstance(result, alt.LayerChart)
 
     def test_vertical_rule(self):
-        result = rule(5.0, axis="x")
+        result = rule(x=5.0)
         assert isinstance(result, alt.Chart)
 
-    def test_invalid_axis_raises(self):
-        with pytest.raises(ValueError, match="axis"):
-            rule(0.5, axis="z")
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({"x": 2, "x2": 8, "y": 5}, {"x": {"datum": 2.0}, "x2": {"datum": 8.0}, "y": {"datum": 5.0}}),
+            ({"x": 5, "y": 2, "y2": 8}, {"x": {"datum": 5.0}, "y": {"datum": 2.0}, "y2": {"datum": 8.0}}),
+            (
+                {"x": 2, "y": 3, "x2": 8, "y2": 9},
+                {"x": {"datum": 2.0}, "y": {"datum": 3.0}, "x2": {"datum": 8.0}, "y2": {"datum": 9.0}},
+            ),
+            (
+                {"slope": 2, "intercept": 1, "span": (0, 5)},
+                {"x": {"datum": 0.0}, "y": {"datum": 1.0}, "x2": {"datum": 5.0}, "y2": {"datum": 11.0}},
+            ),
+        ],
+    )
+    def test_coordinate_geometry(self, kwargs, expected):
+        assert rule(**kwargs).to_dict()["encoding"] == expected
+
+    def test_equation_intercept_defaults_zero(self):
+        assert rule(slope=2, span=(1, 3)).to_dict()["encoding"]["y2"] == {"datum": 6.0}
+
+    def test_equation_requires_span(self):
+        with pytest.raises(ValueError, match="span=.*required"):
+            rule(slope=1)
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {},
+            {"x2": 2},
+            {"x": 1, "y": 2},
+            {"x": 1, "y": 2, "x2": 3, "span": (0, 2)},
+            {"slope": 1, "x": 0, "span": (0, 2)},
+        ],
+    )
+    def test_invalid_geometry_raises(self, kwargs):
+        with pytest.raises(ValueError):
+            rule(**kwargs)
+
+    def test_diagonal_label_is_horizontal_and_anchors_smaller_x_endpoint(self):
+        spec = rule(x=8, y=9, x2=2, y2=3, label="trend").to_dict()
+        text_layer = next(layer for layer in spec["layer"] if layer["mark"]["type"] == "text")
+        assert text_layer["encoding"]["x"] == {"datum": 2.0}
+        assert text_layer["encoding"]["y"] == {"datum": 3.0}
+        assert "angle" not in text_layer["mark"]
+
+    def test_diagonal_center_label_uses_data_coordinate_midpoint(self):
+        spec = rule(x=2, y=3, x2=8, y2=11, label="trend", labelAlign="center").to_dict()
+        text_layer = next(layer for layer in spec["layer"] if layer["mark"]["type"] == "text")
+        assert text_layer["encoding"]["x"] == {"datum": 5.0}
+        assert text_layer["encoding"]["y"] == {"datum": 7.0}
+
+    def test_diagonal_facet_safe_data_mode_renders(self):
+        import vl_convert as vlc
+
+        df = pl.DataFrame({"g": ["a", "a", "b", "b"], "x": [0, 2, 0, 2], "y": [0, 2, 1, 3]})
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        faceted = (base + rule(x=0, y=0, x2=2, y2=2, label="trend", data=df)).facet(column="g:N")
+        assert vlc.vegalite_to_svg(faceted.to_dict()).count("trend") >= 2
+
+    @pytest.mark.parametrize("coordinate", [True, False, float("nan"), float("inf"), "5"])
+    def test_axis_coordinate_rejects_non_numeric_bool_and_nonfinite(self, coordinate):
+        with pytest.raises(ValueError, match="finite number"):
+            rule(y=coordinate)
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"slope": True, "span": (0, 1)},
+            {"slope": float("inf"), "span": (0, 1)},
+            {"slope": 1, "intercept": False, "span": (0, 1)},
+            {"slope": 1, "intercept": float("nan"), "span": (0, 1)},
+            {"slope": 1, "span": (False, 1)},
+            {"slope": 1, "span": (0, float("inf"))},
+            {"x": 0, "y": 0, "x2": True, "y2": 1},
+        ],
+    )
+    def test_all_geometry_numbers_are_strictly_finite(self, kwargs):
+        with pytest.raises(ValueError, match="finite number"):
+            rule(**kwargs)
+
+    @pytest.mark.parametrize("coordinate", ["x", "y"])
+    def test_empty_axis_coordinate_list_rejected(self, coordinate):
+        with pytest.raises(ValueError, match="must not be empty"):
+            rule(**{coordinate: []})  # ty: ignore[invalid-argument-type]
+
+    def test_bounded_axis_fixed_coordinate_list_is_supported(self):
+        spec = rule(x=2, x2=8, y=[3, 7]).to_dict()
+        assert [layer["encoding"]["y"]["datum"] for layer in spec["layer"]] == [3.0, 7.0]
+
+    @pytest.mark.parametrize("name", ["startCap", "endCap"])
+    def test_invalid_cap_rejected(self, name):
+        with pytest.raises(ValueError, match=name):
+            rule(y=1, **{name: "triangle"})  # ty: ignore[invalid-argument-type]
+
+    @pytest.mark.parametrize("name", ["startGap", "endGap"])
+    @pytest.mark.parametrize("value", [True, -1, float("nan"), float("inf")])
+    def test_invalid_gap_rejected(self, name, value):
+        with pytest.raises(ValueError, match=name):
+            rule(y=1, **{name: value})
+
+    def test_cap_options_create_durable_marker_but_plain_rule_does_not(self):
+        from dysonsphere.utils import _RULE_CAP_PREFIX
+
+        assert rule(y=1, startCap="arrow").to_dict()["mark"]["description"].startswith(_RULE_CAP_PREFIX)
+        assert "description" not in rule(y=1).to_dict()["mark"]
+
+    def test_explicit_zero_gap_is_distinct_from_cap_default(self):
+        from dysonsphere.annotations import _automatic_marker_gap
+        from dysonsphere.export import _rule_cap_options
+
+        zero_name = rule(y=1, startCap="circle", startGap=0).to_dict()["mark"]["description"]
+        auto_name = rule(y=1, startCap="circle").to_dict()["mark"]["description"]
+        assert _rule_cap_options(zero_name) == ("circle", None, 0.0, 0.0)
+        assert _rule_cap_options(auto_name) == ("circle", None, _automatic_marker_gap(), 0.0)
+
+    def test_automatic_cap_gap_exactly_matches_labels_formula_and_theme(self):
+        from dysonsphere.annotations import _automatic_marker_gap
+        from dysonsphere.export import _rule_cap_options
+
+        theme(markSize=50, markStrokeWidth=1.5, axisWidth=0.75)
+        expected = math.sqrt(50 / (2 * math.pi)) + 1.5 + 2 * 0.75
+        assert _automatic_marker_gap() == pytest.approx(expected)
+        marker = rule(y=1, startCap="arrow").to_dict()["mark"]["description"]
+        assert _rule_cap_options(marker) == ("arrow", None, pytest.approx(expected), 0.0)
+
+    def test_explicit_rule_gap_is_theme_invariant_and_capless_default_is_zero(self):
+        from dysonsphere.export import _rule_cap_options
+
+        theme(markSize=10, axisWidth=0.25)
+        explicit_a = rule(y=1, startCap="arrow", startGap=1.25).to_dict()["mark"]["description"]
+        theme(markSize=100, axisWidth=2)
+        explicit_b = rule(y=1, startCap="arrow", startGap=1.25).to_dict()["mark"]["description"]
+        options_a = _rule_cap_options(explicit_a)
+        options_b = _rule_cap_options(explicit_b)
+        assert options_a is not None and options_b is not None
+        assert options_a[2] == options_b[2] == 1.25
+        assert "description" not in rule(y=1).to_dict()["mark"]
+
+    def test_positional_coordinate_rejected(self):
+        with pytest.raises(TypeError):
+            rule(0.5)  # ty: ignore[too-many-positional-arguments]
 
     def test_preserves_explicit_base_axis_titles(self):
         # Regression: a rule must not null the base chart's axis title (the datum-vs-field fix).
@@ -495,7 +680,7 @@ class TestRule:
             .mark_point()
             .encode(x=alt.X("a:Q", title="MyXTitle"), y=alt.Y("b:Q", title="MyYTitle"))
         )
-        svg = vlc.vegalite_to_svg((base + rule(1.0, axis="x") + rule(1.0, axis="y")).to_dict())
+        svg = vlc.vegalite_to_svg((base + rule(x=1.0) + rule(y=1.0)).to_dict())
 
         def rendered(t):
             return bool(re.search(r"<text[^>]*>[^<]*" + re.escape(t) + r"[^<]*</text>", svg))
@@ -514,7 +699,7 @@ class TestRule:
             .mark_point()
             .encode(x="weight:Q", y="height:Q")
         )
-        svg = vlc.vegalite_to_svg((base + rule(1.0, axis="x")).to_dict())
+        svg = vlc.vegalite_to_svg((base + rule(x=1.0)).to_dict())
         texts = re.findall(r"<text[^>]*>([^<]+)</text>", svg)
         assert "weight" in texts
         assert not any("__" in t for t in texts)  # no leaked sidecar field name
@@ -603,63 +788,63 @@ class TestRuleSpan:
 
     def test_numeric_span_horizontal_datum(self):
         # axis="y" runs along x: span goes on x / x2 as data-coord datums.
-        enc = self._enc(rule(5.0, span=(2.0, 8.0)))
+        enc = self._enc(rule(y=5.0, span=(2.0, 8.0)))
         assert enc == {"y": {"datum": 5.0}, "x": {"datum": 2.0}, "x2": {"datum": 8.0}}
 
     def test_numeric_span_vertical_datum(self):
         # axis="x" runs along y: span goes on y / y2.
-        enc = self._enc(rule(5.0, axis="x", span=(2.0, 8.0)))
+        enc = self._enc(rule(x=5.0, span=(2.0, 8.0)))
         assert enc == {"x": {"datum": 5.0}, "y": {"datum": 2.0}, "y2": {"datum": 8.0}}
 
     def test_no_span_omits_running_channel(self):
         # Regression: without span, a horizontal rule has no x/x2 (spans full width).
-        enc = self._enc(rule(5.0))
+        enc = self._enc(rule(y=5.0))
         assert enc == {"y": {"datum": 5.0}}
 
     def test_category_span_resolves_to_pixels(self):
         # String bounds resolve through the band scale to pixel values (like shade).
         theme(chartWidth=100, chartHeight=100)
-        enc = self._enc(rule(5.0, span=("Control", "B"), categories=self.CATS))
+        enc = self._enc(rule(y=5.0, span=("Control", "B"), categories=self.CATS))
         assert enc["y"] == {"datum": 5.0}
         assert "value" in enc["x"] and "value" in enc["x2"]
         assert enc["x"]["value"] < enc["x2"]["value"]
 
     def test_span_applies_to_every_value(self):
-        layers = self._enc(rule([3.0, 7.0], span=(2.0, 8.0)))
+        layers = self._enc(rule(y=[3.0, 7.0], span=(2.0, 8.0)))
         for lyr in layers:
             assert lyr["x"] == {"datum": 2.0} and lyr["x2"] == {"datum": 8.0}
 
     def test_label_anchors_to_span_end(self):
         # A labelAlign="right" label on a sliced horizontal line sits at the slice's high end (x=8),
         # not the chart edge; "left" sits at the low end (x=2).
-        r_enc = self._enc(rule(5.0, span=(2.0, 8.0), label="t", labelAlign="right"))
+        r_enc = self._enc(rule(y=5.0, span=(2.0, 8.0), label="t", labelAlign="right"))
         text_layer = next(e for e in r_enc if "text" in e)
         assert text_layer["x"] == {"datum": 8.0}
-        l_enc = self._enc(rule(5.0, span=(2.0, 8.0), label="t", labelAlign="left"))
+        l_enc = self._enc(rule(y=5.0, span=(2.0, 8.0), label="t", labelAlign="left"))
         text_layer = next(e for e in l_enc if "text" in e)
         assert text_layer["x"] == {"datum": 2.0}
 
     def test_vertical_label_top_is_high_data_value(self):
         # axis="x": "top" anchors to the visually-upper end = the larger data-y (8, not 1).
-        enc = self._enc(rule(3.0, axis="x", span=(1.0, 8.0), label="v", labelAlign="top"))
+        enc = self._enc(rule(x=3.0, span=(1.0, 8.0), label="v", labelAlign="top"))
         text_layer = next(e for e in enc if "text" in e)
         assert text_layer["y"] == {"datum": 8.0}
 
     def test_string_span_without_categories_raises(self):
         with pytest.raises(ValueError, match="categories is required"):
-            rule(5.0, span=("Control", "B"))
+            rule(y=5.0, span=("Control", "B"))
 
     def test_mixed_span_bounds_raise(self):
         with pytest.raises(ValueError, match="both be numbers or both be category names"):
-            rule(5.0, span=("Control", 8.0), categories=self.CATS)  # ty: ignore[invalid-argument-type]
+            rule(y=5.0, span=("Control", 8.0), categories=self.CATS)  # ty: ignore[invalid-argument-type]
 
     def test_unknown_category_raises(self):
         with pytest.raises(ValueError, match="not in categories"):
-            rule(5.0, span=("Control", "Z"), categories=self.CATS)
+            rule(y=5.0, span=("Control", "Z"), categories=self.CATS)
 
     def test_span_wrong_length_raises(self):
         with pytest.raises(ValueError, match="start, end"):
-            rule(5.0, span=(2.0, 4.0, 8.0))  # ty: ignore[invalid-argument-type]
+            rule(y=5.0, span=(2.0, 4.0, 8.0))  # ty: ignore[invalid-argument-type]
 
     def test_span_preserves_base_axis_titles(self):
         # A sliced rule must not clobber the base chart's axis titles (datum-not-field).
@@ -670,13 +855,13 @@ class TestRuleSpan:
             .mark_point()
             .encode(x=alt.X("a:Q", title="MyXTitle"), y=alt.Y("b:Q", title="MyYTitle"))
         )
-        svg = vlc.vegalite_to_svg((base + rule(5.0, span=(2.0, 8.0), label="s")).to_dict())
+        svg = vlc.vegalite_to_svg((base + rule(y=5.0, span=(2.0, 8.0), label="s")).to_dict())
         assert "MyXTitle" in svg and "MyYTitle" in svg
 
     def test_span_facet_safe_data_mode_renders(self):
         # span works in the datum (data=) facet-safe path too.
         df = pl.DataFrame({"a": [0.0, 5, 10], "b": [0.0, 5, 10]})
-        layer = rule(5.0, span=(2.0, 8.0), data=df)
+        layer = rule(y=5.0, span=(2.0, 8.0), data=df)
         layer.to_dict()  # must not raise
         assert layer.to_dict()["encoding"]["x"] == {"datum": 2.0}
 
@@ -762,28 +947,28 @@ class TestRuleDatum:
         return pl.DataFrame({"g": ["A", "A", "B", "B"], "x": [1.0, 2, 3, 4], "value": [1.0, 2, 3, 4]})
 
     def test_datum_single_returns_chart(self, df):
-        assert isinstance(rule(2.0, data=df), alt.Chart)
+        assert isinstance(rule(y=2.0, data=df), alt.Chart)
 
     def test_datum_multi_returns_layer(self, df):
-        assert isinstance(rule([1.0, 3.0], data=df), alt.LayerChart)
+        assert isinstance(rule(y=[1.0, 3.0], data=df), alt.LayerChart)
 
     def test_datum_with_label_returns_layer(self, df):
-        assert isinstance(rule(2.0, label="thr", data=df), alt.LayerChart)
+        assert isinstance(rule(y=2.0, label="thr", data=df), alt.LayerChart)
 
     def test_datum_uses_datum_not_sidecar(self, df):
         import json
 
-        spec = json.dumps(rule(2.0, data=df).to_dict())
+        spec = json.dumps(rule(y=2.0, data=df).to_dict())
         assert "__v" not in spec  # no field-based sidecar
         assert "__dysonsphere__" not in spec  # no internal sentinel dataset (shares the user's df)
         assert '"datum"' in spec  # positioned by a constant datum
 
     def test_datum_pandas_accepted(self, df):
-        rule(2.0, data=df.to_pandas()).to_dict()  # dataframe normalization handles pandas
+        rule(y=2.0, data=df.to_pandas()).to_dict()  # dataframe normalization handles pandas
 
     def test_datum_faceting_succeeds(self, df):
         base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
-        faceted = (base + rule(2.5, label="thr", data=df)).facet(column="g:N")
+        faceted = (base + rule(y=2.5, label="thr", data=df)).facet(column="g:N")
         assert isinstance(faceted, alt.FacetChart)
         faceted.to_dict()  # compiles without the shared-data facet error
 
@@ -791,7 +976,7 @@ class TestRuleDatum:
         # Contrast: the data-backed default cannot be faceted — the limitation datum mode fixes.
         base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
         with pytest.raises(ValueError, match="Facet charts require data"):
-            (base + rule(2.5)).facet(column="g:N")
+            (base + rule(y=2.5)).facet(column="g:N")
 
 
 class TestTextDatum:

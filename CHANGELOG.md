@@ -10,6 +10,25 @@
   `theme(legendGradientThickness=5)` independently sets thickness in pixels. Explicit native
   gradient lengths and thicknesses win. Continuous legends require rendering through `ds.save()`
   or `ds.show()`; bare Altair/notebook rendering may fail on the unresolved sizing marker.
+- Rule segments support optional arrow, circle, and square endpoint caps plus pixel clearances.
+  Arrowhead depth scales gently as `4 * sqrt(strokeWidth)` pixels (2 px at the default 0.25 px
+  stroke); circle and square cap sizes are unchanged.
+  Decorations follow resolved SVG geometry across diagonal rules, reversed scales, and facets in
+  `save()`/`show()` SVG and PNG output; bare Altair and interactive HTML retain the underlying rule.
+  Omitted cap gaps use the existing theme-derived point-label connector clearance.
+- Point-label connectors support `connectorCap="arrow"`, pointing toward each target while reusing
+  the existing connector gap without changing label placement or text-end clearance.
+
+- **Breaking:** `rule()` now uses explicit keyword coordinates (`x`, `y`, `x2`, and `y2`) for
+  horizontal, vertical, bounded, and diagonal segments. Equation rules accept `slope`, an optional
+  `intercept`, and a required numeric `span`; the former positional `value` and `axis` API is removed.
+
+- Current-version JSON exports now preserve statistical records with their owning chart components
+  across `load()` and re-export, while regenerating report prose, provenance, and export identity.
+  Re-export now fails closed if a loaded record's saved analytical panel context changed; presentation
+  edits and intact panel composition remain supported. Lookup transforms, runtime parameters and
+  selections, external data, and non-deterministic expressions are conservatively unsupported.
+
 - The default theme now defaults to `fontSize=6` instead of `fontSize=7`.
 - **Breaking:** palette names no longer use `mpl_` or `cmocean_` prefixes; upstream suffix spelling
   and case are preserved. Native names are lowercase, and qualitative sets are now `cat1`, `cat2`,

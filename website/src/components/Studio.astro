@@ -669,7 +669,7 @@ high,100,26.4,6`;
 			if (rule !== '') {
 				const label = el<HTMLInputElement>('st-rule-label').value.trim();
 				const labelArg = label ? `, label=${q(label)}` : '';
-				body.push('', `chart = chart + ds.rule(${+rule}${labelArg})`);
+				body.push('', `chart = chart + ds.rule(y=${+rule}${labelArg})`);
 			}
 
 			const textNote = el<HTMLInputElement>('st-text').value.trim();

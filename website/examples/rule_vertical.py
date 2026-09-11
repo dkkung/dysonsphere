@@ -16,5 +16,5 @@ scatter = (
     )
 )
 
-# axis="x" draws vertical rules; pass a list for several at once.
-chart = scatter + ds.rule(150, axis="x", label="150 hp", strokeDash=True)
+# An x coordinate draws a vertical rule; pass a list for several at once.
+chart = scatter + ds.rule(x=150, label="150 hp", strokeDash=True)

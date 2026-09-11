@@ -219,8 +219,9 @@ def test_grouped_options_are_not_dropped():
     )
     spec = corr.to_dict()
     assert any("custom" in str(layer) for layer in spec["layer"])
-    assert any(layer.get("mark", {}).get("fill") == "red" for layer in spec["layer"])
-    assert any(layer.get("mark", {}).get("color") == "blue" for layer in spec["layer"])
+    leaves = [leaf for group in spec["layer"] for leaf in group.get("layer", [group])]
+    assert any(layer.get("mark", {}).get("fill") == "red" for layer in leaves)
+    assert any(layer.get("mark", {}).get("color") == "blue" for layer in leaves)
 
 
 def test_grouped_ci_uses_group_color_when_no_override():

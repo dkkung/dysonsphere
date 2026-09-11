@@ -19,7 +19,7 @@ scatter = (
 # One call places multiple reference lines (a list of values) with per-line labels.
 # labelPosition picks which side of the line the label sits on; labelAlign, where along it.
 chart = scatter + ds.rule(
-    [20, 30, 40],
+    y=[20, 30, 40],
     label=["economy", "efficient", "hybrid"],
     labelAlign="right",
     labelPosition="top",

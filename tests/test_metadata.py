@@ -4,6 +4,8 @@ import struct
 import sys
 import uuid
 import zlib
+from copy import deepcopy
+from typing import Any
 
 import altair as alt
 import polars as pl
@@ -113,7 +115,8 @@ class TestSaveUsermeta:
 
     def test_no_statistics_key_without_add_comparisons(self, simple_chart, tmp_path):
         save(simple_chart, str(tmp_path / "out"), background=["light"])
-        assert "statistics" not in self._usermeta(tmp_path)["dysonsphere"]
+        block = self._usermeta(tmp_path)["dysonsphere"]
+        assert "statistics" not in block and "statisticsBindings" not in block
 
     def test_merges_with_user_usermeta(self, tmp_path):
         df = pl.DataFrame({"x": [1, 2, 3], "y": [1.0, 2.0, 3.0]})
@@ -356,7 +359,7 @@ class TestReadLoad:
 
         m = ds.metadata.read(str(saved / "t.svg"), what="metadata")
         assert isinstance(m, dict)
-        assert set(m) == {"provenance", "statistics", "theme", "report"}
+        assert set(m) == {"provenance", "statistics", "statisticsBindings", "theme", "report"}
         assert m["theme"]["chartWidth"] == 180
         # report is a container keyed by section, not a bare string
         assert list(m["report"]) == ["statistics", "provenance"]  # consistent order across formats
@@ -445,6 +448,433 @@ class TestReadLoad:
         with pytest.raises(ValueError, match="Vega-Lite JSON"):
             ds.load(str(saved / "t.png"))
 
+    def test_load_resave_preserves_owned_statistics(self, tmp_path):
+        import dysonsphere as ds
+
+        groups = pl.DataFrame({"g": ["A"] * 5 + ["B"] * 5, "v": [1.0, 2, 3, 4, 5, 3, 4, 5, 6, 7]})
+        xy = pl.DataFrame({"x": [1.0, 2, 3, 4, 5], "y": [1.1, 2.2, 2.8, 4.1, 5.2]})
+        left = alt.Chart(groups).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            groups, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        right = alt.Chart(xy).mark_point().encode(x="x:Q", y="y:Q") + ds.stats.correlation(xy, "x", "y")
+        ds.save(alt.hconcat(left, right), str(tmp_path / "original"), format="json", background="light")
+
+        loaded = ds.load(tmp_path / "original.json")
+        assert isinstance(loaded, alt.HConcatChart)
+        ds.stats.clear_stats()
+        ds.stats.correlation(pl.DataFrame({"x": [1, 2, 3], "y": [3, 2, 1]}), "x", "y")
+        ds.save(loaded, str(tmp_path / "again"), format="json", background="light")
+        records = ds.metadata.read(tmp_path / "again.json", what="statistics")
+        assert [record["kind"] for record in records] == ["pairwise", "correlation"]
+        assert list(ds.metadata.read(tmp_path / "again.json", what="metadata")["report"]) == [
+            "statistics",
+            "provenance",
+        ]
+
+        left_loaded = loaded.hconcat[0]
+        ds.save(left_loaded, str(tmp_path / "left"), format="json", background="light")  # ty: ignore[invalid-argument-type]
+        assert [record["kind"] for record in ds.metadata.read(tmp_path / "left.json", what="statistics")] == [
+            "pairwise"
+        ]
+        base_loaded = left_loaded.layer[0]
+        ds.save(base_loaded, str(tmp_path / "without-stat"), format="json", background="light")  # ty: ignore[invalid-argument-type]
+        assert ds.metadata.read(tmp_path / "without-stat.json", what="statistics") == []
+
+    def test_loaded_statistics_get_fresh_owners_and_do_not_grow(self, tmp_path):
+        import dysonsphere as ds
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "one"), format="json", background="light")
+        first = ds.load(tmp_path / "one.json")
+        second = ds.load(tmp_path / "one.json")
+        assert isinstance(first, alt.LayerChart) and isinstance(second, alt.LayerChart)
+        composed = alt.hconcat(first, second)
+        names = re.findall(r"__dsstatistics_owner_[0-9a-f]{48}", json.dumps(composed.to_dict()))
+        assert len(names) == len(set(names)) == 2
+
+        ds.save(composed, str(tmp_path / "two"), format="json", background="light")
+        assert len(ds.metadata.read(tmp_path / "two.json", what="statistics")) == 1  # content-hash deduplication
+        before = json.loads((tmp_path / "two.json").read_text())["usermeta"]["dysonsphere"]
+        twice_loaded = ds.load(tmp_path / "two.json")
+        assert isinstance(twice_loaded, alt.HConcatChart)
+        ds.save(twice_loaded, str(tmp_path / "three"), format="json", background="light")
+        after = json.loads((tmp_path / "three.json").read_text())["usermeta"]["dysonsphere"]
+        assert len(after["statistics"]) == len(before["statistics"]) == 1
+        assert len(after["statisticsBindings"]) == len(before["statisticsBindings"]) == 2
+
+    def test_load_rejects_malformed_statistics_bindings(self, tmp_path):
+        import dysonsphere as ds
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "bad"), format="json", background="light")
+        spec = json.loads((tmp_path / "bad.json").read_text())
+        spec["usermeta"]["dysonsphere"]["statisticsBindings"] = {
+            "f" * 16 + "0" * 32: {"record": "f" * 16, "context": "sha256:" + "0" * 64}
+        }
+        (tmp_path / "bad.json").write_text(json.dumps(spec))
+        with pytest.raises(ValueError, match="unknown statistical record"):
+            ds.load(tmp_path / "bad.json")
+
+    def test_loaded_statistics_reject_source_data_edit(self, tmp_path):
+        import dysonsphere as ds
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "source"), format="json", background="light")
+        loaded = ds.load(tmp_path / "source.json")
+        assert isinstance(loaded, alt.LayerChart)
+        edited_spec = loaded.to_dict()
+
+        def edit_rows(value):
+            if isinstance(value, dict):
+                rows = (value.get("data") or {}).get("values") if isinstance(value.get("data"), dict) else None
+                if isinstance(rows, list) and rows and "v" in rows[0]:
+                    rows[0]["v"] = 99.0
+                for child in value.values():
+                    edit_rows(child)
+            elif isinstance(value, list):
+                for child in value:
+                    edit_rows(child)
+
+        edit_rows(edited_spec)
+        for key in ("$schema", "background", "config", "datasets"):
+            edited_spec.pop(key, None)
+        edited = alt.LayerChart.from_dict(edited_spec)
+        with pytest.raises(ValueError, match="preserved statistical context changed"):
+            ds.save(edited, str(tmp_path / "edited"), format="json", background="light")
+        assert not (tmp_path / "edited.json").exists()
+
+    def test_loaded_statistics_allow_presentation_edits_but_reject_mappings(self, tmp_path):
+        import dysonsphere as ds
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        chart = alt.Chart(data).mark_point(color="red").encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "source"), format="json", background="light")
+        loaded = ds.load(tmp_path / "source.json")
+        assert isinstance(loaded, alt.LayerChart)
+        styled = loaded.properties(width=310, height=190, title="Presentation only")
+        styled.layer[0].mark.color = "blue"
+        ds.save(styled, str(tmp_path / "styled"), format="json", background="light")
+        assert len(ds.metadata.read(tmp_path / "styled.json", what="statistics")) == 1
+
+        changed = loaded.to_dict()
+        changed["layer"][0]["encoding"]["y"]["aggregate"] = "mean"
+        for key in ("$schema", "background", "config", "datasets"):
+            changed.pop(key, None)
+        with pytest.raises(ValueError, match="preserved statistical context changed"):
+            ds.save(alt.LayerChart.from_dict(changed), str(tmp_path / "changed"), format="json", background="light")
+
+    def test_same_record_in_distinct_contexts_has_distinct_guards(self, tmp_path):
+        import dysonsphere as ds
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        left = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        right = alt.Chart(data).mark_bar().encode(x="g:N", y="mean(v):Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(alt.hconcat(left, right), str(tmp_path / "contexts"), format="json", background="light")
+        block = json.loads((tmp_path / "contexts.json").read_text())["usermeta"]["dysonsphere"]
+        assert len(block["statistics"]) == 1
+        assert len({binding["context"] for binding in block["statisticsBindings"].values()}) == 2
+
+    def test_loaded_statistics_preflight_all_backgrounds_before_writing(self, tmp_path):
+        import dysonsphere as ds
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "source"), format="json", background="light")
+        loaded = ds.load(tmp_path / "source.json")
+        assert isinstance(loaded, alt.LayerChart)
+        calls = 0
+
+        def variant():
+            nonlocal calls
+            calls += 1
+            if not alt.theme.options["darkmode"]:
+                return loaded
+            changed = loaded.to_dict()
+            changed["layer"][0]["data"]["values"][0]["v"] = 99
+            for key in ("$schema", "background", "config", "datasets"):
+                changed.pop(key, None)
+            return alt.LayerChart.from_dict(changed)
+
+        (tmp_path / "out_light.json").write_text("untouched")
+        with pytest.raises(ValueError, match="preserved statistical context changed"):
+            ds.save(variant, str(tmp_path / "out"), format="json", background=["light", "dark"])
+        assert calls == 2
+        assert (tmp_path / "out_light.json").read_text() == "untouched"
+        assert not (tmp_path / "out_dark.json").exists()
+
+    def test_statistics_with_external_data_context_is_unsupported(self, tmp_path):
+        import dysonsphere as ds
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        base = alt.Chart("https://example.invalid/data.json").mark_point().encode(x="g:N", y="v:Q")
+        chart = base + ds.stats.comparisons(data, "g", "v", [("A", "B")], categories=["A", "B"])
+        with pytest.raises(ValueError, match="external data"):
+            ds.save(chart, str(tmp_path / "external"), format="json", background="light")
+
+    def test_statistics_context_rejects_lookup_and_runtime_parameters(self):
+        from dysonsphere.metadata import _statistics_context
+
+        spec: dict[str, Any] = {
+            "datasets": {"lookup": [{"id": 1, "z": 10}]},
+            "data": {"values": [{"id": 1, "y": 2}]},
+            "transform": [{"lookup": "id", "from": {"data": {"name": "lookup"}, "key": "id", "fields": ["z"]}}],
+            "mark": "point",
+        }
+        with pytest.raises(ValueError, match="lookup transforms"):
+            _statistics_context(spec, spec)
+        external = deepcopy(spec)
+        external["transform"][0]["from"]["data"] = {"url": "https://example.invalid/data.csv"}
+        with pytest.raises(ValueError, match="lookup transforms"):
+            _statistics_context(external, external)
+
+        selected = {
+            "data": {"values": [{"x": 1}]},
+            "params": [{"name": "brush", "select": {"type": "interval", "encodings": ["x"]}}],
+            "transform": [{"filter": {"param": "brush"}}],
+            "mark": "point",
+        }
+        with pytest.raises(ValueError, match="runtime parameters"):
+            _statistics_context(selected, selected)
+        for key, value in (("params", None), ("selection", {})):
+            malformed = {"data": {"values": [{"x": 1}]}, "mark": "point", key: value}
+            with pytest.raises(ValueError, match="runtime parameters"):
+                _statistics_context(malformed, malformed)
+
+    def test_statistics_context_expression_boundary(self):
+        from dysonsphere.metadata import _statistics_context
+
+        static: dict[str, Any] = {
+            "data": {"values": [{"x": 1}]},
+            "transform": [{"calculate": "isValid(datum.x) ? abs(datum.x) : 0", "as": "clean"}],
+            "mark": "point",
+        }
+        assert re.fullmatch(r"[0-9a-f]{64}", _statistics_context(static, static))
+        for expression in (
+            "now()",
+            "random()",
+            "data('other')[0].x",
+            "brush.x",
+            'datum[random() > 0.5 ? "x" : "y"]',
+            'datum[now() > 0 ? "x" : "y"]',
+            "datum[brush.field]",
+        ):
+            dynamic = deepcopy(static)
+            dynamic["transform"][0]["calculate"] = expression
+            with pytest.raises(ValueError, match="deterministic datum"):
+                _statistics_context(dynamic, dynamic)
+        for expression in ("datum['x']", "datum[datum.key]", "datum.x * 1e-3 + 0x10"):
+            allowed = deepcopy(static)
+            allowed["transform"][0]["calculate"] = expression
+            assert re.fullmatch(r"[0-9a-f]{64}", _statistics_context(allowed, allowed))
+
+    @pytest.mark.parametrize(
+        "spec, message",
+        [
+            (
+                {"data": {"values": [{"x": 1}]}, "mark": {"type": "text", "text": {"expr": "now()"}}},
+                "deterministic datum",
+            ),
+            (
+                {"data": {"values": [{"x": 1}]}, "mark": {"type": "point", "x": {"expr": "random()"}}},
+                "deterministic datum",
+            ),
+            (
+                {"data": {"values": [{"x": 1}]}, "transform": [{"sample": 1}], "mark": "point"},
+                "sample transforms",
+            ),
+        ],
+    )
+    def test_statistics_context_rejects_dynamic_mark_and_sample(self, spec, message):
+        from dysonsphere.metadata import _statistics_context
+
+        with pytest.raises(ValueError, match=message):
+            _statistics_context(spec, spec)
+
+    def test_load_inlines_named_lookup_dataset(self, tmp_path):
+        import dysonsphere as ds
+
+        spec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+            "datasets": {"main": [{"id": 1, "y": 2}], "lookup": [{"id": 1, "z": 10}]},
+            "data": {"name": "main"},
+            "transform": [{"lookup": "id", "from": {"data": {"name": "lookup"}, "key": "id", "fields": ["z"]}}],
+            "mark": "point",
+            "encoding": {"x": {"field": "z", "type": "quantitative"}, "y": {"field": "y", "type": "quantitative"}},
+        }
+        path = tmp_path / "lookup.json"
+        path.write_text(json.dumps(spec))
+        loaded = ds.load(path, applyTheme=False)
+        assert isinstance(loaded, alt.Chart)
+        loaded_spec = loaded.to_dict()
+        recovered = list(loaded_spec["datasets"].values())
+        assert spec["datasets"]["main"] in recovered
+        lookup_data = loaded_spec["transform"][0]["from"]["data"]
+        assert lookup_data.get("values") == spec["datasets"]["lookup"]
+
+    def test_cleared_live_marker_does_not_bind_to_same_imported_record(self, tmp_path):
+        import dysonsphere as ds
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+
+        def built():
+            return alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+                data, "g", "v", [("A", "B")], categories=["A", "B"]
+            )
+
+        ds.save(built(), str(tmp_path / "source"), format="json", background="light")
+        ds.load(tmp_path / "source.json")  # retain identical imported content
+        live = built()
+        ds.stats.clear_stats()
+        ds.save(live, str(tmp_path / "cleared"), format="json", background="light")
+        block = ds.metadata.read(tmp_path / "cleared.json", what="metadata")
+        assert "statistics" not in block and "statisticsBindings" not in block
+        assert "__dsstatistics_owner_" not in (tmp_path / "cleared.json").read_text()
+        assert isinstance(ds.load(tmp_path / "cleared.json"), alt.LayerChart)
+
+    def test_load_validation_is_transactional_for_registry_and_theme(self, tmp_path):
+        from jsonschema import ValidationError
+
+        import dysonsphere as ds
+        from dysonsphere import _statistics
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        ds.theme(chartWidth=180)
+        chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "valid"), format="json", background="light")
+        before_registry = dict(_statistics._LOADED_REPORTS)
+        ds.theme(chartWidth=999)
+
+        malformed = json.loads((tmp_path / "valid.json").read_text())
+        malformed["usermeta"]["dysonsphere"]["statisticsBindings"] = None
+        malformed["usermeta"]["dysonsphere"]["statistics"] = None
+        (tmp_path / "malformed.json").write_text(json.dumps(malformed))
+        with pytest.raises(ValueError, match="require a statistics record list"):
+            ds.load(tmp_path / "malformed.json")
+        assert _statistics._LOADED_REPORTS == before_registry and alt.theme.options["chartWidth"] == 999
+
+        invalid = json.loads((tmp_path / "valid.json").read_text())
+        invalid["layer"][0]["mark"] = {"type": "not-a-mark"}
+        (tmp_path / "invalid.json").write_text(json.dumps(invalid))
+        with pytest.raises((ValidationError, ValueError)):
+            ds.load(tmp_path / "invalid.json")
+        assert _statistics._LOADED_REPORTS == before_registry and alt.theme.options["chartWidth"] == 999
+
+    def test_owner_walkers_ignore_user_rows_and_preserve_named_data_options(self, tmp_path):
+        import dysonsphere as ds
+
+        lookalike = "__dsstatistics_owner_" + "a" * 32
+        data = pl.DataFrame(
+            {
+                "name": [lookalike] * 8,
+                "payload": [{"data": {"name": "user-value"}}] * 8,
+                "g": ["A"] * 4 + ["B"] * 4,
+                "v": [1.0, 2, 3, 4, 2, 3, 4, 5],
+            }
+        )
+        chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "rows"), format="json", background="light")
+        recovered = ds.metadata.read(tmp_path / "rows.json", what="data")
+        assert recovered["name"].to_list() == [lookalike] * 8
+        assert recovered["payload"].to_list() == [{"data": {"name": "user-value"}}] * 8
+
+        spec = json.loads((tmp_path / "rows.json").read_text())
+        spec["layer"][0]["data"]["format"] = {"type": "json"}
+        (tmp_path / "format.json").write_text(json.dumps(spec))
+        with pytest.raises(ValueError, match="preserved statistical context changed"):
+            ds.load(tmp_path / "format.json")
+
+    def test_metadata_disabled_strips_loaded_owners_permanently(self, tmp_path):
+        import dysonsphere as ds
+
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "source"), format="json", background="light")
+        loaded = ds.load(tmp_path / "source.json")
+        assert isinstance(loaded, alt.LayerChart)
+        ds.save(loaded, str(tmp_path / "bare"), format="json", saveMetadata=False)
+        text = (tmp_path / "bare.json").read_text()
+        assert "usermeta" not in text and "__dsstatistics_owner_" not in text
+        loaded_bare = ds.load(tmp_path / "bare.json")
+        assert isinstance(loaded_bare, alt.LayerChart)
+        ds.save(loaded_bare, str(tmp_path / "later"), format="json", background="light")
+        assert ds.metadata.read(tmp_path / "later.json", what="statistics") == []
+
+    def test_loaded_statistics_reproducible_across_separate_loads(self, tmp_path, monkeypatch):
+        import dysonsphere as ds
+
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
+        chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            data, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        ds.save(chart, str(tmp_path / "source"), format="json", background="light")
+
+        def resave(stem):
+            loaded = ds.load(tmp_path / "source.json")
+            assert isinstance(loaded, alt.LayerChart)
+            ds.save(loaded, str(tmp_path / stem), format=["json", "svg", "png"], background="light", ppi=144)
+
+        resave("first")
+        resave("second")
+        for suffix in ("json", "svg", "png"):
+            assert (tmp_path / f"first.{suffix}").read_bytes() == (tmp_path / f"second.{suffix}").read_bytes()
+
+    def test_spec_checksum_binds_different_records_to_their_components(self, tmp_path):
+        import dysonsphere as ds
+
+        groups = pl.DataFrame({"g": ["A"] * 5 + ["B"] * 5, "v": [1.0, 2, 3, 4, 5, 3, 4, 5, 6, 7]})
+        xy = pl.DataFrame({"x": [1.0, 2, 3, 4, 5], "y": [1.1, 2.2, 2.8, 4.1, 5.2]})
+        left = alt.Chart(groups).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            groups, "g", "v", [("A", "B")], categories=["A", "B"]
+        )
+        right = alt.Chart(xy).mark_point().encode(x="x:Q", y="y:Q") + ds.stats.correlation(xy, "x", "y")
+        ds.save(alt.hconcat(left, right), str(tmp_path / "owners"), format="json", background="light")
+        path = tmp_path / "owners.json"
+        original = json.loads(path.read_text())
+        assert ds.metadata.verify(path).specValid is True
+
+        names: list[tuple[dict[str, object], str]] = []
+
+        def collect(value):
+            if isinstance(value, dict):
+                name = value.get("name")
+                if isinstance(name, str) and name.startswith("__dsstatistics_owner_"):
+                    names.append((value, name))
+                for child in value.values():
+                    collect(child)
+            elif isinstance(value, list):
+                for child in value:
+                    collect(child)
+
+        collect(original)
+        assert len(names) == 2
+        names[0][0]["name"], names[1][0]["name"] = names[1][1], names[0][1]
+        path.write_text(json.dumps(original))
+        assert ds.metadata.verify(path).specValid is False
+
     def test_read_no_metadata_raises(self, tmp_path):
         import dysonsphere as ds
 
@@ -532,7 +962,7 @@ class TestReadLoad:
                 {"g", "v"},
             ),
             "add_correlation": (pts + ds.stats.correlation(dfx, "x", "y"), {"x", "y"}),
-            "rule": (box + ds.rule(1.5, label="thr"), {"g", "v"}),
+            "rule": (box + ds.rule(y=1.5, label="thr"), {"g", "v"}),
             "text": (box + ds.text("hi", position="topLeft"), {"g", "v"}),
             "shade": (box + ds.shade(categories=cats), {"g", "v"}),
             "add_multilabel": (ds.add_multilabel(box, categories=cats), {"g", "v"}),
@@ -1035,16 +1465,14 @@ class TestNonFiniteJson:
 
     def test_checksum_still_revalidates(self, tmp_path):
         """The spec is made JSON-safe BEFORE hashing, so the stored checksum matches the file."""
-        import hashlib
-
         import dysonsphere as ds
 
         _, chart = self._chart_with_nan()
         ds.save(chart, str(tmp_path / "c"), format="json", background=["light"])
         spec = json.loads((tmp_path / "c.json").read_text())
-        clean = {k: v for k, v in spec.items() if k != "usermeta"}
-        canon = json.dumps(clean, sort_keys=True, separators=(",", ":"))
-        recomputed = "sha256:" + hashlib.sha256(canon.encode()).hexdigest()
+        from dysonsphere.metadata import _spec_checksum
+
+        recomputed = _spec_checksum(spec)
         assert spec["usermeta"]["dysonsphere"]["provenance"]["vegaliteChecksum"] == recomputed
 
     def test_renders_still_succeed(self, tmp_path):
