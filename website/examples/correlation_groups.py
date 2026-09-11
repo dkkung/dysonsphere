@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=200, chartHeight=175)
+ds.theme(width=200, height=175)
 
 rng = np.random.default_rng(5)
 # each cell line has its own biomarker-response relationship (predictive, flat, inverse)

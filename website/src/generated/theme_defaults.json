@@ -20,16 +20,6 @@
   "hint": "auto: white / black by darkmode"
  },
  {
-  "key": "chartHeight",
-  "default": "100",
-  "hint": null
- },
- {
-  "key": "chartWidth",
-  "default": "100",
-  "hint": null
- },
- {
   "key": "closed",
   "default": null,
   "hint": "auto: True when tickDirection = \"in\" or viewFill"
@@ -95,6 +85,11 @@
   "hint": null
  },
  {
+  "key": "height",
+  "default": "100",
+  "hint": null
+ },
+ {
   "key": "legend",
   "default": "true",
   "hint": null
@@ -102,6 +97,16 @@
  {
   "key": "legendColumnPadding",
   "default": "4",
+  "hint": null
+ },
+ {
+  "key": "legendGradientLength",
+  "default": null,
+  "hint": null
+ },
+ {
+  "key": "legendGradientThickness",
+  "default": "5",
   "hint": null
  },
  {
@@ -137,7 +142,7 @@
  {
   "key": "markSize",
   "default": null,
-  "hint": "auto: min(chartWidth, chartHeight) / 10"
+  "hint": "auto: min(width, height) / 10"
  },
  {
   "key": "markStroke",
@@ -246,7 +251,7 @@
  },
  {
   "key": "tickSize",
-  "default": "3",
+  "default": "3.5",
   "hint": null
  },
  {
@@ -262,7 +267,12 @@
  {
   "key": "viewPadding",
   "default": "true",
-  "hint": "auto: min(chartWidth, chartHeight) / 20"
+  "hint": "auto: min(width, height) / 20"
+ },
+ {
+  "key": "width",
+  "default": "100",
+  "hint": null
  },
  {
   "key": "xAxis",

@@ -9,7 +9,7 @@ import dysonsphere as ds
 from dysonsphere.palettes import colors
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=190, chartHeight=140, closed=True, viewPadding=False)
+ds.theme(width=190, height=140, closed=True, viewPadding=False)
 
 rng = np.random.default_rng(7)
 NX, NY = 110, 80

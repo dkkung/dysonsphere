@@ -133,7 +133,7 @@ def _beeswarm_offsets(
         )
     """
     if heightPx is None:
-        heightPx = _opt("chartHeight")
+        heightPx = _opt("height")
     if spread is None:
         spread = np.sqrt(_opt("markSize") / np.pi)
 
@@ -239,7 +239,7 @@ def _quasirandom_offsets(
         Array of y values for one group.
     heightPx:
         Chart height in pixels. Used to size the auto ``width`` window. Defaults to the theme's
-        ``chartHeight``.
+        theme ``height``.
     spread:
         Point radius in pixels - the unit the auto ``width`` is built from. Defaults to
         ``sqrt(markSize / pi)`` from the active theme (matching :func:`_beeswarm_offsets`).
@@ -258,7 +258,7 @@ def _quasirandom_offsets(
         x offsets in pixels, one per input value, in the same order.
     """
     if heightPx is None:
-        heightPx = _opt("chartHeight")
+        heightPx = _opt("height")
     if spread is None:
         spread = np.sqrt(_opt("markSize") / np.pi)
 
@@ -385,7 +385,7 @@ def beeswarm(
     groupBy:
         Column name(s) that define each beeswarm group.
     heightPx:
-        Chart height in pixels. Defaults to the theme's ``chartHeight``.
+        Chart height in pixels. Defaults to the theme's ``height``.
     spread:
         Collision radius in pixels. Defaults to ``sqrt(markSize / π)`` from the active
         theme, so points naturally match the rendered mark size.
@@ -451,7 +451,7 @@ def quasirandom(
     groupBy:
         Column name(s) that define each group.
     heightPx:
-        Chart height in pixels. Defaults to the theme's ``chartHeight``.
+        Chart height in pixels. Defaults to the theme's ``height``.
     spread:
         Point radius in pixels - the unit the auto ``width`` is built from. Defaults to
         ``sqrt(markSize / π)`` from the active theme, matching :func:`beeswarm`.
@@ -548,7 +548,7 @@ def jitter(
         Polars or pandas DataFrame.
     spread:
         Standard deviation of the jitter in pixels. Defaults to
-        ``min(chartWidth, chartHeight) / 50`` from the active theme (2.0 at
+        ``min(width, height) / 50`` from the active theme (2.0 at
         the default 100×100 chart size).
     outCol:
         Name of the output offset column added to the DataFrame.
@@ -574,8 +574,8 @@ def jitter(
     """
     data = _ensure_polars(data)
     if spread is None:
-        w = _opt("chartWidth")
-        h = _opt("chartHeight")
+        w = _opt("width")
+        h = _opt("height")
         spread = min(w, h) / 50
     rng = np.random.default_rng(seed)
     return data.with_columns(pl.Series(outCol, rng.normal(0, spread, len(data))))

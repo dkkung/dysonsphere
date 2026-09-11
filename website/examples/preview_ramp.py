@@ -3,7 +3,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=124, chartHeight=124)
+ds.theme(width=124, height=124)
 
 # Diagonal linear ramp: the palette itself, laid out as a surface. Cells carry explicit
 # edges (x/x2) on linear axes so the domain ends exactly on the 0 and 6 ticks; each cell

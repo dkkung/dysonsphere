@@ -23,7 +23,8 @@ notes are local working material, not dependencies of this framework or part of 
 - `ds.theme()` keeps `style` positional and exposes every styling option as an explicit typed keyword-only parameter. Its internal omission
   sentinel preserves configuration/style precedence; explicit `None` remains meaningful only for the
   options that advertise it. `fontSize` is the sole theme font-size control and accepts positive finite
-  fractional values.
+  fractional values. Plot dimensions use `width` and `height`; the removed `chartWidth` and
+  `chartHeight` names are not aliases and are invalid as keywords or configuration keys.
 - Keep `ds.palette()` as the common selector; categorical construction, the color registry, and
   swatch export belong under `ds.palettes`. Palette selection returns colors without changing
   the active theme.

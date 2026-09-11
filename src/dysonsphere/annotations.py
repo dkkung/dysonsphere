@@ -107,7 +107,7 @@ def _resolve_rule_span(
             missing = [c for c in (start, end) if c not in cat_index]
             raise ValueError(f"span category names not in categories: {missing}")
         n = len(categories)
-        span_len = _opt("chartWidth") if run_ch == "x" else _opt("chartHeight")
+        span_len = _opt("width") if run_ch == "x" else _opt("height")
         geo = _band_geometry(n, span_len)
         f = _default_flush() if flush is None else flush
         si, ei = cat_index[start], cat_index[end]
@@ -191,7 +191,7 @@ def _rule_label_geometry(
             raise ValueError(f"labelPosition must be 'top' or 'bottom' for axis='y', got {lp!r}")
         perp_ch = "x"
         if span_triple is None:
-            chart_width = _opt("chartWidth")
+            chart_width = _opt("width")
             # A flush spine sits at the content edge, so a left/right-anchored label would hug it;
             # inset by the same amount text uses. A detached axis already clears it. (Center is far
             # from either edge, so it is left alone.)
@@ -214,7 +214,7 @@ def _rule_label_geometry(
         perp_ch = "y"
         baseline = {"top": "top", "center": "middle", "bottom": "bottom"}[la]
         if span_triple is None:
-            chart_height = _opt("chartHeight")
+            chart_height = _opt("height")
             # See the axis="y" branch.
             edge_offset = _EDGE_OFFSET if (_opt("closed") or not _opt("axisOffset")) else 0
             perp_anchor = alt.value(
@@ -807,8 +807,8 @@ def text(
     position:
         Named position within the plot area, flush with the axis domain edges.
         Sets ``x``, ``y``, ``align``, and ``baseline`` automatically using
-        ``alt.value()`` pixel coordinates derived from ``chartWidth`` /
-        ``chartHeight`` in the active theme. Explicit ``x``, ``y``, ``align``,
+        ``alt.value()`` pixel coordinates derived from ``width`` /
+        ``height`` in the active theme. Explicit ``x``, ``y``, ``align``,
         or ``baseline`` arguments override the position value for that parameter.
 
         Valid positions (3 × 3 grid):
@@ -921,8 +921,8 @@ def text(
     # Resolve position — fills x/y/align/baseline only where not already provided
     if position is not None:
         p = _TEXT_PRESETS[position]
-        cw = _opt("chartWidth")
-        ch = _opt("chartHeight")
+        cw = _opt("width")
+        ch = _opt("height")
         # Auto-inset when text would touch the border or flush axis line.
         # Triggers when the plot has a closed box (closed=True) or the axis
         # sits flush with the plot edge (axisOffset=0). Center positions
@@ -1205,7 +1205,7 @@ def labels(
     label_texts = [str(v) for v in data[labels].to_list()]
     n = len(label_texts)
 
-    width, height = _opt("chartWidth"), _opt("chartHeight")
+    width, height = _opt("width"), _opt("height")
     fs = fontSize if fontSize is not None else _opt("fontSize")
     # Text and connectors INHERIT the theme's mark_text / mark_rule config (darkmode-aware color,
     # rounded caps, axisWidth stroke, opaque) - resolved per render, so they track darkmode without
@@ -1574,8 +1574,8 @@ def shade(
             # Nested tuples: ((x_start, x_end), (y_start, y_end)).
             # Each half is resolved independently — string → pixel value via
             # band scale; numeric → Q field that shares the main chart's scale.
-            chart_width = _opt("chartWidth")
-            chart_height = _opt("chartHeight")
+            chart_width = _opt("width")
+            chart_height = _opt("height")
             n = len(categories) if categories else 0
             cat_index = {cat: i for i, cat in enumerate(categories)} if categories else {}
             x_geo = _band_geometry(n, chart_width) if n else None
@@ -1607,7 +1607,7 @@ def shade(
             if categories is None:
                 raise ValueError("categories is required when positions contains string tuples.")
             n = len(categories)
-            span = _opt("chartHeight") if axis == "y" else _opt("chartWidth")
+            span = _opt("height") if axis == "y" else _opt("width")
             geo = _band_geometry(n, span)
             cat_index = {cat: i for i, cat in enumerate(categories)}
 
@@ -1641,7 +1641,7 @@ def shade(
     n = len(categories)
     color_map = [palette[(i // repeat) % n_colors] for i in range(n)]
 
-    chart_width = _opt("chartWidth")
+    chart_width = _opt("width")
     geo = _band_geometry(n, chart_width)
 
     if flush is None:

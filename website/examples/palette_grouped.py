@@ -3,7 +3,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=170, xLabelAngle=-45)
+ds.theme(width=170, xLabelAngle=-45)
 
 # Paired data: each treatment measured at two timepoints. categorical(members=2) returns a
 # hue-major palette - each consecutive pair of categories is one hue climbing in lightness, so

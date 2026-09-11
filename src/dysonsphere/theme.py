@@ -20,8 +20,8 @@ _ORIGINAL_COLORS: dict[str, list[str]] = dict(colors)
 
 _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
     "notebook": {
-        "chartWidth": 900,
-        "chartHeight": 900,
+        "width": 900,
+        "height": 900,
         "darkmode": True,
         "fontSize": 18,
         "transparent": True,
@@ -34,8 +34,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisWidth": 0.25,
     "boxplotOutliers": False,
     "chartFill": None,
-    "chartHeight": 100,
-    "chartWidth": 100,
     "closed": None,
     "cornerRadius": False,
     "darkmode": False,
@@ -49,6 +47,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "fontWeight": 400,
     "grid": False,
     "gridColor": colors["greys"][0],
+    "height": 100,
     "legend": True,
     "legendColumnPadding": 4,
     "legendGradientLength": None,
@@ -81,10 +80,11 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "strokeCap": "round",
     "tickDirection": "out",
     "ticks": True,
-    "tickSize": 3,
+    "tickSize": 3.5,
     "transparent": False,
     "viewFill": None,
     "viewPadding": True,
+    "width": 100,
     "xAxis": True,
     "xDomain": True,
     "xLabelAngle": 0,
@@ -255,7 +255,7 @@ def _validate_options(p: dict[str, Any]) -> None:
         if nonnegative and value < 0:
             raise ValueError(f"{key} must be nonnegative; got {value!r}")
 
-    for key in ("chartWidth", "chartHeight", "fontSize", "legendGradientThickness"):
+    for key in ("width", "height", "fontSize", "legendGradientThickness"):
         number(key, positive=True)
     number("legendGradientLength", positive=True, allow_none=True)
     for key in ("axisWidth", "tickSize", "legendColumnPadding", "legendRowPadding"):
@@ -330,8 +330,6 @@ def theme(
     axisWidth: int | float = _UNSET,
     boxplotOutliers: int | float | bool = _UNSET,
     chartFill: str | None = _UNSET,
-    chartHeight: int | float = _UNSET,
-    chartWidth: int | float = _UNSET,
     closed: bool | None = _UNSET,
     cornerRadius: int | float | bool = _UNSET,
     darkmode: bool = _UNSET,
@@ -345,6 +343,7 @@ def theme(
     fontWeight: str | int | float = _UNSET,
     grid: bool = _UNSET,
     gridColor: str = _UNSET,
+    height: int | float = _UNSET,
     legend: bool = _UNSET,
     legendColumnPadding: int | float = _UNSET,
     legendGradientLength: int | float | None = _UNSET,
@@ -381,6 +380,7 @@ def theme(
     transparent: bool = _UNSET,
     viewFill: str | None = _UNSET,
     viewPadding: int | float | bool = _UNSET,
+    width: int | float = _UNSET,
     xAxis: bool = _UNSET,
     xDomain: bool = _UNSET,
     xLabelAngle: int | float = _UNSET,
@@ -480,15 +480,15 @@ def _compute_derived(p: dict[str, Any]) -> None:
         # default closed=True for inward ticks (an explicit closed=False still wins).
         p["closed"] = p["tickDirection"] == "in" or p["viewFill"] is not None
     if p["markSize"] is None:
-        p["markSize"] = min(p["chartWidth"], p["chartHeight"]) * 0.1
+        p["markSize"] = min(p["width"], p["height"]) * 0.1
     if p["markStrokeWidth"] is None:
         p["markStrokeWidth"] = p["axisWidth"]
     if p["cornerRadius"] is True:
-        p["cornerRadius"] = min(p["chartWidth"], p["chartHeight"]) / 100
+        p["cornerRadius"] = min(p["width"], p["height"]) / 100
     if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
         p["boxplotOutliers"] = p["markSize"] / 10
     if p["viewPadding"] is True:  # continuous-scale data inset, chart-scaled like markSize
-        p["viewPadding"] = min(p["chartWidth"], p["chartHeight"]) * 0.05
+        p["viewPadding"] = min(p["width"], p["height"]) * 0.05
     # chartFill=None is resolved at config-build time in _dysonsphere_theme(), NOT here, so it
     # follows darkmode live (save() toggles darkmode per background without re-running theme()).
     # Axes are flush by default; the gap between axis and data comes from viewPadding instead.
@@ -588,7 +588,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "arc": {
                 "fill": opts["markFill"],
                 "fillOpacity": opts["markFillOpacity"],
-                "innerRadius": min(opts["chartWidth"], opts["chartHeight"]) / 4,
+                "innerRadius": min(opts["width"], opts["height"]) / 4,
                 "padAngle": 0.03,
                 "stroke": opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
@@ -932,10 +932,10 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "size": opts["axisWidth"] * 2,
             },
             "view": {
-                "continuousWidth": opts["chartWidth"],
-                "continuousHeight": opts["chartHeight"],
-                "discreteWidth": opts["chartWidth"],
-                "discreteHeight": opts["chartHeight"],
+                "continuousWidth": opts["width"],
+                "continuousHeight": opts["height"],
+                "discreteWidth": opts["width"],
+                "discreteHeight": opts["height"],
                 "fill": None if opts["darkmode"] else opts["viewFill"],
                 "stroke": ("white" if opts["darkmode"] else "black") if opts["closed"] else None,
                 "strokeWidth": opts["axisWidth"],

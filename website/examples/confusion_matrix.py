@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=150, chartHeight=150, xDomain=False, yDomain=False, axisOffset=0, viewPadding=0)
+ds.theme(width=150, height=150, xDomain=False, yDomain=False, axisOffset=0, viewPadding=0)
 
 classes = ["Cat", "Dog", "Bird", "Fish", "Frog"]
 rng = np.random.default_rng(30)

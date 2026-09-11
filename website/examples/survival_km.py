@@ -7,7 +7,7 @@ import polars as pl
 import dysonsphere as ds
 from dysonsphere.palettes import colors
 
-ds.theme(chartWidth=175, chartHeight=140)
+ds.theme(width=175, height=140)
 
 # saturated two-group scale (the default categorical tints read washed-out for two line series)
 group_scale = alt.Scale(domain=["Treatment", "Control"], range=[colors["blues"][7], colors["pinks"][7]])

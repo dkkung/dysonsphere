@@ -15,7 +15,7 @@ from dysonsphere.theme import theme
 
 @pytest.fixture(autouse=True)
 def _stats_theme():
-    theme(chartWidth=200, chartHeight=200)
+    theme(width=200, height=200)
 
 
 def _df():

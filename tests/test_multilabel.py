@@ -24,13 +24,13 @@ ML_GROUPS = {"Row 1": [True, False, True]}
 
 class TestSpans:
     def test_line_style_height_larger_than_no_spans(self):
-        theme(chartWidth=100)
+        theme(width=100)
         base = _multilabel_layer(GROUPS, CATS)
         with_spans = _multilabel_layer(GROUPS, CATS, span={"": ["A", "B"]})
         assert with_spans._kwds["height"] > base._kwds["height"]
 
     def test_bracket_style_height_larger_than_line(self):
-        theme(chartWidth=100)
+        theme(width=100)
         line = _multilabel_layer(GROUPS, CATS, span={"": ["A", "B"]})
         bracket = _multilabel_layer(
             GROUPS,
@@ -42,24 +42,24 @@ class TestSpans:
         assert bracket._kwds["height"] > line._kwds["height"]
 
     def test_label_increases_height(self):
-        theme(chartWidth=100)
+        theme(width=100)
         no_lbl = _multilabel_layer(GROUPS, CATS, span={"": ["A", "B"]})
         with_lbl = _multilabel_layer(GROUPS, CATS, span={"Group 1": ["A", "B"]})
         assert with_lbl._kwds["height"] > no_lbl._kwds["height"]
 
     def test_implicit_span_matches_explicit(self):
-        theme(chartWidth=100)
+        theme(width=100)
         explicit = _multilabel_layer(GROUPS, CATS, span={"G": ["A", "B", "C"]})
         implicit = _multilabel_layer(GROUPS, CATS, span={"G": ["A", "C"]})
         assert explicit._kwds["height"] == pytest.approx(implicit._kwds["height"])
 
     def test_span_label_position_top(self):
-        theme(chartWidth=100)
+        theme(width=100)
         ann = _multilabel_layer(GROUPS, CATS, span={"G1": ["A", "B"]}, spanLabelPosition="top")
         assert isinstance(ann, alt.LayerChart)
 
     def test_span_reverse(self):
-        theme(chartWidth=100)
+        theme(width=100)
         rev = _multilabel_layer(
             GROUPS,
             CATS,
@@ -71,7 +71,7 @@ class TestSpans:
         assert rev._kwds["height"] == pytest.approx(line._kwds["height"])
 
     def test_multiple_spans(self):
-        theme(chartWidth=100)
+        theme(width=100)
         ann = _multilabel_layer(
             GROUPS,
             CATS,
@@ -80,7 +80,7 @@ class TestSpans:
         assert isinstance(ann, alt.LayerChart)
 
     def test_list_of_dicts_multiple_unlabeled(self):
-        theme(chartWidth=100)
+        theme(width=100)
         ann = _multilabel_layer(
             GROUPS,
             CATS,
@@ -89,33 +89,33 @@ class TestSpans:
         assert isinstance(ann, alt.LayerChart)
 
     def test_invalid_cat_raises(self):
-        theme(chartWidth=100)
+        theme(width=100)
         with pytest.raises(ValueError, match="not in categories"):
             _multilabel_layer(GROUPS, CATS, span={"G": ["A", "Z"]})
 
     def test_empty_span_raises(self):
-        theme(chartWidth=100)
+        theme(width=100)
         with pytest.raises(ValueError, match="must not be empty"):
             _multilabel_layer(GROUPS, CATS, span={"G": []})
 
     def test_invalid_bracket_style_raises(self):
-        theme(chartWidth=100)
+        theme(width=100)
         with pytest.raises(ValueError, match="spanBracketStyle"):
             _multilabel_layer(GROUPS, CATS, span={"": ["A", "B"]}, spanBracketStyle="arrow")
 
     def test_invalid_label_position_raises(self):
-        theme(chartWidth=100)
+        theme(width=100)
         with pytest.raises(ValueError, match="spanLabelPosition"):
             _multilabel_layer(GROUPS, CATS, span={"": ["A", "B"]}, spanLabelPosition="left")
 
     def test_explicit_span_gap_changes_height(self):
-        theme(chartWidth=100)
+        theme(width=100)
         default_gap = _multilabel_layer(GROUPS, CATS, span={"": ["A", "B"]})
         large_gap = _multilabel_layer(GROUPS, CATS, span={"": ["A", "B"]}, spanGap=20)
         assert large_gap._kwds["height"] > default_gap._kwds["height"]
 
     def test_defer_cat_label_below_spans(self):
-        theme(chartWidth=100)
+        theme(width=100)
         no_span = _multilabel_layer(GROUPS, CATS, categoryLabel=True, categoryLabelPosition="bottom")
         with_span = _multilabel_layer(
             GROUPS,
@@ -164,14 +164,14 @@ class TestRowSpacingUnderViewPadding:
 
 class TestAddMultilabel:
     def test_accepts_plain_chart(self):
-        theme(chartWidth=100)
+        theme(width=100)
         df = pl.DataFrame({"g": ML_CATS * 5, "v": range(15)})
         base = alt.Chart(df).mark_boxplot().encode(x=alt.X("g:N", sort=ML_CATS), y=alt.Y("v:Q"))
         result = add_multilabel(base, ML_GROUPS, categories=ML_CATS)
         assert isinstance(result, alt.VConcatChart)
 
     def test_accepts_layer_chart(self):
-        theme(chartWidth=100)
+        theme(width=100)
         rng = np.random.default_rng(0)
         df = pl.DataFrame({"g": ML_CATS * 20, "v": rng.normal(0, 1, 60).tolist()})
         strip = mark_strip(df, "g", "v", ML_CATS)
@@ -185,7 +185,7 @@ class TestAddMultilabel:
         # domain line and ticks, drawing a phantom axis above the chart.
         from dysonsphere.marks import mark_violin
 
-        theme(chartWidth=100)
+        theme(width=100)
         rng = np.random.default_rng(0)
         df = pl.DataFrame({"g": ML_CATS * 20, "v": rng.normal(0, 1, 60).tolist()})
         violin = mark_violin(df, "g", "v", ML_CATS)
@@ -198,7 +198,7 @@ class TestAddMultilabel:
         # A vconcat stack (e.g. western_blot's image strips): _strip_x_labels recurses into the
         # panels, so the table lands below the whole stack. The param annotation includes the
         # concat types, so this is a first-class call (no type-ignore needed).
-        theme(chartWidth=100)
+        theme(width=100)
         df = pl.DataFrame({"g": ML_CATS * 5, "v": range(15)})
         panel = alt.Chart(df).mark_boxplot().encode(x=alt.X("g:N", sort=ML_CATS), y="v:Q")
         stack = alt.vconcat(panel, panel)

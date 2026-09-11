@@ -17,7 +17,7 @@ CATEGORIES = ["A", "B", "C"]
 
 @pytest.fixture(autouse=True)
 def default_theme():
-    theme(chartWidth=200, chartHeight=200)
+    theme(width=200, height=200)
 
 
 @pytest.fixture
@@ -142,7 +142,7 @@ class TestMarkViolin:
         assert x_enc["type"] == "quantitative"
         # axis=None serialises as null in to_dict()
         assert x_enc.get("axis") is None
-        chart_width = alt.theme.options.get("chartWidth", 200)
+        chart_width = alt.theme.options.get("width", 200)
         assert x_enc["scale"]["domain"] == [0, chart_width]
 
     def test_violin_no_xoffset_in_any_layer(self, group_df):
@@ -417,7 +417,7 @@ class TestViolinInner:
         # Deliberately NOT darkmode-sensitive: the lines sit inside the mark fill,
         # not on the background.
         for dark in (False, True):
-            theme(chartWidth=200, chartHeight=200, darkmode=dark)
+            theme(width=200, height=200, darkmode=dark)
             spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
             assert _median_area(spec)["mark"]["fill"] == "black"
             assert all(lyr["mark"]["color"] == "black" for lyr in _rule_layers(spec))
@@ -426,7 +426,7 @@ class TestViolinInner:
         # The default violin is outlined with the theme's markStroke - black in
         # dark mode too (it outlines the light palette fills, like mark_strip).
         for dark in (False, True):
-            theme(chartWidth=200, chartHeight=200, darkmode=dark)
+            theme(width=200, height=200, darkmode=dark)
             spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
             violin = next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "line")
             assert violin["mark"]["stroke"] == "black"
@@ -517,7 +517,7 @@ class TestViolinInner:
         self, group_df, tmp_path, inner, width, rect_padding, bar_padding, outer_padding, global_inner
     ):
         categories = ["C", "A", "B"]
-        theme(chartWidth=width, rectPadding=rect_padding, barPadding=bar_padding, outerPadding=outer_padding)
+        theme(width=width, rectPadding=rect_padding, barPadding=bar_padding, outerPadding=outer_padding)
         chart = mark_violin(group_df, "group", "value", categories, inner=inner, xTitle="Groups")
         if global_inner is not None:
             # This is native Altair figure config, not a supported ds.theme option. Encoding-level
@@ -526,7 +526,9 @@ class TestViolinInner:
         out = tmp_path / f"violin-{inner}"
         save(chart, str(out), format="svg", background="light")
         svg = out.with_suffix(".svg").read_text()
-        ticks = [float(value) for value in re.findall(r'<line transform="translate\(([\d.]+),0\)" x2="0" y2="3"', svg)]
+        ticks = [
+            float(value) for value in re.findall(r'<line transform="translate\(([\d.]+),0\)" x2="0" y2="3.5"', svg)
+        ]
         expected = _band_geometry(len(categories), width, scale="rect").centers
         assert ticks == pytest.approx(expected, abs=1e-9)
         root = ET.parse(out.with_suffix(".svg")).getroot()

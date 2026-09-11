@@ -129,7 +129,7 @@ class TestRuleCaps:
         import dysonsphere as ds
         from dysonsphere.annotations import _automatic_marker_gap
 
-        theme(chartWidth=180, chartHeight=90, viewPadding=False)
+        theme(width=180, height=90, viewPadding=False)
         df = pl.DataFrame({"g": ["a", "a", "b", "b"], "x": [2, 8, 2, 8], "y": [3, 9, 3, 9]})
         base = (
             alt.Chart(df)
@@ -269,7 +269,7 @@ class TestLabelConnectorCaps:
         return df, ds.labels(df, "x", "y", "label", **kwargs)  # ty: ignore[invalid-argument-type]
 
     def test_export_arrow_tip_is_existing_connector_start_no_double_gap(self, tmp_path):
-        theme(chartWidth=140, chartHeight=100, viewPadding=False, axisWidth=0.5)
+        theme(width=140, height=100, viewPadding=False, axisWidth=0.5)
         _, plain = self._dense_labels(connector_gap=0)
         _, arrow = self._dense_labels("arrow", connector_gap=0)
         save(plain, tmp_path / "plain", format="svg", saveMetadata=False)
@@ -296,7 +296,7 @@ class TestLabelConnectorCaps:
     def test_connector_arrow_preserves_color_opacity_and_roundtrip_data(self, tmp_path):
         import dysonsphere as ds
 
-        theme(chartWidth=140, chartHeight=100)
+        theme(width=140, height=100)
         df, arrows = self._dense_labels("arrow", connector_opacity=0.35)
         base = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
         chart = (base + arrows).configure_rule(strokeOpacity=0.4)
@@ -310,7 +310,7 @@ class TestLabelConnectorCaps:
         assert ds.metadata.read(tmp_path / "labels.json", what="data").equals(df)
 
     def test_too_short_arrow_connector_is_omitted_but_label_remains(self, tmp_path):
-        theme(chartWidth=100, chartHeight=100)
+        theme(width=100, height=100)
         df = pl.DataFrame({"x": [5.0], "y": [5.0], "label": ["a"]})
         import dysonsphere as ds
 
@@ -849,9 +849,9 @@ class TestExactTickPositions:
         chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q")
         save(chart, str(tmp_path / "b"), format="svg", background="light")
         svg = (tmp_path / "b.svg").read_text(encoding="utf-8")
-        # x-axis tick lines carry their length in y2 (= the theme tickSize, 3)
+        # x-axis tick lines carry their length in y2 (= the theme tickSize, 3.5)
         ticks = sorted(
-            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3"', svg)
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3.5"', svg)
         )
         boxes = sorted(
             float(x) + float(w) / 2
@@ -868,7 +868,7 @@ class TestExactTickPositions:
         save(chart, str(tmp_path / "l"), format="svg", background="light")
         svg = (tmp_path / "l.svg").read_text(encoding="utf-8")
         ys = sorted(
-            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(0,([\d.]+)\)"[^/]*x2="-3"', svg)
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(0,([\d.]+)\)"[^/]*x2="-3.5"', svg)
         )
         assert len(ys) >= 3, "no y-axis ticks found"
         # The scale mapping is recovered from the rendered marks rather than assumed, so this
@@ -901,12 +901,12 @@ class TestExactTickPositions:
         chart = add_log_ticks(base, df, field="x", axis="x")
         save(chart, str(tmp_path / "lg"), format="svg", background="light")
         svg = (tmp_path / "lg.svg").read_text(encoding="utf-8")
-        # minor ticks are half the theme tickSize (1.5); majors are 3
+        # minor ticks are half the theme tickSize (1.75); majors are 3.5
         minors = sorted(
-            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="1.5"', svg)
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="1.75"', svg)
         )
         majors = sorted(
-            {float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3"', svg)}
+            {float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3.5"', svg)}
         )
         assert len(majors) >= 2 and minors
         expected = sorted(lo + math.log10(mv) * (hi - lo) for lo, hi in zip(majors, majors[1:]) for mv in range(2, 10))
@@ -1669,7 +1669,7 @@ class TestShadeBehindAxes:
     def _chart(self, closed):
         cats = ["a", "b", "c", "d"]
         df = pl.DataFrame({"g": cats, "v": [5.0, 6.0, 4.0, 7.0]})
-        theme(closed=closed, chartWidth=200, chartHeight=200)
+        theme(closed=closed, width=200, height=200)
         import dysonsphere as ds
 
         return ds.shade(categories=cats) + alt.Chart(df).mark_bar().encode(
@@ -1785,7 +1785,7 @@ class TestSuppressNice:
 
     def test_svg_and_json_agree(self, tmp_path):
         """The two spec resolutions in save() must not drift apart."""
-        theme(closed=True, chartWidth=300, chartHeight=300)
+        theme(closed=True, width=300, height=300)
         save(self._chart(), str(tmp_path / "fig"), format=["svg", "json"], background="light")
         spec = json.loads((tmp_path / "fig.json").read_text())
         assert spec["encoding"]["y"]["scale"]["nice"] is False
@@ -1795,7 +1795,7 @@ class TestSuppressNice:
 
     def test_removes_negative_tick_on_non_negative_data(self, tmp_path):
         """A padded, niced domain invents a -1 tick under data that never goes below zero."""
-        theme(closed=True, chartWidth=300, chartHeight=300)
+        theme(closed=True, width=300, height=300)
         save(self._chart(), str(tmp_path / "fig"), format="svg", background="light")
         labels = re.findall(r"<text[^>]*>([^<]*)</text>", (tmp_path / "fig.svg").read_text())
         assert "\u22121" not in labels

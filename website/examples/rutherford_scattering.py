@@ -12,7 +12,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=225, chartHeight=170)
+ds.theme(width=225, height=170)
 dark = bool(alt.theme.options.get("darkmode"))
 ink = "white" if dark else "black"
 

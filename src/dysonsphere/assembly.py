@@ -131,8 +131,8 @@ def _blank() -> _AltairChart:
 def _build(member: _Member, style: dict[str, Any]) -> _AltairChart:
     """Build one member at its own size, then stamp that size on the chart."""
     source, width, height, text = _unpack(member)
-    overrides = {k: v for k, v in (("chartWidth", width), ("chartHeight", height)) if v is not None}
-    size = {p: overrides[k] for k, p in (("chartWidth", "width"), ("chartHeight", "height")) if k in overrides}
+    overrides = {k: v for k, v in (("width", width), ("height", height)) if v is not None}
+    size = {key: value for key, value in overrides.items()}
     if source is None:
         # A reserved slot: no builder runs, so there is nothing derived to compute - the size is
         # simply the space held. It carries no axis chrome, so it occupies exactly its width,

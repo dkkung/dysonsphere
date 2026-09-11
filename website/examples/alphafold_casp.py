@@ -14,7 +14,7 @@ import polars as pl
 import dysonsphere as ds
 from dysonsphere.palettes import colors
 
-ds.theme(chartWidth=230, chartHeight=170)
+ds.theme(width=230, height=170)
 dark = bool(alt.theme.options.get("darkmode"))  # the site injects darkmode per light/dark spec
 NAVY = colors["australis"][4] if dark else colors["borealis"][2]  # indigo-navy, lighter on dark
 GREY = colors["greys"][5 if dark else 6]

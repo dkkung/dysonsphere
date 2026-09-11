@@ -7,7 +7,7 @@ import polars as pl
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=260, chartHeight=115)
+ds.theme(width=260, height=115)
 
 rng = np.random.default_rng(8)
 chrom_sizes = [249, 243, 198, 191, 181, 171, 159, 145, 138, 134, 135, 133, 114, 107, 102, 90, 83, 80, 59, 64, 48, 51]

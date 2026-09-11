@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=180, chartHeight=150, closed=True, viewPadding=False)
+ds.theme(width=180, height=150, closed=True, viewPadding=False)
 
 Tt, Pt = 216.6, 5.18  # triple point (K, bar)
 Tc, Pc = 304.1, 73.8  # critical point

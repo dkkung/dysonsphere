@@ -264,8 +264,8 @@ def mark_table(
     chrome (strokes, header text) rides on internal sidecar datasets.
 
     Because a table cannot render at the 100×100 default canvas, ``mark_table`` sizes itself from
-    the row/column counts and a per-column content estimate, overriding ``chartWidth`` /
-    ``chartHeight``. Column widths are proportional-font estimates (Vega cannot measure text at
+    the row/column counts and a per-column content estimate, overriding theme ``width`` /
+    ``height``. Column widths are proportional-font estimates (Vega cannot measure text at
     build time); pass ``columnWidths`` for exact control.
 
     **Darkmode** is resolved at BUILD time (like ``shade`` / ``add_multilabel``): the stripe

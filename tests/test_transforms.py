@@ -15,7 +15,7 @@ from dysonsphere.transforms import (
 
 @pytest.fixture(autouse=True)
 def default_theme():
-    theme(chartWidth=200, chartHeight=200)
+    theme(width=200, height=200)
 
 
 @pytest.fixture

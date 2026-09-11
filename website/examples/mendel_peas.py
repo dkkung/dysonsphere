@@ -11,7 +11,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=220, chartHeight=180)
+ds.theme(width=220, height=180)
 
 # (trait, dominant-phenotype count, recessive count) - Mendel (1866), F2 generation
 TRAITS = [

@@ -7,7 +7,7 @@ import polars as pl
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=170, chartHeight=170)
+ds.theme(width=170, height=170)
 
 mu = 2.0
 dt = 0.02

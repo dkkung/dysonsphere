@@ -64,7 +64,7 @@ def western_blot(
 ) -> alt.VConcatChart:
     """Compose western blot strip image(s) with a dysonsphere condition table.
 
-    Each image is scaled to the theme's ``chartWidth`` (aspect preserved), the strips are stacked
+    Each image is scaled to the theme's ``width`` (aspect preserved), the strips are stacked
     vertically, and the stack is annotated with :func:`dysonsphere.add_multilabel` - so the
     lane/condition table (``+``/``-`` rows, dot symbols, spans, sample sizes, category labels)
     renders beneath the blots. Returns an ``alt.VConcatChart``; pass it to ``ds.save()``.
@@ -121,7 +121,7 @@ def western_blot(
     if not image_list:
         raise ValueError("western_blot() needs at least one image.")
 
-    cw = ext.opt("chartWidth")
+    cw = ext.opt("width")
     if stroke is False:
         view: dict[str, Any] = {"fill": None, "stroke": None}
     else:

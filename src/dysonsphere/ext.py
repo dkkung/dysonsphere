@@ -19,7 +19,7 @@ Surface:
   VConcatChart | HConcatChart | ConcatChart``). Use it as the return annotation for a
   composite constructor, matching core's own ``save()`` signature.
 
-- **``opt(key)``** - read an active-theme option (``opt("markSize")``, ``opt("chartWidth")``,
+- **``opt(key)``** - read an active-theme option (``opt("markSize")``, ``opt("width")``,
   ``opt("fontSize")``, ``opt("darkmode")``, …). Falls back to the derived built-in default
   when called before any ``ds.theme()``, so styling code never sees ``None`` sentinels.
   Unknown keys raise ``KeyError``. This is the ONLY supported way to read theme options

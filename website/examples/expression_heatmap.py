@@ -8,7 +8,7 @@ import dysonsphere as ds
 from dysonsphere.palettes import colors
 
 # Zero rect and outer padding makes the heatmap cells sit flush with one another and the plot.
-ds.theme(chartWidth=165, chartHeight=180, closed=True, viewPadding=0, rectPadding=0, outerPadding=0)
+ds.theme(width=165, height=180, closed=True, viewPadding=0, rectPadding=0, outerPadding=0)
 
 rng = np.random.default_rng(4)
 n_rep = 6  # replicates per condition

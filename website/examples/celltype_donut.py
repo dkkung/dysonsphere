@@ -5,7 +5,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=175, chartHeight=175)
+ds.theme(width=175, height=175)
 
 # PBMC composition from a single-cell run (same cell types as the UMAP example). mark_arc renders a
 # donut by default under the dysonsphere theme (innerRadius + padAngle from config.arc).

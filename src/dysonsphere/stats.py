@@ -627,7 +627,7 @@ def _pvalue_layer(
 
     # --- resolve theme-linked defaults ---
     if chartWidth is None:
-        chartWidth = _opt("chartWidth")
+        chartWidth = _opt("width")
     if strokeWidth is None:
         strokeWidth = _opt("axisWidth")
     if fontSize is None:
@@ -1086,8 +1086,8 @@ def _add_grouped_comparisons(
     if yStart is not None and (isinstance(yStart, bool) or not isinstance(yStart, (numbers.Real, dict))):
         raise ValueError("grouped yStart accepts a number or a category mapping, not this value.")
 
-    chartWidth = chartWidth if chartWidth is not None else _opt("chartWidth")
-    chart_height = _opt("chartHeight")
+    chartWidth = chartWidth if chartWidth is not None else _opt("width")
+    chart_height = _opt("height")
     fontSize = fontSize if fontSize is not None else _opt("fontSize")
     strokeWidth = strokeWidth if strokeWidth is not None else _opt("axisWidth")
     effective_sigfigs = sigFigs if sigFigs is not None else _opt("sigFigs")
@@ -1282,7 +1282,7 @@ def _add_grouped_comparisons(
                 cast(float, cdf[y_col].cast(pl.Float64).max() or 0.0),
             )
             _cspan = (_chi - _clo) or 1.0
-            _ch = float(_opt("chartHeight"))
+            _ch = float(_opt("height"))
             _cpx = lambda v, _lo=_clo, _sp=_cspan, _h=_ch: _h * (1.0 - (v - _lo) / _sp)  # noqa: E731
             # Up and down brackets sit on opposite sides of the data and never collide, so each
             # direction gets its own ladder (same as the single-factor path).
@@ -1379,7 +1379,7 @@ def _add_grouped_comparisons(
                     max(cast(float, df[y_col].cast(pl.Float64).max() or 0.0), max(cat_y)),
                 )
                 _esp = (_ehi - _elo) or 1.0
-                _ech = float(_opt("chartHeight"))
+                _ech = float(_opt("height"))
 
                 def _epx(v: float, _lo: float = _elo, _sp: float = _esp, _h: float = _ech) -> float:
                     return _h * (1.0 - (v - _lo) / _sp)
@@ -2136,8 +2136,8 @@ def comparisons(
         # so groups of different magnitude each get a label sitting just above their data).
         y_all = data[yCol].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
-        ref_pad, _, _ = _resolve_y_spacing(False, y_range, _opt("chartHeight"), yPad, None, None)
-        cw = chartWidth if chartWidth is not None else _opt("chartWidth")
+        ref_pad, _, _ = _resolve_y_spacing(False, y_range, _opt("height"), yPad, None, None)
+        cw = chartWidth if chartWidth is not None else _opt("width")
         fs = fontSize if fontSize is not None else _opt("fontSize")
         # yPositions: a number → flat row (every label at that y); a dict keyed by group → per-label
         # (unlisted → auto); None → each above its own mark.
@@ -2183,7 +2183,7 @@ def comparisons(
         # --- y positioning ---
         annotated_groups_for_pad = list({g for pair in pairs for g in pair})
         # Base the gap on the FULL data extent, not just the compared groups: Vega fits the
-        # rendered domain to every group, and the visual gap is yStep * chartHeight / domain.
+        # rendered domain to every group, and the visual gap is yStep * panel height / domain.
         # Using only the annotated groups' range collapses the brackets when an un-annotated
         # group (e.g. a saturating positive control) blows up the domain; the full extent
         # tracks the domain, so the gap stays stable. (yStart still sits above the compared
@@ -2199,7 +2199,7 @@ def comparisons(
         yPad, tickHeight, yStep = _resolve_y_spacing(
             any(s in ("bracket", "drop") for s in pair_styles),
             y_range,
-            _opt("chartHeight"),
+            _opt("height"),
             yPad,
             tickHeight,
             yStep,
@@ -2287,7 +2287,7 @@ def comparisons(
                     min(0.0, cast(float, data[yCol].cast(pl.Float64).min() or 0.0)),
                     cast(float, data[yCol].cast(pl.Float64).max() or 0.0),
                 )
-                _ch = float(_opt("chartHeight"))
+                _ch = float(_opt("height"))
 
                 # Decide the domain lift BEFORE placing the ladder. Raising the top compresses the
                 # whole plot, which moves the anchors closer together - so a ladder computed against
@@ -2368,7 +2368,7 @@ def comparisons(
                 max(cast(float, y_all.max() or 0.0), max(final_y)),
             )
             _dsp = (_dhi - _dlo) or 1.0
-            _dch = float(_opt("chartHeight"))
+            _dch = float(_opt("height"))
 
             def _dpx(v: float, _lo: float = _dlo, _sp: float = _dsp, _h: float = _dch) -> float:
                 return _h * (1.0 - (v - _lo) / _sp)
@@ -2550,7 +2550,7 @@ def _add_grouped_correlation(
     n = len(groups)
     if position is not None:
         preset = _TEXT_PRESETS[position]
-        cw, chh = _opt("chartWidth"), _opt("chartHeight")
+        cw, chh = _opt("width"), _opt("height")
         pad = 1  # px inset from an edge, matching text's edge-inset spirit
         base_x = preset["x_frac"] * cw + (pad if preset["x_frac"] == 0 else -pad if preset["x_frac"] == 1 else 0)
         base_y = preset["y_frac"] * chh + (pad if preset["y_frac"] == 0 else -pad if preset["y_frac"] == 1 else 0)

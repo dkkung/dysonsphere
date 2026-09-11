@@ -249,7 +249,7 @@ class TestPrivateBandGeometry:
         import altair as alt
         import vl_convert as vlc
 
-        theme(chartWidth=100, barPadding=1, outerPadding=0)
+        theme(width=100, barPadding=1, outerPadding=0)
         chart = alt.Chart({"values": [{"g": "A", "v": 1}]}).mark_bar().encode(x="g:N", y="v:Q")
         svg = vlc.vegalite_to_svg(chart.to_dict())
         bar = re.search(r'aria-roledescription="bar"[^>]*d="M([\d.]+),[^h]+h([\d.]+)', svg)
@@ -271,11 +271,11 @@ class TestPrivateBandGeometry:
 
         from dysonsphere.theme import theme
 
-        theme(chartWidth=200, outerPadding=0.2)
+        theme(width=200, outerPadding=0.2)
         geo = _band_geometry(2)
         assert geo.step == pytest.approx(200 / (2 + 2 * 0.2))
         theme()  # reset
-        assert alt.theme.options.get("chartWidth") == 100
+        assert alt.theme.options.get("width") == 100
 
     def test_rect_centers_match_rendered_boxplot(self, tmp_path):
         # Vega-Lite routes boxplot through rectBandPaddingInner ("rect and other marks"),

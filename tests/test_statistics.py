@@ -27,7 +27,7 @@ CATEGORIES = ["A", "B"]
 
 @pytest.fixture(autouse=True)
 def default_theme():
-    theme(chartWidth=200, chartHeight=200)
+    theme(width=200, height=200)
 
 
 @pytest.fixture
@@ -246,7 +246,7 @@ class TestAddComparisons:
                 "value": [80.0, 90, 100, 110, 120, 130] * 2 + [150.0, 170, 190, 210, 220, 230],
             }
         )
-        theme(chartHeight=100, fontSize=7)
+        theme(height=100, fontSize=7)
         spec = comparisons(
             df,
             "group",
@@ -330,7 +330,7 @@ class TestAddComparisons:
                 "value": [1.0, 1.1, 1.05, 1.08] + [2.0, 2.1, 2.05, 2.08] + [2.0, 2.1, 2.05, 2.08],
             }
         )
-        theme(chartHeight=200, fontSize=7)
+        theme(height=200, fontSize=7)
         spec = comparisons(df, "group", "value", [("A", "B"), ("A", "C")], pvalues=[0.01, 0.02]).to_dict()
         anchors = [pair["layer"][0]["data"]["values"][0]["y"] for pair in spec["layer"]]
         assert anchors[0] == anchors[1], "this case is only meaningful when the anchors coincide"
@@ -493,7 +493,7 @@ class TestAddComparisons:
         assert label == "P = 0.023"
 
     def test_label_uses_primary_font_size(self, group_df):
-        theme(chartWidth=200, chartHeight=200, fontSize=10)  # statistics labels use fontSize
+        theme(width=200, height=200, fontSize=10)  # statistics labels use fontSize
         spec = comparisons(group_df, "group", "value", [("A", "B")], pvalues=[0.01]).to_dict()
         assert spec["layer"][0]["layer"][-1]["mark"]["fontSize"] == 10
 
@@ -583,7 +583,7 @@ class TestTickHeight:
         # The end legs are a fixed pixel length off the bracket bar, not a data-unit conversion,
         # so they are the same length whatever the y range. Both ends sit at the same anchor and
         # the leg length rides in y2Offset.
-        theme(chartWidth=200, chartHeight=200, tickSize=3)
+        theme(width=200, height=200, tickSize=3)
         layer = comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="bracket")
         spec = layer.to_dict()
         legs = [
@@ -600,7 +600,7 @@ class TestTickHeight:
         # The legs are a pixel length by definition. Deriving them in data units assumes a linear
         # axis, and on a log axis they collapse to a fraction of a pixel - so an auto tickHeight
         # rides in y2Offset whichever placement mode is in use.
-        theme(chartWidth=200, chartHeight=200, tickSize=3)
+        theme(width=200, height=200, tickSize=3)
         spec = comparisons(
             tri_df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="bracket", yPositions=[99.0]
         ).to_dict()
@@ -614,7 +614,7 @@ class TestTickHeight:
 
     def test_tick_height_explicit_stays_data_units(self, tri_df):
         # An explicit tickHeight is a data-unit number on the user's scale, unchanged.
-        theme(chartWidth=200, chartHeight=200, tickSize=3)
+        theme(width=200, height=200, tickSize=3)
         layer = comparisons(
             tri_df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="bracket", yStart=10.0, tickHeight=0.5
         )
@@ -713,17 +713,17 @@ class TestSigFigs:
         return layer.to_dict()["layer"][0]["layer"][-1]["data"]["values"][0]["label"]
 
     def test_theme_sigfigs_drives_label(self, group_df):
-        theme(chartWidth=200, chartHeight=200, sigFigs=2)
+        theme(width=200, height=200, sigFigs=2)
         assert self._label(comparisons(group_df, "g", "v", [("A", "B")], pvalues=[0.4789])) == "P = 0.48"
 
     def test_per_call_overrides_theme(self, group_df):
-        theme(chartWidth=200, chartHeight=200, sigFigs=2)
+        theme(width=200, height=200, sigFigs=2)
         lbl = self._label(comparisons(group_df, "g", "v", [("A", "B")], pvalues=[0.4789], sigFigs=4))
         assert lbl == "P = 0.4789"
 
     def test_report_independent_of_theme_sigfigs(self):
         # theme sigFigs=2, but the report stays at its fixed 3 sig figs
-        theme(chartWidth=200, chartHeight=200, sigFigs=2)
+        theme(width=200, height=200, sigFigs=2)
         assert st._fmt_p(0.47891234) == "= 0.479"
         assert st._fmt(0.47891234) == "0.479"
 
@@ -1094,7 +1094,7 @@ class TestReportPValues:
         from dysonsphere.stats import comparisons
         from dysonsphere.theme import theme
 
-        theme(chartWidth=200, chartHeight=200)
+        theme(width=200, height=200)
         df = pl.DataFrame({"g": ["A"] * 5 + ["B"] * 5, "v": [float(i) for i in range(10)]})
         st._REPORTS.clear()
         comparisons(df, "g", "v", [("A", "B")], categories=["A", "B"], pvalues=[0.0])
@@ -1711,7 +1711,7 @@ class TestResolveYSpacing:
     """Direct tests for the shared y-spacing resolver."""
 
     def test_none_args_resolved_from_extent(self):
-        # bracket gap = 10 px * y_range / chartHeight; y_step = 1.75 * y_pad.
+        # bracket gap = 10 px * y_range / theme height; y_step = 1.75 * y_pad.
         y_pad, tick, y_step = _resolve_y_spacing(True, 20.0, 100.0, None, None, None)
         assert y_pad == pytest.approx(10.0 * 20.0 / 100.0)
         assert y_step == pytest.approx(y_pad * 1.75)
@@ -2291,7 +2291,7 @@ class TestDropTicks:
         )
         tops = {c: cast(float, df.filter(pl.col("g") == c)["v"].max()) for c in cats}
         lo, hi = 0.0, 40.0
-        height = float(_opt("chartHeight"))
+        height = float(_opt("height"))
 
         for pair in (("Ctrl", "A"), ("A", "Ctrl")):
             base = (
@@ -2347,7 +2347,7 @@ class TestDropTicks:
             + comparisons(df, "g", "v", pairs=[("Ctrl", "Hi")], categories=cats, test="ttest_ind", bracketStyle="drop")
         ).to_dict()
         ends: dict[str, tuple[float, float]] = {}
-        height = float(_opt("chartHeight"))
+        height = float(_opt("height"))
 
         def collect(node: Any) -> None:
             if isinstance(node, dict):
@@ -2592,7 +2592,7 @@ class TestGroupedLabelCentering:
 
     def test_asymmetric_pair_sits_on_its_bracket_not_the_band(self):
         levels = ["Veh", "Low", "High"]
-        theme(chartWidth=100)
+        theme(width=100)
         spec = comparisons(
             self._frame(levels),
             "gene",
@@ -2613,7 +2613,7 @@ class TestGroupedLabelCentering:
         # A pair spanning the whole group has its midpoint AT the band centre - the old
         # behaviour was correct here, which is why two-level charts never showed the bug.
         levels = ["Veh", "Low", "High"]
-        theme(chartWidth=100)
+        theme(width=100)
         spec = comparisons(
             self._frame(levels),
             "gene",
@@ -2629,7 +2629,7 @@ class TestGroupedLabelCentering:
     def test_label_tracks_the_pair_not_the_category(self):
         # Two different pairs in the same category must get different label positions.
         levels = ["Veh", "D1", "D2", "D3", "D4"]
-        theme(chartWidth=100)
+        theme(width=100)
         spec = comparisons(
             self._frame(levels),
             "gene",

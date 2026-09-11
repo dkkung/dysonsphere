@@ -280,8 +280,8 @@ def add_log_ticks(
         Exponent overrides for the y axis (``axis='both'`` only).
     minorTickSize:
         Length of minor ticks in pixels. Defaults to half the active
-        theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when
-        the default ``tickSize=3`` is in effect).
+        theme's ``tickSize`` (``tickSize / 2``; typically ``1.75`` when
+        the default ``tickSize=3.5`` is in effect).
 
     Examples
     --------
@@ -447,8 +447,8 @@ def add_pow_ticks(
         visual segments).
     minorTickSize:
         Length of minor ticks in pixels. Defaults to half the active
-        theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when
-        the default ``tickSize=3`` is in effect).
+        theme's ``tickSize`` (``tickSize / 2``; typically ``1.75`` when
+        the default ``tickSize=3.5`` is in effect).
     xField:
         Column name for the x power-scaled field (``axis='both'``
         only).
