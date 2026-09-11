@@ -26,4 +26,4 @@ bars = (
 # The 4-cylinder benchmark, sliced with span= across just the 6- and 8-cylinder
 # bars it is being compared against (category-name bounds, resolved like ds.shade).
 four_cyl = float(by_cyl.filter(pl.col("cyl") == "4")["mpg"].item())
-chart = bars + ds.rule(four_cyl, span=("6", "8"), categories=cats, label="4-cyl avg")
+chart = bars + ds.rule(y=four_cyl, span=("6", "8"), categories=cats, label="4-cyl avg")

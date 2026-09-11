@@ -4,6 +4,10 @@
 
 ### Changes
 
+- **Breaking:** `rule()` now uses explicit keyword coordinates (`x`, `y`, `x2`, and `y2`) for
+  horizontal, vertical, bounded, and diagonal segments. Equation rules accept `slope`, an optional
+  `intercept`, and a required numeric `span`; the former positional `value` and `axis` API is removed.
+
 - Current-version JSON exports now preserve statistical records with their owning chart components
   across `load()` and re-export, while regenerating report prose, provenance, and export identity.
   Re-export now fails closed if a loaded record's saved analytical panel context changed; presentation

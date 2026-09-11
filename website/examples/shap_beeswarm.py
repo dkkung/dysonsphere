@@ -51,4 +51,4 @@ points = (
     )
 )
 
-chart = points + ds.rule(0.0, axis="x")  # SHAP = 0 reference
+chart = points + ds.rule(x=0.0)  # SHAP = 0 reference

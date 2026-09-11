@@ -28,6 +28,16 @@ __all__ = ["rule", "text", "shade", "labels"]
 # Reference lines
 
 
+def _rule_number(name: str, value: Any) -> float:
+    """Return one finite rule coordinate, rejecting booleans as non-numeric API inputs."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a finite number, got {value!r}")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{name} must be a finite number, got {value!r}")
+    return result
+
+
 def _rule_mark_kwargs(
     color: str | None,
     strokeWidth: float | None,
@@ -78,7 +88,7 @@ def _resolve_rule_span(
         lo = 0.0 if (f and si == 0) else geo.starts[si]
         hi = span_len if (f and ei == n - 1) else geo.ends[ei]
         return ("px", lo, hi)
-    return ("q", float(start), float(end))
+    return ("q", _rule_number("span start", start), _rule_number("span end", end))
 
 
 def _span_enc(triple: tuple[str, float, float] | None, run_ch: str) -> dict[str, Any]:
@@ -250,9 +260,13 @@ def _datum_ref_layers(
 
 
 def rule(
-    value: float | list[float],
     *,
-    axis: str = "y",
+    x: float | list[float] | None = None,
+    y: float | list[float] | None = None,
+    x2: float | None = None,
+    y2: float | None = None,
+    slope: float | None = None,
+    intercept: float = 0,
     span: "tuple[float, float] | tuple[str, str] | None" = None,
     categories: list[str] | None = None,
     flush: bool | None = None,
@@ -269,30 +283,38 @@ def rule(
     data: "pl.DataFrame | pd.DataFrame | None" = None,
 ) -> alt.Chart | alt.LayerChart:
     """
-    Add one or more horizontal or vertical reference lines to a chart.
+    Add a horizontal, vertical, diagonal, or equation reference line to a chart.
 
     Returns a layer that the caller composes with ``+``.
 
     Parameters
     ----------
-    value:
-        Coordinate(s) on the specified axis. ``float`` or ``list[float]``.
-    axis:
-        ``"y"`` (default) — horizontal line(s) at fixed y value(s).
-        ``"x"`` — vertical line(s) at fixed x value(s).
+    x, y:
+        Primary data coordinates. Supply only ``y`` for horizontal rules or only ``x`` for
+        vertical rules; either may be a list in those modes. Supply both for a bounded or diagonal
+        rule, completed by ``x2`` and/or ``y2`` as described below. Lists also remain supported for
+        the fixed coordinate of bounded horizontal or vertical rules; diagonal endpoints are scalar.
+    x2, y2:
+        Secondary endpoint coordinates. ``x, x2, y`` makes a bounded horizontal rule;
+        ``x, y, y2`` makes a bounded vertical rule; all four coordinates make a diagonal segment.
+        Secondary endpoints cannot be combined with ``span``.
+    slope, intercept:
+        Equation mode. ``slope`` draws ``y = slope*x + intercept`` over the numeric x extent given
+        by the required ``span``. ``intercept`` defaults to ``0``. This computes an ordinary endpoint
+        segment and therefore represents the equation only on linear quantitative axes.
     span:
-        Optionally slice the line to a portion of its *running* axis (the axis it runs along -
-        the opposite of ``axis``), given as a ``(start, end)`` tuple. ``None`` (default) spans the
-        full plot. For ``axis="y"`` (horizontal line) the running axis is x; for ``axis="x"``
-        (vertical line) it is y. Two forms, mirroring ``shade``:
+        Required x extent in equation mode, or optionally slice an axis-aligned line to a portion
+        of its *running* axis, given as a ``(start, end)`` tuple. ``None`` (default) spans the full
+        plot. A horizontal line runs along x and a vertical line runs along y. Two forms, mirroring
+        ``shade``:
 
         - **Numeric** ``(start, end)`` — data coordinates on the running axis; shares the base
           chart's scale (positioned by ``alt.datum``).
         - **Category names** ``(start, end)`` — resolved to pixels via the band scale (needs
           ``categories``), so the slice does not merge into the base scale.
 
-        A single ``span`` applies to every ``value`` when ``value`` is a list. When ``span`` is
-        set, a ``label`` anchors to the slice's ends instead of the plot edge.
+        A single ``span`` applies to every fixed coordinate when it is a list. When ``span`` is set,
+        a ``label`` anchors to the slice's ends instead of the plot edge.
     categories:
         Ordered list of the running axis's categories, required only when ``span`` uses category
         names (for the band-scale index lookup).
@@ -301,15 +323,19 @@ def rule(
         edge. ``None`` (default) inherits the theme's ``closed`` setting. No effect on a numeric
         ``span``.
     label:
-        Optional text label(s). One string per value.
+        Optional text label(s). One string per fixed coordinate; diagonal/equation rules accept one.
     labelAlign:
         Where *along* the line the label is anchored.
-        ``axis="y"``: ``"left"`` (default), ``"center"``, or ``"right"``.
-        ``axis="x"``: ``"top"`` (default), ``"center"``, or ``"bottom"``.
+        Horizontal: ``"left"`` (default), ``"center"``, or ``"right"``.
+        Vertical: ``"top"`` (default), ``"center"``, or ``"bottom"``.
+        Diagonal/equation: ``"left"`` (default), ``"center"``, or ``"right"``. Left and right
+        select the smaller and larger x coordinates, respectively; center uses the data-coordinate
+        midpoint. These definitions do not inspect or change the composed chart's scales.
     labelPosition:
         Which *side* of the line the label sits on.
-        ``axis="y"``: ``"top"`` (default) or ``"bottom"``.
-        ``axis="x"``: ``"right"`` (default) or ``"left"``.
+        Horizontal: ``"top"`` (default) or ``"bottom"``.
+        Vertical: ``"right"`` (default) or ``"left"``.
+        Diagonal/equation labels remain horizontal and use ``"top"`` (default) or ``"bottom"``.
     labelOffsetX:
         Additional horizontal pixel offset applied to the label. Default ``0``.
         Positive shifts right, negative shifts left.
@@ -342,50 +368,149 @@ def rule(
     ::
 
         # Horizontal line at y=0
-        chart = base + ds.rule(0)
+        chart = base + ds.rule(y=0)
 
         # Facet-safe: pass the same df as the base, then facet
         df_chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
-        faceted = (df_chart + ds.rule(5.0, label="Threshold", data=df)).facet("group:N")
+        faceted = (df_chart + ds.rule(y=5.0, label="Threshold", data=df)).facet("group:N")
 
         # Labeled horizontal line, label above-left by default
-        chart = base + ds.rule(5.0, label="Threshold", color="#c0392b")
+        chart = base + ds.rule(y=5.0, label="Threshold", color="#c0392b")
 
         # Two horizontal lines, labels at the right end
         chart = base + ds.rule(
-            [4.0, 8.0],
+            y=[4.0, 8.0],
             label=["Lower limit", "Upper limit"],
             labelAlign="right",
             color="#c0392b",
         )
 
         # Vertical line, label at top-right by default
-        chart = base + ds.rule(10, axis="x", label="Intervention", color="#c0392b")
+        chart = base + ds.rule(x=10, label="Intervention", color="#c0392b")
 
         # Vertical line, label nudged right and down
         chart = base + ds.rule(
-            10, axis="x", label="t₀", labelOffsetX=4, labelOffsetY=4
+            x=10, label="t₀", labelOffsetX=4, labelOffsetY=4
         )
 
         # Horizontal line sliced to x ∈ [2, 8] (data coords)
-        chart = base + ds.rule(5.0, span=(2.0, 8.0))
+        chart = base + ds.rule(y=5.0, span=(2.0, 8.0))
 
         # Horizontal line sliced across a range of x categories
         chart = base + ds.rule(
-            5.0, span=("Control", "Group B"), categories=CATEGORIES
+            y=5.0, span=("Control", "Group B"), categories=CATEGORIES
         )
-    """
-    if axis not in ("x", "y"):
-        raise ValueError(f"axis must be 'x' or 'y', got {axis!r}")
 
-    vals = [float(v) for v in (value if isinstance(value, list) else [value])]
+        # Straight segment and equation over an explicit x extent
+        diagonal = base + ds.rule(x=2, y=3, x2=8, y2=9)
+        equation = base + ds.rule(slope=2, intercept=1, span=(0, 5))
+    """
+    # Validate equation coefficients before dispatch or arithmetic. In particular, bool is not a
+    # numeric coordinate, including `intercept=False` despite its equality to zero in Python.
+    intercept_value = _rule_number("intercept", intercept)
+    slope_value = _rule_number("slope", slope) if slope is not None else None
+    coords_given = any(v is not None for v in (x, y, x2, y2))
+    if slope is not None:
+        if coords_given:
+            raise ValueError("slope equation mode cannot be combined with x, y, x2, or y2.")
+        if span is None:
+            raise ValueError("span=(x_start, x_end) is required when slope is provided.")
+        if categories is not None or flush is not None:
+            raise ValueError("categories and flush do not apply to slope equation mode.")
+        triple = _resolve_rule_span(span, "x", None, None)
+        if triple[0] != "q":
+            raise ValueError("equation span bounds must be numeric.")
+        xa, xb = triple[1], triple[2]
+        assert slope_value is not None
+        x, y, x2, y2 = xa, slope_value * xa + intercept_value, xb, slope_value * xb + intercept_value
+    elif not coords_given:
+        raise ValueError("provide x or y coordinates, or slope with an explicit span.")
+    elif intercept_value != 0:
+        raise ValueError("intercept is only valid when slope is provided.")
+
+    secondary = x2 is not None or y2 is not None
+    if secondary and span is not None and slope is None:
+        raise ValueError("x2/y2 and span are mutually exclusive.")
+
     mark_kwargs = _rule_mark_kwargs(color, strokeWidth, strokeDash, opacity)
     fs = fontSize if fontSize is not None else _opt("fontSize")
+
+    # Reduce axis-aligned endpoint forms to the established axis-rule implementation. This preserves
+    # category spans, labels, facet sharing, and datum/value positioning exactly.
+    axis: str | None = None
+    value: float | list[float] | None = None
+    effective_span = span
+    if y is not None and x is None and x2 is None and y2 is None:
+        axis, value = "y", y
+    elif x is not None and y is None and x2 is None and y2 is None:
+        axis, value = "x", x
+    elif x is not None and x2 is not None and y is not None and y2 is None:
+        axis, value, effective_span = "y", y, (x, x2)
+    elif x is not None and y is not None and y2 is not None and x2 is None:
+        axis, value, effective_span = "x", x, (y, y2)
+
+    if axis is None:
+        if not all(v is not None for v in (x, y, x2, y2)):
+            raise ValueError("invalid rule geometry: use x, y, x/x2/y, x/y/y2, x/y/x2/y2, or slope with span.")
+        if any(isinstance(v, list) for v in (x, y)):
+            raise ValueError("diagonal and equation rules require scalar endpoint coordinates.")
+        if categories is not None or flush is not None:
+            raise ValueError("categories and flush apply only to axis-aligned spans.")
+        labels = None if label is None else ([label] if isinstance(label, str) else list(label))
+        if labels is not None and len(labels) != 1:
+            raise ValueError("diagonal and equation rules accept one label.")
+        points = [_rule_number(name, v) for name, v in zip(("x", "y", "x2", "y2"), (x, y, x2, y2))]
+        base_factory = (
+            (lambda: _datum_base(_ensure_polars(data)))
+            if data is not None
+            else (lambda: alt.Chart(_internal_data([{}])))
+        )
+        enc = {
+            "x": alt.datum(points[0]),
+            "y": alt.datum(points[1]),
+            "x2": alt.datum(points[2]),
+            "y2": alt.datum(points[3]),
+        }
+        layers = [base_factory().mark_rule(**mark_kwargs).encode(**enc)]
+        if labels is not None:
+            la = labelAlign or "left"
+            lp = labelPosition or "top"
+            if la not in ("left", "center", "right"):
+                raise ValueError("labelAlign must be 'left', 'center', or 'right' for a diagonal rule.")
+            if lp not in ("top", "bottom"):
+                raise ValueError("labelPosition must be 'top' or 'bottom' for a diagonal rule.")
+            ordered = sorted(((points[0], points[1]), (points[2], points[3])))
+            anchor = {
+                "left": ordered[0],
+                "center": ((points[0] + points[2]) / 2, (points[1] + points[3]) / 2),
+                "right": ordered[1],
+            }[la]
+            text_kwargs: dict[str, Any] = {
+                "align": la,
+                "baseline": "bottom" if lp == "top" else "top",
+                "dx": labelOffsetX,
+                "dy": (-3 if lp == "top" else 3) + labelOffsetY,
+                "fontSize": fs,
+            }
+            if color is not None:
+                text_kwargs["color"] = color
+            layers.append(
+                base_factory()
+                .mark_text(**text_kwargs)
+                .encode(x=alt.datum(anchor[0]), y=alt.datum(anchor[1]), text=alt.value(labels[0]))
+            )
+        return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
+
+    assert value is not None
+    raw_vals = value if isinstance(value, list) else [value]
+    if not raw_vals:
+        raise ValueError(f"{axis} coordinates must not be empty.")
+    vals = [_rule_number(axis, v) for v in raw_vals]
 
     # A rule runs along the axis opposite to the one it is pinned on. `span` slices that running
     # axis; `_resolve_rule_span` returns a data (`"q"`) or pixel (`"px"`) triple (see shade).
     run_ch = "x" if axis == "y" else "y"
-    span_triple = _resolve_rule_span(span, run_ch, categories, flush) if span is not None else None
+    span_triple = _resolve_rule_span(effective_span, run_ch, categories, flush) if effective_span is not None else None
     span_enc = _span_enc(span_triple, run_ch)
 
     labels: list[str] | None = None

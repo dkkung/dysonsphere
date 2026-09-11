@@ -962,7 +962,7 @@ class TestReadLoad:
                 {"g", "v"},
             ),
             "add_correlation": (pts + ds.stats.correlation(dfx, "x", "y"), {"x", "y"}),
-            "rule": (box + ds.rule(1.5, label="thr"), {"g", "v"}),
+            "rule": (box + ds.rule(y=1.5, label="thr"), {"g", "v"}),
             "text": (box + ds.text("hi", position="topLeft"), {"g", "v"}),
             "shade": (box + ds.shade(categories=cats), {"g", "v"}),
             "add_multilabel": (ds.add_multilabel(box, categories=cats), {"g", "v"}),

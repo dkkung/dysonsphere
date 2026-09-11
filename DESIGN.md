@@ -74,6 +74,13 @@ Source references below are relative to `src/dysonsphere/`; test references are 
 
 ## Composition and Annotations
 
+- **Equation rules require an explicit x span.** A standalone native Altair annotation cannot
+  discover another chart's resolved domains or facet-local scale names. Equation mode therefore
+  computes ordinary datum endpoints from `slope`, `intercept`, and a required numeric `span`, with
+  linear quantitative axes as a documented caller responsibility. Do not introduce arbitrary
+  endpoints, generated scale-name expressions, or export-only rewriting.
+  References: `annotations.py::rule`; `test_annotations.py::TestRule`.
+
 - **Extensions have their own distributions.** Keep optional dependencies and release schedules
   outside core. Extras would couple releases; namespace-package restructuring would disrupt the
   core import path for little gain. Discovery supplies `ds.biology` without either change, and

@@ -36,6 +36,6 @@ bars = (
         y=alt.Y("trait:N", sort=order, title=None),
     )
 )
-ref = ds.rule(0.75, axis="x", label="expected 3 : 1", labelAlign="top", labelPosition="right")
+ref = ds.rule(x=0.75, label="expected 3 : 1", labelAlign="top", labelPosition="right")
 
 chart = bars + ref

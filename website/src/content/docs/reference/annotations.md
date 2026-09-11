@@ -19,9 +19,13 @@ engine lives in ``_placement.py``). Statistical annotations (``comparisons``,
 
 ```python
 def rule(
-    value: float | list[float],
     *,
-    axis: str = 'y',
+    x: float | list[float] | None = None,
+    y: float | list[float] | None = None,
+    x2: float | None = None,
+    y2: float | None = None,
+    slope: float | None = None,
+    intercept: float = 0,
     span: tuple[float, float] | tuple[str, str] | None = None,
     categories: list[str] | None = None,
     flush: bool | None = None,
@@ -39,20 +43,24 @@ def rule(
 ) -> alt.Chart | alt.LayerChart: ...
 ```
 
-Add one or more horizontal or vertical reference lines to a chart.
+Add a horizontal, vertical, diagonal, or equation reference line to a chart.
 
 Returns a layer that the caller composes with ``+``.
 
 **Parameters**
 
-- **`value`** (`float | list[float]`) - Coordinate(s) on the specified axis. ``float`` or ``list[float]``.
-- **`axis`** (`str`) - ``"y"`` (default) — horizontal line(s) at fixed y value(s). ``"x"`` — vertical line(s) at fixed x value(s).
-- **`span`** (`tuple[float, float] | tuple[str, str] | None`) - Optionally slice the line to a portion of its *running* axis (the axis it runs along - the opposite of ``axis``), given as a ``(start, end)`` tuple. ``None`` (default) spans the full plot. For ``axis="y"`` (horizontal line) the running axis is x; for ``axis="x"`` (vertical line) it is y. Two forms, mirroring ``shade``: - **Numeric** ``(start, end)`` — data coordinates on the running axis; shares the base chart's scale (positioned by ``alt.datum``). - **Category names** ``(start, end)`` — resolved to pixels via the band scale (needs ``categories``), so the slice does not merge into the base scale. A single ``span`` applies to every ``value`` when ``value`` is a list. When ``span`` is set, a ``label`` anchors to the slice's ends instead of the plot edge.
+- **`x`** (`float | list[float] | None`) - Primary data coordinates. Supply only ``y`` for horizontal rules or only ``x`` for vertical rules; either may be a list in those modes. Supply both for a bounded or diagonal rule, completed by ``x2`` and/or ``y2`` as described below. Lists also remain supported for the fixed coordinate of bounded horizontal or vertical rules; diagonal endpoints are scalar.
+- **`y`** (`float | list[float] | None`) - Primary data coordinates. Supply only ``y`` for horizontal rules or only ``x`` for vertical rules; either may be a list in those modes. Supply both for a bounded or diagonal rule, completed by ``x2`` and/or ``y2`` as described below. Lists also remain supported for the fixed coordinate of bounded horizontal or vertical rules; diagonal endpoints are scalar.
+- **`x2`** (`float | None`) - Secondary endpoint coordinates. ``x, x2, y`` makes a bounded horizontal rule; ``x, y, y2`` makes a bounded vertical rule; all four coordinates make a diagonal segment. Secondary endpoints cannot be combined with ``span``.
+- **`y2`** (`float | None`) - Secondary endpoint coordinates. ``x, x2, y`` makes a bounded horizontal rule; ``x, y, y2`` makes a bounded vertical rule; all four coordinates make a diagonal segment. Secondary endpoints cannot be combined with ``span``.
+- **`slope`** (`float | None`) - Equation mode. ``slope`` draws ``y = slope*x + intercept`` over the numeric x extent given by the required ``span``. ``intercept`` defaults to ``0``. This computes an ordinary endpoint segment and therefore represents the equation only on linear quantitative axes.
+- **`intercept`** (`float | None`) - Equation mode. ``slope`` draws ``y = slope*x + intercept`` over the numeric x extent given by the required ``span``. ``intercept`` defaults to ``0``. This computes an ordinary endpoint segment and therefore represents the equation only on linear quantitative axes.
+- **`span`** (`tuple[float, float] | tuple[str, str] | None`) - Required x extent in equation mode, or optionally slice an axis-aligned line to a portion of its *running* axis, given as a ``(start, end)`` tuple. ``None`` (default) spans the full plot. A horizontal line runs along x and a vertical line runs along y. Two forms, mirroring ``shade``: - **Numeric** ``(start, end)`` — data coordinates on the running axis; shares the base chart's scale (positioned by ``alt.datum``). - **Category names** ``(start, end)`` — resolved to pixels via the band scale (needs ``categories``), so the slice does not merge into the base scale. A single ``span`` applies to every fixed coordinate when it is a list. When ``span`` is set, a ``label`` anchors to the slice's ends instead of the plot edge.
 - **`categories`** (`list[str] | None`) - Ordered list of the running axis's categories, required only when ``span`` uses category names (for the band-scale index lookup).
 - **`flush`** (`bool | None`) - For a category-name ``span``, extend an outermost-category endpoint to the axis domain edge. ``None`` (default) inherits the theme's ``closed`` setting. No effect on a numeric ``span``.
-- **`label`** (`str | list[str] | None`) - Optional text label(s). One string per value.
-- **`labelAlign`** (`str | None`) - Where *along* the line the label is anchored. ``axis="y"``: ``"left"`` (default), ``"center"``, or ``"right"``. ``axis="x"``: ``"top"`` (default), ``"center"``, or ``"bottom"``.
-- **`labelPosition`** (`str | None`) - Which *side* of the line the label sits on. ``axis="y"``: ``"top"`` (default) or ``"bottom"``. ``axis="x"``: ``"right"`` (default) or ``"left"``.
+- **`label`** (`str | list[str] | None`) - Optional text label(s). One string per fixed coordinate; diagonal/equation rules accept one.
+- **`labelAlign`** (`str | None`) - Where *along* the line the label is anchored. Horizontal: ``"left"`` (default), ``"center"``, or ``"right"``. Vertical: ``"top"`` (default), ``"center"``, or ``"bottom"``. Diagonal/equation: ``"left"`` (default), ``"center"``, or ``"right"``. Left and right select the smaller and larger x coordinates, respectively; center uses the data-coordinate midpoint. These definitions do not inspect or change the composed chart's scales.
+- **`labelPosition`** (`str | None`) - Which *side* of the line the label sits on. Horizontal: ``"top"`` (default) or ``"bottom"``. Vertical: ``"right"`` (default) or ``"left"``. Diagonal/equation labels remain horizontal and use ``"top"`` (default) or ``"bottom"``.
 - **`labelOffsetX`** (`float`) - Additional horizontal pixel offset applied to the label. Default ``0``. Positive shifts right, negative shifts left.
 - **`labelOffsetY`** (`float`) - Additional vertical pixel offset applied to the label. Default ``0``. Positive shifts down, negative shifts up.
 - **`color`** (`str | None`) - Line and label color. ``None`` inherits from the active theme.
@@ -68,38 +76,42 @@ Returns a layer that the caller composes with ``+``.
 ::
 
     # Horizontal line at y=0
-    chart = base + ds.rule(0)
+    chart = base + ds.rule(y=0)
 
     # Facet-safe: pass the same df as the base, then facet
     df_chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
-    faceted = (df_chart + ds.rule(5.0, label="Threshold", data=df)).facet("group:N")
+    faceted = (df_chart + ds.rule(y=5.0, label="Threshold", data=df)).facet("group:N")
 
     # Labeled horizontal line, label above-left by default
-    chart = base + ds.rule(5.0, label="Threshold", color="#c0392b")
+    chart = base + ds.rule(y=5.0, label="Threshold", color="#c0392b")
 
     # Two horizontal lines, labels at the right end
     chart = base + ds.rule(
-        [4.0, 8.0],
+        y=[4.0, 8.0],
         label=["Lower limit", "Upper limit"],
         labelAlign="right",
         color="#c0392b",
     )
 
     # Vertical line, label at top-right by default
-    chart = base + ds.rule(10, axis="x", label="Intervention", color="#c0392b")
+    chart = base + ds.rule(x=10, label="Intervention", color="#c0392b")
 
     # Vertical line, label nudged right and down
     chart = base + ds.rule(
-        10, axis="x", label="t₀", labelOffsetX=4, labelOffsetY=4
+        x=10, label="t₀", labelOffsetX=4, labelOffsetY=4
     )
 
     # Horizontal line sliced to x ∈ [2, 8] (data coords)
-    chart = base + ds.rule(5.0, span=(2.0, 8.0))
+    chart = base + ds.rule(y=5.0, span=(2.0, 8.0))
 
     # Horizontal line sliced across a range of x categories
     chart = base + ds.rule(
-        5.0, span=("Control", "Group B"), categories=CATEGORIES
+        y=5.0, span=("Control", "Group B"), categories=CATEGORIES
     )
+
+    # Straight segment and equation over an explicit x extent
+    diagonal = base + ds.rule(x=2, y=3, x2=8, y2=9)
+    equation = base + ds.rule(slope=2, intercept=1, span=(0, 5))
 ```
 
 ## `text`
