@@ -3,7 +3,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=150, chartHeight=120)
+ds.theme(width=150, height=120)
 
 rng = np.random.default_rng(21)
 conds = ["vehicle", "low dose", "high dose"]

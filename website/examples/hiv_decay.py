@@ -13,7 +13,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=215, chartHeight=180)
+ds.theme(width=215, height=180)
 
 rng = np.random.default_rng(5)
 days = np.array([0, 1, 2, 3, 4, 5, 6, 7], dtype=float)

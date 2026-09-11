@@ -34,8 +34,8 @@ The scaffold looks like this:
 [default]
 
 [notebook]
-chartWidth = 900
-chartHeight = 900
+width = 900
+height = 900
 darkmode = true
 fontSize = 18
 transparent = true
@@ -78,8 +78,8 @@ palette = "greens"
 fontSize = 8
 
 [poster]
-chartWidth = 300
-chartHeight = 220
+width = 300
+height = 220
 fontSize = 14
 ```
 
@@ -100,12 +100,12 @@ poster, a slide deck:
 
 ```toml
 [print]
-chartWidth = 100        # publication scale (the default)
-chartHeight = 100
+width = 100        # publication scale (the default)
+height = 100
 
 [slides]
-chartWidth = 260
-chartHeight = 180
+width = 260
+height = 180
 fontSize = 12
 markSize = 25
 ```
@@ -153,8 +153,8 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `chartWidth` | `100` | Plot area width in px (publication scale; scale up for screens) |
-| `chartHeight` | `100` | Plot area height in px |
+| `width` | `100` | Plot area width in px (publication scale; scale up for screens) |
+| `height` | `100` | Plot area height in px |
 | `darkmode` | `false` | Invert ink (axes, text, medians) to white for dark backgrounds |
 | `transparent` | `false` | No chart background fill (notebook/web embedding) |
 | `chartFill` | auto | Chart background when not transparent; auto = white, black in darkmode |
@@ -178,7 +178,7 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | `closed` | auto | Draw all four spines; auto = on with `tickDirection="in"` or `viewFill` |
 | `tickDirection` | `"out"` | Tick direction: `"in"` implies `closed`; `"out"` is ordinary |
 | `ticks` | `true` | Master tick visibility |
-| `tickSize` | `3` | Tick length in px |
+| `tickSize` | `3.5` | Tick length in px |
 | `xAxis` / `yAxis` | `true` | Hide an axis's domain line and ticks (labels stay) |
 | `xDomain` / `yDomain` | `true` | Domain line visibility per axis |
 | `xTicks` / `yTicks` | `true` | Tick visibility per axis |

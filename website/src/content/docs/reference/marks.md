@@ -76,7 +76,7 @@ scale resolution never squishes the violin shape.
 ```python
 ::
 
-    ds.theme(chartWidth=250)
+    ds.theme(width=250)
     chart = ds.mark_violin(data, "group", "value", CATEGORIES)
     ds.save(chart, "violin")
 

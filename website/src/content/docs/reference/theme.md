@@ -17,8 +17,6 @@ def theme(
     axisWidth: int | float = _UNSET,
     boxplotOutliers: int | float | bool = _UNSET,
     chartFill: str | None = _UNSET,
-    chartHeight: int | float = _UNSET,
-    chartWidth: int | float = _UNSET,
     closed: bool | None = _UNSET,
     cornerRadius: int | float | bool = _UNSET,
     darkmode: bool = _UNSET,
@@ -32,8 +30,11 @@ def theme(
     fontWeight: str | int | float = _UNSET,
     grid: bool = _UNSET,
     gridColor: str = _UNSET,
+    height: int | float = _UNSET,
     legend: bool = _UNSET,
     legendColumnPadding: int | float = _UNSET,
+    legendGradientLength: int | float | None = _UNSET,
+    legendGradientThickness: int | float = _UNSET,
     legendOffset: int | float | None = _UNSET,
     legendRowPadding: int | float = _UNSET,
     legendStroke: bool = _UNSET,
@@ -66,6 +67,7 @@ def theme(
     transparent: bool = _UNSET,
     viewFill: str | None = _UNSET,
     viewPadding: int | float | bool = _UNSET,
+    width: int | float = _UNSET,
     xAxis: bool = _UNSET,
     xDomain: bool = _UNSET,
     xLabelAngle: int | float = _UNSET,
@@ -91,8 +93,13 @@ signatures may show the private ``_UNSET`` marker. Neither is a value callers pa
 By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=6`` is a positive, fractional nominal
 publication point size; SVG markup exposes the same number as a renderer user-unit value, and raster
 export scales from 72 intrinsic units per inch. Axis, tick, legend, radius, and linear composite
-dimensions are pixels;
-signed axis/legend offsets and label angles are supported. ``markSize=None`` derives one tenth of
+dimensions are pixels. ``legendGradientLength=None`` allocates half the panel height to a
+vertical title-plus-gradient span and the full panel width to a horizontal gradient. A positive
+number is instead a dimensionless factor applied to either orientation at spec-resolution time;
+``legendGradientThickness`` is a positive pixel width independent of marks and chart dimensions.
+Continuous legends require ``ds.save()`` or ``ds.show()`` to resolve their sizing marker; bare
+Altair/notebook rendering may fail. Signed axis/legend offsets and label angles are supported.
+``markSize=None`` derives one tenth of
 the smaller canvas dimension and is the common basis for symbol areas and composite dimensions;
 ``markStrokeWidth=None`` derives from ``axisWidth``.
 

@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=150, chartHeight=150)
+ds.theme(width=150, height=150)
 
 rng = np.random.default_rng(9)
 groups = {"vehicle": (4.0, 0.8), "low dose": (4.7, 0.9), "high dose": (6.3, 1.0)}

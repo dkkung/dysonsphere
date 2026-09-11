@@ -134,7 +134,7 @@ and ``vconcat`` layouts.
 - **`xExpMax`** (`int | None`) - Exponent overrides for the x axis (``axis='both'`` only).
 - **`yExpMin`** (`int | None`) - Exponent overrides for the y axis (``axis='both'`` only).
 - **`yExpMax`** (`int | None`) - Exponent overrides for the y axis (``axis='both'`` only).
-- **`minorTickSize`** (`float | None`) - Length of minor ticks in pixels. Defaults to half the active theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when the default ``tickSize=3`` is in effect).
+- **`minorTickSize`** (`float | None`) - Length of minor ticks in pixels. Defaults to half the active theme's ``tickSize`` (``tickSize / 2``; typically ``1.75`` when the default ``tickSize=3.5`` is in effect).
 
 **Examples**
 
@@ -217,7 +217,7 @@ and ``vconcat`` layouts.
 - **`exponent`** (`float`) - Power exponent matching the axis scale. Defaults to ``0.5`` (square root). Use ``2`` for a quadratic axis, etc. Must be non-zero.
 - **`majorValues`** (`list[float] | None`) - Ordered list of major tick data values for the single-axis case. Must match the ``values=`` passed to the main chart's ``alt.Axis``. Required — cannot be auto-derived.
 - **`nMinor`** (`int`) - Number of minor ticks between each pair of major ticks. Defaults to ``4`` (divides each interval into five equal visual segments).
-- **`minorTickSize`** (`float | None`) - Length of minor ticks in pixels. Defaults to half the active theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when the default ``tickSize=3`` is in effect).
+- **`minorTickSize`** (`float | None`) - Length of minor ticks in pixels. Defaults to half the active theme's ``tickSize`` (``tickSize / 2``; typically ``1.75`` when the default ``tickSize=3.5`` is in effect).
 - **`xField`** (`str | None`) - Column name for the x power-scaled field (``axis='both'`` only).
 - **`yField`** (`str | None`) - Column name for the y power-scaled field (``axis='both'`` only).
 - **`xMajorValues`** (`list[float] | None`) - Major tick values for the x axis (``axis='both'`` only).

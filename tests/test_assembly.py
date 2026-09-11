@@ -24,7 +24,7 @@ class TestAssembleSizing:
 
     def test_derived_options_recompute_at_the_member_size(self):
         # The reason assemble re-runs theme() instead of poking alt.theme.options: markSize and
-        # the corner/arc radii derive from min(chartWidth, chartHeight) and must follow the member.
+        # the corner/arc radii derive from min(width, height) and must follow the member.
         theme()
         seen = []
 
@@ -44,7 +44,7 @@ class TestAssembleSizing:
         assert (second["width"], second["height"]) == (60, 40)
 
     def test_bare_builder_uses_the_theme_size(self):
-        theme(chartWidth=123, chartHeight=77)
+        theme(width=123, height=77)
         spec = assemble([_chart, (_chart, 60, 40)]).to_dict()
         assert "width" not in spec["hconcat"][0], "no stamp - it inherits config.view"
         assert spec["hconcat"][1]["width"] == 60
@@ -70,7 +70,7 @@ class TestAssembleSizing:
 
         with pytest.raises(RuntimeError):
             assemble([(boom, 999, 999)])
-        assert _opt("chartWidth") == 100
+        assert _opt("width") == 100
 
     def test_restores_complete_theme_state_on_exception(self):
         from dysonsphere.palettes import colors
@@ -92,7 +92,7 @@ class TestAssembleSizing:
 
     def test_preserves_explicitly_set_theme_args(self):
         # assemble rebuilds from theme()'s call args, so a caller's explicit settings survive.
-        theme(chartWidth=300, fontSize=9)
+        theme(width=300, fontSize=9)
         seen = {}
 
         def build():
@@ -101,7 +101,7 @@ class TestAssembleSizing:
 
         assemble([(build, None, 200)])
         assert seen["fontSize"] == 9
-        assert _opt("chartWidth") == 300 and _opt("fontSize") == 9
+        assert _opt("width") == 300 and _opt("fontSize") == 9
         theme()
 
 
@@ -221,7 +221,7 @@ class TestDictMembers:
         assert _no_marker(as_dict) == _no_marker(as_tuple)
 
     def test_only_chart_is_required(self):
-        theme(chartWidth=123)
+        theme(width=123)
         spec = assemble([{"chart": _chart}]).to_dict()
         assert "width" not in spec, "no stamp - it inherits config.view"
         theme()
@@ -333,12 +333,12 @@ class TestAssemblyExportMode:
         # producing genuinely nested temporary-theme scopes.
         def inner_chart():
             if seen is not None:
-                seen.append(("inner", _opt("chartWidth"), _opt("chartHeight"), _opt("markSize"), _opt("darkmode")))
+                seen.append(("inner", _opt("width"), _opt("height"), _opt("markSize"), _opt("darkmode")))
             return _chart()
 
         def outer_builder():
             if seen is not None:
-                seen.append(("outer", _opt("chartWidth"), _opt("chartHeight"), _opt("markSize"), _opt("darkmode")))
+                seen.append(("outer", _opt("width"), _opt("height"), _opt("markSize"), _opt("darkmode")))
             return assemble([(inner_chart, 80, 50)])
 
         return assemble([(outer_builder, 120, 70)])

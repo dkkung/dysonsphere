@@ -95,7 +95,7 @@ def _multilabel_layer(
     ::
 
         CATEGORIES = ["Ctrl", "Group A", "Group B", "Group C"]
-        ds.theme(chartWidth=300)
+        ds.theme(width=300)
         chart = ds.mark_strip(df, "group", "value", CATEGORIES)
         ann = ds._multilabel_layer(
             {
@@ -165,7 +165,7 @@ def _multilabel_layer(
     symbol_rows = [r for r in row_order if row_styles[r] == "symbol"]
 
     if chartWidth is None:
-        chartWidth = _opt("chartWidth")
+        chartWidth = _opt("width")
     if fontSize is None:
         fontSize = _opt("fontSize")
 
@@ -776,7 +776,7 @@ def add_multilabel(
         down each column spanning consecutive ``True`` rows. ``"horizontal"``
         draws a rule across each row spanning consecutive ``True`` columns.
     chartWidth:
-        Width of the annotation chart in pixels. Inherits ``chartWidth`` from
+        Width of the annotation chart in pixels. Inherits ``width`` from
         ``ds.theme()`` when not set.
     fontSize:
         Font size for ``"text"`` style symbols and row labels. Inherits ``fontSize``

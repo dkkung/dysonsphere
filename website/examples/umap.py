@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=180, chartHeight=170)
+ds.theme(width=180, height=170)
 
 rng = np.random.default_rng(5)
 types = ["T cells", "B cells", "NK", "Monocytes", "Dendritic", "Platelets"]

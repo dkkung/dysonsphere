@@ -11,7 +11,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=230, chartHeight=175)
+ds.theme(width=230, height=175)
 
 # year of introduction, transistor count - landmark microprocessors
 DATA = [

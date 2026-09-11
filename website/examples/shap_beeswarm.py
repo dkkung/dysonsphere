@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=215, chartHeight=155)
+ds.theme(width=215, height=155)
 
 rng = np.random.default_rng(6)
 n = 300

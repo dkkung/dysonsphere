@@ -296,7 +296,7 @@ class TestLabels:
     def test_default_marker_gap_uses_shared_automatic_formula(self):
         from dysonsphere.annotations import _automatic_marker_gap
 
-        theme(chartWidth=100, chartHeight=100)
+        theme(width=100, height=100)
         df = pl.DataFrame({"x": [10.0, 50.0, 90.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
         spec = labels(
             df,
@@ -335,7 +335,7 @@ class TestLabels:
             )
         )
         svg = vlc.vegalite_to_svg((base + labels(df, "x", "y", "g")).to_dict())
-        h = alt.theme.options["chartHeight"]
+        h = alt.theme.options["height"]
         for m in re.finditer(r"translate\(([-\d.e]+),([-\d.e]+)\)[^>]*>(aa|bb|cc)<", svg):
             assert -1.0 <= float(m.group(2)) <= h + 1.0
 
@@ -709,40 +709,40 @@ class TestRuleLabelInset:
     # An edge-anchored rule label hugs a FLUSH spine, so it is inset by _EDGE_OFFSET (the same 1px
     # text uses). A detached axis already provides the gap. Center anchors are untouched.
     def test_detached_axis_label_at_content_edge(self):
-        theme(chartWidth=100, chartHeight=100, axisOffset=True)
+        theme(width=100, height=100, axisOffset=True)
         perp_ch, perp_anchor, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
         assert perp_ch == "x"
         assert perp_anchor == {"value": 0}  # the detached axis provides the gap
 
     def test_flush_default_left_label_inset(self):
-        theme(chartWidth=100, chartHeight=100)  # axes are flush by default
+        theme(width=100, height=100)  # axes are flush by default
         _, perp_anchor, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
         assert perp_anchor == {"value": _EDGE_OFFSET}
 
     def test_closed_left_label_inset(self):
-        theme(chartWidth=100, chartHeight=100, closed=True)
+        theme(width=100, height=100, closed=True)
         _, perp_anchor, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
         assert perp_anchor == {"value": _EDGE_OFFSET}
 
     def test_closed_right_label_inset_from_right_edge(self):
-        theme(chartWidth=100, chartHeight=100, closed=True)
+        theme(width=100, height=100, closed=True)
         _, perp_anchor, _ = _rule_label_geometry("y", "right", "top", 0, 0, 7, None)
         assert perp_anchor == {"value": 100 - _EDGE_OFFSET}
 
     def test_closed_center_label_not_inset(self):
-        theme(chartWidth=100, chartHeight=100, closed=True)
+        theme(width=100, height=100, closed=True)
         _, perp_anchor, _ = _rule_label_geometry("y", "center", "top", 0, 0, 7, None)
         assert perp_anchor == {"value": 50}
 
     def test_closed_vertical_rule_top_label_inset(self):
-        theme(chartWidth=100, chartHeight=100, closed=True)
+        theme(width=100, height=100, closed=True)
         perp_ch, perp_anchor, _ = _rule_label_geometry("x", "top", "right", 0, 0, 7, None)
         assert perp_ch == "y"
         assert perp_anchor == {"value": _EDGE_OFFSET}
 
     def test_matches_text_edge_padding(self):
         """rule and text must inset edge-anchored text by the same amount."""
-        theme(chartWidth=100, chartHeight=100)
+        theme(width=100, height=100)
         _, perp_anchor, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
         text_spec = text("t", position="middleLeft").to_dict()
         assert perp_anchor == {"value": _EDGE_OFFSET}
@@ -758,21 +758,21 @@ class TestShadeFlushDefault:
         return layer["encoding"]["x"]["value"]
 
     def test_flush_under_the_default_flush_spine(self):
-        theme(chartWidth=100, chartHeight=100)
+        theme(width=100, height=100)
         assert _default_flush() is True
         assert self._first_band_start(shade(categories=["a", "b", "c", "d"])) == 0
 
     def test_not_flush_when_the_axis_is_detached(self):
-        theme(chartWidth=100, chartHeight=100, axisOffset=True)
+        theme(width=100, height=100, axisOffset=True)
         assert _default_flush() is False
         assert self._first_band_start(shade(categories=["a", "b", "c", "d"])) > 0
 
     def test_flush_when_closed(self):
-        theme(chartWidth=100, chartHeight=100, closed=True)
+        theme(width=100, height=100, closed=True)
         assert _default_flush() is True
 
     def test_explicit_flush_overrides(self):
-        theme(chartWidth=100, chartHeight=100)  # default would be flush
+        theme(width=100, height=100)  # default would be flush
         assert self._first_band_start(shade(categories=["a", "b", "c", "d"], flush=False)) > 0
 
 
@@ -803,7 +803,7 @@ class TestRuleSpan:
 
     def test_category_span_resolves_to_pixels(self):
         # String bounds resolve through the band scale to pixel values (like shade).
-        theme(chartWidth=100, chartHeight=100)
+        theme(width=100, height=100)
         enc = self._enc(rule(y=5.0, span=("Control", "B"), categories=self.CATS))
         assert enc["y"] == {"datum": 5.0}
         assert "value" in enc["x"] and "value" in enc["x2"]

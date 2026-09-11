@@ -98,7 +98,7 @@ need them. Today it is exactly three names:
 - **`ext.AltairChart`** - the chart-object union (`Chart | LayerChart | FacetChart |
   VConcatChart | HConcatChart | ConcatChart`). Use it as your return annotation, matching core's
   own `save()`.
-- **`ext.opt(key)`** - read an active-theme option (`opt("markSize")`, `opt("chartWidth")`,
+- **`ext.opt(key)`** - read an active-theme option (`opt("markSize")`, `opt("width")`,
   `opt("darkmode")`, …). It falls back to the derived built-in default when called before any
   `ds.theme()`, so your styling code never sees `None` sentinels. This is the only supported way
   to read theme options outside core.

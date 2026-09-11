@@ -14,7 +14,7 @@ from scipy.signal import find_peaks
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=255, chartHeight=160)
+ds.theme(width=255, height=160)
 
 # squid giant axon parameters (Hodgkin & Huxley, 1952)
 CM, G_NA, G_K, G_L = 1.0, 120.0, 36.0, 0.3

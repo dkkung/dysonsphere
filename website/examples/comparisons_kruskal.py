@@ -4,7 +4,7 @@ from vega_datasets import data
 import dysonsphere as ds
 
 # The verbose omnibus label is long - widen the canvas so it fits.
-ds.theme(chartWidth=200)
+ds.theme(width=200)
 
 cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 origins = ["Europe", "Japan", "USA"]

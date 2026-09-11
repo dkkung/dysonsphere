@@ -24,8 +24,8 @@ def reset_theme():
 class TestThemeDefaults:
     def test_options_populated(self):
         opts = alt.theme.options
-        assert "chartWidth" in opts
-        assert "chartHeight" in opts
+        assert "width" in opts
+        assert "height" in opts
         assert "axisWidth" in opts
         assert "markSize" in opts
         assert "markStrokeWidth" in opts
@@ -49,16 +49,26 @@ class TestThemeDefaults:
         theme()
         assert alt.theme.options["fontSize"] == 6
 
+    def test_default_tick_size(self):
+        theme()
+        assert alt.theme.options["tickSize"] == pytest.approx(3.5)
+        assert _dysonsphere_theme()["config"]["axis"]["tickSize"] == pytest.approx(3.5)
+
+    def test_explicit_tick_size(self):
+        theme(tickSize=2.25)
+        assert alt.theme.options["tickSize"] == pytest.approx(2.25)
+        assert _dysonsphere_theme()["config"]["axis"]["tickSize"] == pytest.approx(2.25)
+
     def test_mark_size_default(self):
-        theme(chartWidth=200, chartHeight=100)
+        theme(width=200, height=100)
         assert alt.theme.options["markSize"] == pytest.approx(10.0)
 
     def test_mark_size_uses_min_dimension(self):
-        theme(chartWidth=50, chartHeight=200)
+        theme(width=50, height=200)
         assert alt.theme.options["markSize"] == pytest.approx(5.0)
 
     def test_circle_size_default(self):
-        theme(chartWidth=100, chartHeight=100)
+        theme(width=100, height=100)
         # config.circle.size is markSize / 8 (markSize = min(w, h) * 0.1 = 10 here).
         assert _dysonsphere_theme()["config"]["circle"]["size"] == pytest.approx(1.25)
 
@@ -217,7 +227,7 @@ class TestLegendGradientThickness:
             theme(legendGradientThickness=value)
 
     def test_independent_of_mark_and_chart_dimensions(self):
-        theme(chartWidth=300, chartHeight=40, markSize=80)
+        theme(width=300, height=40, markSize=80)
         assert self._thickness() == 5
 
 
@@ -333,7 +343,7 @@ class TestInwardTicks:
 
     @pytest.mark.parametrize(("value", "error"), [("sideways", ValueError), (True, TypeError), (False, TypeError)])
     def test_invalid_direction_is_atomic(self, value, error):
-        theme(chartWidth=123)
+        theme(width=123)
         before = dict(alt.theme.options)
         with pytest.raises(error, match="tickDirection"):
             cast(Any, theme)(tickDirection=value)
@@ -391,15 +401,20 @@ class TestThemeRegistration:
     def test_style_remains_positional(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         theme("notebook")
-        assert alt.theme.options["chartWidth"] == 900
+        assert alt.theme.options["width"] == 900
 
 
 class TestThemeValidation:
+    @pytest.mark.parametrize("removed", ["chartWidth", "chartHeight"])
+    def test_removed_dimension_kwargs_are_rejected(self, removed):
+        with pytest.raises(TypeError, match=removed):
+            cast(Any, theme)(**{removed: 120})
+
     @pytest.mark.parametrize(
         ("key", "value", "error"),
         [
-            ("chartWidth", 0, ValueError),
-            ("chartHeight", float("inf"), ValueError),
+            ("width", 0, ValueError),
+            ("height", float("inf"), ValueError),
             ("fontSize", -1, ValueError),
             ("fontSize", True, TypeError),
             ("darkmode", 1, TypeError),
@@ -430,7 +445,7 @@ class TestThemeValidation:
         from dysonsphere.palettes import colors
         from dysonsphere.theme import _active_args
 
-        theme(chartWidth=123, palette="reds")
+        theme(width=123, palette="reds")
         before_options = dict(alt.theme.options)
         before_args = _active_args()
         before_colors = dict(colors)
@@ -455,7 +470,7 @@ class TestThemeValidation:
     def test_derived_offset_overflow_is_atomic(self, offset):
         from dysonsphere.theme import _active_args
 
-        theme(chartWidth=123)
+        theme(width=123)
         before_options = dict(alt.theme.options)
         before_args = _active_args()
         kwargs = {"tickSize": 1.3e308, offset: True if offset == "axisOffset" else None}
@@ -477,7 +492,7 @@ class TestThemeValidation:
         from dysonsphere.palettes import colors
         from dysonsphere.theme import _active_args
 
-        theme(chartWidth=123, palette="reds")
+        theme(width=123, palette="reds")
         before_options = dict(alt.theme.options)
         before_args = _active_args()
         before_colors = dict(colors)
@@ -500,6 +515,13 @@ class TestThemeValidation:
     @pytest.mark.parametrize("removed", ["secondaryFontSize", "smallestFontSize"])
     def test_removed_font_options_are_rejected_in_toml(self, removed, tmp_path, monkeypatch):
         (tmp_path / "dysonsphere.toml").write_text(f"[default]\n{removed} = 5\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(ValueError, match=removed):
+            theme()
+
+    @pytest.mark.parametrize("removed", ["chartWidth", "chartHeight"])
+    def test_removed_dimension_options_are_rejected_in_toml(self, removed, tmp_path, monkeypatch):
+        (tmp_path / "dysonsphere.toml").write_text(f"[default]\n{removed} = 120\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
         with pytest.raises(ValueError, match=removed):
             theme()
@@ -558,14 +580,14 @@ class TestStyleLoading:
         monkeypatch.chdir(tmp_path)
         overrides = _load_style_overrides("notebook")
         assert overrides["fontSize"] == 18
-        assert overrides["chartWidth"] == 900
+        assert overrides["width"] == 900
 
     def test_config_overrides_builtin_style(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text("[notebook]\nfontSize = 9\n", encoding="utf-8")
         overrides = _load_style_overrides("notebook")
         assert overrides["fontSize"] == 9
-        assert overrides["chartWidth"] == 900  # from built-in preset
+        assert overrides["width"] == 900  # from built-in preset
 
 
 class TestCreateConfig:
@@ -646,16 +668,16 @@ class TestCornerRadius:
         assert "cornerRadius" not in spec["config"]["rect"]
 
     def test_true_resolves_to_min_dimension_over_100(self):
-        theme(chartWidth=200, chartHeight=300, cornerRadius=True)
+        theme(width=200, height=300, cornerRadius=True)
         assert alt.theme.options["cornerRadius"] == pytest.approx(2.0)
 
     def test_true_applies_corner_radius_end_to_bar(self):
-        theme(chartWidth=100, chartHeight=100, cornerRadius=True)
+        theme(width=100, height=100, cornerRadius=True)
         spec = _dysonsphere_theme()
         assert spec["config"]["bar"]["cornerRadiusEnd"] == pytest.approx(1.0)
 
     def test_true_applies_corner_radius_to_rect(self):
-        theme(chartWidth=100, chartHeight=100, cornerRadius=True)
+        theme(width=100, height=100, cornerRadius=True)
         spec = _dysonsphere_theme()
         assert spec["config"]["rect"]["cornerRadius"] == pytest.approx(1.0)
 
@@ -667,7 +689,7 @@ class TestCornerRadius:
         assert spec["config"]["rect"]["cornerRadius"] == pytest.approx(3.0)
 
     def test_true_applies_corner_radius_to_boxplot_box(self):
-        theme(chartWidth=100, chartHeight=100, cornerRadius=True)
+        theme(width=100, height=100, cornerRadius=True)
         spec = _dysonsphere_theme()
         assert spec["config"]["boxplot"]["box"]["cornerRadius"] == pytest.approx(1.0)
 
@@ -677,7 +699,7 @@ class TestCornerRadius:
         assert "cornerRadius" not in spec["config"]["boxplot"]["box"]
 
     def test_true_applies_corner_radius_to_arc(self):
-        theme(chartWidth=100, chartHeight=100, cornerRadius=True)
+        theme(width=100, height=100, cornerRadius=True)
         spec = _dysonsphere_theme()
         assert spec["config"]["arc"]["cornerRadius"] == pytest.approx(1.0)
 
@@ -687,12 +709,12 @@ class TestCornerRadius:
         assert "cornerRadius" not in spec["config"]["arc"]
 
     def test_arc_inner_radius_scales_with_chart_size(self):
-        theme(chartWidth=100, chartHeight=100)
+        theme(width=100, height=100)
         spec = _dysonsphere_theme()
         assert spec["config"]["arc"]["innerRadius"] == pytest.approx(25.0)
 
     def test_arc_inner_radius_uses_smaller_dimension(self):
-        theme(chartWidth=80, chartHeight=200)
+        theme(width=80, height=200)
         spec = _dysonsphere_theme()
         assert spec["config"]["arc"]["innerRadius"] == pytest.approx(20.0)
 
@@ -880,12 +902,12 @@ class TestViewPadding:
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 5.0  # 100 x 100
 
     def test_default_true_tracks_the_smaller_dimension(self):
-        theme(closed=True, chartWidth=400, chartHeight=200)
+        theme(closed=True, width=400, height=200)
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 10.0
 
     def test_resolved_value_is_readable_from_theme_options(self):
         # resolved in _compute_derived like markSize, so it is baked into exports
-        theme(closed=True, chartWidth=200, chartHeight=200)
+        theme(closed=True, width=200, height=200)
         assert alt.theme.options["viewPadding"] == 10.0
 
     def test_false_is_flush(self):
@@ -910,7 +932,7 @@ class TestViewPadding:
         assert _active_args() == before_args
         assert dict(colors) == before_colors
         theme(axisOffset=True)
-        assert alt.theme.options["axisOffset"] == 4.5
+        assert alt.theme.options["axisOffset"] == pytest.approx(5.25)
         theme()
         assert alt.theme.options["axisOffset"] == 0
 
@@ -1027,7 +1049,7 @@ class TestDeprecatedAliases:
             cast(Any, theme)(markMedianStroke="black")
 
     def test_removed_aliases_do_not_change_theme_state(self):
-        theme(chartWidth=123)
+        theme(width=123)
         before = dict(alt.theme.options)
         with pytest.raises(TypeError, match="bandPadding"):
             cast(Any, theme)(bandPadding=0.25)
@@ -1041,7 +1063,7 @@ class TestDeprecatedAliases:
 
     def test_baked_theme_from_older_export_rejects_removed_alias(self):
         with pytest.raises(TypeError, match="bandPadding"):
-            cast(Any, theme)(bandPadding=0.1, chartWidth=120)
+            cast(Any, theme)(bandPadding=0.1, width=120)
 
 
 class TestBoxplotOutliers:
@@ -1075,7 +1097,7 @@ class TestOptAccessor:
         alt.theme.options = {}  # no theme() called
         try:
             assert _opt("barPadding") == 0.1
-            assert _opt("chartWidth") == 100
+            assert _opt("width") == 100
         finally:
             theme()
 
@@ -1087,7 +1109,7 @@ class TestOptAccessor:
         alt.theme.options = {}
         try:
             assert _opt("markSize") == 10.0  # min(100, 100) * 0.1
-            assert _opt("axisOffset") == 0  # flush by default; True would give tickSize 3 * 1.5
+            assert _opt("axisOffset") == 0  # flush by default; True derives from tickSize
             assert _opt("markStrokeWidth") == 0.25  # axisWidth
             assert _opt("closed") is False
         finally:

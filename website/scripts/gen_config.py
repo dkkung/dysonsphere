@@ -32,7 +32,7 @@ AUTO_HINTS = {
     "chartFill": "auto: white / black by darkmode",
     "closed": 'auto: True when tickDirection = "in" or viewFill',
     "legendOffset": "auto: tickSize * 1.5",
-    "markSize": "auto: min(chartWidth, chartHeight) / 10",
+    "markSize": "auto: min(width, height) / 10",
     "markStrokeWidth": "auto: axisWidth",
     "palette": "auto: per-type defaults",
     "categoryPalette": "auto: categorical",
@@ -41,7 +41,7 @@ AUTO_HINTS = {
     "ordinalPalette": "auto: greys",
     "rampPalette": "auto: built-in default",
     "viewFill": "auto: none",
-    "viewPadding": "auto: min(chartWidth, chartHeight) / 20",
+    "viewPadding": "auto: min(width, height) / 20",
 }
 
 

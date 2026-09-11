@@ -261,7 +261,7 @@ def mark_violin(
     --------
     ::
 
-        ds.theme(chartWidth=250)
+        ds.theme(width=250)
         chart = ds.mark_violin(data, "group", "value", CATEGORIES)
         ds.save(chart, "violin")
 
@@ -328,7 +328,7 @@ def mark_violin(
         # not on the background, so black reads in both modes.
         innerColor = "black"
     mark_size = _opt("markSize")
-    chart_width = _opt("chartWidth")  # x:Q domain of the violin layer
+    chart_width = _opt("width")  # x:Q domain of the violin layer
     # Vega-Lite routes "rect and other marks" - boxplot included - through rectPadding,
     # NOT barPadding (scale="rect"), and not the xOffset/mark_circle variant ("offset").
     geo = _band_geometry(len(categories), scale="rect")
@@ -415,7 +415,7 @@ def mark_violin(
         grid_lo = min(g[3][0] for g in group_kde)
         grid_hi = max(g[3][-1] for g in group_kde)
         dom_lo, dom_hi = _nice_domain(min(grid_lo, 0.0), max(grid_hi, 0.0))
-        data_per_px = (dom_hi - dom_lo) / _opt("chartHeight")
+        data_per_px = (dom_hi - dom_lo) / _opt("height")
         h_med = strokeWidth * data_per_px  # half the median band's 2*strokeWidth thickness
 
         for group, x_center, vals, y_grid, density_norm in group_kde:
@@ -469,7 +469,7 @@ def mark_violin(
         mark_kwargs["fill"] = s.fill
 
     violin_encoding: dict[str, Any] = {
-        # padding=0: the precomputed pixel coordinates assume the full [0, chartWidth]
+        # padding=0: the precomputed pixel coordinates assume the full panel width
         # range - theme(viewPadding=...) must not compress this internal scale
         "x": alt.X("__x:Q", scale=alt.Scale(domain=[0, chart_width], padding=0), axis=None),
         "y": s.y("__y:Q"),

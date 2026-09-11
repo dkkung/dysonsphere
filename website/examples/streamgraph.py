@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=250, chartHeight=150)
+ds.theme(width=250, height=150)
 
 years = np.arange(2015, 2026)
 t = years - 2015

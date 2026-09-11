@@ -15,7 +15,7 @@ import polars as pl
 import dysonsphere as ds
 from dysonsphere.palettes import colors
 
-ds.theme(chartWidth=215, chartHeight=175)
+ds.theme(width=215, height=175)
 dark = bool(alt.theme.options.get("darkmode"))
 ACCENT = colors["cat2_blues"][5 if dark else 9]
 

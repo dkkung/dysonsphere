@@ -248,10 +248,10 @@ class TestSaveUsermeta:
     def test_theme_baked_as_ds_theme_args(self, stats_chart, tmp_path):
         import dysonsphere as ds
 
-        ds.theme(chartWidth=180, sigFigs=2)
+        ds.theme(width=180, sigFigs=2)
         save(stats_chart, str(tmp_path / "out"), background=["light"])
         theme = self._usermeta(tmp_path)["dysonsphere"]["theme"]
-        assert theme["chartWidth"] == 180 and theme["sigFigs"] == 2
+        assert theme["width"] == 180 and theme["sigFigs"] == 2
         assert "tickWidth" not in theme  # only _BUILTIN_DEFAULTS keys (valid ds.theme() kwargs)
 
 
@@ -328,7 +328,7 @@ class TestReadLoad:
 
         import dysonsphere as ds
 
-        ds.theme(chartWidth=180, sigFigs=2, saveFormat=["svg", "png", "json"])
+        ds.theme(width=180, sigFigs=2, saveFormat=["svg", "png", "json"])
         rng = np.random.default_rng(0)
         df = pl.DataFrame({"g": ["A"] * 30 + ["B"] * 30, "v": np.r_[rng.normal(0, 1, 30), rng.normal(2, 1, 30)]})
         chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
@@ -360,7 +360,7 @@ class TestReadLoad:
         m = ds.metadata.read(str(saved / "t.svg"), what="metadata")
         assert isinstance(m, dict)
         assert set(m) == {"provenance", "statistics", "statisticsBindings", "theme", "report"}
-        assert m["theme"]["chartWidth"] == 180
+        assert m["theme"]["width"] == 180
         # report is a container keyed by section, not a bare string
         assert list(m["report"]) == ["statistics", "provenance"]  # consistent order across formats
         assert m["report"]["statistics"].startswith("Statistics")
@@ -423,24 +423,24 @@ class TestReadLoad:
     def test_load_reapplies_theme(self, saved):
         import dysonsphere as ds
 
-        ds.theme(chartWidth=999)  # clobber
+        ds.theme(width=999)  # clobber
         ds.load(str(saved / "t.json"))  # applyTheme=True default
-        assert alt.theme.options["chartWidth"] == 180  # restored from the baked theme
+        assert alt.theme.options["width"] == 180  # restored from the baked theme
 
     def test_load_apply_theme_false_leaves_theme(self, saved):
         import dysonsphere as ds
 
-        ds.theme(chartWidth=999)
+        ds.theme(width=999)
         ds.load(str(saved / "t.json"), applyTheme=False)
-        assert alt.theme.options["chartWidth"] == 999  # untouched
+        assert alt.theme.options["width"] == 999  # untouched
 
     def test_load_raw_returns_spec_dict(self, saved):
         import dysonsphere as ds
 
-        ds.theme(chartWidth=999)
+        ds.theme(width=999)
         spec = ds.load(str(saved / "t.json"), raw=True)
         assert isinstance(spec, dict) and "config" in spec  # raw spec, theme config intact
-        assert alt.theme.options["chartWidth"] == 999  # globals untouched
+        assert alt.theme.options["width"] == 999  # globals untouched
 
     def test_load_requires_json(self, saved):
         import dysonsphere as ds
@@ -755,13 +755,13 @@ class TestReadLoad:
         from dysonsphere import _statistics
 
         data = pl.DataFrame({"g": ["A"] * 4 + ["B"] * 4, "v": [1.0, 2, 3, 4, 2, 3, 4, 5]})
-        ds.theme(chartWidth=180)
+        ds.theme(width=180)
         chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
             data, "g", "v", [("A", "B")], categories=["A", "B"]
         )
         ds.save(chart, str(tmp_path / "valid"), format="json", background="light")
         before_registry = dict(_statistics._LOADED_REPORTS)
-        ds.theme(chartWidth=999)
+        ds.theme(width=999)
 
         malformed = json.loads((tmp_path / "valid.json").read_text())
         malformed["usermeta"]["dysonsphere"]["statisticsBindings"] = None
@@ -769,14 +769,14 @@ class TestReadLoad:
         (tmp_path / "malformed.json").write_text(json.dumps(malformed))
         with pytest.raises(ValueError, match="require a statistics record list"):
             ds.load(tmp_path / "malformed.json")
-        assert _statistics._LOADED_REPORTS == before_registry and alt.theme.options["chartWidth"] == 999
+        assert _statistics._LOADED_REPORTS == before_registry and alt.theme.options["width"] == 999
 
         invalid = json.loads((tmp_path / "valid.json").read_text())
         invalid["layer"][0]["mark"] = {"type": "not-a-mark"}
         (tmp_path / "invalid.json").write_text(json.dumps(invalid))
         with pytest.raises((ValidationError, ValueError)):
             ds.load(tmp_path / "invalid.json")
-        assert _statistics._LOADED_REPORTS == before_registry and alt.theme.options["chartWidth"] == 999
+        assert _statistics._LOADED_REPORTS == before_registry and alt.theme.options["width"] == 999
 
     def test_owner_walkers_ignore_user_rows_and_preserve_named_data_options(self, tmp_path):
         import dysonsphere as ds

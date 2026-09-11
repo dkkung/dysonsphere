@@ -5,7 +5,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=124, chartHeight=124)
+ds.theme(width=124, height=124)
 
 
 def bump(x, y, mx, my, s):

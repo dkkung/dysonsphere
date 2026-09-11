@@ -57,8 +57,8 @@ def test_single_vs_multiple_images():
 
 
 def test_aspect_preserved():
-    # a 60x12 image at chartWidth W renders at height W*12/60 = W/5
-    ds.theme(chartWidth=200)
+    # a 60x12 image at theme width W renders at height W*12/60 = W/5
+    ds.theme(width=200)
     unit = _image_units(ds.biology.western_blot(_img(60, 12), categories=["x", "y"]).to_dict())[0]
     assert unit["height"] == pytest.approx(200 * 12 / 60)
     assert unit["width"] == 200

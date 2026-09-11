@@ -4,7 +4,7 @@ from vega_datasets import data
 
 import dysonsphere as ds
 
-ds.theme(xLabelAngle=-45, chartWidth=124)
+ds.theme(xLabelAngle=-45, width=124)
 
 barley = pl.from_pandas(data.barley())
 means = barley.group_by("site").agg(pl.col("yield").mean()).sort("yield", descending=True)

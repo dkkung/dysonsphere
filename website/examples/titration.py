@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=180, chartHeight=140)
+ds.theme(width=180, height=140)
 
 Ka, Kw = 10**-4.76, 1e-14  # acetic acid
 Ca, Va, Cb = 0.1, 25.0, 0.1  # M, mL, M

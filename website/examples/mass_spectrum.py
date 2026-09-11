@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=250, chartHeight=130)
+ds.theme(width=250, height=130)
 
 rng = np.random.default_rng(2)
 # fragment peaks (m/z, rel. intensity, label); each gets a small isotope tail

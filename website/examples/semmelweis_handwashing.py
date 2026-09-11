@@ -11,7 +11,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=235, chartHeight=160)
+ds.theme(width=235, height=160)
 
 # year, maternal mortality (% of births) - Vienna General Hospital, First Clinic
 DATA = [(1841, 7.8), (1842, 15.8), (1843, 8.9), (1844, 8.2), (1845, 6.8), (1846, 11.4), (1847, 5.0), (1848, 1.3)]

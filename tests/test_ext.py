@@ -42,7 +42,7 @@ def test_ext_namespaced_not_polluting_top_namespace():
 def test_opt_reads_theme_option():
     ds.theme()
     assert ext.opt("markSize") == _opt("markSize")
-    assert isinstance(ext.opt("chartWidth"), (int, float))
+    assert isinstance(ext.opt("width"), (int, float))
 
 
 def _volcano_like(df):

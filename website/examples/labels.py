@@ -3,7 +3,7 @@ from vega_datasets import data
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=160, chartHeight=120)
+ds.theme(width=160, height=120)
 
 cars = data.cars().dropna(subset=["Horsepower", "Miles_per_Gallon"])
 

@@ -61,8 +61,8 @@ def _band_geometry(
     n:
         Number of categories.
     span:
-        Pixel extent of the axis. ``None`` (default) reads ``chartWidth`` from the
-        active theme (pass ``chartHeight`` explicitly for a y-axis).
+        Pixel extent of the axis. ``None`` (default) reads ``width`` from the
+        active theme (pass ``height`` explicitly for a y-axis).
     scale:
         ``"offset"``, ``"band"``, ``"rect"``, or ``"point"`` (see above).
     bandPadding:
@@ -80,7 +80,7 @@ def _band_geometry(
     if n < 1:
         raise ValueError(f"n must be >= 1, got {n}")
     if span is None:
-        span = _opt("chartWidth")
+        span = _opt("width")
     if scale == "point":
         step = span / n
         centers = tuple(step * (0.5 + i) for i in range(n))
@@ -117,7 +117,7 @@ def _nested_band_centers(nCategories: int, nLevels: int, span: float | None = No
     2-5 levels and 2-3 categories); ``_band_geometry``'s own ``"band"``/``"offset"`` variants do
     NOT, because they resolve ``barPadding``/``outerPadding`` instead.
     """
-    span = float(_opt("chartWidth")) if span is None else span
+    span = float(_opt("width")) if span is None else span
     outer = _band_geometry(nCategories, span, scale="band", bandPadding=float(_opt("groupPadding")))
     sub = float(_opt("subgroupPadding"))
     out: list[list[float]] = []

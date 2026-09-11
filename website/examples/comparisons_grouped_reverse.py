@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=200, chartHeight=150)
+ds.theme(width=200, height=150)
 
 rng = np.random.default_rng(3)
 genes = ["IL6", "TNF", "IL1B"]
