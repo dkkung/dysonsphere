@@ -1,6 +1,7 @@
 import hashlib
 import json
 import math
+import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -424,6 +425,77 @@ def _resolve_dash(value: "bool | Sequence[int | float] | None") -> "list[int | f
 
 _CONTINUOUS_TYPES = ("quantitative", "temporal")
 _SPEC_CONTAINERS = ("layer", "hconcat", "vconcat", "concat")
+_LEGEND_LENGTH_MARKER = re.compile(r"^dysonsphereLegendGradientLength\(([^)]+)\)$")
+
+
+def _resolve_gradient_legend_lengths(spec: dict[str, Any]) -> dict[str, Any]:
+    """Replace the theme's gradient-length marker with panel-sized native legend properties."""
+    config = spec.get("config")
+    legend_config = config.get("legend") if isinstance(config, dict) else None
+    if not isinstance(legend_config, dict):
+        return spec
+    marker = legend_config.get("gradientLength")
+    expression = marker.get("expr") if isinstance(marker, dict) else None
+    match = _LEGEND_LENGTH_MARKER.fullmatch(expression) if isinstance(expression, str) else None
+    if match is None:
+        return spec  # A native config gradientLength (or no dysonsphere marker) wins unchanged.
+    configured_factor = match.group(1)
+    factor = None if configured_factor == "None" else float(configured_factor)
+    del legend_config["gradientLength"]
+
+    default_width = config.get("view", {}).get("continuousWidth") if isinstance(config, dict) else None
+    default_height = config.get("view", {}).get("continuousHeight") if isinstance(config, dict) else None
+
+    def visit(node: dict[str, Any], width: Any = None, height: Any = None) -> None:
+        width = node.get("width", width)
+        height = node.get("height", height)
+        encoding = node.get("encoding")
+        if isinstance(encoding, dict):
+            for channel in ("color", "fill", "stroke"):
+                channel_def = encoding.get(channel)
+                if not isinstance(channel_def, dict) or channel_def.get("type") not in _CONTINUOUS_TYPES:
+                    continue
+                legend = channel_def.get("legend")
+                if "legend" in channel_def and (legend is None or legend is False):
+                    continue
+                legend_settings = legend if isinstance(legend, dict) else {}
+                legend_type = legend_settings.get("type", legend_config.get("type"))
+                if "gradientLength" in legend_settings or legend_type == "symbol" or channel_def.get("bin"):
+                    continue
+                if not isinstance(legend, dict):
+                    legend = channel_def["legend"] = {}
+                orient = legend.get("orient", legend_config.get("orient", "right"))
+                direction = legend.get(
+                    "gradientDirection",
+                    legend_config.get("gradientDirection", legend.get("direction", legend_config.get("direction"))),
+                )
+                vertical = direction == "vertical" or (direction is None and orient not in ("top", "bottom"))
+                effective_factor = (0.5 if vertical else 1.0) if factor is None else factor
+                span = height if vertical else width
+                span = span if isinstance(span, (int, float)) else default_height if vertical else default_width
+                if not isinstance(span, (int, float)):
+                    continue
+                length = span * effective_factor
+                title = legend.get("title", channel_def.get("title", channel_def.get("field")))
+                title_orient = legend.get("titleOrient", legend_config.get("titleOrient", "top"))
+                if vertical and title is not None and title_orient in ("top", "bottom"):
+                    lines = len(title) if isinstance(title, list) else 1
+                    title_size = legend.get("titleFontSize", legend_config.get("titleFontSize", 10))
+                    title_padding = legend.get("titlePadding", legend_config.get("titlePadding", 5))
+                    length -= lines * title_size + title_padding
+                legend["gradientLength"] = max(1, length)
+        for key in _SPEC_CONTAINERS:
+            children = node.get(key)
+            if isinstance(children, list):
+                for child in children:
+                    if isinstance(child, dict):
+                        visit(child, width, height)
+        child = node.get("spec")
+        if isinstance(child, dict):
+            visit(child, width, height)
+
+    visit(spec)
+    return spec
 
 
 def _suppress_nice(spec: dict[str, Any]) -> dict[str, Any]:
@@ -475,6 +547,7 @@ def _apply_spec_fixes(spec: dict[str, Any]) -> dict[str, Any]:
     """
     if spec.get("config", {}).get("scale", {}).get("continuousPadding"):
         _suppress_nice(spec)
+    _resolve_gradient_legend_lengths(spec)
     return spec
 
 

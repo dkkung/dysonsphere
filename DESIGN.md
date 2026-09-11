@@ -31,6 +31,23 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   References: `theme.py::_dysonsphere_theme`;
   `test_export.py::TestGradientLegendTitles.test_save_does_not_inject_title_orient`.
 
+- **Continuous legend length follows its owning panel.** The theme stores its length setting in a
+  temporary native `gradientLength` expression; the shared spec pass resolves it to a static per-view length.
+  The `None` default allocates half the height vertically and the full width horizontally; an explicit
+  positive factor scales either full span before vertical title space is removed. Resolution happens
+  before compilation. This handles fixed unit, facet, and composition dimensions without an SVG
+  geometry fixer. Explicit native field/config lengths take precedence. Shared legends use the
+  first merged encoding's panel size; mixed-size shared scales should set a native length explicitly.
+  The marker is not executable Vega: continuous legends require `ds.save()` or `ds.show()` to resolve
+  it, including HTML saved through Dysonsphere. Bare Altair/notebook rendering is unsupported and
+  can fail with an unrecognized function rather than merely use a different legend length.
+  References: `theme.py::_dysonsphere_theme`; `utils.py::_resolve_gradient_legend_lengths`.
+
+- **Continuous legend thickness is fixed geometry.** `legendGradientThickness` is a pixel value,
+  independent of `markSize`, chart dimensions, and the panel-relative length factor. Native field
+  and legend-config thickness overrides retain Vega-Lite precedence.
+  References: `theme.py::_dysonsphere_theme`; `test_theme.py::TestLegendGradientThickness`.
+
 - **Line ends stop at the data.** Lines use butt caps so their ink does not overshoot an interval
   band. Do not change the global cap default to achieve this; axes and rules have separate needs.
   References: `theme.py::_dysonsphere_theme`; `test_theme.py::TestLineCap`.

@@ -4,6 +4,12 @@
 
 ### Changes
 
+- Continuous color legends now track their owning panel dimensions by default. The new
+  `theme(legendGradientLength=None)` default uses half-height vertical and full-width horizontal
+  allocation; a positive numeric value scales either full panel span. Meanwhile,
+  `theme(legendGradientThickness=5)` independently sets thickness in pixels. Explicit native
+  gradient lengths and thicknesses win. Continuous legends require rendering through `ds.save()`
+  or `ds.show()`; bare Altair/notebook rendering may fail on the unresolved sizing marker.
 - Rule segments support optional arrow, circle, and square endpoint caps plus pixel clearances.
   Arrowhead depth scales gently as `4 * sqrt(strokeWidth)` pixels (2 px at the default 0.25 px
   stroke); circle and square cap sizes are unchanged.
