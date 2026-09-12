@@ -80,7 +80,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "strokeCap": "round",
     "tickDirection": "out",
     "ticks": True,
-    "tickSize": 3.5,
+    "tickSize": 3.0,
     "transparent": False,
     "viewFill": None,
     "viewPadding": True,

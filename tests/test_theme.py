@@ -51,8 +51,8 @@ class TestThemeDefaults:
 
     def test_default_tick_size(self):
         theme()
-        assert alt.theme.options["tickSize"] == pytest.approx(3.5)
-        assert _dysonsphere_theme()["config"]["axis"]["tickSize"] == pytest.approx(3.5)
+        assert alt.theme.options["tickSize"] == pytest.approx(3.0)
+        assert _dysonsphere_theme()["config"]["axis"]["tickSize"] == pytest.approx(3.0)
 
     def test_explicit_tick_size(self):
         theme(tickSize=2.25)
@@ -932,7 +932,7 @@ class TestViewPadding:
         assert _active_args() == before_args
         assert dict(colors) == before_colors
         theme(axisOffset=True)
-        assert alt.theme.options["axisOffset"] == pytest.approx(5.25)
+        assert alt.theme.options["axisOffset"] == pytest.approx(4.5)
         theme()
         assert alt.theme.options["axisOffset"] == 0
 
