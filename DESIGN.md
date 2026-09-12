@@ -16,7 +16,7 @@ Source references below are relative to `src/dysonsphere/`; test references are 
 
 - **Automatic mark fill tracks render mode by provenance, not value.** Theme state records whether
   `markFill` was omitted from both configuration and the call. Only that state resolves the default
-  grey live when save/show toggles `darkmode`; comparing hex values would incorrectly reinterpret an
+   grey live when save/show toggles `dark`; comparing hex values would incorrectly reinterpret an
   explicit default-colored fill as automatic. References: `theme.py::theme`, `_opt`,
   `_dysonsphere_theme`; `test_theme.py::TestThemeDefaults`.
 

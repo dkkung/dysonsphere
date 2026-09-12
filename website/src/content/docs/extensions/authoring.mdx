@@ -62,7 +62,7 @@ contract.
 ## The `dysonsphere.ext` surface
 
 Your chart is just a function that returns an Altair object. To make it a *first-class*
-dysonsphere chart - themed, darkmode-aware, and correctly handled by `ds.metadata.read()` - use the
+dysonsphere chart - themed, dark-mode-aware, and correctly handled by `ds.metadata.read()` - use the
 stable primitive surface. Third-party extensions must not import dysonsphere's `_`-private
 internals; coordinated first-party packages in this repository are the narrow exception.
 
@@ -76,8 +76,8 @@ from dysonsphere import ext
 def yourchart(data, *, x="x", y="y") -> ext.AltairChart:
     data = pl.from_pandas(data) if not isinstance(data, pl.DataFrame) else data
 
-    darkmode = bool(ext.opt("darkmode"))        # read the active theme
-    accent = ds.palettes.colors["blues2"][10 if darkmode else 2]
+    dark = bool(ext.opt("dark"))                # read the active theme
+    accent = ds.palettes.colors["blues2"][10 if dark else 2]
 
     points = alt.Chart(data).mark_point().encode(
         x=alt.X(f"{x}:Q"),
@@ -99,7 +99,7 @@ need them. Today it is exactly three names:
   VConcatChart | HConcatChart | ConcatChart`). Use it as your return annotation, matching core's
   own `save()`.
 - **`ext.opt(key)`** - read an active-theme option (`opt("markSize")`, `opt("width")`,
-  `opt("darkmode")`, …). It falls back to the derived built-in default when called before any
+  `opt("dark")`, …). It falls back to the derived built-in default when called before any
   `ds.theme()`, so your styling code never sees `None` sentinels. This is the only supported way
   to read theme options outside core.
 - **`ext.internal_data(data)`** - tag a generated sidecar dataset (next section).

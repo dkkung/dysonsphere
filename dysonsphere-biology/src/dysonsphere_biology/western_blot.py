@@ -74,7 +74,7 @@ def western_blot(
     post-processing. Molecular-weight ladders are out of scope - composite an image of the
     standards separately.
 
-    The blot border is darkmode-aware (resolved from the active theme at call time), so build
+    The blot border is dark-mode-aware (resolved from the active theme at call time), so build
     inside a ``ds.save(lambda: western_blot(...))`` callable for correct light/dark export.
 
     Parameters
@@ -91,7 +91,7 @@ def western_blot(
         :func:`dysonsphere.add_multilabel`.
     stroke:
         Border around each blot image, following the ``bool | float`` pattern: ``True`` (default)
-        -> a darkmode-aware ``markStrokeWidth`` border; ``False`` -> no border; a float -> that
+        -> a dark-mode-aware ``markStrokeWidth`` border; ``False`` -> no border; a float -> that
         stroke width.
     stripSpacing:
         Vertical gap in pixels between stacked blot strips (default ``0`` - the strips abut).
@@ -126,7 +126,7 @@ def western_blot(
         view: dict[str, Any] = {"fill": None, "stroke": None}
     else:
         width = ext.opt("markStrokeWidth") if stroke is True else float(stroke)
-        view = {"fill": None, "stroke": "white" if ext.opt("darkmode") else "black", "strokeWidth": width}
+        view = {"fill": None, "stroke": "white" if ext.opt("dark") else "black", "strokeWidth": width}
 
     strips: list[Any] = []
     for image in image_list:

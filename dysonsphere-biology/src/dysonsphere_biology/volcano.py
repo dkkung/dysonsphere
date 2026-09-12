@@ -70,7 +70,7 @@ def volcano(
     yet miss the fold-change threshold, so ``"ns"`` would be wrong for it.)
 
     Gained/lost colors inherit the active theme's diverging range when ``palette`` is omitted.
-    The neutral remains a separate darkmode-aware grey, so build inside a
+    The neutral remains a separate dark-mode-aware grey, so build inside a
     ``ds.save(lambda: volcano(...))`` callable for correct light/dark export.
 
     Parameters
@@ -96,7 +96,7 @@ def volcano(
         A registered palette name, an explicit low-to-high color list, or the existing
         ``(gained, lost)`` endpoint tuple. Omission inherits the active theme's diverging range.
     nonDifferentialColor:
-        Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
+        Color for the non-differential points. Defaults to a faint theme grey (dark-mode-aware).
     markOpacity:
         Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes
         from the active theme's ``mark_point`` config.
@@ -122,7 +122,7 @@ def volcano(
     # Draw non-differential points first (behind) so the called points sit on top.
     data = data.sort(pl.col(_SIG_COL) != _NONDIFF)
 
-    darkmode = bool(ext.opt("darkmode"))
+    darkmode = bool(ext.opt("dark"))
     ns_color = (
         nonDifferentialColor
         if nonDifferentialColor is not None

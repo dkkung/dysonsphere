@@ -25,6 +25,9 @@ notes are local working material, not dependencies of this framework or part of 
   options that advertise it. `fontSize` is the sole theme font-size control and accepts positive finite
   fractional values. Plot dimensions use `width` and `height`; the removed `chartWidth` and
   `chartHeight` names are not aliases and are invalid as keywords or configuration keys.
+- Its `dark` boolean selects the logical light/dark theme: the built-in default is `False` and the
+  `notebook` style sets it to `True`. It is independent of theme transparency and export background
+  selection. The removed `darkmode` name is not an alias and is invalid as a keyword or configuration key.
 - Keep `ds.palette()` as the common selector; categorical construction, the color registry, and
   swatch export belong under `ds.palettes`. Palette selection returns colors without changing
   the active theme.
@@ -50,7 +53,7 @@ notes are local working material, not dependencies of this framework or part of 
   palettes `GnBu` and `YlGnBu`. The `bluerlagoon` and `bluestlagoon` variants are removed;
   `bluelagoon` and `lagoon` remain available.
 - Volcano gained/lost colors natively inherit the active theme's diverging range when `palette=None`;
-  explicit tuples retain `(gained, lost)` order. The neutral remains separately darkmode-aware, and
+  explicit tuples retain `(gained, lost)` order. The neutral remains separately dark-mode-aware, and
   the legend remains a discrete three-category symbol legend with swatches matching the points.
 - Choose one canonical public path per operation; do not present every operation equally at
   multiple paths. Major-version compatibility policy is explicit. V4 is a clean break: no old-name

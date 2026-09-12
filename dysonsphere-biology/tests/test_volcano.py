@@ -167,7 +167,7 @@ def test_default_palette_natively_inherits_diverging_range():
 
 @pytest.mark.parametrize("darkmode,neutral", [(False, "#DBDBDB"), (True, "#2F2F2F")])
 def test_rendered_default_neutral_legend_matches_point(darkmode, neutral):
-    ds.theme(darkmode=darkmode)
+    ds.theme(dark=darkmode)
     svg = vlc.vegalite_to_svg(ds.biology.volcano(_df(), thresholdLines=False).to_dict())
     points, swatches = _rendered_point_and_legend_fills(svg)
     assert neutral.lower() in points

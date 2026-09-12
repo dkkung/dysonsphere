@@ -8,7 +8,7 @@ sidebar:
 import Example from '../../../components/Example.astro';
 
 **`dysonsphere-biology`** adds molecular-biology charts to dysonsphere - built entirely on the
-public core + `ext` surfaces, so every chart it draws is themed, darkmode-aware, and
+public core + `ext` surfaces, so every chart it draws is themed, dark-mode-aware, and
 round-trips through `ds.save()` / `ds.metadata.read()` like a built-in.
 
 ```sh
@@ -27,7 +27,7 @@ ds.biology.volcano(df, labels="gene", subset=8)
 
 `volcano()` draws log2 fold change against −log₁₀ p, classifies each point as gained / lost /
 non-differential by the fold-change and p-value thresholds, colors it with the diverging
-active theme's diverging range, keeps a separate darkmode-aware neutral grey, and layers on optional threshold guides and
+active theme's diverging range, keeps a separate dark-mode-aware neutral grey, and layers on optional threshold guides and
 gene labels:
 
 <Example name="volcano" alt="Volcano plot of differential expression with labeled top genes" />
@@ -47,7 +47,7 @@ force-repel engine (deterministic, connector-linked), and the point ranking is d
 | `subset` | `None` | `int` (top-N by score), `"significant"` (all hits), or `list[str]` (named genes) |
 | `thresholdLines` | `True` | Draw the fold-change / p-value guide lines |
 | `palette` | theme diverging range | Registered name, low-to-high color list, or `(gained, lost)` tuple |
-| `nonDifferentialColor` | theme grey | Non-differential point color (darkmode-aware) |
+| `nonDifferentialColor` | theme grey | Non-differential point color (dark-mode-aware) |
 | `legend` | `True` | Show the significance color legend |
 
 See the full signature and every parameter in the

@@ -116,10 +116,10 @@ def _blank() -> _AltairChart:
     both backgrounds needs a callable. Its row is tagged internal, keeping a reserved slot
     out of ``read(what="data")`` and the provenance checksums.
     """
-    darkmode = _opt("darkmode")
+    dark = _opt("dark")
     outline = alt.ViewBackground(
-        fill=_opt("chartFill") or ("black" if darkmode else "white"),
-        stroke="white" if darkmode else "black",
+        fill=_opt("chartFill") or ("black" if dark else "white"),
+        stroke="white" if dark else "black",
         strokeWidth=_opt("axisWidth"),
         strokeDash=[0, 0],  # solid - config.rule's dash must not reach it
     )
@@ -210,7 +210,7 @@ def assemble(
         default.
     labelFontSize, labelFontWeight, labelColor, labelOffset:
         Figure-label styling. Weight is numeric (700, bold, by default). ``labelColor``
-        defaults to the theme's title ink, which follows ``darkmode`` at render, so a
+        defaults to the theme's title ink, which follows ``dark`` at render, so a
         ``save()`` across both backgrounds gets the right color without a callable.
         ``labelOffset`` offsets the label from the corner - one number for both axes, or
         ``(x, y)``. It defaults to ``(-5, 0)``, holding the label off the chart the way

@@ -81,7 +81,7 @@ class TestStroke:
         assert self._view(stroke=1.5)["strokeWidth"] == 1.5
 
     def test_darkmode_border_is_white(self):
-        ds.theme(darkmode=True)  # resolved at build time
+        ds.theme(dark=True)  # resolved at build time
         assert self._view()["stroke"] == "white"
 
 

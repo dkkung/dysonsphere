@@ -62,7 +62,7 @@ class _AccentMapping(Mapping[str, str]):
     def __getitem__(self, key: str) -> str:
         from .theme import _opt
 
-        return (_ACCENT_DARK if _opt("darkmode") else _ACCENT_LIGHT)[key]
+        return (_ACCENT_DARK if _opt("dark") else _ACCENT_LIGHT)[key]
 
     def __iter__(self) -> Iterator[str]:
         return iter(_ACCENT_LIGHT)

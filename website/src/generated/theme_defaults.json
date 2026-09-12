@@ -17,7 +17,7 @@
  {
   "key": "chartFill",
   "default": null,
-  "hint": "auto: white / black by darkmode"
+  "hint": "auto: white / black by dark mode"
  },
  {
   "key": "closed",
@@ -30,7 +30,7 @@
   "hint": null
  },
  {
-  "key": "darkmode",
+  "key": "dark",
   "default": "false",
   "hint": null
  },

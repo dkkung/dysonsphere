@@ -320,7 +320,7 @@ def mark_violin(
     if stroke is True:
         # The house mark outline: the theme's markStroke, kept black in darkmode
         # too - it outlines the light palette fills, like mark_strip's points.
-        stroke = "black" if _opt("darkmode") else _opt("markStroke")
+        stroke = "black" if _opt("dark") else _opt("markStroke")
     elif stroke is False:
         stroke = None
     if innerColor is None:
@@ -695,7 +695,7 @@ def mark_strip(
     point_mark_kwargs: dict[str, Any] = {
         "size": markSize,
         "opacity": markOpacity,
-        "stroke": "black" if _opt("darkmode") else _opt("markStroke"),
+        "stroke": "black" if _opt("dark") else _opt("markStroke"),
         "strokeWidth": _opt("markStrokeWidth"),
         "strokeOpacity": _opt("markStrokeOpacity"),
     }

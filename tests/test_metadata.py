@@ -258,7 +258,7 @@ class TestSaveUsermeta:
     def test_automatic_mark_fill_metadata_matches_each_render_mode(self, simple_chart, tmp_path, initial_darkmode):
         import dysonsphere as ds
 
-        ds.theme(darkmode=initial_darkmode)
+        ds.theme(dark=initial_darkmode)
         ds.save(simple_chart, tmp_path / "modes", format="json", background=["light", "dark"])
         light_spec = json.loads((tmp_path / "modes_light.json").read_text())
         dark_spec = json.loads((tmp_path / "modes_dark.json").read_text())
@@ -270,13 +270,13 @@ class TestSaveUsermeta:
         assert dark_spec["config"]["point"]["fill"] == dark["theme"]["markFill"]
         assert light["themeAutomatic"] == dark["themeAutomatic"] == ["markFill"]
         assert "_markFillAuto" not in light["theme"] and "_markFillAuto" not in dark["theme"]
-        assert alt.theme.options["darkmode"] is initial_darkmode
+        assert alt.theme.options["dark"] is initial_darkmode
 
     def test_explicit_mark_fill_metadata_is_pinned_and_load_preserves_origin(self, simple_chart, tmp_path):
         import dysonsphere as ds
         from dysonsphere.theme import _opt
 
-        ds.theme(darkmode=False, markFill="#DBDBDB")
+        ds.theme(dark=False, markFill="#DBDBDB")
         ds.save(simple_chart, tmp_path / "explicit", format="json", background="dark")
         block = json.loads((tmp_path / "explicit.json").read_text())["usermeta"]["dysonsphere"]
         assert block["theme"]["markFill"] == "#DBDBDB"
@@ -284,7 +284,7 @@ class TestSaveUsermeta:
         ds.load(tmp_path / "explicit.json")
         assert _opt("markFill") == "#DBDBDB"
 
-        ds.theme(darkmode=True)
+        ds.theme(dark=True)
         ds.save(simple_chart, tmp_path / "automatic", format="json", background="dark")
         loaded = ds.load(tmp_path / "automatic.json")
         assert not isinstance(loaded, dict)
@@ -298,7 +298,7 @@ class TestSaveUsermeta:
         import dysonsphere as ds
         from dysonsphere.theme import _opt, _temporary_theme
 
-        ds.theme(darkmode=True)
+        ds.theme(dark=True)
         ds.save(simple_chart, tmp_path / "saved-auto", format="json", background="dark")
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text('[default]\nmarkFill = "#123456"\n', encoding="utf-8")
@@ -317,7 +317,7 @@ class TestSaveUsermeta:
         assert block["theme"]["markFill"] == "#DBDBDB"
         assert block["themeAutomatic"] == ["markFill"]
 
-        ds.theme(darkmode=True, markFill="#DBDBDB")
+        ds.theme(dark=True, markFill="#DBDBDB")
         ds.save(simple_chart, tmp_path / "saved-explicit", format="json", background="dark")
         ds.load(tmp_path / "saved-explicit.json")
         assert _opt("markFill") == "#DBDBDB"
@@ -673,7 +673,7 @@ class TestReadLoad:
         def variant():
             nonlocal calls
             calls += 1
-            if not alt.theme.options["darkmode"]:
+            if not alt.theme.options["dark"]:
                 return loaded
             changed = loaded.to_dict()
             changed["layer"][0]["data"]["values"][0]["v"] = 99

@@ -77,7 +77,7 @@ class TestAssembleSizing:
         from dysonsphere.theme import _active_args
 
         custom = ["#123456", "#abcdef"]
-        theme(darkmode=True, transparent=False, palette=custom, fontSize=9)
+        theme(dark=True, transparent=False, palette=custom, fontSize=9)
         before_options = dict(alt.theme.options)
         before_args = _active_args()
         before_colors = dict(colors)
@@ -333,12 +333,12 @@ class TestAssemblyExportMode:
         # producing genuinely nested temporary-theme scopes.
         def inner_chart():
             if seen is not None:
-                seen.append(("inner", _opt("width"), _opt("height"), _opt("markSize"), _opt("darkmode")))
+                seen.append(("inner", _opt("width"), _opt("height"), _opt("markSize"), _opt("dark")))
             return _chart()
 
         def outer_builder():
             if seen is not None:
-                seen.append(("outer", _opt("width"), _opt("height"), _opt("markSize"), _opt("darkmode")))
+                seen.append(("outer", _opt("width"), _opt("height"), _opt("markSize"), _opt("dark")))
             return assemble([(inner_chart, 80, 50)])
 
         return assemble([(outer_builder, 120, 70)])
@@ -361,7 +361,7 @@ class TestAssemblyExportMode:
         (tmp_path / "dysonsphere.toml").write_text(
             '[ocean]\ncategoryPalette = "local"\n[palettes]\nlocal = ["#123456", "#abcdef"]\n'
         )
-        theme(style="ocean", darkmode=original_darkmode, transparent=True, tickDirection="in")
+        theme(style="ocean", dark=original_darkmode, transparent=True, tickDirection="in")
         before_options = dict(alt.theme.options)
         before_args = _active_args()
         before_colors = dict(colors)
@@ -377,7 +377,7 @@ class TestAssemblyExportMode:
         for mode, ink, page in (("light", "black", (255, 255, 255)), ("dark", "white", (0, 0, 0))):
             stem = tmp_path / f"assembled_{mode}"
             spec = json.loads(stem.with_suffix(".json").read_text())
-            assert spec["usermeta"]["dysonsphere"]["theme"]["darkmode"] is (mode == "dark")
+            assert spec["usermeta"]["dysonsphere"]["theme"]["dark"] is (mode == "dark")
             assert spec["usermeta"]["dysonsphere"]["theme"]["tickDirection"] == "in"
             assert spec["config"]["axis"]["labelColor"] == ink
             svg = stem.with_suffix(".svg").read_text()
@@ -395,7 +395,7 @@ class TestAssemblyExportMode:
 
         import dysonsphere as ds
 
-        theme(darkmode=True, transparent=False)
+        theme(dark=True, transparent=False)
         before = dict(alt.theme.options)
         seen = []
         svg = cast(str, ds.show(lambda: self._figure(seen)).data)
@@ -411,10 +411,10 @@ class TestAssemblyExportMode:
 
         import dysonsphere as ds
 
-        theme(darkmode=False)
+        theme(dark=False)
         ds.save(lambda: self._figure(), tmp_path / "transparent", format=["png", "json"], background="dark")
         spec = json.loads((tmp_path / "transparent.json").read_text())
-        assert spec["usermeta"]["dysonsphere"]["theme"]["darkmode"] is True
+        assert spec["usermeta"]["dysonsphere"]["theme"]["dark"] is True
         with Image.open(tmp_path / "transparent.png") as image:
             assert image.convert("RGBA").getchannel("A").getpixel((0, 0)) == 0
 
@@ -423,7 +423,7 @@ class TestAssemblyExportMode:
         from dysonsphere.palettes import colors
         from dysonsphere.theme import _active_args
 
-        theme(darkmode=False, transparent=True, categoryPalette=["#123456", "#abcdef"])
+        theme(dark=False, transparent=True, categoryPalette=["#123456", "#abcdef"])
         before_options = dict(alt.theme.options)
         before_args = _active_args()
         before_colors = dict(colors)
@@ -465,7 +465,7 @@ class TestBlankSlots:
         assert assemble([(None, 120, 80)]).to_dict()["view"]["fill"] == "white"
 
     def test_outline_and_fill_follow_darkmode(self):
-        theme(darkmode=True)
+        theme(dark=True)
         view = assemble([(None, 120, 80)]).to_dict()["view"]
         assert (view["stroke"], view["fill"]) == ("white", "black")
         theme()

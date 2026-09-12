@@ -82,7 +82,7 @@ Both ``groups`` and ``categories`` are optional. Omit ``groups`` (or pass
 - **`labelPadding`** (`float`) - Gap in pixels between the plot boundary and the label text. Vega-Lite's default is 2. Negative values pull the labels into the plot area.
 - **`symbol`** (`str`) - Vega-Lite shape name for ``"symbol"`` style marks (e.g. ``"circle"``, ``"square"``, ``"diamond"``, ``"triangle-up"``). Defaults to ``"circle"``.
 - **`symbolSize`** (`float | None`) - Area (in square pixels) of each symbol. Defaults to ``markSize * 4`` from ``ds.theme()``.
-- **`palette`** (`list[str] | None`) - List of colors used to fill annotation marks in ``"symbol"`` style. ``palette[0]`` overrides the ``False`` mark color and ``palette[-1]`` the ``True`` mark color. Overrides darkmode defaults when provided. Pass the result of ``ds.palette()`` directly.
+- **`palette`** (`list[str] | None`) - List of colors used to fill annotation marks in ``"symbol"`` style. ``palette[0]`` overrides the ``False`` mark color and ``palette[-1]`` the ``True`` mark color. Overrides dark-mode defaults when provided. Pass the result of ``ds.palette()`` directly.
 - **`strokeWidth`** (`float | None`) - Stroke width applied to dot marks and the connecting rule. Defaults to ``markStrokeWidth`` from ``ds.theme()``.
 - **`connectingLine`** (`bool`) - When ``True`` (default), draws a rule spanning each consecutive run of ``True`` values (``"symbol"`` style only). Set to ``False`` to show symbols only. Direction is controlled by ``lineOrientation``.
 - **`lineOrientation`** (`str`) - Direction of the connecting rule. ``"vertical"`` (default) draws a rule down each column spanning consecutive ``True`` rows. ``"horizontal"`` draws a rule across each row spanning consecutive ``True`` columns.

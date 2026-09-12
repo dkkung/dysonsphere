@@ -14,7 +14,7 @@
 //   _read_export(name)          - ds.metadata.read(name, what="metadata") on a saved JSON/SVG/PNG already
 //                                 written into the FS (the studio's export-import tools); the
 //                                 JS side also exposes a raw FS writeFile for those uploads.
-// Site render args (darkmode / transparent) are applied just before serializing,
+// Site render args (dark / transparent) are applied just before serializing,
 // never shown in user code.
 
 const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v314.0.2/full/';
@@ -85,7 +85,7 @@ def _run_chart(code, dark):
 
     @functools.wraps(real_theme)
     def patched_theme(*args, **kwargs):
-        kwargs["darkmode"] = dark
+        kwargs["dark"] = dark
         kwargs["transparent"] = True
         return real_theme(*args, **kwargs)
 

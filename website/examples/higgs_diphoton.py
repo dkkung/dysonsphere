@@ -61,11 +61,11 @@ binned = pl.DataFrame({
 })
 
 ds.theme()
-dark = bool(alt.theme.options.get("darkmode"))  # the site injects darkmode per light/dark spec
-ink = "white" if dark else "black"  # data markers, darkmode-aware
+dark = bool(alt.theme.options.get("dark"))  # the site injects dark per light/dark spec
+ink = "white" if dark else "black"  # data markers, dark-mode-aware
 W = 210
 RED = colors["pinksblues"][0]  # signal + background curve (an ATLAS-red homage; reads on both modes)
-GREY = colors["greys"][4] if dark else colors["greys"][7]  # background-only + zero line, darkmode-aware
+GREY = colors["greys"][4] if dark else colors["greys"][7]  # background-only + zero line, dark-mode-aware
 xscale = alt.Scale(domain=[float(mass.min()) - 2, float(mass.max()) + 2], nice=False)
 
 # proper error bars: dashed stems, no caps

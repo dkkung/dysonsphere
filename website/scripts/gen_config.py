@@ -29,7 +29,7 @@ OUT = Path("website/src/generated")
 # "auto" resolves to instead of showing nothing.
 AUTO_HINTS = {
     "axisOffset": "true: tickSize * 1.5",
-    "chartFill": "auto: white / black by darkmode",
+    "chartFill": "auto: white / black by dark mode",
     "closed": 'auto: True when tickDirection = "in" or viewFill',
     "legendOffset": "auto: tickSize * 1.5",
     "markSize": "auto: min(width, height) / 10",

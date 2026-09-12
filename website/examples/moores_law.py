@@ -43,7 +43,7 @@ xenc = alt.X("year:Q", title="Year", axis=alt.Axis(format="d"), scale=alt.Scale(
 
 scatter = (
     alt.Chart(df)
-    .mark_point(filled=True, size=26, color="white" if bool(alt.theme.options.get("darkmode")) else "black")
+    .mark_point(filled=True, size=26, color="white" if bool(alt.theme.options.get("dark")) else "black")
     .encode(x=xenc, y=alt.Y("log_t:Q", axis=yaxis, scale=alt.Scale(domain=[3, 11], nice=False)))
 )
 fit = ds.stats.correlation(df, "year", "log_t", ci=True, position=None)

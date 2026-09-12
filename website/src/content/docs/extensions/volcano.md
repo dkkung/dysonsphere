@@ -46,7 +46,7 @@ labels are layered on. Returns an ``alt.LayerChart`` to compose or pass to ``ds.
 yet miss the fold-change threshold, so ``"ns"`` would be wrong for it.)
 
 Gained/lost colors inherit the active theme's diverging range when ``palette`` is omitted.
-The neutral remains a separate darkmode-aware grey, so build inside a
+The neutral remains a separate dark-mode-aware grey, so build inside a
 ``ds.save(lambda: volcano(...))`` callable for correct light/dark export.
 
 **Parameters**
@@ -60,7 +60,7 @@ The neutral remains a separate darkmode-aware grey, so build inside a
 - **`subset`** (`str | int | list[str] | None`) - Which points to label (default ``None`` - no labels). ``int`` -> the top-N most significant, ranked by combined score ``|log2fc| * -log10(p)``; ``"significant"`` -> every significant point; ``list[str]`` -> the named genes. Any non-None value requires ``labels``.
 - **`thresholdLines`** (`bool`) - Draw the fold-change / p-value guide lines (default ``True``).
 - **`palette`** (`str | list[str] | tuple[str, str] | None`) - A registered palette name, an explicit low-to-high color list, or the existing ``(gained, lost)`` endpoint tuple. Omission inherits the active theme's diverging range.
-- **`nonDifferentialColor`** (`str | None`) - Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
+- **`nonDifferentialColor`** (`str | None`) - Color for the non-differential points. Defaults to a faint theme grey (dark-mode-aware).
 - **`markOpacity`** (`float`) - Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes from the active theme's ``mark_point`` config.
 - **`legend`** (`bool`) - Show the significance color legend (default ``True``).
 - **`xTitle`** (`str | list[str] | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.

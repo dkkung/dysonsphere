@@ -258,7 +258,7 @@ def save(
         ds.save(chart, "fig", background=["light", "dark"])
         #   → fig_light.svg / fig_dark.svg + fig_light.json / fig_dark.json
 
-    Each background toggles ``darkmode`` for its render, restoring the original after.
+    Each background toggles ``dark`` for its render, restoring the original after.
 
     Labels are typeset on export (SVG/PNG): a ``^`` marks a superscript (``"x^2"``, ``"10^3"``)
     and a **double** underscore a subscript (``"C__t"`` -> C with a subscript t; single ``_`` is
@@ -274,7 +274,7 @@ def save(
         one. Accepts any Altair compound chart type: ``Chart``,
         ``LayerChart``, ``FacetChart``, ``VConcatChart``, ``HConcatChart``,
         or ``ConcatChart``. When a callable is provided it is called fresh
-        for each variant — after ``darkmode`` has been toggled — so any marks
+        for each variant — after ``dark`` has been toggled — so any marks
         whose colours depend on ``ds.theme()`` (e.g. ``add_multilabel``) are
         rebuilt with the correct palette each time.
     filename:
@@ -305,7 +305,7 @@ def save(
         publication-accurate static figure.
     background:
         Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles
-        ``darkmode``), as a single string or a list. ``None`` (default) uses the theme
+        ``dark``), as a single string or a list. ``None`` (default) uses the theme
         option ``saveBackground`` (``"light"``). An empty list or unknown value raises.
     transparent:
         Whether the rendered SVG/PNG have a transparent background. ``True`` (default):
@@ -421,7 +421,7 @@ def save(
         return str(out.parent / f"{out.name}{'_' + bg if multi else ''}.{ext}")
 
     _want_render = "svg" in _formats or "png" in _formats
-    original_darkmode = _opt("darkmode")
+    original_dark = _opt("dark")
     original_transparent = _opt("transparent")
     # Cap the rows inlined for this save (every format renders via to_dict(), which enforces
     # it; overrideMaxRows lifts it) — restored on the way out via the ExitStack.  Over the cap,
@@ -438,7 +438,7 @@ def save(
         # used by the SVG renderer paired with the exact preflighted spec.
         _variants: list[tuple[str, _AltairChart, dict[str, Any]]] = []
         for bg in _backgrounds:
-            alt.theme.options["darkmode"] = bg == "dark"
+            alt.theme.options["dark"] = bg == "dark"
             alt.theme.options["transparent"] = original_transparent
             base_obj = _resolve_base()
             spec = _apply_spec_fixes(_json_safe(base_obj.to_dict()))
@@ -448,7 +448,7 @@ def save(
             _variants.append((bg, base_obj, spec))
 
         for bg, base_obj, original_spec in _variants:
-            alt.theme.options["darkmode"] = bg == "dark"
+            alt.theme.options["dark"] = bg == "dark"
             alt.theme.options["transparent"] = original_transparent
             spec = deepcopy(original_spec)
             # Scan extension wrappers before a wrapped live-statistics marker is replaced by its
@@ -520,7 +520,7 @@ def save(
         ) from e
     finally:
         _cap_stack.close()
-        alt.theme.options["darkmode"] = original_darkmode
+        alt.theme.options["dark"] = original_dark
         alt.theme.options["transparent"] = original_transparent
 
 
@@ -535,7 +535,7 @@ def show(
     aren't typeset, the axisOffset grid gap remains, and with ``tickDirection="in"`` the
     ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
     :func:`save` writes and returns it as an ``IPython.display.HTML`` for inline display, so
-    the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
+    the preview matches the saved figure. It renders at the theme's current ``dark`` value and
     ``transparent`` and writes no file.
 
     The SVG is returned as **HTML** rather than ``IPython.display.SVG`` so the preview lands on

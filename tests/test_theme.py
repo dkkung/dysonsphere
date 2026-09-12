@@ -30,7 +30,7 @@ class TestThemeDefaults:
         assert "markSize" in opts
         assert "markStrokeWidth" in opts
         assert "closed" in opts
-        assert "darkmode" in opts
+        assert "dark" in opts
 
     def test_default_font_is_fallback_stack(self):
         # The default font must be a fallback stack, with the Helvetica Neue *family*
@@ -66,11 +66,11 @@ class TestThemeDefaults:
     def test_mark_fill_default_follows_mode_live(self):
         from dysonsphere.theme import _opt
 
-        theme(darkmode=False)
+        theme(dark=False)
         assert alt.theme.options["markFill"] == "#DBDBDB"
         assert _opt("markFill") == "#DBDBDB"
         assert _dysonsphere_theme()["config"]["point"]["fill"] == "#DBDBDB"
-        alt.theme.options["darkmode"] = True
+        alt.theme.options["dark"] = True
         assert _opt("markFill") == "#9D9D9D"
         config = _dysonsphere_theme()["config"]
         assert config["point"]["fill"] == "#9D9D9D"
@@ -78,7 +78,7 @@ class TestThemeDefaults:
         assert config["area"]["fill"] == "#9D9D9D"
         assert config["arc"]["fill"] == "#9D9D9D"
         assert config["circle"]["fill"] == "white"
-        theme(darkmode=True)
+        theme(dark=True)
         assert alt.theme.options["markFill"] == "#9D9D9D"
 
     @pytest.mark.parametrize("value", ["#DBDBDB", "#9D9D9D", "tomato"])
@@ -86,7 +86,7 @@ class TestThemeDefaults:
         from dysonsphere.theme import _opt
 
         theme(markFill=value)
-        alt.theme.options["darkmode"] = True
+        alt.theme.options["dark"] = True
         assert _opt("markFill") == value
         assert _dysonsphere_theme()["config"]["point"]["fill"] == value
 
@@ -95,7 +95,7 @@ class TestThemeDefaults:
 
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text('[default]\nmarkFill = "#DBDBDB"\n', encoding="utf-8")
-        theme(darkmode=True)
+        theme(dark=True)
         assert _opt("markFill") == "#DBDBDB"
         assert _dysonsphere_theme()["config"]["point"]["fill"] == "#DBDBDB"
 
@@ -107,7 +107,7 @@ class TestThemeDefaults:
         values = ", ".join(f'"{value}"' for value in stops)
         (tmp_path / "dysonsphere.toml").write_text(f"[palettes]\ngreys = [{values}]\n", encoding="utf-8")
         for darkmode, expected in ((False, "#DBDBDB"), (True, "#9D9D9D"), (False, "#DBDBDB")):
-            theme(darkmode=darkmode)
+            theme(dark=darkmode)
             assert _opt("markFill") == expected
             assert _dysonsphere_theme()["config"]["point"]["fill"] == expected
 
@@ -115,7 +115,7 @@ class TestThemeDefaults:
         from dysonsphere.palettes import _PALETTE_ALIASES
 
         for darkmode in (False, True, False):
-            theme(darkmode=darkmode)
+            theme(dark=darkmode)
             assert all(colors[alias] is colors[canonical] for alias, canonical in _PALETTE_ALIASES.items())
 
     def test_named_style_mark_fill_and_explicit_precedence_are_pinned(self, tmp_path, monkeypatch):
@@ -125,15 +125,15 @@ class TestThemeDefaults:
         (tmp_path / "dysonsphere.toml").write_text(
             '[default]\nmarkFill = "#123456"\n[paper]\nmarkFill = "#DBDBDB"\n', encoding="utf-8"
         )
-        theme("paper", darkmode=True)
+        theme("paper", dark=True)
         assert _opt("markFill") == "#DBDBDB"
-        theme("paper", darkmode=True, markFill="#9D9D9D")
+        theme("paper", dark=True, markFill="#9D9D9D")
         assert _opt("markFill") == "#9D9D9D"
 
     def test_callable_export_resolves_default_fill_and_accents_per_background(self, tmp_path):
         import dysonsphere as ds
 
-        theme(darkmode=False)
+        theme(dark=False)
 
         def chart():
             data = alt.Data(values=[{"x": 1, "y": 1}])
@@ -153,14 +153,14 @@ class TestThemeDefaults:
         dark = (tmp_path / "mode-fill_dark.svg").read_text()
         assert "#DBDBDB" in light and "#28287D" in light
         assert "#9D9D9D" in dark and "#7783DB" in dark
-        assert alt.theme.options["darkmode"] is False
+        assert alt.theme.options["dark"] is False
 
     @pytest.mark.parametrize(
         ("overrides", "expected", "automatic"),
         [
             ({"markFill": "tomato"}, "tomato", False),
-            ({"darkmode": True}, "#9D9D9D", True),
-            ({"darkmode": True, "markFill": "#DBDBDB"}, "#DBDBDB", False),
+            ({"dark": True}, "#9D9D9D", True),
+            ({"dark": True, "markFill": "#DBDBDB"}, "#DBDBDB", False),
         ],
     )
     def test_temporary_fill_overrides_and_mode_are_resolved_and_restored(self, overrides, expected, automatic):
@@ -213,14 +213,14 @@ class TestThemeDefaults:
         # darkmode so save()'s per-background toggle works without re-running theme()
         from dysonsphere.theme import _dysonsphere_theme
 
-        theme(darkmode=False)
+        theme(dark=False)
         assert alt.theme.options["chartFill"] is None
         assert _dysonsphere_theme()["background"] == "white"
 
     def test_chart_fill_auto_resolves_black_dark_mode(self):
         from dysonsphere.theme import _dysonsphere_theme
 
-        theme(darkmode=True)
+        theme(dark=True)
         assert _dysonsphere_theme()["background"] == "black"
 
     def test_chart_fill_explicit_used_as_is(self):
@@ -369,7 +369,7 @@ class TestRangePalettes:
 
     @pytest.mark.parametrize("darkmode", [False, True])
     def test_complete_default_range_baseline(self, darkmode):
-        theme(darkmode=darkmode)
+        theme(dark=darkmode)
         ranges = _dysonsphere_theme()["config"]["range"]
         digest = hashlib.sha256(json.dumps(ranges, separators=(",", ":")).encode()).hexdigest()
         assert digest == "92f22343bbe5ac3adeda22b515b3b58bcde2ffb287b6e2458b14674754fc56a7"
@@ -594,7 +594,7 @@ class TestThemeValidation:
             ("height", float("inf"), ValueError),
             ("fontSize", -1, ValueError),
             ("fontSize", True, TypeError),
-            ("darkmode", 1, TypeError),
+            ("dark", 1, TypeError),
             ("markFillOpacity", 1.1, ValueError),
             ("markStrokeOpacity", float("nan"), ValueError),
             ("barPadding", 1.1, ValueError),
@@ -963,9 +963,9 @@ class TestTickConfig:
         assert tick["size"] == median["size"]  # markSize * 0.9
 
     def test_darkmode_flips_color(self):
-        theme(darkmode=True)
+        theme(dark=True)
         assert _dysonsphere_theme()["config"]["tick"]["color"] == "white"
-        theme(darkmode=False)
+        theme(dark=False)
         assert _dysonsphere_theme()["config"]["tick"]["color"] == "black"
 
     def test_scales_with_theme_params(self):
@@ -992,7 +992,7 @@ class TestTrailConfig:
         cfg = _dysonsphere_theme()["config"]
         assert cfg["trail"]["size"] == cfg["line"]["strokeWidth"]
         assert cfg["trail"]["color"] == "black"
-        theme(darkmode=True)
+        theme(dark=True)
         assert _dysonsphere_theme()["config"]["trail"]["color"] == "white"
 
 

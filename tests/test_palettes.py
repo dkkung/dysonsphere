@@ -52,10 +52,10 @@ class TestAccents:
     def test_mode_lookup_and_separation_from_palette_registry(self):
         from dysonsphere import theme
 
-        theme(darkmode=False)
+        theme(dark=False)
         assert dict(accents) == _ACCENT_LIGHT
         captured = accents["blue"]
-        theme(darkmode=True)
+        theme(dark=True)
         assert dict(accents) == _ACCENT_DARK
         assert captured == "#28287D"
         assert accents["blue"] == "#7783DB"

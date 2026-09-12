@@ -90,7 +90,7 @@ alt.X("dose:N", axis=alt.Axis(labelFontSize=9))
 ```
 
 `ds.save(figure, "figure_1a")` exports it like any chart. Pass a callable when saving both
-backgrounds, since a reserved slot resolves its fill against `darkmode` at build time. An assembled
+backgrounds, since a reserved slot resolves its fill against `dark` at build time. An assembled
 figure usually holds several dataframes, so `ds.metadata.read(path, what="data")` needs `dataset="all"` or a
 name - see [saving and reading](/guides/saving/).
 

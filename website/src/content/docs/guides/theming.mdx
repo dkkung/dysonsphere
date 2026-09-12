@@ -34,7 +34,7 @@ The same Altair code, with exactly one line added - `ds.theme()`:
 
 Dark-background figures keep getting more common: notebooks render inline charts against the
 dark editor themes most IDEs default to, and dark or black slide backgrounds are increasingly
-the norm in scientific and industrial presentations alike. `ds.theme(darkmode=True)` inverts the
+the norm in scientific and industrial presentations alike. `ds.theme(dark=True)` inverts the
 axis, label, and text ink while keeping palette colors intact - one flag, same chart code:
 
 <Code code={darkSource.trimEnd()} lang="python" />
@@ -45,15 +45,15 @@ axis, label, and text ink while keeping palette colors intact - one flag, same c
 		<figcaption>default ink, white <code>chartFill</code></figcaption>
 	</figure>
 	<figure class="ba__cell">
-		<Chart name="darkmode_dark" alt="The same scatter with darkmode=True on a black chartFill background" fitWidth />
-		<figcaption>after <code>darkmode=True</code> - black <code>chartFill</code></figcaption>
+		<Chart name="darkmode_dark" alt="The same scatter with dark=True on a black chartFill background" fitWidth />
+		<figcaption>after <code>dark=True</code> - black <code>chartFill</code></figcaption>
 	</figure>
 </div>
 
 These two pin `transparent=False`, so each bakes its own contrasting `chartFill` background
-(auto: white, black in darkmode). Ordinarily dysonsphere draws transparent instead, letting the
+(auto: white, black in dark mode). Ordinarily dysonsphere draws transparent instead, letting the
 page or slide provide the ground - every chart on this site swaps ink with the site's light/dark
-toggle, which is this same `darkmode` flag at work.
+toggle, which is this same `dark` flag at work.
 
 ## Palettes
 

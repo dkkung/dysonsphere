@@ -13,7 +13,7 @@ import polars as pl
 import dysonsphere as ds
 
 ds.theme(width=225, height=170)
-dark = bool(alt.theme.options.get("darkmode"))
+dark = bool(alt.theme.options.get("dark"))
 ink = "white" if dark else "black"
 
 # scattering angle (degrees), relative scintillation count - Geiger & Marsden (1913)

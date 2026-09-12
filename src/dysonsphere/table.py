@@ -270,8 +270,8 @@ def mark_table(
 
     **Darkmode** is resolved at BUILD time (like ``shade`` / ``add_multilabel``): the stripe
     fills sample the dark end of the palette and the strokes / auto-contrast colours flip when the
-    table is built under ``theme(darkmode=True)`` (cell text with no explicit colour follows the
-    theme's darkmode-aware ``config.text`` at render). So set the theme before building, or - to
+    table is built under ``theme(dark=True)`` (cell text with no explicit colour follows the
+    theme's dark-mode-aware ``config.text`` at render). So set the theme before building, or - to
     export light AND dark from one call - pass a **callable** to ``ds.save()`` so the table is
     rebuilt per background::
 
@@ -441,7 +441,7 @@ def mark_table(
     row_h = round(fs * 2) if rowHeight is None else rowHeight
     axis_w = _opt("axisWidth")
     stroke_w = axis_w if strokeWidth is None else strokeWidth
-    dark = _opt("darkmode")
+    dark = _opt("dark")
     stroke_c = ("white" if dark else "black") if strokeColor is None else strokeColor
 
     # Header background band + text colour (darkmode-aware, resolved at build like shade).

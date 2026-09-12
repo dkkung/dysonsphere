@@ -16,7 +16,7 @@ import dysonsphere as ds
 from dysonsphere.palettes import colors
 
 ds.theme(width=215, height=175)
-dark = bool(alt.theme.options.get("darkmode"))
+dark = bool(alt.theme.options.get("dark"))
 ACCENT = colors["cat2_blues"][5 if dark else 9]
 
 # leading digit of 2**n for n = 1..2000 (Python big integers, tallied in the browser)

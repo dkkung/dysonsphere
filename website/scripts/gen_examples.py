@@ -3,14 +3,14 @@
 
 The example registry: each ``website/examples/<name>.py`` is a complete, copy-runnable snippet
 that defines a variable named ``chart`` (the same contract as the studio's code editor). This
-script executes each file twice - once with ``darkmode=False`` and once with ``darkmode=True``,
+script executes each file twice - once with ``dark=False`` and once with ``dark=True``,
 both with ``transparent=True`` - and writes ``website/public/charts/<name>-light.json`` /
 ``<name>-dark.json`` for the Chart/Example components to render live.
 
 The SAME source file is imported raw (vite ``?raw``) by ``Example.astro`` as the shown snippet, so
 the displayed code and the rendered chart can never drift apart.
 
-The site render args (``darkmode`` / ``transparent``) are injected by monkeypatching
+The site render args (``dark`` / ``transparent``) are injected by monkeypatching
 ``ds.theme`` during exec - they never appear in the snippet, which stays exactly what a user
 would write.
 
@@ -55,7 +55,7 @@ _real_theme = ds.theme
 # white background so the default look stays readable on the site's dark pages.
 PLAIN_EXAMPLES = {"theme_before"}
 
-# Examples whose theme() args must NOT be overridden by the site's darkmode/transparent
+# Examples whose theme() args must NOT be overridden by the site's dark/transparent
 # injection - fixed light/dark comparisons that bake their own chartFill background and
 # render identically in both site themes.
 PINNED_EXAMPLES = {"darkmode_light", "darkmode_dark"}
@@ -87,7 +87,7 @@ def build(path: Path, dark: bool) -> dict:
 
     @functools.wraps(_real_theme)
     def patched_theme(*args, **kwargs):
-        kwargs["darkmode"] = dark
+        kwargs["dark"] = dark
         kwargs["transparent"] = True
         return _real_theme(*args, **kwargs)
 

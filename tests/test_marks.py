@@ -362,7 +362,7 @@ class TestMarkColors:
         try:
             rendered = []
             for darkmode in (False, True):
-                theme(darkmode=darkmode)
+                theme(dark=darkmode)
                 chart = mark_strip(group_df, "group", "value", CATEGORIES, fill="#123456")
                 spec = chart.to_dict()
                 circle = next(layer for layer in spec["layer"] if _mark_type(layer) == "circle")
@@ -417,7 +417,7 @@ class TestViolinInner:
         # Deliberately NOT darkmode-sensitive: the lines sit inside the mark fill,
         # not on the background.
         for dark in (False, True):
-            theme(width=200, height=200, darkmode=dark)
+            theme(width=200, height=200, dark=dark)
             spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
             assert _median_area(spec)["mark"]["fill"] == "black"
             assert all(lyr["mark"]["color"] == "black" for lyr in _rule_layers(spec))
@@ -426,7 +426,7 @@ class TestViolinInner:
         # The default violin is outlined with the theme's markStroke - black in
         # dark mode too (it outlines the light palette fills, like mark_strip).
         for dark in (False, True):
-            theme(width=200, height=200, darkmode=dark)
+            theme(width=200, height=200, dark=dark)
             spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
             violin = next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "line")
             assert violin["mark"]["stroke"] == "black"

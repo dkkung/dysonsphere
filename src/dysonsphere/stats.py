@@ -2655,7 +2655,7 @@ def _add_grouped_correlation(
                 .mark_point(
                     filled=True,
                     size=round(sym_size, 2),
-                    stroke="white" if _opt("darkmode") else "black",
+                    stroke="white" if _opt("dark") else "black",
                     strokeWidth=_opt("markStrokeWidth"),
                 )
                 .encode(
@@ -2805,8 +2805,8 @@ def correlation(
     ciColor:
         Fill colour of the band. ``None`` (default) inherits the effective fit-line color,
         including a ``lineStyle`` color,
-        falling back to the theme's mark colour (black / white, darkmode-aware). Because
-        the default resolves darkmode at build time, wrap chart construction in a callable
+        falling back to the theme's mark colour (black / white, dark-mode-aware). Because
+        the default resolves dark mode at build time, wrap chart construction in a callable
         passed to ``ds.save()`` for correct light/dark exports (as with ``shade``).
     ciOpacity:
         Fill opacity of the band. Default ``0.15``.
@@ -2932,7 +2932,7 @@ def correlation(
             if style_color is not None
             else color
             if color is not None
-            else ("white" if _opt("darkmode") else "black")
+            else ("white" if _opt("dark") else "black")
         )
         layers.append(
             alt.Chart(_internal_data(band_df))

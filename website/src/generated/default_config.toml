@@ -16,7 +16,7 @@
 [notebook]
 width = 900
 height = 900
-darkmode = true
+dark = true
 fontSize = 18
 transparent = true
 

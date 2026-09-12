@@ -13,7 +13,7 @@ import polars as pl
 import dysonsphere as ds
 
 ds.theme(width=205, height=175, tickDirection="in")
-dark = bool(alt.theme.options.get("darkmode"))
+dark = bool(alt.theme.options.get("dark"))
 ink = "white" if dark else "black"
 
 # distance (Mpc), radial velocity (km/s) - Hubble (1929), Table 1

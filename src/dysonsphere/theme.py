@@ -24,7 +24,7 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
     "notebook": {
         "width": 900,
         "height": 900,
-        "darkmode": True,
+        "dark": True,
         "fontSize": 18,
         "transparent": True,
     },
@@ -38,7 +38,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "chartFill": None,
     "closed": None,
     "cornerRadius": False,
-    "darkmode": False,
+    "dark": False,
     "dashedGrid": False,
     "dashedLine": False,
     "dashedRule": True,
@@ -226,7 +226,7 @@ def _resolve_choice(value: str | Sequence[str], valid: tuple[str, ...], name: st
 def _validate_options(p: dict[str, Any]) -> None:
     """Validate source values before deriving or committing theme state."""
     bool_keys = {
-        "darkmode",
+        "dark",
         "dashedGrid",
         "dashedLine",
         "dashedRule",
@@ -344,7 +344,7 @@ def theme(
     chartFill: str | None = _UNSET,
     closed: bool | None = _UNSET,
     cornerRadius: int | float | bool = _UNSET,
-    darkmode: bool = _UNSET,
+    dark: bool = _UNSET,
     dashedGrid: bool = _UNSET,
     dashedLine: bool = _UNSET,
     dashedRule: bool = _UNSET,
@@ -428,6 +428,9 @@ def theme(
     ``markStrokeWidth=None`` derives from ``axisWidth``. An omitted and unconfigured ``markFill``
     follows the render mode (``greys[1]`` light, ``greys[4]`` dark); an explicit or configured value
     stays fixed across modes. Circle marks keep their separate black/white fill.
+    ``dark`` is a boolean selecting the logical light/dark theme. It defaults to ``False`` in the
+    built-in theme and to ``True`` in the ``notebook`` style, independently of ``transparent`` and
+    export background selection. The removed ``darkmode`` keyword and TOML key are not aliases.
 
     Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
     ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True``, ``cornerRadius=True``,
@@ -466,7 +469,7 @@ def theme(
     p: dict[str, Any] = {**_BUILTIN_DEFAULTS, **overrides, **supplied}
     mark_fill_auto = "markFill" not in overrides and "markFill" not in supplied
     if mark_fill_auto:
-        p["markFill"] = _DEFAULT_MARK_FILL_DARK if p["darkmode"] else _DEFAULT_MARK_FILL_LIGHT
+        p["markFill"] = _DEFAULT_MARK_FILL_DARK if p["dark"] else _DEFAULT_MARK_FILL_LIGHT
     _validate_options(p)
     _compute_derived(p)
     _validate_options(p)  # derived multiplication can overflow even when each source value is finite
@@ -507,7 +510,7 @@ def _compute_derived(p: dict[str, Any]) -> None:
     if p["viewPadding"] is True:  # continuous-scale data inset, chart-scaled like markSize
         p["viewPadding"] = min(p["width"], p["height"]) * 0.05
     # chartFill=None is resolved at config-build time in _dysonsphere_theme(), NOT here, so it
-    # follows darkmode live (save() toggles darkmode per background without re-running theme()).
+    # follows dark live (save() toggles dark per background without re-running theme()).
     # Axes are flush by default; the gap between axis and data comes from viewPadding instead.
     # True restores the Prism-style detached axis at 1.5x tick length - a sentinel rather than a
     # literal 4.5 so it keeps tracking tickSize. Resolved once here so the axis config and
@@ -551,11 +554,11 @@ def _temporary_theme(overrides: dict[str, Any]):
     previous_colors = dict(colors)
     # save() changes these resolved options directly. Carry that render mode into the
     # rebuilt theme while size-dependent values are derived from the original arguments.
-    render_mode = {key: previous_options.get(key, _opt(key)) for key in ("darkmode", "transparent")}
+    render_mode = {key: previous_options.get(key, _opt(key)) for key in ("dark", "transparent")}
     rebuild_args: dict[str, Any] = {**previous_args, **render_mode, **overrides}
     mark_fill_auto = previous_options.get("_markFillAuto", True) and "markFill" not in overrides
     if mark_fill_auto:
-        rebuild_args["markFill"] = _DEFAULT_MARK_FILL_DARK if rebuild_args["darkmode"] else _DEFAULT_MARK_FILL_LIGHT
+        rebuild_args["markFill"] = _DEFAULT_MARK_FILL_DARK if rebuild_args["dark"] else _DEFAULT_MARK_FILL_LIGHT
     theme(**rebuild_args)
     if mark_fill_auto:
         alt.theme.options["_markFillAuto"] = True
@@ -581,7 +584,7 @@ def _opt(key: str) -> Any:
     raise ``KeyError``.
     """
     if key == "markFill" and alt.theme.options.get("_markFillAuto", True):
-        return _DEFAULT_MARK_FILL_DARK if alt.theme.options.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
+        return _DEFAULT_MARK_FILL_DARK if alt.theme.options.get("dark", False) else _DEFAULT_MARK_FILL_LIGHT
     try:
         return alt.theme.options[key]
     except KeyError:
@@ -597,7 +600,7 @@ def _opt(key: str) -> Any:
 def _dysonsphere_theme() -> dict[str, Any]:
     opts = dict(alt.theme.options)
     if opts.get("_markFillAuto", True):
-        opts["markFill"] = _DEFAULT_MARK_FILL_DARK if opts.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
+        opts["markFill"] = _DEFAULT_MARK_FILL_DARK if opts.get("dark", False) else _DEFAULT_MARK_FILL_LIGHT
 
     def _scheme(type_key: str, default: Any) -> Any:
         # Precedence: global `palette` (master override) → per-type `<type>Palette` → default.
@@ -615,11 +618,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
     category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
     return {
-        # background of the entire chart; chartFill=None -> auto (darkmode-aware)
+        # background of the entire chart; chartFill=None -> auto (dark-mode-aware)
         "background": (
             None
             if opts["transparent"]
-            else (opts["chartFill"] if opts["chartFill"] is not None else ("black" if opts["darkmode"] else "white"))
+            else (opts["chartFill"] if opts["chartFill"] is not None else ("black" if opts["dark"] else "white"))
         ),
         "config": {
             "arc": {
@@ -642,15 +645,15 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "axis": {
                 "domain": True,
                 "domainCap": opts["strokeCap"],
-                "domainColor": "white" if opts["darkmode"] else "black",
+                "domainColor": "white" if opts["dark"] else "black",
                 "domainWidth": opts["axisWidth"],
                 "grid": opts["grid"],
                 "gridCap": opts["strokeCap"],
-                "gridColor": (opts["gridColor"] if opts["darkmode"] else opts["gridColor"]),
+                "gridColor": (opts["gridColor"] if opts["dark"] else opts["gridColor"]),
                 "gridDash": opts["dashedWidth"] if opts["dashedGrid"] else [0, 0],
                 "gridOpacity": 1.00,
                 "gridWidth": opts["axisWidth"],
-                "labelColor": "white" if opts["darkmode"] else "black",
+                "labelColor": "white" if opts["dark"] else "black",
                 "labelFont": opts["font"],
                 "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
@@ -658,7 +661,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "offset": 0 if opts["closed"] else opts["axisOffset"],
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
-                "tickColor": "white" if opts["darkmode"] else "black",
+                "tickColor": "white" if opts["dark"] else "black",
                 # Vega rounds tick/grid positions to integers for on-screen crispness, which
                 # drifts them off the (fractional) mark positions at high DPI. tickRound=False
                 # keeps ticks on the exact scale positions - the same family of fix as the
@@ -666,7 +669,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "tickRound": False,
                 "tickSize": opts["tickSize"],
                 "tickWidth": opts["axisWidth"],
-                "titleColor": "white" if opts["darkmode"] else "black",
+                "titleColor": "white" if opts["dark"] else "black",
                 "titleFont": opts["font"],
                 "titleFontSize": opts["fontSize"],
                 "titleFontStyle": opts["fontStyle"],
@@ -722,7 +725,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "size": opts["markSize"] * 0.9,
                 "ticks": {
                     "cornerRadius": opts["markStrokeWidth"],
-                    "fill": "white" if opts["darkmode"] else "black",
+                    "fill": "white" if opts["dark"] else "black",
                     # opacity 1 so config.tick's opacity (markFillOpacity) can't leak in
                     # through the composite lowering and double-dim with fillOpacity
                     "opacity": 1,
@@ -749,17 +752,17 @@ def _dysonsphere_theme() -> dict[str, Any]:
                     "thickness": opts["markStrokeWidth"],
                 },
                 "rule": {
-                    "fill": "white" if opts["darkmode"] else "black",
+                    "fill": "white" if opts["dark"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
                     "size": opts["markSize"],
-                    "stroke": "white" if opts["darkmode"] else "black",
+                    "stroke": "white" if opts["dark"] else "black",
                     "strokeDash": [0, 0],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
                 },
                 "outliers": {
-                    "color": "white" if opts["darkmode"] else "black",
-                    "fill": "white" if opts["darkmode"] else "black",
+                    "color": "white" if opts["dark"] else "black",
+                    "fill": "white" if opts["dark"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
                     "size": opts["boxplotOutliers"] or 0,  # False → 0 (hidden); a number → that size
                     "stroke": opts["markStroke"],
@@ -768,7 +771,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 },
             },
             "circle": {
-                "fill": "white" if opts["darkmode"] else "black",
+                "fill": "white" if opts["dark"] else "black",
                 "fillOpacity": opts["markFillOpacity"],
                 # Small default: mark_circle is primarily used to layer raw points over
                 # boxplots/violins/strips, where small dots read best.
@@ -801,7 +804,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                     "strokeWidth": opts["markStrokeWidth"],
                 },
                 "ticks": {
-                    "color": "white" if opts["darkmode"] else "black",
+                    "color": "white" if opts["dark"] else "black",
                     "cornerRadius": opts["markStrokeWidth"] / 2,
                     "opacity": 1,
                     "size": opts["markSize"] * 0.6,
@@ -813,17 +816,17 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "geoshape": {
                 "fill": opts["markFill"],
                 "fillOpacity": opts["markFillOpacity"],
-                "stroke": "white" if opts["darkmode"] else "black",
+                "stroke": "white" if opts["dark"] else "black",
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "header": {
-                "labelColor": "white" if opts["darkmode"] else "black",
+                "labelColor": "white" if opts["dark"] else "black",
                 "labelFont": opts["font"],
                 "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
-                "titleColor": "white" if opts["darkmode"] else "black",
+                "titleColor": "white" if opts["dark"] else "black",
                 "titleFont": opts["font"],
                 "titleFontSize": opts["fontSize"],
                 "titleFontStyle": opts["fontStyle"],
@@ -849,27 +852,27 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "gradientLength": {"expr": f"dysonsphereLegendGradientLength({opts['legendGradientLength']!r})"},
                 "gradientThickness": opts["legendGradientThickness"],
                 "gradientOpacity": opts["markFillOpacity"],
-                "gradientStrokeColor": "white" if opts["darkmode"] else "black",
+                "gradientStrokeColor": "white" if opts["dark"] else "black",
                 "gradientStrokeWidth": opts["markStrokeWidth"],
-                "labelColor": "white" if opts["darkmode"] else "black",
+                "labelColor": "white" if opts["dark"] else "black",
                 "labelFont": opts["font"],
                 "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
-                "strokeColor": "white" if opts["darkmode"] else "black",
+                "strokeColor": "white" if opts["dark"] else "black",
                 "strokeWidth": opts["axisWidth"] if opts["legendStroke"] else 0,
                 "symbolSize": opts["fontSize"] * 6,
-                "symbolStrokeColor": "white" if opts["darkmode"] else "black",
+                "symbolStrokeColor": "white" if opts["dark"] else "black",
                 "symbolStrokeWidth": opts["markStrokeWidth"] if opts["markStrokeOpacity"] > 0 else 0,
-                "titleColor": "white" if opts["darkmode"] else "black",
+                "titleColor": "white" if opts["dark"] else "black",
                 "titleFont": opts["font"],
                 "titleFontSize": opts["fontSize"],
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
             },
             "line": {
-                "color": "white" if opts["darkmode"] else "black",
-                "stroke": "white" if opts["darkmode"] else "black",
+                "color": "white" if opts["dark"] else "black",
+                "stroke": "white" if opts["dark"] else "black",
                 "strokeCap": "butt",
                 "strokeDash": opts["dashedWidth"] if opts["dashedLine"] else [0, 0],
                 "strokeOpacity": 1,
@@ -892,8 +895,8 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ramp": {"scheme": _scheme("rampPalette", colors["viridis"])},
             },
             "rule": {
-                "color": "white" if opts["darkmode"] else "black",
-                "stroke": "white" if opts["darkmode"] else "black",
+                "color": "white" if opts["dark"] else "black",
+                "stroke": "white" if opts["dark"] else "black",
                 "strokeCap": opts["strokeCap"],
                 "strokeDash": opts["dashedWidth"] if opts["dashedRule"] else [0, 0],
                 "strokeOpacity": 1,
@@ -934,14 +937,14 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "text": {
-                "color": "white" if opts["darkmode"] else "black",
+                "color": "white" if opts["dark"] else "black",
                 "font": opts["font"],
                 "fontSize": opts["fontSize"],
                 "fontStyle": opts["fontStyle"],
                 "fontWeight": opts["fontWeight"],
             },
             "tick": {
-                "color": "white" if opts["darkmode"] else "black",
+                "color": "white" if opts["dark"] else "black",
                 "cornerRadius": opts["markStrokeWidth"] / 2,
                 "opacity": opts["markFillOpacity"],
                 "size": opts["markSize"] * 0.9,
@@ -950,19 +953,19 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "title": {
                 "anchor": "middle",
                 "frame": "group",
-                "color": "white" if opts["darkmode"] else "black",
+                "color": "white" if opts["dark"] else "black",
                 "font": opts["font"],
                 "fontSize": opts["fontSize"],
                 "fontStyle": opts["fontStyle"],
                 "fontWeight": opts["fontWeight"],
-                "subtitleColor": "white" if opts["darkmode"] else "black",
+                "subtitleColor": "white" if opts["dark"] else "black",
                 "subtitleFont": opts["font"],
                 "subtitleFontSize": opts["fontSize"],
                 "subtitleFontStyle": opts["fontStyle"],
                 "subtitleFontWeight": opts["fontWeight"],
             },
             "trail": {
-                "color": "white" if opts["darkmode"] else "black",
+                "color": "white" if opts["dark"] else "black",
                 "opacity": 1,
                 # default width when there is no size encoding - matches config.line's
                 # strokeWidth so an unsized trail renders exactly like a line
@@ -973,8 +976,8 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "continuousHeight": opts["height"],
                 "discreteWidth": opts["width"],
                 "discreteHeight": opts["height"],
-                "fill": None if opts["darkmode"] else opts["viewFill"],
-                "stroke": ("white" if opts["darkmode"] else "black") if opts["closed"] else None,
+                "fill": None if opts["dark"] else opts["viewFill"],
+                "stroke": ("white" if opts["dark"] else "black") if opts["closed"] else None,
                 "strokeWidth": opts["axisWidth"],
             },
         },

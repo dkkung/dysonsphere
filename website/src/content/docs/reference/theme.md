@@ -19,7 +19,7 @@ def theme(
     chartFill: str | None = _UNSET,
     closed: bool | None = _UNSET,
     cornerRadius: int | float | bool = _UNSET,
-    darkmode: bool = _UNSET,
+    dark: bool = _UNSET,
     dashedGrid: bool = _UNSET,
     dashedLine: bool = _UNSET,
     dashedRule: bool = _UNSET,
@@ -104,6 +104,9 @@ the smaller canvas dimension and is the common basis for symbol areas and compos
 ``markStrokeWidth=None`` derives from ``axisWidth``. An omitted and unconfigured ``markFill``
 follows the render mode (``greys[1]`` light, ``greys[4]`` dark); an explicit or configured value
 stays fixed across modes. Circle marks keep their separate black/white fill.
+``dark`` is a boolean selecting the logical light/dark theme. It defaults to ``False`` in the
+built-in theme and to ``True`` in the ``notebook`` style, independently of ``transparent`` and
+export background selection. The removed ``darkmode`` keyword and TOML key are not aliases.
 
 Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
 ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True``, ``cornerRadius=True``,

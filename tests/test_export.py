@@ -467,14 +467,14 @@ class TestSave:
         assert (tmp_path / "out.svg").exists()
 
     def test_darkmode_restored_after_full_save(self, simple_chart, tmp_path):
-        theme(darkmode=False)
+        theme(dark=False)
         save(simple_chart, str(tmp_path / "out"))
-        assert alt.theme.options["darkmode"] is False
+        assert alt.theme.options["dark"] is False
 
     def test_darkmode_restored_after_light_only(self, simple_chart, tmp_path):
-        theme(darkmode=True)
+        theme(dark=True)
         save(simple_chart, str(tmp_path / "out"), background=["light"])
-        assert alt.theme.options["darkmode"] is True
+        assert alt.theme.options["dark"] is True
 
     def test_invalid_background_raises(self, simple_chart, tmp_path):
         with pytest.raises(ValueError, match="background"):
@@ -683,20 +683,20 @@ class TestShow:
         # (invisible ink in a light notebook). The theme's own value must govern the preview.
         from dysonsphere.export import show
 
-        theme(darkmode=True, transparent=False)
+        theme(dark=True, transparent=False)
         assert re.search(r'<rect width="\d+" height="\d+" fill="black"', cast(str, show(simple_chart).data))
 
     def test_theme_transparent_true_has_no_background(self, simple_chart):
         from dysonsphere.export import show
 
-        theme(darkmode=True, transparent=True)
+        theme(dark=True, transparent=True)
         assert not re.search(r'<rect width="\d+" height="\d+" fill=', cast(str, show(simple_chart).data))
 
     def test_does_not_mutate_theme_options(self, simple_chart):
         # show() renders straight at the theme's values - it must set nothing to restore
         from dysonsphere.export import show
 
-        theme(darkmode=True, transparent=False)
+        theme(dark=True, transparent=False)
         before = dict(alt.theme.options)
         show(simple_chart)
         assert alt.theme.options == before

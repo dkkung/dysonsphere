@@ -3,8 +3,8 @@ from vega_datasets import data
 
 import dysonsphere as ds
 
-# darkmode=True inverts the ink; chartFill auto-resolves to black.
-ds.theme(darkmode=True, transparent=False)
+# dark=True inverts the ink; chartFill auto-resolves to black.
+ds.theme(dark=True, transparent=False)
 
 cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
 

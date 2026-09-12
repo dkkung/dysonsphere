@@ -39,7 +39,7 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
 - `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
   `onRuntimeStatus()`). Exposes `runChart(code, dark)`, `loadTable(name, text, format)`,
   `writeFile(name, data)` (raw FS write, binary-safe), and `readExport(name)` (ds.read metadata).
-  `runChart` injects `darkmode`/`transparent` by **monkeypatching `ds.theme` during exec** (same
+  `runChart` injects `dark`/`transparent` by **monkeypatching `ds.theme` during exec** (same
   technique as `gen_examples.py`), so the site render args apply wherever the snippet calls
   `theme()` and never appear in shown code. `loadTable` also **writes the upload into Pyodide's
   virtual FS under its real filename**, so the emitted `pl.read_csv("file.csv")` runs verbatim.
@@ -108,7 +108,7 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   verbatim (vite `?raw`) AND renders the spec `gen_examples.py` produced from executing it, so shown
   code and chart cannot drift. Each example must define `chart` (the studio-editor contract). To add
   one: drop `examples/<name>.py`, run `gen_examples.py`, reference `<Example name="<name>" />`. The
-  generator monkeypatches `ds.theme` to inject `darkmode`/`transparent` - keep those out of the
+  generator monkeypatches `ds.theme` to inject `dark`/`transparent` - keep those out of the
   snippet. **xOffset gotcha:** for beeswarm/jitter, encode `alt.XOffset("beeswarm_x:Q")` WITHOUT
   `scale=None` - the default (band) scale centers the swarm on its tick; `scale=None` shifts it
   left (was the visible x-axis misalignment on the site).
@@ -187,7 +187,7 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   `theme_after`, shown side by side via the `.ba` grid in theme.css with per-side zooms, since
   the default chart is ~4x larger natively).
 - **Pinned-theme examples.** Stems in `PINNED_EXAMPLES` (gen_examples.py) keep their OWN
-  `theme()` args - the site's darkmode/transparent injection is skipped - for fixed light/dark
+  `theme()` args - the site's dark/transparent injection is skipped - for fixed light/dark
   comparisons that bake a `chartFill` background (`darkmode_light`/`darkmode_dark` on the
   theming guide). Chart.astro only passes vega-embed's `background: 'transparent'` when the
   spec does NOT bake its own background (the embed option would override `config.background`).
@@ -252,14 +252,14 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   (Chart, Studio, PalettePreview) use the helper.
 - **Export menu** is hover/focus-only (opacity in theme.css, `!important` since vega-embed injects
   its own styles at runtime). The menu still exports the true, unscaled 100x100 spec.
-- **Dark mode.** Each chart ships light + dark specs (`darkmode=False/True`, `transparent=True`);
+- **Dark mode.** Each chart ships light + dark specs (`dark=False/True`, `transparent=True`);
   `Chart.astro` swaps on the site theme toggle (MutationObserver on `data-theme`) and renders with
   vega-embed `background:'transparent'` so the page provides contrast (no card background). The
   **Studio** re-renders on the same toggle (both builder and code modes), so its live chart inverts
   ink too - the previously-broken darkmode.
 - **v3 theme-option rename.** The chart's logical-transparency flag is `transparent` (v3.0.0);
   the old `transparentBackground` was removed. `runtime.ts` and `gen_examples.py` set `transparent`.
-- **Keep render args out of shown code.** darkmode/transparent/zoom are website concerns; only the
+- **Keep render args out of shown code.** dark/transparent/zoom are website concerns; only the
   chart-building code appears in snippets, so they stay copy-runnable.
 - **Wide surfaces / persistent sidebar.** The landing page and the Studio widen the content column
   via `.main-pane:has(.landing/.st) { --sl-content-width }` in theme.css. The sidebar shows on

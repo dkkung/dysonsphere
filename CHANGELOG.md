@@ -12,6 +12,8 @@
 
 ### Changes
 
+- **Breaking:** `theme(darkmode=...)` and matching TOML keys are replaced by `theme(dark=...)`
+  without an alias.
 - The omitted, unconfigured `markFill` default now uses `#DBDBDB` in light mode and `#9D9D9D` in
   dark mode. Explicit and configured fills remain fixed, and circle defaults remain black/white.
 

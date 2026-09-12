@@ -76,7 +76,7 @@ def _multilabel_layer(
 
     **Darkmode symbol colours** (``positive_color``, ``negative_fill``, ``negative_stroke``)
     are resolved from ``alt.theme.options`` at call time. When using ``style="symbol"``
-    with ``ds.save()``, pass a callable so the chart is rebuilt after each darkmode
+    with ``ds.save()``, pass a callable so the chart is rebuilt after each dark-mode
     toggle::
 
         ds.save(
@@ -350,8 +350,8 @@ def _multilabel_layer(
     if symbol_rows:
         # Colours are resolved at call time from alt.theme.options so that darkmode
         # variants are correct. Use a callable with ds.save() to rebuild per variant.
-        darkmode = _opt("darkmode")
-        if darkmode:
+        dark = _opt("dark")
+        if dark:
             positive_color = "white"
             negative_fill = colors["greys"][11]
             negative_stroke = "white"
@@ -531,8 +531,8 @@ def _multilabel_layer(
 
         geo = _band_geometry(len(categories), chartWidth)
         axisWidth_val = _opt("axisWidth")
-        darkmode_val = _opt("darkmode")
-        span_color = "white" if darkmode_val else "black"
+        dark = _opt("dark")
+        span_color = "white" if dark else "black"
         _one_row = _internal_data([{}])  # 1-row internal data for the pixel-positioned span marks
 
         span_gap = default_row_height * 0.3 if spanGap is None else spanGap
@@ -762,7 +762,7 @@ def add_multilabel(
     palette:
         List of colors used to fill annotation marks in ``"symbol"`` style.
         ``palette[0]`` overrides the ``False`` mark color and ``palette[-1]`` the
-        ``True`` mark color. Overrides darkmode defaults when provided. Pass the
+        ``True`` mark color. Overrides dark-mode defaults when provided. Pass the
         result of ``ds.palette()`` directly.
     strokeWidth:
         Stroke width applied to dot marks and the connecting rule. Defaults

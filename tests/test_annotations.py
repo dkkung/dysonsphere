@@ -98,7 +98,7 @@ class TestLabels:
     def test_fill_darkmode_uses_greys11(self, df):
         from dysonsphere.palettes import colors
 
-        theme(darkmode=True)
+        theme(dark=True)
         rects = self._rects(labels(df, "x", "y", "g", fill=True, connector=False))
         assert rects and all(r["fill"] == colors["greys"][11] for r in rects)
 
@@ -897,7 +897,7 @@ class TestText:
     def test_fill_darkmode_uses_greys11(self):
         from dysonsphere.palettes import colors
 
-        theme(darkmode=True)
+        theme(dark=True)
         rect = text("hi", x=1.0, y=1.0, fill=True).to_dict()["layer"][0]["mark"]
         assert rect["fill"] == colors["greys"][11]
 
