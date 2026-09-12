@@ -254,6 +254,75 @@ class TestSaveUsermeta:
         assert theme["width"] == 180 and theme["sigFigs"] == 2
         assert "tickWidth" not in theme  # only _BUILTIN_DEFAULTS keys (valid ds.theme() kwargs)
 
+    @pytest.mark.parametrize("initial_darkmode", [False, True])
+    def test_automatic_mark_fill_metadata_matches_each_render_mode(self, simple_chart, tmp_path, initial_darkmode):
+        import dysonsphere as ds
+
+        ds.theme(darkmode=initial_darkmode)
+        ds.save(simple_chart, tmp_path / "modes", format="json", background=["light", "dark"])
+        light_spec = json.loads((tmp_path / "modes_light.json").read_text())
+        dark_spec = json.loads((tmp_path / "modes_dark.json").read_text())
+        light = light_spec["usermeta"]["dysonsphere"]
+        dark = dark_spec["usermeta"]["dysonsphere"]
+        assert light["theme"]["markFill"] == "#DBDBDB"
+        assert dark["theme"]["markFill"] == "#9D9D9D"
+        assert light_spec["config"]["point"]["fill"] == light["theme"]["markFill"]
+        assert dark_spec["config"]["point"]["fill"] == dark["theme"]["markFill"]
+        assert light["themeAutomatic"] == dark["themeAutomatic"] == ["markFill"]
+        assert "_markFillAuto" not in light["theme"] and "_markFillAuto" not in dark["theme"]
+        assert alt.theme.options["darkmode"] is initial_darkmode
+
+    def test_explicit_mark_fill_metadata_is_pinned_and_load_preserves_origin(self, simple_chart, tmp_path):
+        import dysonsphere as ds
+        from dysonsphere.theme import _opt
+
+        ds.theme(darkmode=False, markFill="#DBDBDB")
+        ds.save(simple_chart, tmp_path / "explicit", format="json", background="dark")
+        block = json.loads((tmp_path / "explicit.json").read_text())["usermeta"]["dysonsphere"]
+        assert block["theme"]["markFill"] == "#DBDBDB"
+        assert "themeAutomatic" not in block
+        ds.load(tmp_path / "explicit.json")
+        assert _opt("markFill") == "#DBDBDB"
+
+        ds.theme(darkmode=True)
+        ds.save(simple_chart, tmp_path / "automatic", format="json", background="dark")
+        loaded = ds.load(tmp_path / "automatic.json")
+        assert not isinstance(loaded, dict)
+        assert _opt("markFill") == "#9D9D9D"
+        ds.save(loaded, tmp_path / "reexport", format="json", background="light")
+        reexported = json.loads((tmp_path / "reexport.json").read_text())["usermeta"]["dysonsphere"]
+        assert reexported["theme"]["markFill"] == "#DBDBDB"
+        assert reexported["themeAutomatic"] == ["markFill"]
+
+    def test_load_automatic_fill_ignores_current_toml_and_survives_rebuild(self, simple_chart, tmp_path, monkeypatch):
+        import dysonsphere as ds
+        from dysonsphere.theme import _opt, _temporary_theme
+
+        ds.theme(darkmode=True)
+        ds.save(simple_chart, tmp_path / "saved-auto", format="json", background="dark")
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text('[default]\nmarkFill = "#123456"\n', encoding="utf-8")
+
+        loaded = ds.load(tmp_path / "saved-auto.json")
+        assert not isinstance(loaded, dict)
+        assert _opt("markFill") == "#9D9D9D"
+        assert alt.theme.options["_markFillAuto"] is True
+        with _temporary_theme({"width": 240}):
+            assert _opt("markFill") == "#9D9D9D"
+            assert alt.theme.options["_markFillAuto"] is True
+        ds.save(loaded, tmp_path / "opposite", format="json", background="light")
+        spec = json.loads((tmp_path / "opposite.json").read_text())
+        block = spec["usermeta"]["dysonsphere"]
+        assert spec["config"]["point"]["fill"] == "#DBDBDB"
+        assert block["theme"]["markFill"] == "#DBDBDB"
+        assert block["themeAutomatic"] == ["markFill"]
+
+        ds.theme(darkmode=True, markFill="#DBDBDB")
+        ds.save(simple_chart, tmp_path / "saved-explicit", format="json", background="dark")
+        ds.load(tmp_path / "saved-explicit.json")
+        assert _opt("markFill") == "#DBDBDB"
+        assert alt.theme.options["_markFillAuto"] is False
+
 
 def _capture(chart=None):
     # Mimics save()'s capture: reads the CALLER's frame, so the return is the source text of
@@ -359,7 +428,7 @@ class TestReadLoad:
 
         m = ds.metadata.read(str(saved / "t.svg"), what="metadata")
         assert isinstance(m, dict)
-        assert set(m) == {"provenance", "statistics", "statisticsBindings", "theme", "report"}
+        assert set(m) == {"provenance", "statistics", "statisticsBindings", "theme", "themeAutomatic", "report"}
         assert m["theme"]["width"] == 180
         # report is a container keyed by section, not a bare string
         assert list(m["report"]) == ["statistics", "provenance"]  # consistent order across formats

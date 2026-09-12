@@ -33,6 +33,7 @@ AUTO_HINTS = {
     "closed": 'auto: True when tickDirection = "in" or viewFill',
     "legendOffset": "auto: tickSize * 1.5",
     "markSize": "auto: min(width, height) / 10",
+    "markFill": "when omitted: #DBDBDB light / #9D9D9D dark",
     "markStrokeWidth": "auto: axisWidth",
     "palette": "auto: per-type defaults",
     "categoryPalette": "auto: categorical",

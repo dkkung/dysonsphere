@@ -435,6 +435,47 @@ def desaturate(hexes, scale, *, space="oklab"):
     return [to_hex(L, a * scale, b * scale) for L, a, b in (hex_to(h) for h in hexes)]
 
 
+# ── Named accents (independent light/dark pairs) ──────────────────────────
+# Light anchors are curated literals, except cyan: its explicit Oklch design point is guarded at
+# 82% of the available gamut. Dark partners preserve the measured light-anchor hue and use a few
+# shared lightness tiers plus gamut-aware chroma. These constants were manually calibrated against
+# reviewed candidates; they are not an optimizer result, uniform ramp, or categorical/CVD claim.
+ACCENT_LIGHT = {
+    "red": "#922B3E",
+    "orange": "#A64B18",
+    "yellow": "#8A6A12",
+    "green": "#004225",
+    "blue": "#28287D",
+    "purple": "#47266F",
+    "violet": "#702968",
+    "teal": "#00605D",
+    "cyan": "#357F95",
+    "pink": "#A53F68",
+    "brown": "#70412F",
+    "lime": "#607A18",
+}
+ACCENT_DARK_LIGHTNESS = {"yellow": 0.76, "lime": 0.74, "cyan": 0.73, "blue": 0.64, "purple": 0.64, "violet": 0.64}
+
+
+def build_cyan_accent():
+    """Build the curated cyan light anchor from its Oklch authoring coordinates."""
+    L, C, hue = 0.56, 0.08, math.radians(220)
+    C = min(C, 0.82 * max_chroma_oklab(L, hue))
+    return oklab_to_hex(L, C * math.cos(hue), C * math.sin(hue))
+
+
+def build_dark_accents():
+    """Build theme-dark accent partners; grey/gray are existing-ramp exceptions."""
+    out = {}
+    for name, hx in ACCENT_LIGHT.items():
+        _, a, b = hex_to_oklab(hx)
+        hue = math.atan2(b, a)
+        L = ACCENT_DARK_LIGHTNESS.get(name, 0.66)
+        C = min(1.15 * math.hypot(a, b), 0.68 * max_chroma_oklab(L, hue))
+        out[name] = oklab_to_hex(L, C * math.cos(hue), C * math.sin(hue))
+    return out
+
+
 # ── Palette specifications ──────────────────────────────────────────────
 # These are representative specs — the values in palettes.py have been
 # iterated and may differ slightly.  Adjust hues/L to taste; the recipes
@@ -873,7 +914,18 @@ def _print_palette(name, hexes):
     print("    ],")
 
 
+def _print_accents(light, dark):
+    print("accents = {")
+    for name in light:
+        print(f'    "{name}": ("{light[name]}", "{dark[name]}"),')
+    print('    "grey": ("#9D9D9D", "#DBDBDB"),  # canonical greys[4] / greys[1] exception')
+    print('    "gray": ("#9D9D9D", "#DBDBDB"),  # alias')
+    print("}")
+
+
 def main():
+    print("# ─── Named accents (not registered chart palettes; light/dark pairs) ───")
+    _print_accents(ACCENT_LIGHT, build_dark_accents())
     print("# ─── Sequential single-hue (Oklab) ───────────────────────────────")
     for name, (hue, L_lo, L_hi) in SEQ_SINGLE_OKLAB.items():
         _print_palette(name, build_single_hue(hue, L_lo, L_hi, frac=SEQ_SINGLE_FRAC.get(name, SEQ_FRAC)))

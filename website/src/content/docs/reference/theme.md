@@ -101,7 +101,9 @@ Continuous legends require ``ds.save()`` or ``ds.show()`` to resolve their sizin
 Altair/notebook rendering may fail. Signed axis/legend offsets and label angles are supported.
 ``markSize=None`` derives one tenth of
 the smaller canvas dimension and is the common basis for symbol areas and composite dimensions;
-``markStrokeWidth=None`` derives from ``axisWidth``.
+``markStrokeWidth=None`` derives from ``axisWidth``. An omitted and unconfigured ``markFill``
+follows the render mode (``greys[1]`` light, ``greys[4]`` dark); an explicit or configured value
+stays fixed across modes. Circle marks keep their separate black/white fill.
 
 Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
 ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True``, ``cornerRadius=True``,

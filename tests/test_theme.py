@@ -63,6 +63,115 @@ class TestThemeDefaults:
         theme(width=200, height=100)
         assert alt.theme.options["markSize"] == pytest.approx(10.0)
 
+    def test_mark_fill_default_follows_mode_live(self):
+        from dysonsphere.theme import _opt
+
+        theme(darkmode=False)
+        assert alt.theme.options["markFill"] == "#DBDBDB"
+        assert _opt("markFill") == "#DBDBDB"
+        assert _dysonsphere_theme()["config"]["point"]["fill"] == "#DBDBDB"
+        alt.theme.options["darkmode"] = True
+        assert _opt("markFill") == "#9D9D9D"
+        config = _dysonsphere_theme()["config"]
+        assert config["point"]["fill"] == "#9D9D9D"
+        assert config["bar"]["fill"] == "#9D9D9D"
+        assert config["area"]["fill"] == "#9D9D9D"
+        assert config["arc"]["fill"] == "#9D9D9D"
+        assert config["circle"]["fill"] == "white"
+        theme(darkmode=True)
+        assert alt.theme.options["markFill"] == "#9D9D9D"
+
+    @pytest.mark.parametrize("value", ["#DBDBDB", "#9D9D9D", "tomato"])
+    def test_explicit_mark_fill_is_pinned_across_mode_toggle(self, value):
+        from dysonsphere.theme import _opt
+
+        theme(markFill=value)
+        alt.theme.options["darkmode"] = True
+        assert _opt("markFill") == value
+        assert _dysonsphere_theme()["config"]["point"]["fill"] == value
+
+    def test_configured_mark_fill_is_pinned(self, tmp_path, monkeypatch):
+        from dysonsphere.theme import _opt
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text('[default]\nmarkFill = "#DBDBDB"\n', encoding="utf-8")
+        theme(darkmode=True)
+        assert _opt("markFill") == "#DBDBDB"
+        assert _dysonsphere_theme()["config"]["point"]["fill"] == "#DBDBDB"
+
+    @pytest.mark.parametrize("stops", [["#123456"], ["#123456", "#654321"]])
+    def test_automatic_mark_fill_ignores_custom_greys(self, stops, tmp_path, monkeypatch):
+        from dysonsphere.theme import _opt
+
+        monkeypatch.chdir(tmp_path)
+        values = ", ".join(f'"{value}"' for value in stops)
+        (tmp_path / "dysonsphere.toml").write_text(f"[palettes]\ngreys = [{values}]\n", encoding="utf-8")
+        for darkmode, expected in ((False, "#DBDBDB"), (True, "#9D9D9D"), (False, "#DBDBDB")):
+            theme(darkmode=darkmode)
+            assert _opt("markFill") == expected
+            assert _dysonsphere_theme()["config"]["point"]["fill"] == expected
+
+    def test_named_style_mark_fill_and_explicit_precedence_are_pinned(self, tmp_path, monkeypatch):
+        from dysonsphere.theme import _opt
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            '[default]\nmarkFill = "#123456"\n[paper]\nmarkFill = "#DBDBDB"\n', encoding="utf-8"
+        )
+        theme("paper", darkmode=True)
+        assert _opt("markFill") == "#DBDBDB"
+        theme("paper", darkmode=True, markFill="#9D9D9D")
+        assert _opt("markFill") == "#9D9D9D"
+
+    def test_callable_export_resolves_default_fill_and_accents_per_background(self, tmp_path):
+        import dysonsphere as ds
+
+        theme(darkmode=False)
+
+        def chart():
+            data = alt.Data(values=[{"x": 1, "y": 1}])
+            default = alt.Chart(data).mark_point(filled=True, size=100).encode(x="x:Q", y="y:Q")
+            accent = alt.Chart(data).mark_circle(color=ds.palettes.accents["blue"], size=25).encode(x="x:Q", y="y:Q")
+            return default + accent
+
+        ds.save(
+            chart,
+            tmp_path / "mode-fill",
+            format="svg",
+            background=["light", "dark"],
+            transparent=False,
+            saveMetadata=False,
+        )
+        light = (tmp_path / "mode-fill_light.svg").read_text()
+        dark = (tmp_path / "mode-fill_dark.svg").read_text()
+        assert "#DBDBDB" in light and "#28287D" in light
+        assert "#9D9D9D" in dark and "#7783DB" in dark
+        assert alt.theme.options["darkmode"] is False
+
+    @pytest.mark.parametrize(
+        ("overrides", "expected", "automatic"),
+        [
+            ({"markFill": "tomato"}, "tomato", False),
+            ({"darkmode": True}, "#9D9D9D", True),
+            ({"darkmode": True, "markFill": "#DBDBDB"}, "#DBDBDB", False),
+        ],
+    )
+    def test_temporary_fill_overrides_and_mode_are_resolved_and_restored(self, overrides, expected, automatic):
+        from dysonsphere.theme import _active_args, _opt, _temporary_theme
+
+        theme()
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        with _temporary_theme(overrides):
+            assert alt.theme.options["markFill"] == expected
+            assert _opt("markFill") == expected
+            assert alt.theme.options["_markFillAuto"] is automatic
+            with _temporary_theme({"width": 240}):
+                assert _opt("markFill") == expected
+                assert alt.theme.options["_markFillAuto"] is automatic
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+
     def test_mark_size_uses_min_dimension(self):
         theme(width=50, height=200)
         assert alt.theme.options["markSize"] == pytest.approx(5.0)

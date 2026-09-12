@@ -50,7 +50,7 @@ class TestPackageNamespace:
         ("namespace", "names"),
         [
             ("metadata", ("read", "verify", "VerifyResult", "frame_checksum")),
-            ("palettes", ("colors", "categorical", "export_swatches")),
+            ("palettes", ("colors", "accents", "categorical", "export_swatches")),
         ],
     )
     def test_helpers_are_namespaced_only(self, namespace, names):

@@ -621,7 +621,9 @@ def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_A
     if raw:
         return spec
     spec, imported_records = metadata._restore_statistics_owners(spec)
-    theme_args = ((spec.get("usermeta") or {}).get("dysonsphere") or {}).get("theme") if applyTheme else None
+    ds_metadata = (spec.get("usermeta") or {}).get("dysonsphere") or {}
+    theme_args = ds_metadata.get("theme") if applyTheme else None
+    automatic_theme_options = set(ds_metadata.get("themeAutomatic", []))
     # Inline named datasets before dropping their top-level container. Top-level export properties
     # otherwise make two loaded charts invalid as children of a new Altair composition.
     datasets = cast(dict[str, Any], spec.get("datasets")) if isinstance(spec.get("datasets"), dict) else {}
@@ -645,9 +647,9 @@ def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_A
     stripped = {k: v for k, v in spec.items() if k not in ("$schema", "background", "config", "datasets", "usermeta")}
     chart = cast("_AltairChart", alt.Chart.from_dict(stripped))
     if theme_args:
-        from .theme import theme as _theme
+        from .theme import _restore_theme
 
-        _theme(**theme_args)
+        _restore_theme(theme_args, automatic_theme_options)
     if imported_records:
         from ._statistics import _register_loaded_report
 

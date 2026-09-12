@@ -4,19 +4,80 @@ import json
 import math
 import re
 import struct
+from collections.abc import Mapping
+from typing import Any, cast
 
 import pytest
 
 from dysonsphere.palettes import (
+    _ACCENT_DARK,
+    _ACCENT_LIGHT,
     _CMOCEAN_PALETTES,
     _MATPLOTLIB_PALETTES,
     _PORTED_PALETTE_NAMES,
+    accents,
     categorical,
     colors,
     palette,
 )
 
 HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+class TestAccents:
+    def test_read_only_mapping_and_alias(self):
+        assert isinstance(accents, Mapping)
+        assert len(accents) == 14
+        assert list(accents) == [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "blue",
+            "purple",
+            "violet",
+            "teal",
+            "cyan",
+            "pink",
+            "brown",
+            "lime",
+            "grey",
+            "gray",
+        ]
+        assert accents["grey"] == accents["gray"]
+        with pytest.raises(TypeError):
+            cast(Any, accents)["blue"] = "#000000"
+
+    def test_mode_lookup_and_separation_from_palette_registry(self):
+        from dysonsphere import theme
+
+        theme(darkmode=False)
+        assert dict(accents) == _ACCENT_LIGHT
+        captured = accents["blue"]
+        theme(darkmode=True)
+        assert dict(accents) == _ACCENT_DARK
+        assert captured == "#28287D"
+        assert accents["blue"] == "#7783DB"
+        assert "accents" not in colors
+        with pytest.raises(KeyError):
+            palette("accents")
+        with pytest.raises(KeyError):
+            _ = accents["Blue"]
+
+    def test_recipe_reproduces_literals(self):
+        spec = importlib.util.spec_from_file_location("print_palettes", "scripts/print_palettes.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert module.ACCENT_LIGHT == {
+            key: value for key, value in _ACCENT_LIGHT.items() if key not in {"grey", "gray"}
+        }
+        assert module.build_cyan_accent() == _ACCENT_LIGHT["cyan"]
+        expected = {key: value for key, value in _ACCENT_DARK.items() if key not in {"grey", "gray"}}
+        assert module.build_dark_accents() == expected
+        assert _ACCENT_LIGHT["grey"] == colors["greys"][4]
+        assert _ACCENT_DARK["grey"] == colors["greys"][1]
+
 
 SEQUENTIAL = [
     "blues",

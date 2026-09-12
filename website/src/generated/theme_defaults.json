@@ -127,7 +127,7 @@
  {
   "key": "markFill",
   "default": "\"#DBDBDB\"",
-  "hint": null
+  "hint": "when omitted: #DBDBDB light / #9D9D9D dark"
  },
  {
   "key": "markFillOpacity",

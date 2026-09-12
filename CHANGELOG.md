@@ -2,7 +2,15 @@
 
 ## [Unreleased]
 
+### New features
+
+- Added the read-only `ds.palettes.accents` mapping for theme-aware, named single-element emphasis
+  colors. It remains separate from categorical and continuous palette selection.
+
 ### Changes
+
+- The omitted, unconfigured `markFill` default now uses `#DBDBDB` in light mode and `#9D9D9D` in
+  dark mode. Explicit and configured fills remain fixed, and circle defaults remain black/white.
 
 - **Breaking:** `theme(chartWidth=..., chartHeight=...)` and the matching configuration keys are
   replaced by `theme(width=..., height=...)` without aliases.

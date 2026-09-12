@@ -137,3 +137,5 @@ from 72 intrinsic units per inch. Dysonsphere does not apply a 4/3 conversion. `
 sizing basis: native symbol marks consume area values, while composite widths and gaps derive linear
 pixel dimensions from it. The curated dark-mode ink colors for circles, lines, rules, and selected
 composite details are intentional; `markFill` and `markStroke` style the mark families that inherit them.
+When `markFill` is omitted and unconfigured, it defaults to `#DBDBDB` in light mode and `#9D9D9D`
+in dark mode. Setting it explicitly, including to either default literal, pins that color across modes.

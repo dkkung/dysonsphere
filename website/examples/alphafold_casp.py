@@ -12,12 +12,8 @@ import numpy as np
 import polars as pl
 
 import dysonsphere as ds
-from dysonsphere.palettes import colors
 
 ds.theme(width=230, height=170)
-dark = bool(alt.theme.options.get("darkmode"))  # the site injects darkmode per light/dark spec
-NAVY = colors["australis"][4] if dark else colors["borealis"][2]  # indigo-navy, lighter on dark
-GREY = colors["greys"][5 if dark else 6]
 
 rng = np.random.default_rng(11)
 n = 96
@@ -32,10 +28,14 @@ yenc = alt.Y("gdt:Q", title="Median GDT_TS")
 
 field = (
     alt.Chart(df.filter(pl.col("group") == "field"))
-    .mark_circle(size=15, color=GREY, opacity=0.7)
+    .mark_point(size=15, stroke=None, opacity=0.7)
     .encode(x=xenc, y=yenc)
 )
-af = alt.Chart(df.filter(pl.col("group") == "AlphaFold2")).mark_circle(size=15, color=NAVY).encode(x=xenc, y=yenc)
+af = (
+    alt.Chart(df.filter(pl.col("group") == "AlphaFold2"))
+    .mark_circle(size=15, color=ds.palettes.accents["blue"])
+    .encode(x=xenc, y=yenc)
+)
 # label just the AlphaFold2 point (auto-placed with a connector); ds.labels drives the shared scale
 labels = ds.labels(df, "rank", "gdt", "group", subset=(df["group"] == "AlphaFold2"))
 

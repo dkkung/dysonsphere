@@ -17,6 +17,8 @@ __all__ = ["theme", "create_config"]
 # theme() call so custom palettes from config files don't accumulate or bleed
 # across theme resets.
 _ORIGINAL_COLORS: dict[str, list[str]] = dict(colors)
+_DEFAULT_MARK_FILL_LIGHT = "#DBDBDB"
+_DEFAULT_MARK_FILL_DARK = "#9D9D9D"
 
 _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
     "notebook": {
@@ -413,7 +415,9 @@ def theme(
     Altair/notebook rendering may fail. Signed axis/legend offsets and label angles are supported.
     ``markSize=None`` derives one tenth of
     the smaller canvas dimension and is the common basis for symbol areas and composite dimensions;
-    ``markStrokeWidth=None`` derives from ``axisWidth``.
+    ``markStrokeWidth=None`` derives from ``axisWidth``. An omitted and unconfigured ``markFill``
+    follows the render mode (``greys[1]`` light, ``greys[4]`` dark); an explicit or configured value
+    stays fixed across modes. Circle marks keep their separate black/white fill.
 
     Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
     ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True``, ``cornerRadius=True``,
@@ -450,6 +454,9 @@ def theme(
     overrides = _load_style_overrides(style)
     custom_palettes = _load_custom_palettes()
     p: dict[str, Any] = {**_BUILTIN_DEFAULTS, **overrides, **supplied}
+    mark_fill_auto = "markFill" not in overrides and "markFill" not in supplied
+    if mark_fill_auto:
+        p["markFill"] = _DEFAULT_MARK_FILL_DARK if p["darkmode"] else _DEFAULT_MARK_FILL_LIGHT
     _validate_options(p)
     _compute_derived(p)
     _validate_options(p)  # derived multiplication can overflow even when each source value is finite
@@ -465,7 +472,7 @@ def theme(
     colors.clear()
     colors.update(_ORIGINAL_COLORS)
     colors.update(custom_palettes)
-    alt.theme.options = {**p, "tickWidth": p["axisWidth"]}
+    alt.theme.options = {**p, "tickWidth": p["axisWidth"], "_markFillAuto": mark_fill_auto}
     _ACTIVE_ARGS = {**supplied, **({"style": style} if style is not None else {})}
 
 
@@ -516,6 +523,15 @@ def _active_args() -> dict[str, Any]:
     return dict(_ACTIVE_ARGS)
 
 
+def _restore_theme(theme_args: dict[str, Any], automatic: set[str]) -> None:
+    """Restore saved resolved options while retaining supported automatic-option provenance."""
+    global _ACTIVE_ARGS
+    theme(**theme_args)
+    if "markFill" in automatic:
+        alt.theme.options["_markFillAuto"] = True
+        _ACTIVE_ARGS.pop("markFill", None)
+
+
 @contextmanager
 def _temporary_theme(overrides: dict[str, Any]):
     """Re-derive selected options while preserving the exact active theme state."""
@@ -526,7 +542,14 @@ def _temporary_theme(overrides: dict[str, Any]):
     # save() changes these resolved options directly. Carry that render mode into the
     # rebuilt theme while size-dependent values are derived from the original arguments.
     render_mode = {key: previous_options.get(key, _opt(key)) for key in ("darkmode", "transparent")}
-    theme(**{**previous_args, **render_mode, **overrides})
+    rebuild_args: dict[str, Any] = {**previous_args, **render_mode, **overrides}
+    mark_fill_auto = previous_options.get("_markFillAuto", True) and "markFill" not in overrides
+    if mark_fill_auto:
+        rebuild_args["markFill"] = _DEFAULT_MARK_FILL_DARK if rebuild_args["darkmode"] else _DEFAULT_MARK_FILL_LIGHT
+    theme(**rebuild_args)
+    if mark_fill_auto:
+        alt.theme.options["_markFillAuto"] = True
+        _ACTIVE_ARGS.pop("markFill", None)
     try:
         yield
     finally:
@@ -547,6 +570,8 @@ def _opt(key: str) -> Any:
     (``markSize`` 10.0, ``axisOffset`` 0, …), computed once and cached. Unknown keys
     raise ``KeyError``.
     """
+    if key == "markFill" and alt.theme.options.get("_markFillAuto", True):
+        return _DEFAULT_MARK_FILL_DARK if alt.theme.options.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
     try:
         return alt.theme.options[key]
     except KeyError:
@@ -560,7 +585,9 @@ def _opt(key: str) -> Any:
 
 @alt.theme.register("dysonsphere", enable=True)
 def _dysonsphere_theme() -> dict[str, Any]:
-    opts = alt.theme.options
+    opts = dict(alt.theme.options)
+    if opts.get("_markFillAuto", True):
+        opts["markFill"] = _DEFAULT_MARK_FILL_DARK if opts.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
 
     def _scheme(type_key: str, default: Any) -> Any:
         # Precedence: global `palette` (master override) → per-type `<type>Palette` → default.
