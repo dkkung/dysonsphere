@@ -4,6 +4,9 @@
 
 ### New features
 
+- Added default `theme(fontGreek="Symbol")` switching for Unicode Greek letters in editable SVG
+  text, rasterized PNG, and `show()` output. Set `fontGreek=None` to disable it or name a custom
+  installed font.
 - Added `grays` spellings for every native palette containing `greys` (including `grays2`,
   `warmgrays`, and `graysblues`) across palette, theme, custom-mark, table, biology, configuration,
   and swatch-export paths.

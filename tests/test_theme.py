@@ -49,6 +49,60 @@ class TestThemeDefaults:
         theme()
         assert alt.theme.options["fontSize"] == 6
 
+    def test_greek_font_default_custom_and_opt_out(self):
+        assert alt.theme.options["fontGreek"] == "Symbol"
+        theme(fontGreek="Journal Greek")
+        assert alt.theme.options["fontGreek"] == "Journal Greek"
+        theme(fontGreek=None)
+        assert alt.theme.options["fontGreek"] is None
+        theme()
+        assert alt.theme.options["fontGreek"] == "Symbol"
+
+    @pytest.mark.parametrize("value", ["", "   "])
+    def test_greek_font_rejects_blank_atomically(self, value):
+        theme(fontGreek="Before")
+        before = dict(alt.theme.options)
+        with pytest.raises(ValueError, match="fontGreek"):
+            theme(fontGreek=value)
+        assert alt.theme.options == before
+
+    @pytest.mark.parametrize("value", [False, 3, ["Symbol"]])
+    def test_greek_font_rejects_wrong_type_atomically(self, value):
+        theme(fontGreek="Before")
+        before = dict(alt.theme.options)
+        with pytest.raises(TypeError, match="fontGreek"):
+            theme(fontGreek=value)
+        assert alt.theme.options == before
+
+    def test_greek_font_config_and_keyword_precedence(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            '[default]\nfontGreek = "Default Greek"\n[paper]\nfontGreek = "Style Greek"\n', encoding="utf-8"
+        )
+        theme("paper")
+        assert alt.theme.options["fontGreek"] == "Style Greek"
+        theme("paper", fontGreek=None)
+        assert alt.theme.options["fontGreek"] is None
+
+    def test_old_greek_font_name_is_rejected(self, tmp_path, monkeypatch):
+        with pytest.raises(TypeError, match="greekFont"):
+            cast(Any, theme)(greekFont="Symbol")
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text('[default]\ngreekFont = "Symbol"\n', encoding="utf-8")
+        with pytest.raises(ValueError, match="greekFont"):
+            theme()
+
+    @pytest.mark.parametrize("section", ["default", "paper"])
+    @pytest.mark.parametrize("value", ['"   "', "3"])
+    def test_malformed_greek_font_config_is_atomic(self, section, value, tmp_path, monkeypatch):
+        theme(fontGreek="Before")
+        before = dict(alt.theme.options)
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(f"[{section}]\nfontGreek = {value}\n", encoding="utf-8")
+        with pytest.raises((TypeError, ValueError), match="fontGreek"):
+            theme("paper" if section == "paper" else None)
+        assert alt.theme.options == before
+
     def test_default_tick_size(self):
         theme()
         assert alt.theme.options["tickSize"] == pytest.approx(3.0)

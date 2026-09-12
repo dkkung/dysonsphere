@@ -25,6 +25,7 @@ from dysonsphere.export import (
     _rule_cap_options,
     _simplify_svg,
     _sink_border_below_shade,
+    _switch_greek_font,
     _typeset_scripts,
     save,
 )
@@ -1455,6 +1456,101 @@ class TestFixSubscriptLabels:
         assert not tspans[0].get("dy", "").startswith("-")  # x lowered
         assert tspans[1].get("dy", "").startswith("-")  # 3 raised
         assert "".join(text_el.itertext()) == "qx = 103"  # reading order preserved, connectors gone
+
+
+class TestSwitchGreekFont:
+    @staticmethod
+    def _mixed_chart():
+        data = pl.DataFrame({"dose": [1, 2], "response": [2, 3], "group": ["χ²", "η²"]})
+        return (
+            alt.Chart(data, title=["TNF-α", "ρ response"])
+            .mark_point()
+            .encode(
+                x=alt.X("dose:Q", title="Dose (µM)"),
+                y=alt.Y("response:Q", title="β response"),
+                color=alt.Color("group:N", title="Greek / Latin 12"),
+            )
+        )
+
+    def test_save_show_default_opt_out_and_html_boundary(self, tmp_path):
+        from dysonsphere.export import show
+
+        chart = self._mixed_chart()
+        theme()
+        save(chart, tmp_path / "default", format=["svg", "html"], background="light", saveMetadata=False)
+        svg = (tmp_path / "default.svg").read_text(encoding="utf-8")
+        html = (tmp_path / "default.html").read_text(encoding="utf-8")
+        shown = cast(str, show(chart).data)
+        for corrected in (svg, shown):
+            assert 'class="ds-greek-font" font-family="Symbol"' in corrected
+            assert "TNF-" in corrected and "Greek / Latin 12" in corrected
+            assert "HelveticaNeue" in corrected
+        assert "ds-greek-font" not in html
+
+        theme(fontGreek=None)
+        save(chart, tmp_path / "disabled", format="svg", background="light", saveMetadata=False)
+        disabled = (tmp_path / "disabled.svg").read_text(encoding="utf-8")
+        assert "ds-greek-font" not in disabled and "TNF-α" in disabled
+
+    def test_png_converter_receives_corrected_svg(self, tmp_path, monkeypatch):
+        import vl_convert
+
+        received: list[str] = []
+        real_converter = vl_convert.svg_to_png
+
+        def recording_converter(svg: str, **kwargs):
+            received.append(svg)
+            return real_converter(svg, **kwargs)
+
+        monkeypatch.setattr(vl_convert, "svg_to_png", recording_converter)
+        theme()
+        save(self._mixed_chart(), tmp_path / "greek", format="png", background="light", saveMetadata=False)
+        assert (tmp_path / "greek.png").exists()
+        assert len(received) == 1 and 'class="ds-greek-font" font-family="Symbol"' in received[0]
+
+    @pytest.mark.parametrize("saved_font", ["Journal Greek", None])
+    def test_json_load_restores_greek_font_and_custom_reexports(self, saved_font, tmp_path):
+        theme(fontGreek=saved_font)
+        save(self._mixed_chart(), tmp_path / "source", format="json", background="light")
+        theme(fontGreek="Other Greek")
+        from dysonsphere.export import load
+
+        loaded = load(tmp_path / "source.json")
+        assert alt.theme.options["fontGreek"] == saved_font
+        if saved_font is not None:
+            stem = tmp_path / "restored"
+            save(cast(Any, loaded), stem, format="svg", background="light", saveMetadata=False)
+            assert f'font-family="{saved_font}"' in stem.with_suffix(".svg").read_text(encoding="utf-8")
+
+    def test_unicode_coverage_and_exclusions(self):
+        label = "TNF-α ρ χ²/η² Άλφα α\u0301 ϑ µ μ Ⲁ · + 12"
+        root = ET.fromstring(f'<svg xmlns="{NS}"><text aria-label="{label}">{label}</text></svg>')
+        _switch_greek_font(root, "Journal Greek")
+        text = root.find(f"{{{NS}}}text")
+        assert text is not None
+        runs = [run for run in text.iter(f"{{{NS}}}tspan") if run.get("class") == "ds-greek-font"]
+        assert [run.text for run in runs] == ["α", "ρ", "χ", "η", "Άλφα", "α\u0301", "ϑ", "μ"]
+        assert all(run.get("font-family") == "Journal Greek" for run in runs)
+        assert "".join(text.itertext()) == label
+        assert text.get("aria-label") == label
+
+    def test_preserves_existing_runs_styles_tails_and_is_idempotent(self):
+        root = ET.fromstring(
+            f'<svg xmlns="{NS}"><text transform="rotate(30)">ρ &amp; '
+            '<tspan dy="-2.5" font-size="4">2</tspan> + '
+            '<tspan font-style="italic">α</tspan> TNF-β</text></svg>'
+        )
+        _switch_greek_font(root, "Symbol")
+        _switch_greek_font(root, "Symbol")
+        text = root.find(f"{{{NS}}}text")
+        assert text is not None
+        assert "".join(text.itertext()) == "ρ & 2 + α TNF-β"
+        assert text.get("transform") == "rotate(30)"
+        assert len([run for run in text.iter(f"{{{NS}}}tspan") if run.get("class") == "ds-greek-font"]) == 3
+        assert next(run for run in text.iter(f"{{{NS}}}tspan") if run.text == "2").get("dy") == "-2.5"
+        italic = next(run for run in text.iter(f"{{{NS}}}tspan") if run.get("font-style") == "italic")
+        greek = italic.find(f"{{{NS}}}tspan")
+        assert greek is not None and greek.text == "α"
 
 
 class TestItalicizeStatSymbols:

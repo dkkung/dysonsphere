@@ -95,6 +95,13 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   must survive. Do not globally replace the theme font with a PostScript-only name.
   References: `export.py::_illustrator_font_family`; `test_export.py::TestFixFontForIllustrator`.
 
+- **Greek font switching is a local editable-text correction.** In the shared static SVG pipeline,
+  wrap Unicode letters identified as Greek (plus attached combining marks) in font-family tspans;
+  do not substitute legacy Symbol character codes or replace the surrounding font. Unicode naming
+  avoids sweeping Coptic and punctuation into the feature; U+00B5 MICRO SIGN remains in the main
+  font. Named fonts are not embedded, so availability and publisher compliance remain user concerns.
+  References: `export.py::_switch_greek_font`; `test_export.py::TestSwitchGreekFont`.
+
 ## Composition and Annotations
 
 - **Equation rules require an explicit x span.** A standalone native Altair annotation cannot

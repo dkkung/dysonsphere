@@ -44,6 +44,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "dashedRule": True,
     "dashedWidth": [2, 2],
     "font": "Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif",
+    "fontGreek": "Symbol",
     "fontSize": 6,
     "fontStyle": "normal",
     "fontWeight": 400,
@@ -312,6 +313,11 @@ def _validate_options(p: dict[str, Any]) -> None:
     for key in ("font", "gridColor", "markFill", "markMedianFill", "markStroke"):
         if not isinstance(p[key], str) or not p[key]:
             raise TypeError(f"{key} must be a non-empty color or font string; got {p[key]!r}")
+    if p["fontGreek"] is not None:
+        if not isinstance(p["fontGreek"], str):
+            raise TypeError(f"fontGreek must be a non-empty font string or None; got {p['fontGreek']!r}")
+        if not p["fontGreek"].strip():
+            raise ValueError("fontGreek must not be blank")
     for key in ("chartFill", "viewFill"):
         if p[key] is not None and (not isinstance(p[key], str) or not p[key]):
             raise TypeError(f"{key} must be a non-empty color string or None; got {p[key]!r}")
@@ -350,6 +356,7 @@ def theme(
     dashedRule: bool = _UNSET,
     dashedWidth: Sequence[int | float] = _UNSET,
     font: str = _UNSET,
+    fontGreek: str | None = _UNSET,
     fontSize: int | float = _UNSET,
     fontStyle: str = _UNSET,
     fontWeight: str | int | float = _UNSET,
@@ -428,6 +435,10 @@ def theme(
     ``markStrokeWidth=None`` derives from ``axisWidth``. An omitted and unconfigured ``markFill``
     follows the render mode (``greys[1]`` light, ``greys[4]`` dark); an explicit or configured value
     stays fixed across modes. Circle marks keep their separate black/white fill.
+    ``fontGreek="Symbol"`` switches Unicode Greek letters to that named font in corrected SVG/PNG
+    output and ``ds.show()`` while leaving the surrounding font untouched. Set it to ``None`` to
+    disable switching, or provide another nonblank font family name. Fonts are referenced, not embedded;
+    interactive HTML and bare Altair rendering do not receive this SVG typography correction.
 
     Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
     ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True``, ``cornerRadius=True``,

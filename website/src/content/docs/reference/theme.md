@@ -25,6 +25,7 @@ def theme(
     dashedRule: bool = _UNSET,
     dashedWidth: Sequence[int | float] = _UNSET,
     font: str = _UNSET,
+    fontGreek: str | None = _UNSET,
     fontSize: int | float = _UNSET,
     fontStyle: str = _UNSET,
     fontWeight: str | int | float = _UNSET,
@@ -104,6 +105,10 @@ the smaller canvas dimension and is the common basis for symbol areas and compos
 ``markStrokeWidth=None`` derives from ``axisWidth``. An omitted and unconfigured ``markFill``
 follows the render mode (``greys[1]`` light, ``greys[4]`` dark); an explicit or configured value
 stays fixed across modes. Circle marks keep their separate black/white fill.
+``fontGreek="Symbol"`` switches Unicode Greek letters to that named font in corrected SVG/PNG
+output and ``ds.show()`` while leaving the surrounding font untouched. Set it to ``None`` to
+disable switching, or provide another nonblank font family name. Fonts are referenced, not embedded;
+interactive HTML and bare Altair rendering do not receive this SVG typography correction.
 
 Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
 ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True``, ``cornerRadius=True``,

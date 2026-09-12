@@ -50,6 +50,14 @@ to Arial, and Linux distributions fall back to their default sans-serif font. SV
 name `HelveticaNeue` so they open in the right font in Adobe Illustrator, which doesn't follow the
 usual fallback list. To override the default font on any platform, set `theme(font="...")`.
 
+By default, `theme(fontGreek="Symbol")` switches only Unicode Greek letters to the named font in
+`show()` and SVG/PNG `save()` output. Latin text, numerals, punctuation, operators, the micro sign
+(`µ`), and explicit italic runs keep their surrounding styling; `theme(fontGreek=None)` disables
+the switch, and a nonblank custom family name selects another installed font. Unicode characters
+remain unchanged in editable SVG text. Interactive HTML and bare Altair output do not receive this
+correction. Because fonts are named rather than embedded, a requested family can fall back when it
+is unavailable and does not by itself prove compliance with a journal's font requirements.
+
 ## What gets embedded
 
 When `saveMetadata=True` (the default), `save()` writes a `dysonsphere` metadata block into all
