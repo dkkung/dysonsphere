@@ -119,6 +119,23 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   `connectorGap` once. A connector too short for the resolved cap is omitted without moving its label.
   References: `annotations.py::labels`; `export.py::_decorate_rule_segments`.
 
+- **Point labels keep native data-coordinate composition.** Placement models standard linear scales
+  in pixels but emits ordinary data-coordinate datums, preserving reflected scales, concat behavior,
+  and base axis titles without scale-name expressions or renderer-time layout. Centered text and the
+  boundary-sliding attachments keep emitted geometry consistent with the solver's standard linear
+  model. Only visible faces are eligible: a route to the far side would cross its own label. Collision
+  checks use the same shortened segments as drawing, not center-to-center rays or invisible stubs.
+  Side attachments prefer the middle of the text edge, with limited obstacle-driven sliding;
+  top/bottom attachments stay inset. Facing corners remain eligible for genuinely diagonal routes,
+  not nearly edge-parallel approaches that resemble detached underlines.
+  References: `annotations.py::labels`; `_placement.py::_shortened_segment`.
+
+- **Forced label connectors preserve clearance.** `alwaysShowConnectors=True` moves among bounded
+  seats to reserve the full marker gap, text gap, and visible stroke; it never shrinks those gaps.
+  A connector whose requested gap cannot fit is omitted rather than drawn through a mark. Connectors attach to a
+  tighter portable text estimate (or the actual chip), while padded boxes remain collision safety.
+  References: `_placement.py::_estimate_attachment_size`, `_shortened_segment`.
+
 - **Extensions have their own distributions.** Keep optional dependencies and release schedules
   outside core. Extras would couple releases; namespace-package restructuring would disrupt the
   core import path for little gain. Discovery supplies `ds.biology` without either change, and

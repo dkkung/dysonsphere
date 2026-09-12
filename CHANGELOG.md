@@ -21,6 +21,14 @@
   Omitted cap gaps use the existing theme-derived point-label connector clearance.
 - Point-label connectors support `connectorCap="arrow"`, pointing toward each target while reusing
   the existing connector gap without changing label placement or text-end clearance.
+- Point labels now use a bounded geometry-aware placement search. Labels use portable character-aware
+  width estimates, centered text, and boundary-sliding straight connectors. Placement accounts for
+  standard linear-scale zero inclusion and view padding, and scores point, text, and connector
+  collisions while preferring shorter leaders. Small layouts can take longer because routing checks
+  more geometry; bounded candidates reduce the larger-layout search cost.
+- Forced point-label connectors now reserve their complete marker/text clearances instead of shrinking
+  gaps into nearby marks. Bare connectors attach to tighter typographic estimates while conservative
+  padding remains in collision detection; filled labels continue to attach at the actual chip edge.
 
 - **Breaking:** `rule()` now uses explicit keyword coordinates (`x`, `y`, `x2`, and `y2`) for
   horizontal, vertical, bounded, and diagonal segments. Equation rules accept `slope`, an optional

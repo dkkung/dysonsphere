@@ -2,7 +2,14 @@
 
 import math
 
-from dysonsphere._placement import _repel_labels, _sample_spread
+import pytest
+
+from dysonsphere._placement import (
+    _estimate_text_size,
+    _repel_labels,
+    _sample_spread,
+    _shortened_segment,
+)
 
 
 class TestSampleSpread:
@@ -27,14 +34,23 @@ class TestSampleSpread:
 
 
 class TestRepelLabelsObstacles:
+    def test_attachment_slides_to_clear_a_point(self):
+        # The middle of the facing edge is (10, 5), behind the obstacle; an inset edge slide is clear.
+        segment = _shortened_segment(
+            (0.0, 5.0), (15.0, 5.0), (10.0, 10.0), 0.0, 0.0, obstacles=[(5.0, 5.0)], point_radius=1.0
+        )
+        assert segment is not None
+        assert segment[1] != (10.0, 5.0)
+
     def test_obstacles_shift_placement(self):
         # background points near where the label would sit must push it off them
         anchor = [(150.0, 150.0)]
         size = [(20.0, 8.0)]
-        base = _repel_labels(anchor, size, width=300, height=300)[0]  # obstacles default to anchor
         obs = [(150.0, 150.0), (140.0, 138.0), (144.0, 140.0), (138.0, 142.0)]  # a cluster up-left
         shifted = _repel_labels(anchor, size, width=300, height=300, obstacles=obs)[0]
-        assert math.dist(base, shifted) > 1.0  # the extra points moved the label
+        # A different center is not required when the original seat is already clear. What matters
+        # is that the visible label rectangle clears every full-data obstacle.
+        assert all(abs(shifted[0] - x) >= 10.0 + 3.0 or abs(shifted[1] - y) >= 4.0 + 3.0 for x, y in obs)
 
     def test_labels_avoid_each_others_connectors(self):
         # two labels with nearby points: repel must keep each label off the OTHER's connector line
@@ -57,6 +73,42 @@ class TestRepelLabelsObstacles:
 
 
 class TestRepelLabels:
+    def test_text_estimate_accounts_for_monospace_bold_and_italic(self):
+        ordinary = _estimate_text_size("iiii", 6)
+        styled = _estimate_text_size("iiii", 6, font_family="Courier", font_weight=700, font_style="italic")
+        assert styled[0] > ordinary[0]
+
+    @pytest.mark.parametrize(
+        ("anchor", "target"),
+        [
+            ((0.0, 22.0), (5.0, 20.0)),
+            ((40.0, 22.0), (35.0, 20.0)),
+            ((0.0, 18.0), (5.0, 20.0)),
+            ((40.0, 18.0), (35.0, 20.0)),
+            ((4.9, 14.0), (8.0, 17.0)),
+            ((4.9, 26.0), (8.0, 23.0)),
+        ],
+    )
+    def test_attachment_uses_edge_body_not_empty_corner(self, anchor, target):
+        segment = _shortened_segment(anchor, (20.0, 20.0), (30.0, 6.0), 0.0, 0.0)
+        assert segment is not None
+        assert segment[1] == pytest.approx(target)
+
+    @pytest.mark.parametrize(
+        ("anchor", "target"),
+        [
+            ((0.0, 12.0), (5.0, 17.0)),
+            ((40.0, 12.0), (35.0, 17.0)),
+            ((0.0, 28.0), (5.0, 23.0)),
+            ((40.0, 28.0), (35.0, 23.0)),
+            ((0.0, 16.4), (5.0, 17.0)),
+        ],
+    )
+    def test_diagonal_route_can_use_its_facing_corner(self, anchor, target):
+        segment = _shortened_segment(anchor, (20.0, 20.0), (30.0, 6.0), 0.0, 0.0)
+        assert segment is not None
+        assert segment[1] == pytest.approx(target)
+
     def test_empty(self):
         assert _repel_labels([], [], width=100, height=100) == []
 
@@ -82,3 +134,6 @@ class TestRepelLabels:
         for x, y in out:
             assert 0 <= x <= 100
             assert 0 <= y <= 100
+
+    def test_oversized_label_has_finite_fallback(self):
+        assert _repel_labels([(5.0, 5.0)], [(200.0, 80.0)], width=20, height=10) == [(10.0, 5.0)]
