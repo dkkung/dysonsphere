@@ -164,6 +164,9 @@ notes are local working material, not dependencies of this framework or part of 
   mode, following save/show background toggles. Any explicit or configured value remains pinned,
   even when it equals either default. Circle ink remains independently black/white.
 - Keep font style separate from weight; bold is a weight, not a style.
+- `theme(fontGreek="Symbol")` switches only Unicode Greek letters to a named font in corrected
+  SVG/PNG/save/show output; `None` disables it. Preserve Unicode and editable text, surrounding
+  font/style runs, punctuation, operators, numerals, Coptic letters, and U+00B5 MICRO SIGN.
 - Corrected SVG typography applies to matching handwritten and generated text alike: recognized
   Latin statistical symbols are italicized; Greek symbols, numbers, operators, and `ns` remain
   upright unless explicitly styled. Script tokens include `q^2` and boundary-guarded `q__x`;

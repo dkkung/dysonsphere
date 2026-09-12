@@ -60,6 +60,11 @@
   "hint": null
  },
  {
+  "key": "fontGreek",
+  "default": "\"Symbol\"",
+  "hint": null
+ },
+ {
   "key": "fontSize",
   "default": "6",
   "hint": null

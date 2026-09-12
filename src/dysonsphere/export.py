@@ -5,6 +5,7 @@ import math
 import re
 import sys
 import tempfile
+import unicodedata
 import uuid
 import xml.etree.ElementTree as ET
 from contextlib import ExitStack
@@ -66,7 +67,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     detached axes), inward-tick flip (when ``tickDirection="in"``), axis layering, ``<g>``
     simplification, super/subscript typesetting, statistical-symbol italicization
     (``P``/``n``/``F``/``r``/… - after the script fixer, which only scans element
-    ``.text``), and Illustrator font-family collapse (the CSS fallback stack renders as plain
+    ``.text``), Greek-only font switching, and Illustrator font-family collapse (the CSS fallback stack renders as plain
     Helvetica in Illustrator; the SVG - and only the SVG - is pinned to the resolvable
     PostScript name). The SVG is parsed once here and each
     fixer mutates the shared ElementTree;
@@ -93,6 +94,9 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     _simplify_svg(root)
     _typeset_scripts(root)
     _italicize_stat_symbols(root)
+    greek_font = _opt("fontGreek")
+    if greek_font is not None:
+        _switch_greek_font(root, greek_font)
     _fix_font_for_illustrator(root)
     svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
     Path(svg_path).write_text(svg, encoding="utf-8")
@@ -1204,6 +1208,75 @@ def _italicize_stat_symbols(root: ET.Element) -> None:
     targets = [el for el in root.iter() if el.tag in (f"{{{_SVG_NS}}}text", f"{{{_SVG_NS}}}tspan")]
     for el in targets:
         _italicize_text_element(el)
+
+
+_GREEK_FONT_CLASS = "ds-greek-font"
+
+
+def _is_greek_letter(char: str) -> bool:
+    """Return whether *char* is a Unicode letter whose assigned name identifies it as Greek."""
+    return unicodedata.category(char).startswith("L") and "GREEK" in unicodedata.name(char, "")
+
+
+def _greek_spans(value: str) -> list[tuple[int, int]]:
+    """Locate Greek-letter runs, retaining combining marks attached to a Greek base."""
+    spans: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, char in enumerate(value):
+        greek = _is_greek_letter(char)
+        attached_mark = start is not None and unicodedata.combining(char) != 0
+        if greek or attached_mark:
+            if start is None:
+                start = index
+        elif start is not None:
+            spans.append((start, index))
+            start = None
+    if start is not None:
+        spans.append((start, len(value)))
+    return spans
+
+
+def _switch_greek_font(root: ET.Element, font: str) -> None:
+    """Wrap Unicode Greek-letter runs in editable ``tspan`` elements using *font*.
+
+    Unicode identity, attributes, existing child runs, tails, and explicit inherited styles are retained.
+    Coptic letters, Greek punctuation, operators, and U+00B5 MICRO SIGN are deliberately excluded.
+    """
+    targets = [
+        el
+        for el in root.iter()
+        if el.tag in (f"{{{_SVG_NS}}}text", f"{{{_SVG_NS}}}tspan") and el.get("class") != _GREEK_FONT_CLASS
+    ]
+    for el in targets:
+        items = [(None, el.text or "")] + [(child, child.tail or "") for child in list(el)]
+        if not any(_greek_spans(value) for _, value in items):
+            continue
+        for child in list(el):
+            el.remove(child)
+        el.text = None
+        last: ET.Element | None = None
+
+        def append_plain(value: str) -> None:
+            nonlocal last
+            if last is None:
+                el.text = (el.text or "") + value
+            else:
+                last.tail = (last.tail or "") + value
+
+        for child, trailing in items:
+            if child is not None:
+                child.tail = None
+                el.append(child)
+                last = child
+            cursor = 0
+            for start, end in _greek_spans(trailing):
+                append_plain(trailing[cursor:start])
+                run = ET.Element(f"{{{_SVG_NS}}}tspan", {"class": _GREEK_FONT_CLASS, "font-family": font})
+                run.text = trailing[start:end]
+                el.append(run)
+                last = run
+                cursor = end
+            append_plain(trailing[cursor:])
 
 
 # Generic CSS font keywords (never a real family to collapse to).
