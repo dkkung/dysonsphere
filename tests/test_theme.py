@@ -111,6 +111,13 @@ class TestThemeDefaults:
             assert _opt("markFill") == expected
             assert _dysonsphere_theme()["config"]["point"]["fill"] == expected
 
+    def test_all_grey_family_aliases_share_identity_across_modes(self):
+        from dysonsphere.palettes import _PALETTE_ALIASES
+
+        for darkmode in (False, True, False):
+            theme(darkmode=darkmode)
+            assert all(colors[alias] is colors[canonical] for alias, canonical in _PALETTE_ALIASES.items())
+
     def test_named_style_mark_fill_and_explicit_precedence_are_pinned(self, tmp_path, monkeypatch):
         from dysonsphere.theme import _opt
 
@@ -419,6 +426,67 @@ class TestRangePalettes:
         assert self._range("category") == ["#111111", "#222222"]
         theme()  # reset custom palette state
         assert self._range("category") == categorical(1)
+
+    @pytest.mark.parametrize(
+        ("canonical", "alias", "spelling"),
+        [
+            ("greys", "grays", "greys"),
+            ("greys2", "grays2", "grays2"),
+            ("warmgreys", "warmgrays", "warmgrays"),
+            ("greysblues3", "graysblues3", "greysblues3"),
+        ],
+    )
+    def test_custom_grey_family_spelling_synchronizes_alias(self, canonical, alias, spelling, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            f'[palettes]\n{spelling} = ["#111111", "#222222"]\n', encoding="utf-8"
+        )
+        theme(ordinalPalette=alias)
+        assert colors[canonical] is colors[alias]
+        assert colors[canonical] == ["#111111", "#222222"]
+        (tmp_path / "dysonsphere.toml").unlink()
+        theme()
+        assert colors[canonical] is colors[alias]
+        assert colors[canonical] != ["#111111", "#222222"]
+
+    def test_equal_greys_spellings_allowed_and_conflict_is_atomic(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        config = tmp_path / "dysonsphere.toml"
+        config.write_text('[palettes]\ngreys = ["#111111"]\ngrays = ["#111111"]\n', encoding="utf-8")
+        theme()
+        before_options = dict(alt.theme.options)
+        before_greys = colors["greys"]
+        config.write_text('[palettes]\ngreys = ["#111111"]\ngrays = ["#222222"]\n', encoding="utf-8")
+        with pytest.raises(ValueError, match="Conflicting palette definitions.*grays.*greys"):
+            theme()
+        assert alt.theme.options == before_options
+        assert colors["greys"] is before_greys
+        assert colors["grays"] is before_greys
+
+    def test_custom_greys_does_not_regenerate_diverging_family(self, tmp_path, monkeypatch):
+        built_in_diverging = list(colors["greysblues"])
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text('[palettes]\ngrays = ["#111111"]\n', encoding="utf-8")
+        theme()
+        assert colors["greys"] == ["#111111"]
+        assert colors["greysblues"] == built_in_diverging
+        assert colors["graysblues"] is colors["greysblues"]
+
+    @pytest.mark.parametrize(
+        ("user_name", "project_name"), [("greysblues", "graysblues"), ("graysblues", "greysblues")]
+    )
+    def test_project_spelling_override_wins_over_user(self, user_name, project_name, tmp_path, monkeypatch):
+        user_dir = tmp_path / "user" / "dysonsphere"
+        user_dir.mkdir(parents=True)
+        (user_dir / "dysonsphere.toml").write_text(f'[palettes]\n{user_name} = ["#111111"]\n', encoding="utf-8")
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "dysonsphere.toml").write_text(f'[palettes]\n{project_name} = ["#222222"]\n', encoding="utf-8")
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "user"))
+        monkeypatch.chdir(project_dir)
+        theme()
+        assert colors["greysblues"] is colors["graysblues"]
+        assert colors["greysblues"] == ["#222222"]
 
     def test_per_type_via_toml(self, tmp_path, monkeypatch):
         from dysonsphere.palettes import colors

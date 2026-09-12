@@ -10,6 +10,9 @@ from pathlib import Path
 # Everything else here is internal (underscore or not).
 __all__ = ["colors", "accents", "palette", "categorical", "export_swatches"]
 
+# Alternate native lookup spellings. Values are canonical catalogue/export names.
+_PALETTE_ALIASES: dict[str, str] = {}
+
 _ACCENT_LIGHT = {
     "red": "#922B3E",
     "orange": "#A64B18",
@@ -347,7 +350,9 @@ def palette(
     Parameters
     ----------
     name:
-        Case-sensitive key in the ``colors`` dict (e.g. ``"YlGnBu"``).
+        Case-sensitive key in the ``colors`` dict (e.g. ``"YlGnBu"``). Native palette names
+        containing ``"greys"`` also accept ``"grays"`` (for example, ``"warmgrays"`` and
+        ``"graysblues2"``); imported ``"gray"`` and ``"Greys"`` remain distinct.
     n:
         Number of colors to return (evenly spaced). Takes priority over ``step``.
     start:
@@ -504,7 +509,7 @@ def export_swatches(
     dest_dir = Path(directory) if directory is not None else Path.cwd()
 
     if palettes is None:
-        selected = colors
+        selected = {name: values for name, values in colors.items() if name not in _PALETTE_ALIASES}
     else:
         if not palettes:
             raise ValueError("palettes must be a non-empty list of palette names, or None to export all")
@@ -513,7 +518,10 @@ def export_swatches(
             raise ValueError(
                 f"unknown palette name(s): {unknown}; valid names are the keys of dysonsphere.palettes.colors"
             )
-        selected = {p: colors[p] for p in palettes}
+        selected: dict[str, list[str]] = {}
+        for palette_name in palettes:
+            canonical = _PALETTE_ALIASES.get(palette_name, palette_name)
+            selected.setdefault(canonical, colors[palette_name])
 
     # --- JSX: loads swatches into the active document ---
     js_palettes = json.dumps(selected, indent=4)
@@ -5153,3 +5161,14 @@ colors = {
 colors["cat2"] = categorical(1, palette="cat2")
 colors["cat3"] = categorical(1, palette="cat3")
 colors["cat1"] = categorical(1, palette="cat1")
+
+# Aliases deliberately share the canonical list object. Theme resets and custom configuration
+# restore both names together rather than copying palette values.
+for _canonical in colors:
+    if "greys" in _canonical and _canonical not in _PORTED_PALETTE_NAMES:
+        _alias = _canonical.replace("greys", "grays")
+        if _alias in colors:
+            raise RuntimeError(f"Cannot register palette alias {_alias!r}: that name already exists.")
+        _PALETTE_ALIASES[_alias] = _canonical
+for _alias, _canonical in _PALETTE_ALIASES.items():
+    colors[_alias] = colors[_canonical]

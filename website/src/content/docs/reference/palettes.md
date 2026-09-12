@@ -75,7 +75,7 @@ When ``n`` is provided, evenly samples ``n`` colors between ``start`` and
 
 **Parameters**
 
-- **`name`** (`str`) - Case-sensitive key in the ``colors`` dict (e.g. ``"YlGnBu"``).
+- **`name`** (`str`) - Case-sensitive key in the ``colors`` dict (e.g. ``"YlGnBu"``). Native palette names containing ``"greys"`` also accept ``"grays"`` (for example, ``"warmgrays"`` and ``"graysblues2"``); imported ``"gray"`` and ``"Greys"`` remain distinct.
 - **`n`** (`int | None`) - Number of colors to return (evenly spaced). Takes priority over ``step``.
 - **`start`** (`int`) - Index of the first color to include. Defaults to 0.
 - **`end`** (`int | None`) - Index of the last color to include (inclusive). Defaults to the last index in the palette.

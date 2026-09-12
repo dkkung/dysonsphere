@@ -18,6 +18,10 @@ the [Accents guide](/guides/accents/).
 `ds.palette(name, n)` returns `n` evenly spaced stops; `start`, `end`, `step`, and `reverse` give
 finer control. Feed the result into any Altair `scale=alt.Scale(range=...)`:
 
+Names are case-sensitive. Every native name containing `greys` also accepts `grays`, such as
+`grays2`, `warmgrays`, and `graysblues`; the imported palettes `gray` and `Greys` are separate names
+and remain unchanged.
+
 <Example name="palette_slice" alt="Dose-response bars colored with a sliced ember palette" />
 
 ## Choosing a colormap

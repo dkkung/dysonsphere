@@ -127,8 +127,11 @@ brand = ["#0B3954", "#1B5F7E", "#2E86AB", "#63A8C7", "#A8CFE0", "#E8F1F5"]
 ```
 
 Sequential dysonsphere palettes carry 12 stops and diverging ones 13 (a neutral midpoint), but
-custom palettes may be any length. Two notes:
+custom palettes may be any length. A few notes:
 
+- Defining either spelling of a native grey-family palette (for example, `greys2`/`grays2` or
+  `warmgreys`/`warmgrays`) overrides both names. If both occur in one file, their lists must be
+  identical; normal user/project file precedence still applies.
 - Custom palettes are re-registered on each `ds.theme()` call and vanish cleanly when the config
   file does - `ds.palettes.colors` is restored to the built-in catalogue first.
 - Overriding a built-in base hue (say `blues`) does **not** ripple into the derived

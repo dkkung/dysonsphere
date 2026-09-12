@@ -23,13 +23,19 @@ import palettes from '../generated/palettes.json';
 	<div id="pal-grid" class="pal__grid">
 		{
 			palettes.map((p) => (
-				<button class="pal__item" data-name={p.name} data-kind={p.kind} title={`Preview ${p.name}`}>
+				<button
+					class="pal__item"
+					data-name={p.name}
+					data-aliases={p.aliases.join(' ')}
+					data-kind={p.kind}
+					title={`Preview ${p.name}`}
+				>
 					<span class="pal__strip">
 						{p.colors.map((c) => (
 							<span class="pal__stop" data-color={c} style={`background:${c}`} />
 						))}
 					</span>
-					<span class="pal__name">{p.name}</span>
+					<span class="pal__name">{p.name}{p.aliases.length ? ` (alias: ${p.aliases.join(', ')})` : ''}</span>
 				</button>
 			))
 		}
@@ -53,7 +59,7 @@ import palettes from '../generated/palettes.json';
 			let shown = 0;
 			for (const el of items) {
 				const okKind = kind === 'all' || el.dataset.kind === kind;
-				const okName = !q || (el.dataset.name ?? '').includes(q);
+				const okName = !q || `${el.dataset.name ?? ''} ${el.dataset.aliases ?? ''}`.includes(q);
 				const show = okKind && okName;
 				el.style.display = show ? '' : 'none';
 				if (show) shown++;

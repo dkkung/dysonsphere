@@ -7,7 +7,7 @@ from typing import Any, Literal, Sequence
 
 import altair as alt
 
-from .palettes import _DEFAULT_QUALITATIVE_PALETTE, colors
+from .palettes import _DEFAULT_QUALITATIVE_PALETTE, _PALETTE_ALIASES, colors
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -183,12 +183,22 @@ def _load_custom_palettes() -> dict[str, list[str]]:
         with open(path, "rb") as f:
             config: dict[str, Any] = tomllib.load(f)
         palettes_section = config.get("palettes", {})
+        file_palettes: dict[str, list[str]] = {}
         for name, values in palettes_section.items():
             if not isinstance(values, list) or len(values) == 0:
                 raise ValueError(f"Palette {name!r} in {path} must be a non-empty list of color strings.")
             if not all(isinstance(v, str) and v for v in values):
                 raise ValueError(f"Palette {name!r} in {path} must contain only color strings.")
-            custom[name] = values
+            canonical = _PALETTE_ALIASES.get(name, name)
+            if canonical in file_palettes and file_palettes[canonical] != values:
+                aliases = sorted(key for key in palettes_section if _PALETTE_ALIASES.get(key, key) == canonical)
+                raise ValueError(f"Conflicting palette definitions {aliases} in {path}; use identical values.")
+            file_palettes[canonical] = values
+        for canonical, values in file_palettes.items():
+            custom[canonical] = values
+            for alias, target in _PALETTE_ALIASES.items():
+                if target == canonical:
+                    custom[alias] = values
     return custom
 
 

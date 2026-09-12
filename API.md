@@ -39,6 +39,9 @@ notes are local working material, not dependencies of this framework or part of 
 - Palette lookup is case-sensitive. Native palette names are lowercase; imported palette names
   preserve their upstream spelling and case without source-package prefixes. Registered names take
   precedence over renderer-native schemes in every palette-valued consumer.
+- Every native palette name containing `greys` accepts `grays` as an exact alternate lookup
+  spelling, including `grays2`, `warmgrays`, and `graysblues`. This does not affect the distinct
+  imported, case-sensitive `gray` and `Greys` palettes.
 - The 12 discrete Matplotlib category palettes expose their complete upstream color lists.
 - The native `neongreens` family and every diverging palette derived from it are removed; no aliases
   or replacement colors are provided. Ordinary `greens` and the `cat1_greens`/`cat2_greens` families

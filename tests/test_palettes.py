@@ -14,6 +14,7 @@ from dysonsphere.palettes import (
     _ACCENT_LIGHT,
     _CMOCEAN_PALETTES,
     _MATPLOTLIB_PALETTES,
+    _PALETTE_ALIASES,
     _PORTED_PALETTE_NAMES,
     accents,
     categorical,
@@ -337,6 +338,27 @@ class TestCat1:
 
 
 class TestExportSwatches:
+    @pytest.mark.parametrize(
+        ("selection", "canonical", "alias"),
+        [
+            (None, "greys", "grays"),
+            (["graysblues2"], "greysblues2", "graysblues2"),
+            (["warmgreys", "warmgrays", "warmgreys"], "warmgreys", "warmgrays"),
+        ],
+    )
+    def test_grey_family_alias_exports_once_under_canonical_name(
+        self, tmp_path, monkeypatch, selection, canonical, alias
+    ):
+        from dysonsphere import palettes as p
+
+        monkeypatch.setattr(p, "_find_illustrator_swatches", lambda: None)
+        p.export_swatches(tmp_path, palettes=selection)
+        content = (tmp_path / "import_dysonsphere_palettes_to_illustrator.jsx").read_text()
+        assert content.count(f'"{canonical}":') == 1
+        assert f'"{alias}":' not in content
+        raw = (tmp_path / "dysonsphere.ase").read_bytes()
+        assert f"{alias}\0".encode("utf-16-be") not in raw
+
     def test_creates_jsx_file(self, tmp_path):
         from dysonsphere.palettes import export_swatches
 
@@ -515,8 +537,10 @@ def _digest(value) -> str:
 
 
 def test_registry_name_migration_exact_parity():
-    assert len(colors) == 315
-    assert _digest(colors) == "4d46342974fc6d67e2dcdfe12da73c0afc48ed37b29f107c6fac3c4c3384c671"
+    assert len(colors) == 353
+    canonical_colors = {name: stops for name, stops in colors.items() if name not in _PALETTE_ALIASES}
+    assert len(canonical_colors) == 315
+    assert _digest(canonical_colors) == "4d46342974fc6d67e2dcdfe12da73c0afc48ed37b29f107c6fac3c4c3384c671"
     for removed in (
         "cmocean_gray",
         "mpl_viridis",
@@ -529,7 +553,18 @@ def test_registry_name_migration_exact_parity():
         "cat3_teals",
     ):
         assert removed not in colors
-    assert {"gray", "greys", "Greys", "greenblue", "GnBu", "yellowgreenblue", "YlGnBu"} <= colors.keys()
+    assert {"gray", "grays", "greys", "Greys", "greenblue", "GnBu", "yellowgreenblue", "YlGnBu"} <= colors.keys()
+    assert len(_PALETTE_ALIASES) == 38
+    for alias, canonical in _PALETTE_ALIASES.items():
+        assert alias == canonical.replace("greys", "grays")
+        assert canonical not in _PORTED_PALETTE_NAMES
+        assert colors[alias] is colors[canonical]
+        assert palette(alias, n=4) == palette(canonical, n=4)
+    assert colors["gray"] != colors["greys"]
+    assert colors["Greys"] != colors["greys"]
+    for unknown in ("GRAYS", "coolgray", "grayblues", "graysblues4"):
+        with pytest.raises(KeyError):
+            palette(unknown)
     assert colors["greenblue"] != colors["GnBu"]
     assert colors["yellowgreenblue"] != colors["YlGnBu"]
     assert _digest(colors["greenblue"]) == "f2544b8324a44a221971ea1f6f0905d82c054e66e38e2f04c121519b59b6af0f"
@@ -613,6 +648,8 @@ def test_current_registry_reconstructs_prechange_ordered_baseline():
     ]
     reconstructed = {}
     for name, stops in colors.items():
+        if name in _PALETTE_ALIASES:
+            continue
         if name in intentional_discrete_changes:
             continue
         if name == "haline":
