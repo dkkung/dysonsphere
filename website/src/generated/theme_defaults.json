@@ -251,7 +251,7 @@
  },
  {
   "key": "tickSize",
-  "default": "3.5",
+  "default": "3.0",
   "hint": null
  },
  {

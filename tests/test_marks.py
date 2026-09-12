@@ -526,9 +526,7 @@ class TestViolinInner:
         out = tmp_path / f"violin-{inner}"
         save(chart, str(out), format="svg", background="light")
         svg = out.with_suffix(".svg").read_text()
-        ticks = [
-            float(value) for value in re.findall(r'<line transform="translate\(([\d.]+),0\)" x2="0" y2="3.5"', svg)
-        ]
+        ticks = [float(value) for value in re.findall(r'<line transform="translate\(([\d.]+),0\)" x2="0" y2="3"', svg)]
         expected = _band_geometry(len(categories), width, scale="rect").centers
         assert ticks == pytest.approx(expected, abs=1e-9)
         root = ET.parse(out.with_suffix(".svg")).getroot()

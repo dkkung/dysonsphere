@@ -6,7 +6,6 @@
 
 - **Breaking:** `theme(chartWidth=..., chartHeight=...)` and the matching configuration keys are
   replaced by `theme(width=..., height=...)` without aliases.
-- The built-in `tickSize` default is now `3.5` pixels instead of `3`; explicit values are unchanged.
 - Continuous color legends now track their owning panel dimensions by default. The new
   `theme(legendGradientLength=None)` default uses half-height vertical and full-width horizontal
   allocation; a positive numeric value scales either full panel span. Meanwhile,

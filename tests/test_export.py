@@ -849,9 +849,9 @@ class TestExactTickPositions:
         chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q")
         save(chart, str(tmp_path / "b"), format="svg", background="light")
         svg = (tmp_path / "b.svg").read_text(encoding="utf-8")
-        # x-axis tick lines carry their length in y2 (= the theme tickSize, 3.5)
+        # x-axis tick lines carry their length in y2 (= the theme tickSize, 3)
         ticks = sorted(
-            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3.5"', svg)
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3"', svg)
         )
         boxes = sorted(
             float(x) + float(w) / 2
@@ -868,7 +868,7 @@ class TestExactTickPositions:
         save(chart, str(tmp_path / "l"), format="svg", background="light")
         svg = (tmp_path / "l.svg").read_text(encoding="utf-8")
         ys = sorted(
-            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(0,([\d.]+)\)"[^/]*x2="-3.5"', svg)
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(0,([\d.]+)\)"[^/]*x2="-3"', svg)
         )
         assert len(ys) >= 3, "no y-axis ticks found"
         # The scale mapping is recovered from the rendered marks rather than assumed, so this
@@ -901,12 +901,12 @@ class TestExactTickPositions:
         chart = add_log_ticks(base, df, field="x", axis="x")
         save(chart, str(tmp_path / "lg"), format="svg", background="light")
         svg = (tmp_path / "lg.svg").read_text(encoding="utf-8")
-        # minor ticks are half the theme tickSize (1.75); majors are 3.5
+        # minor ticks are half the theme tickSize (1.5); majors are 3
         minors = sorted(
-            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="1.75"', svg)
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="1\.5"', svg)
         )
         majors = sorted(
-            {float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3.5"', svg)}
+            {float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3"', svg)}
         )
         assert len(majors) >= 2 and minors
         expected = sorted(lo + math.log10(mv) * (hi - lo) for lo, hi in zip(majors, majors[1:]) for mv in range(2, 10))
