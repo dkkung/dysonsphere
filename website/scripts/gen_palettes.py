@@ -16,7 +16,12 @@ import json
 from pathlib import Path
 
 import dysonsphere as ds
-from dysonsphere.palettes import _CMOCEAN_PALETTES, _MATPLOTLIB_DISCRETE_PALETTES, _MATPLOTLIB_PALETTES
+from dysonsphere.palettes import (
+    _CMOCEAN_PALETTES,
+    _MATPLOTLIB_DISCRETE_PALETTES,
+    _MATPLOTLIB_PALETTES,
+    _PALETTE_ALIASES,
+)
 
 OUT = Path("website/src/generated/palettes.json")
 ACCENTS_OUT = Path("website/src/generated/accents.json")
@@ -26,6 +31,8 @@ def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     palettes = []
     for name, colors in ds.palettes.colors.items():
+        if name in _PALETTE_ALIASES:
+            continue
         # By stop count: diverging ramps carry 13 (neutral midpoint), sequential ramps 12; the
         # remaining short palettes (nucleotides, proteins, the matplotlib sets) are qualitative.
         # The assembled qualitative palettes are hue-cycling, not ramps.
@@ -40,7 +47,8 @@ def main() -> None:
         source = (
             "cmocean" if name in _CMOCEAN_PALETTES else "matplotlib" if name in _MATPLOTLIB_PALETTES else "dysonsphere"
         )
-        palettes.append({"name": name, "kind": kind, "source": source, "colors": list(colors)})
+        aliases = [alias for alias, canonical in _PALETTE_ALIASES.items() if canonical == name]
+        palettes.append({"name": name, "aliases": aliases, "kind": kind, "source": source, "colors": list(colors)})
     OUT.write_text(json.dumps(palettes), encoding="utf-8")
     print(f"wrote {len(palettes)} palettes to {OUT}")
     light = ds.palettes._ACCENT_LIGHT

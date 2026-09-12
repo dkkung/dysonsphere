@@ -4,6 +4,9 @@
 
 ### New features
 
+- Added `grays` spellings for every native palette containing `greys` (including `grays2`,
+  `warmgrays`, and `graysblues`) across palette, theme, custom-mark, table, biology, configuration,
+  and swatch-export paths.
 - Added the read-only `ds.palettes.accents` mapping for theme-aware, named single-element emphasis
   colors. It remains separate from categorical and continuous palette selection.
 
