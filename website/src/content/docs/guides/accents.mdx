@@ -1,0 +1,46 @@
+---
+title: Accents
+description: Theme-aware named colors for emphasizing one mark or annotation.
+---
+
+import Accents from '../../../components/Accents.astro';
+import Example from '../../../components/Example.astro';
+
+`ds.palettes.accents` is a read-only, case-sensitive mapping for emphasizing one element. Look up a
+color directly, for example `ds.palettes.accents["blue"]`; values are hex strings, not color lists,
+and the mapping is separate from categorical and continuous palettes. `gray` is an alias for `grey`.
+
+Use the site's theme switcher to preview the light and dark variants.
+
+<Accents />
+
+Light anchors are curated colors. Dark counterparts preserve their Oklch hue while using
+gamut-aware chroma and contrast checks; these independent accents are not a categorical set.
+
+## Highlight one observation
+
+<Example name="alphafold_casp" alt="AlphaFold2 highlighted with the blue accent among default-filled predictor points" />
+
+## Coordinate a mark and label
+
+<Example name="accent_bar" alt="Synthetic throughput bars with one orange highlighted bar and label" />
+
+Accent lookup uses the active theme **when the string is retrieved**. A chart already built with a
+retrieved string keeps it. To export both modes with mode-appropriate accents, pass a builder:
+
+```python
+import altair as alt
+import polars as pl
+import dysonsphere as ds
+
+data = pl.DataFrame({"x": [1], "y": [2]})
+
+def build():
+    return (
+        alt.Chart(data)
+        .mark_circle(color=ds.palettes.accents["blue"])
+        .encode(x="x:Q", y="y:Q")
+    )
+
+ds.save(build, "figure", background=["light", "dark"])
+```

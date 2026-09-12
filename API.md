@@ -28,6 +28,10 @@ notes are local working material, not dependencies of this framework or part of 
 - Keep `ds.palette()` as the common selector; categorical construction, the color registry, and
   swatch export belong under `ds.palettes`. Palette selection returns colors without changing
   the active theme.
+- `ds.palettes.accents` is a read-only, case-sensitive mapping of named single-element emphasis
+  colors. It is separate from the chart-palette registry and resolves light/dark literals from the
+  active theme at lookup time; looked-up strings are ordinary captured values, so multi-background
+  exports use a chart-building callable. `grey` and `gray` are aliases. There is no root export.
 - Palette sampling selects existing stops, not interpolated colors. Preserve n=0 returning an
   empty list, repeated colors when oversampling, inclusive end, and n taking precedence over step.
   When n is supplied, require a nonnegative integer and reject booleans and non-integer values,
@@ -153,6 +157,9 @@ notes are local working material, not dependencies of this framework or part of 
   suppresses the constructor's category-color legend even when its legend argument is True.
   Do not disable legends globally. Preserve category axes and violin group separation.
 - Preserve whole-mark opacity versus fill opacity. Do not apply the same inherited fade twice.
+- An omitted, unconfigured `markFill` defaults to `greys[1]` in light mode and `greys[4]` in dark
+  mode, following save/show background toggles. Any explicit or configured value remains pinned,
+  even when it equals either default. Circle ink remains independently black/white.
 - Keep font style separate from weight; bold is a weight, not a style.
 - Corrected SVG typography applies to matching handwritten and generated text alike: recognized
   Latin statistical symbols are italicized; Greek symbols, numbers, operators, and `ns` remain
@@ -296,6 +303,8 @@ notes are local working material, not dependencies of this framework or part of 
   extraction remain valid. Lookup transforms, nonempty parameters/selections, external data, and
   expressions beyond deterministic operations on `datum` cannot be preserved. `load(raw=True)` only
   returns the untouched specification and does not restore runtime ownership.
+  Resolved theme metadata records automatic fields separately so loading an omitted `markFill`
+  restores its live light/dark default, while an explicit or configured fill remains pinned.
   `stats.clear_stats()` clears pending live calculations without detaching records restored with a
   loaded chart. Saving with metadata disabled removes the internal ownership identities as well.
 - Source renames do not automatically rename stored metadata keys or checksum formats.

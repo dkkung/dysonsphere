@@ -19,6 +19,7 @@ import dysonsphere as ds
 from dysonsphere.palettes import _CMOCEAN_PALETTES, _MATPLOTLIB_DISCRETE_PALETTES, _MATPLOTLIB_PALETTES
 
 OUT = Path("website/src/generated/palettes.json")
+ACCENTS_OUT = Path("website/src/generated/accents.json")
 
 
 def main() -> None:
@@ -42,6 +43,11 @@ def main() -> None:
         palettes.append({"name": name, "kind": kind, "source": source, "colors": list(colors)})
     OUT.write_text(json.dumps(palettes), encoding="utf-8")
     print(f"wrote {len(palettes)} palettes to {OUT}")
+    light = ds.palettes._ACCENT_LIGHT
+    dark = ds.palettes._ACCENT_DARK
+    accents = [{"name": name, "light": light[name], "dark": dark[name]} for name in light if name != "gray"]
+    ACCENTS_OUT.write_text(json.dumps(accents), encoding="utf-8")
+    print(f"wrote {len(accents)} accents to {ACCENTS_OUT}")
 
 
 if __name__ == "__main__":

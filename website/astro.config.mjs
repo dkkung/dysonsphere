@@ -122,6 +122,7 @@ export default defineConfig({
 						{ label: 'Theming', slug: 'guides/theming' },
 						{ label: 'Global theme overrides', slug: 'guides/configuration' },
 						{ label: 'Palettes', slug: 'guides/palettes' },
+						{ label: 'Accents', slug: 'guides/accents' },
 						{
 							label: 'Marks & transforms',
 							items: [

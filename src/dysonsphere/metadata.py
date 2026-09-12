@@ -763,8 +763,9 @@ def _build_block(
       ``provenance`` always), or ``None`` when ``embed_report`` is off.
 
     ``theme`` holds the resolved ``ds.theme()`` args (only ``_BUILTIN_DEFAULTS`` keys, so
-    every one is a valid kwarg — dysonsphere params, never Altair's), letting ``load()``
-    reconstruct the styling via ``ds.theme(**theme)``.
+    every one is a valid kwarg — dysonsphere params, never Altair's). ``themeAutomatic`` records
+    resolved fields that were originally omitted, letting ``load()`` reconstruct their live default
+    rather than pinning the value from one exported mode.
 
     ``description`` (the user's ``save(description=...)`` text) rides as the **last** member of
     the block in *both* channels — after ``report`` in the JSON ``usermeta``, and last in the
@@ -775,7 +776,7 @@ def _build_block(
     hashes. Records remain serialized once in ``statistics`` rather than being copied into owners.
     """
     from ._statistics import _render_report
-    from .theme import _BUILTIN_DEFAULTS
+    from .theme import _BUILTIN_DEFAULTS, _opt
 
     provenance = _build_provenance(
         export_id=export_id,
@@ -791,6 +792,10 @@ def _build_block(
     if statistics_bindings:
         ds_block["statisticsBindings"] = statistics_bindings
     ds_block["theme"] = {k: v for k, v in alt.theme.options.items() if k in _BUILTIN_DEFAULTS}
+    ds_block["theme"]["markFill"] = _opt("markFill")
+    if alt.theme.options.get("_markFillAuto", True):
+        # Keep the public theme snapshot fully resolved while retaining omission provenance for load().
+        ds_block["themeAutomatic"] = ["markFill"]
     # The SVG/PNG structured blob is report-free (they get per-section readable channels) but
     # DOES carry `description` — as the last member, mirroring the JSON.  ensure_ascii=False
     # keeps η²/─ literal.

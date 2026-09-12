@@ -2,12 +2,73 @@ import json
 import os
 import shutil
 import struct
+from collections.abc import Iterator, Mapping
 from numbers import Integral
 from pathlib import Path
 
 # The public ds.palettes API; palette is also explicitly exported at the root.
 # Everything else here is internal (underscore or not).
-__all__ = ["colors", "palette", "categorical", "export_swatches"]
+__all__ = ["colors", "accents", "palette", "categorical", "export_swatches"]
+
+_ACCENT_LIGHT = {
+    "red": "#922B3E",
+    "orange": "#A64B18",
+    "yellow": "#8A6A12",
+    "green": "#004225",
+    "blue": "#28287D",
+    "purple": "#47266F",
+    "violet": "#702968",
+    "teal": "#00605D",
+    "cyan": "#357F95",
+    "pink": "#A53F68",
+    "brown": "#70412F",
+    "lime": "#607A18",
+    "grey": "#9D9D9D",
+    "gray": "#9D9D9D",
+}
+_ACCENT_DARK = {
+    "red": "#E16375",
+    "orange": "#D1774B",
+    "yellow": "#CFAC5E",
+    "green": "#60A37C",
+    "blue": "#7783DB",
+    "purple": "#9B76D3",
+    "violet": "#BF67B3",
+    "teal": "#54A19D",
+    "cyan": "#60B5D0",
+    "pink": "#DD6291",
+    "brown": "#BE816A",
+    "lime": "#9BB85B",
+    "grey": "#DBDBDB",
+    "gray": "#DBDBDB",
+}
+
+
+class _AccentMapping(Mapping[str, str]):
+    """Read-only named accents resolved against the active theme at lookup time.
+
+    Accents are fixed colors for emphasizing one element, not a categorical palette or part of
+    :data:`colors`. A looked-up string captures the current mode; pass a chart-building callable to
+    :func:`dysonsphere.save` when one export must rebuild it for both light and dark backgrounds.
+
+    Examples
+    --------
+    ``chart.mark_circle(color=ds.palettes.accents["blue"])``
+    """
+
+    def __getitem__(self, key: str) -> str:
+        from .theme import _opt
+
+        return (_ACCENT_DARK if _opt("darkmode") else _ACCENT_LIGHT)[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(_ACCENT_LIGHT)
+
+    def __len__(self) -> int:
+        return len(_ACCENT_LIGHT)
+
+
+accents: Mapping[str, str] = _AccentMapping()
 
 _CMOCEAN_PALETTES = frozenset(
     {

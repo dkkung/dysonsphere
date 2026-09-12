@@ -174,6 +174,8 @@ def render_page(mod, title: str, order: int, description: str) -> str:
             "Use `ds.palette(...)` to select colors. This ordinary root function is implemented in",
             "`palettes.py`; the catalogue and other helpers live at `ds.palettes.colors`,",
             "`ds.palettes.categorical(...)`, and `ds.palettes.export_swatches(...)`.",
+            "`ds.palettes.accents` is a read-only mapping of named emphasis colors resolved from the",
+            "active light/dark theme at lookup time; it is not part of the palette catalogue.",
             "",
         ]
     elif mod.name == "metadata":
