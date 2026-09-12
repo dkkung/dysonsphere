@@ -136,10 +136,8 @@ class TestLabels:
         assert x_center == 0.0
 
     def test_fill_centres_text_in_chip(self):
-        # With a chip, every label's text is centred inside it (align="center", concentric with the
-        # rect) regardless of which side the connector attaches - so the text can't drift off-centre
-        # when the len*fs*0.6 width estimate misjudges the glyphs (the off-centre NK label). Without a
-        # chip the flow-out left/right justification is kept, so a ring of points yields both here.
+        # Every auto-placed label is centered so its rendered box follows the same geometry when an
+        # axis is reflected. Chips remain concentric with that box.
         import numpy as np
 
         ang = np.linspace(0, 2 * np.pi, 8, endpoint=False)
@@ -154,7 +152,7 @@ class TestLabels:
                 for a in [lyr["mark"].get("align")]
             ]
 
-        assert set(_aligns(False)) & {"left", "right"}  # no chip: side justification preserved
+        assert all(a == "center" for a in _aligns(False))
         assert all(a == "center" for a in _aligns(True))  # chip: all centred
 
         # concentric: for every chip label the rect and the text carry the SAME pixel offset from
@@ -172,7 +170,7 @@ class TestLabels:
     def test_no_invisible_pin_mark(self, df):
         # the scale pin must ride on the label marks themselves - no invisible point may land in
         # the spec (it used to show up as a phantom element in the exported SVG)
-        spec = labels(df, "x", "y", "g").to_dict()
+        spec = labels(df, "x", "y", "g", alwaysShowConnectors=True).to_dict()
         types = {lyr["mark"]["type"] for lyr in spec["layer"]}
         assert types == {"rule", "text"}
 
@@ -188,7 +186,7 @@ class TestLabels:
         return [lyr["mark"]["strokeDash"] for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rule"]
 
     def test_connector_stroke_dash_default_solid(self, df):
-        dashes = self._connector_stroke_dashes(labels(df, "x", "y", "g"))
+        dashes = self._connector_stroke_dashes(labels(df, "x", "y", "g", alwaysShowConnectors=True))
         assert dashes and all(d == [0, 0] for d in dashes)
 
     def test_connector_stroke_dash_true_uses_theme(self, df):
@@ -209,7 +207,7 @@ class TestLabels:
 
     def test_connector_opacity_sets_mark_opacity(self, df):
         # a float sets the mark opacity but does NOT touch color (stays darkmode-aware)
-        marks = self._connector_marks(labels(df, "x", "y", "g", connectorOpacity=0.25))
+        marks = self._connector_marks(labels(df, "x", "y", "g", connectorOpacity=0.25, alwaysShowConnectors=True))
         assert marks and all(m["opacity"] == 0.25 and "color" not in m for m in marks)
 
     def test_connector_cap_default_leaves_spec_unchanged(self, df):
@@ -252,21 +250,26 @@ class TestLabels:
         return sum(1 for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "rule")
 
     def test_short_connectors_skipped_by_default(self, df):
-        # the skip threshold is 2*connectorGap + 1 (font-independent): a huge gap makes every
-        # connector a "stub" that gets dropped by default, while alwaysShowConnectors forces one
-        # per label
+        # An impossible requested clearance omits connectors even when forced; it must never be
+        # shrunk into a line touching the marker.
         assert self._n_connectors(labels(df, "x", "y", "g", connectorGap=1000)) == 0
-        assert self._n_connectors(labels(df, "x", "y", "g", connectorGap=1000, alwaysShowConnectors=True)) == 3
+        assert self._n_connectors(labels(df, "x", "y", "g", connectorGap=1000, alwaysShowConnectors=True)) == 0
 
-    def test_marker_gap_is_uniform(self):
+    def test_marker_gap_is_uniform(self, monkeypatch):
         # every DRAWN connector starts exactly connectorGap px off its point centre. Domains pinned
         # to the chart pixel size so data units == px and distances survive the datum round-trip.
         import math
 
-        df = pl.DataFrame({"x": [10.0, 50.0, 90.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
+        from dysonsphere import _placement
+
+        theme(width=100, height=100, viewPadding=False)
+        monkeypatch.setattr(
+            _placement, "_repel_labels", lambda anchors, sizes, **kwargs: [(x + 20, y) for x, y in anchors]
+        )
+        df = pl.DataFrame({"x": [10.0, 40.0, 70.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
         gap = 1.0
         spec = labels(df, "x", "y", "g", connectorGap=gap, xDomain=(0.0, 100.0), yDomain=(0.0, 100.0)).to_dict()
-        anchors = [(10.0, 20.0), (50.0, 80.0), (90.0, 40.0)]
+        anchors = [(10.0, 20.0), (40.0, 80.0), (70.0, 40.0)]
         starts = [
             (e["x"]["datum"], e["y"]["datum"])
             for lyr in spec["layer"]
@@ -275,29 +278,34 @@ class TestLabels:
         ]
         assert starts
         assert all(min(math.dist(st, a) for a in anchors) == pytest.approx(gap) for st in starts)
-        # the TEXT end keeps only the whitespace term (2*axisWidth); side-attached labels only,
-        # each connector compared with its own text layer (emitted directly after it)
+        # The text datum is the box center now; verify the exact text-end clearance against the
+        # nearest rectangle boundary using the shared geometry helper.
+        from dysonsphere._placement import _estimate_attachment_size
+
         daylight = 2.0 * alt.theme.options["axisWidth"]
-        pending, checked = None, 0
+        pending, checked = {}, 0
         for lyr in spec["layer"]:
             if lyr["mark"]["type"] == "rule":
                 pending = lyr["encoding"]
-            elif lyr["mark"]["type"] == "text" and pending is not None:
-                if lyr["mark"].get("align") == "center":
-                    pending = None
-                    continue
+            elif lyr["mark"]["type"] == "text" and pending:
                 end = (pending["x2"]["datum"], pending["y2"]["datum"])
-                anchor = (lyr["encoding"]["x"]["datum"], lyr["encoding"]["y"]["datum"])
-                assert math.dist(end, anchor) == pytest.approx(daylight)
+                center = (lyr["encoding"]["x"]["datum"], lyr["encoding"]["y"]["datum"])
+                size = _estimate_attachment_size(lyr["encoding"]["text"]["value"], 6.0)
+                edge = (center[0] - size[0] / 2, center[1])  # fixed seats are directly right of their owners
+                assert math.dist(end, edge) == pytest.approx(daylight)
                 checked += 1
-                pending = None
+                pending = {}
         assert checked
 
-    def test_default_marker_gap_uses_shared_automatic_formula(self):
+    def test_default_marker_gap_uses_shared_automatic_formula(self, monkeypatch):
+        from dysonsphere import _placement
         from dysonsphere.annotations import _automatic_marker_gap
 
-        theme(width=100, height=100)
-        df = pl.DataFrame({"x": [10.0, 50.0, 90.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
+        theme(width=100, height=100, viewPadding=False)
+        monkeypatch.setattr(
+            _placement, "_repel_labels", lambda anchors, sizes, **kwargs: [(x + 20, y) for x, y in anchors]
+        )
+        df = pl.DataFrame({"x": [10.0, 40.0, 70.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
         spec = labels(
             df,
             "x",
@@ -307,7 +315,7 @@ class TestLabels:
             xDomain=(0.0, 100.0),
             yDomain=(0.0, 100.0),
         ).to_dict()
-        anchors = [(10.0, 20.0), (50.0, 80.0), (90.0, 40.0)]
+        anchors = [(10.0, 20.0), (40.0, 80.0), (70.0, 40.0)]
         starts = [
             (encoding["x"]["datum"], encoding["y"]["datum"])
             for layer in spec["layer"]

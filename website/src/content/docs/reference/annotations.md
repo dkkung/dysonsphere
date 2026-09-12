@@ -240,14 +240,15 @@ def labels(
 
 Auto-place non-overlapping text labels for a set of points, with connector lines.
 
-Force-directed placement (deterministic - reproducible figures) nudges each label off its
-point and away from the others, drawing a thin leader line from each point to its label. Every
-requested label is shown (never dropped); in an impossibly dense region labels settle at their
-least-overlapping positions. Returns a layer to compose onto the base chart with ``+``.
+A deterministic bounded search seats each label near its point while avoiding points, labels,
+and connector crossings, drawing a thin leader line from each point to its label. Every
+requested label is shown (never dropped); labels may overlap when the candidate seats cannot fit
+the requested text. Returns a layer to compose onto the base chart with ``+``.
 
-Placement is solved in pixels before Vega renders, but each label is emitted as a pixel offset
-from its own marker, so it lands correctly on whatever scale the base chart uses and the base's
-axes are left alone. Just compose ``base + ds.labels(data, ...)``.
+Placement is modeled in pixels before Vega renders, then emitted as data coordinates so reflected
+scales and native composition continue to work and the base's axis titles are left alone.
+Text bounds are portable estimates, not measurements of the installed font. Rebuild the layer
+when changing font or panel geometry; it cannot inspect marks in sibling layers.
 
 **Parameters**
 
@@ -256,12 +257,12 @@ axes are left alone. Just compose ``base + ds.labels(data, ...)``.
 - **`y`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
 - **`labels`** (`str`) - Column holding the label text.
 - **`subset`** (`int | list[Any] | Any | None`) - Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n` rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **boolean mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry per row of ``data``) selects rows **positionally** - decoupled from ``labels``, so a non-unique label column still picks exactly the intended rows (e.g. ``subset=data["is_hit"]``); any other **list** labels the rows whose ``labels`` value is in it (e.g. ``subset=["TP53", "EGFR"]``, which needs a unique ``labels``). Pass the full plotted ``data`` and let ``subset`` do the selecting: obstacles and the axis domain both span all of ``data``, so the labels dodge EVERY plotted point (not just the labelled subset) and selecting a subset never clips the axes.
-- **`xDomain`** (`tuple[float, float] | None`) - ``(min, max)`` the placement solver assumes the base chart will render. Default: the extent of ``data``'s ``x`` / ``y``. A mismatch only degrades collision avoidance - labels stay attached to their markers either way. Pass explicitly when the base chart's domain differs from ``data``'s extent (a zoomed axis, or derived positions like centroids).
-- **`yDomain`** (`tuple[float, float] | None`) - ``(min, max)`` the placement solver assumes the base chart will render. Default: the extent of ``data``'s ``x`` / ``y``. A mismatch only degrades collision avoidance - labels stay attached to their markers either way. Pass explicitly when the base chart's domain differs from ``data``'s extent (a zoomed axis, or derived positions like centroids).
+- **`xDomain`** (`tuple[float, float] | None`) - ``(min, max)`` mapping assumptions for a base chart with an explicitly matching domain. By default the solver models a standard linear quantitative scale including zero and the theme's view padding. Pass these when the base uses a nondefault explicit domain, with ``zero=False`` on the base if the supplied bounds exclude zero. Nonlinear scales, different padding/nice settings, or unmatched explicit domains fall outside the pixel collision model.
+- **`yDomain`** (`tuple[float, float] | None`) - ``(min, max)`` mapping assumptions for a base chart with an explicitly matching domain. By default the solver models a standard linear quantitative scale including zero and the theme's view padding. Pass these when the base uses a nondefault explicit domain, with ``zero=False`` on the base if the supplied bounds exclude zero. Nonlinear scales, different padding/nice settings, or unmatched explicit domains fall outside the pixel collision model.
 - **`fontSize`** (`float | None`) - Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
 - **`fontStyle`** (`str | None`) - Label font style, e.g. ``"italic"`` (gene / species names) or ``"bold"``. ``None`` (default) inherits the theme's ``mark_text`` (upright). Applies to every label.
 - **`color`** (`str | None`) - Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware black/white).
-- **`fill`** (`str | bool`) - Background fill behind each label (a rect chip - useful over a dense scatter). ``False`` (default) -> none; ``True`` -> a darkmode-aware default (``greys[0]`` light / ``greys[11]`` dark); a string -> that color. Read at build time (like ``shade``), so a ``save()`` across backgrounds needs a callable. The connector meets the chip's edge, and the text is centred inside the chip (overriding the side justification a bare label would use).
+- **`fill`** (`str | bool`) - Background fill behind each label (a rect chip - useful over a dense scatter). ``False`` (default) -> none; ``True`` -> a darkmode-aware default (``greys[0]`` light / ``greys[11]`` dark); a string -> that color. Read at build time (like ``shade``), so a ``save()`` across backgrounds needs a callable. The connector meets the chip's edge, and the text is centred inside the chip. Bare labels are centered too, keeping modeled boxes consistent when an axis is reflected.
 - **`fillOpacity`** (`float`) - Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
 - **`stroke`** (`str | bool`) - Border of the background chip. ``True`` (default) -> a darkmode-aware default (``"black"`` light / ``"white"`` dark); ``False`` -> no border; a string -> that color. Only takes effect when a chip is drawn (i.e. when ``fill`` is set).
 - **`cornerRadius`** (`float | bool`) - Corner rounding of the background chip. ``True`` (default) -> ``fontSize * 0.25``; ``False`` -> ``0`` (square); an explicit float -> that radius in px. Ignored when no chip is drawn.
@@ -271,7 +272,7 @@ axes are left alone. Just compose ``base + ds.labels(data, ...)``.
 - **`connectorOpacity`** (`float | None`) - Connector line opacity, ``0``-``1``. ``None`` (default) -> inherits the theme's ``mark_rule`` opacity (opaque). Sets only the mark opacity, leaving the (darkmode-aware) color intact, so a faded leader - e.g. ``connectorOpacity=0.5`` to quiet the leaders relative to the labels - stays legible in both light and dark mode.
 - **`connectorStrokeDash`** (`bool | list[int | float]`) - Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth`` pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
 - **`connectorGap`** (`float | None`) - Pixel gap left at the MARKER end of the connector so it points at the dot rather than piercing it. ``None`` (default) -> the theme's ``mark_point`` edge radius plus two connector stroke widths of whitespace (``sqrt(markSize/2/pi) + markStrokeWidth + 2*axisWidth``), which clears the default point mark (and the smaller ``mark_circle``) with a visible sliver of daylight at any theme scale; ``0`` -> no marker gap; a float -> that many pixels (set this for unusually large or heavily stroked markers, which the gap can't measure since the base chart isn't visible here). The TEXT end always keeps just the whitespace term (``2*axisWidth`` - there is no marker to clear there, so a symmetric gap would open a hole between line and label). Both gaps are uniform - they never shrink, so every drawn connector sits the same distance off its dot and its label; a connector too short to keep the full gaps is dropped instead (see ``alwaysShowConnectors``).
-- **`alwaysShowConnectors`** (`bool`) - By default (``False``) a connector is omitted when the full end gaps would leave less than four connector stroke widths of visible line (length < ``connectorGap + 6*axisWidth``, i.e. < 1 px of line at the default theme) - the stub is just noise and the adjacent label is unambiguous. This threshold is font-independent (tied to the marker gap), so changing the label font never drops real leaders. ``True`` draws every one (sub-threshold stubs shrink their gaps to fit).
+- **`alwaysShowConnectors`** (`bool`) - By default (``False``) a connector is omitted when the full end gaps would leave less than four connector stroke widths of visible line (length < ``connectorGap + 6*axisWidth``, i.e. < 1 px of line at the default theme) - the stub is just noise and the adjacent label is unambiguous. This threshold is font-independent (tied to the marker gap), so changing the label font never drops real leaders. ``True`` reserves candidate room for the complete marker gap, text gap, and visible stroke. Clearances never shrink; if the requested gap or label cannot fit in the panel, that geometrically impossible connector is omitted.
 
 ## `shade`
 

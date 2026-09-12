@@ -228,6 +228,14 @@ notes are local working material, not dependencies of this framework or part of 
   a list of label values matches rows by those values. Keep one selector, not separate number
   and subset controls. The full input data still supplies placement obstacles. Returns
   `alt.LayerChart`.
+- Point labels use a deterministic bounded candidate search, centered text estimates, and straight
+  connectors that can slide along the visible label boundary to avoid other points. Collision boxes
+  include conservative safety padding, while connectors attach to tighter estimated text bounds or
+  the actual chip edge. Forced connectors reserve full clearances and visible stroke rather than
+  shrinking gaps; geometrically impossible connectors are omitted. Placement models standard linear
+  scales, including zero and theme view padding; explicit `xDomain`/`yDomain` must match the base's scale assumptions.
+  It cannot inspect sibling marks or custom scales, measure arbitrary installed fonts, or guarantee
+  a collision-free layout in an overfull panel. Rebuild labels after geometry-related theme changes.
 - Volcano uses the same labels/content-column and subset/selection vocabulary. Its log2fc and
   pvalue inputs name columns containing log2 fold changes and raw p-values; do not imply arbitrary
   effect-size support. Label content may identify any measured feature, not only genes/proteins.

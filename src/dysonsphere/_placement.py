@@ -1,21 +1,274 @@
-"""Pixel-space label placement - the pure geometry engine behind ``annotations.labels``.
+"""Pure pixel-space geometry and bounded search for point-label placement."""
 
-No Altair imports here: everything takes and returns plain pixel coordinates, mirroring how
-``_statistics.py`` is the pure computation engine behind ``stats.py``. Placement is solved
-outside the renderer (like ggrepel / adjustText / d3-labeler) because Vega-Lite has no
-label-repel primitive; the wrapper feeds the results back to Altair as static positions.
-"""
+from __future__ import annotations
 
-TARGET_GAP = 5.0
-W_CROWD = 3.0
-W_MARKER = 400.0
-W_LABEL = 5000.0
-W_DIR = 10.0
-POINT_R = 3.0
-W_OCCL = 0.0  # leader passing through another label's box
-W_CROSS = 0.0  # leader-leader crossing
-W_LEN2 = 0.15  # superlinear leader-length cost beyond LEN_FREE px
-LEN_FREE = 12.0
+import math
+import unicodedata
+
+import numpy as np
+from numpy.typing import NDArray
+
+# ASCII advances (U+0020 through U+007E) in thousandths of an em, measured from Helvetica Neue
+# Regular. Literal metrics keep the default-font estimate portable, including in Pyodide. Other
+# sans faces may differ; collision padding is separate from these typographic attachment bounds.
+_SANS_ADVANCES = (
+    278,
+    259,
+    426,
+    556,
+    556,
+    1000,
+    630,
+    278,
+    259,
+    259,
+    352,
+    600,
+    278,
+    389,
+    278,
+    333,
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    278,
+    278,
+    600,
+    600,
+    600,
+    556,
+    800,
+    648,
+    685,
+    722,
+    704,
+    611,
+    574,
+    759,
+    722,
+    259,
+    519,
+    667,
+    556,
+    871,
+    722,
+    760,
+    648,
+    760,
+    685,
+    648,
+    574,
+    722,
+    611,
+    926,
+    611,
+    648,
+    611,
+    259,
+    333,
+    259,
+    600,
+    500,
+    222,
+    537,
+    593,
+    537,
+    593,
+    537,
+    296,
+    574,
+    556,
+    222,
+    222,
+    519,
+    222,
+    853,
+    556,
+    574,
+    593,
+    593,
+    333,
+    500,
+    315,
+    556,
+    500,
+    758,
+    518,
+    500,
+    480,
+    333,
+    222,
+    333,
+    600,
+)
+
+
+def _estimate_text_size(
+    text: str,
+    font_size: float,
+    *,
+    chip: bool = False,
+    font_family: str | None = None,
+    font_weight: str | int | float | None = None,
+    font_style: str | None = None,
+) -> tuple[float, float]:
+    """Return a conservatively padded collision box for one rendered label."""
+    width, height = _estimate_attachment_size(
+        text,
+        font_size,
+        chip=chip,
+        font_family=font_family,
+        font_weight=font_weight,
+        font_style=font_style,
+    )
+    if chip:
+        return width, height
+    return width + font_size * 0.35, max(height, font_size * 1.2)
+
+
+def _estimate_attachment_size(
+    text: str,
+    font_size: float,
+    *,
+    chip: bool = False,
+    font_family: str | None = None,
+    font_weight: str | int | float | None = None,
+    font_style: str | None = None,
+) -> tuple[float, float]:
+    """Estimate typographic attachment bounds separately from collision padding."""
+    family = (font_family or "sans-serif").split(",", 1)[0].strip(" \"'").lower()
+    monospace = "mono" in family or "courier" in family
+    sans = family in ("sans-serif", "arial", "helvetica", "helvetica neue", "helveticaneue")
+    width = 0.0
+    for char in text:
+        codepoint = ord(char)
+        if unicodedata.combining(char):
+            advance = 0.0
+        elif unicodedata.east_asian_width(char) in ("W", "F"):
+            advance = 1.0
+        elif monospace:
+            advance = 0.62
+        elif sans and 32 <= codepoint <= 126:
+            advance = _SANS_ADVANCES[codepoint - 32] / 1000.0
+        elif char.isspace():
+            advance = 0.32
+        elif char in "ilIjtfr.,:;'|!()[]{}":
+            advance = 0.34
+        elif char in "mwMW@%&QO0":
+            advance = 0.9
+        elif char.isupper():
+            advance = 0.7
+        else:
+            advance = 0.6
+        width += advance * font_size
+    if font_weight in ("bold", "bolder") or isinstance(font_weight, (int, float)) and font_weight >= 600:
+        width *= 1.06
+    if font_style in ("italic", "oblique"):
+        width += font_size * 0.12
+    if chip:
+        return width + font_size * 0.7, font_size * 1.4
+    return max(width, font_size * 0.25), font_size
+
+
+def _shortened_segment(
+    anchor: tuple[float, float],
+    center: tuple[float, float],
+    size: tuple[float, float],
+    marker_gap: float,
+    text_gap: float,
+    *,
+    stroke_width: float = 0.25,
+    obstacles: list[tuple[float, float]] | NDArray[np.float64] | None = None,
+    point_radius: float = 0.0,
+) -> tuple[tuple[float, float], tuple[float, float]] | None:
+    """Choose a short straight connector among sampled visible boundary attachments."""
+    cx, cy = center
+    hw, hh = size[0] / 2.0, size[1] / 2.0
+    # Near-axis corner approaches resemble detached underlines. Prefer readable edge-body ports,
+    # but allow a facing corner when the route is genuinely diagonal to both adjacent edges.
+    inset = min(hw, hh)
+    xlo, xhi = cx - hw + inset, cx + hw - inset
+    projected_x = min(max(anchor[0], xlo), xhi)
+    preferred: list[tuple[float, float]] = []
+    attachments: list[tuple[float, float]] = []
+    spacing = max(2.0 * point_radius + stroke_width, 0.5)
+    for x, visible in ((cx - hw, anchor[0] <= cx - hw), (cx + hw, anchor[0] >= cx + hw)):
+        if visible:
+            preferred.append((x, cy))
+            attachments.extend(((x, cy - hh * 0.5), (x, cy + hh * 0.5)))
+    for y, visible in ((cy - hh, anchor[1] <= cy - hh), (cy + hh, anchor[1] >= cy + hh)):
+        if visible:
+            preferred.append((projected_x, y))
+            for offset in (-2.0 * spacing, -spacing, spacing, 2.0 * spacing):
+                attachments.append((min(max(projected_x + offset, xlo), xhi), y))
+    for x, x_visible in ((cx - hw, anchor[0] < cx - hw), (cx + hw, anchor[0] > cx + hw)):
+        for y, y_visible in ((cy - hh, anchor[1] < cy - hh), (cy + hh, anchor[1] > cy + hh)):
+            dx, dy = abs(x - anchor[0]), abs(y - anchor[1])
+            # Both faces must face the anchor. Exclude only essentially edge-parallel approaches
+            # (within about 6 degrees), not the shallow but readable diagonals of short leaders.
+            if x_visible and y_visible and min(dx, dy) >= 0.1 * max(dx, dy):
+                preferred.append((x, y))
+    if not preferred:
+        # A label covering its anchor is already an infeasible overlap. A connector through the
+        # label's own interior cannot explain the association more clearly.
+        return None
+    nearest = min(preferred, key=lambda p: math.dist(anchor, p))
+    attachments = list(dict.fromkeys([*preferred, *attachments]))
+
+    def shorten(end: tuple[float, float]):
+        length = math.dist(anchor, end)
+        gm, gt = marker_gap, text_gap
+        if length < gm + gt + 4.0 * stroke_width:
+            return None
+        if length <= 0:
+            return anchor, anchor
+        ux, uy = (end[0] - anchor[0]) / length, (end[1] - anchor[1]) / length
+        return (anchor[0] + ux * gm, anchor[1] + uy * gm), (end[0] - ux * gt, end[1] - uy * gt)
+
+    points = np.asarray(obstacles if obstacles is not None else [], dtype=float).reshape(-1, 2)
+    radius = point_radius + stroke_width / 2
+    low = np.minimum(anchor, (cx - hw, cy - hh)) - radius
+    high = np.maximum(anchor, (cx + hw, cy + hh)) + radius
+    points = points[((points >= low) & (points <= high)).all(axis=1)]
+    if not isinstance(obstacles, np.ndarray):
+        points = np.unique(points, axis=0)
+    points = points[np.linalg.norm(points - anchor, axis=1) > 1e-9]
+    nearest_line = shorten(nearest)
+    if nearest_line is None or not len(points):
+        return nearest_line
+    start, finish = np.asarray(nearest_line)
+    vec = finish - start
+    length2 = float(vec @ vec)
+    t = np.clip((points - start) @ vec / length2, 0, 1) if length2 else np.zeros(len(points))
+    if np.all(np.linalg.norm(points - start - t[:, None] * vec, axis=1) >= point_radius + stroke_width / 2):
+        # Keep the readable edge-body attachment when clear; sliding is an obstacle fallback.
+        return nearest_line
+    lines = [shorten(end) for end in attachments]
+    active = np.array([line is not None for line in lines])
+    starts = np.array([line[0] if line is not None else anchor for line in lines])
+    ends = np.array([line[1] if line is not None else anchor for line in lines])
+    vec = ends - starts
+    length2 = np.sum(vec * vec, axis=1)
+    relative = points[None, :, :] - starts[:, None, :]
+    t = np.divide(
+        np.sum(relative * vec[:, None, :], axis=2),
+        length2[:, None],
+        out=np.zeros((len(lines), len(points))),
+        where=length2[:, None] > 0,
+    )
+    nearest = starts[:, None, :] + np.clip(t, 0, 1)[:, :, None] * vec[:, None, :]
+    hits = (
+        (np.linalg.norm(points[None, :, :] - nearest, axis=2) < point_radius + stroke_width / 2) & active[:, None]
+    ).sum(axis=1)
+    pick = int(np.lexsort((length2, hits))[0])
+    return lines[pick]
 
 
 def _repel_labels(
@@ -24,316 +277,191 @@ def _repel_labels(
     *,
     width: float,
     height: float,
-    obstacles: "list[tuple[float, float]] | None" = None,
-    iterations: int = 300,
+    obstacles: list[tuple[float, float]] | None = None,
+    point_radius: float = 3.0,
+    marker_gap: float = 0.0,
+    text_gap: float = 0.0,
+    connector: bool = True,
+    always_show: bool = False,
+    stroke_width: float = 0.25,
+    attachment_sizes: list[tuple[float, float]] | None = None,
 ) -> list[tuple[float, float]]:
-    """Nearest-clear-spot label placement (deterministic) - the engine behind :func:`annotations.labels`.
+    """Place every label using a deterministic, finite geometry-aware candidate search.
 
-    ``anchors`` are the pixel positions of the points being labelled, ``sizes`` each label's
-    ``(width, height)`` box, ``obstacles`` all plotted points to avoid covering (default:
-    ``anchors``). Origin top-left, y growing downward. Returns one label-CENTRE position per anchor.
-
-    Greedy takes the nearest ring with a clear spot and the roomiest candidate in it; 2-opt then
-    swaps slot ownership and a move pass relocates single labels, alternating to convergence. Cost
-    is connector length plus penalties for covering a marker (``W_MARKER``), crowding another label
-    (``W_CROWD`` below ``TARGET_GAP``), a leader passing through another label's box (``W_OCCL``),
-    leader-leader crossings (``W_CROSS``), and sitting inward of the mark (``W_DIR``). Never drops
-    a label. ``iterations`` is unused (kept for call compatibility).
+    Boxes remain in the panel whenever they fit. The score treats label/point overlap and every
+    symmetric label/connector collision as defects before minimizing visible connector length.
+    The search has fixed bounded passes and retains oversized labels at the panel center.
     """
     import numpy as np
 
     n = len(anchors)
     if n == 0:
         return []
-    a = np.array(anchors, dtype=float)
-    obs = np.array(obstacles if obstacles is not None else anchors, dtype=float)
-    half = np.array(sizes, dtype=float) / 2.0 + 2.0
-    centroid = obs.mean(axis=0)
-    near_r = 0.3 * min(width, height)
-    local = np.array([int((np.hypot(obs[:, 0] - a[i, 0], obs[:, 1] - a[i, 1]) < near_r).sum()) for i in range(n)])
-    order = list(np.argsort(local, kind="stable"))
-    radii = np.arange(0.0, 0.6 * float(np.hypot(width, height)), 1.5)
-    base_ang = np.linspace(0.0, 2.0 * np.pi, 36, endpoint=False)
+    a = np.asarray(anchors, dtype=float)
+    obs = np.asarray(obstacles if obstacles is not None else anchors, dtype=float).reshape(-1, 2)
+    # Coincident rows paint the same obstacle; duplicates must not multiply a geometric penalty.
+    obs = np.unique(obs, axis=0)
+    sz = np.asarray(sizes, dtype=float)
+    attach_sz = np.asarray(attachment_sizes if attachment_sizes is not None else sizes, dtype=float)
+    half = sz / 2.0
 
-    def angles_for(idx):
-        v = a[idx] - centroid
-        if np.hypot(v[0], v[1]) < 0.05 * min(width, height):
-            d = a[idx] - obs
-            dist = np.hypot(d[:, 0], d[:, 1])
-            m = (dist > 1e-9) & (dist < near_r)
-            v = (d[m] * (1.0 / dist[m] ** 2)[:, None]).sum(axis=0) if m.any() else np.array([0.0, -1.0])
-        oa = float(np.arctan2(v[1], v[0])) if np.hypot(v[0], v[1]) > 1e-9 else -np.pi / 2.0
-        diff = np.abs((base_ang - oa + np.pi) % (2.0 * np.pi) - np.pi)
-        return base_ang[np.argsort(diff, kind="stable")]
-
-    # candidate grid per label, precomputed once (deterministic, outward-ordered)
-    cand = {}
-    for k in range(n):
-        angs = angles_for(k)
-        cx = a[k, 0] + np.outer(radii, np.cos(angs)).ravel()
-        cy = a[k, 1] + np.outer(radii, np.sin(angs)).ravel()
+    def candidates(k: int) -> np.ndarray:
         hw, hh = half[k]
-        ok = (cx - hw >= 0) & (cx + hw <= width) & (cy - hh >= 0) & (cy + hh <= height)
-        cand[k] = (cx[ok], cy[ok])
-
-    def marker_hits_vec(k, cx, cy):
-        hw, hh = half[k, 0] + POINT_R, half[k, 1] + POINT_R
-        return ((np.abs(obs[None, :, 0] - cx[:, None]) < hw) & (np.abs(obs[None, :, 1] - cy[:, None]) < hh)).sum(1)
-
-    def unary_vec(k, cx, cy):
-        L = np.hypot(cx - a[k, 0], cy - a[k, 1])
-        t = L + W_LEN2 * np.maximum(L - LEN_FREE, 0.0) ** 2 + W_MARKER * marker_hits_vec(k, cx, cy)
-        ox, oy = a[k, 0] - centroid[0], a[k, 1] - centroid[1]
-        onrm = float(np.hypot(ox, oy))
-        if onrm > 1e-9:
-            inward = -((cx - a[k, 0]) * ox + (cy - a[k, 1]) * oy) / onrm
-            t = t + W_DIR * np.maximum(inward, 0.0)
-        return t
-
-    def _seg_box(p0x, p0y, p1x, p1y, bcx, bcy, bhx, bhy):
-        """segment p0->p1 (arrays) vs AABB centre b, half-extents h (arrays) -> bool, broadcast."""
-        dx = (p1x - p0x) / 2.0
-        dy = (p1y - p0y) / 2.0
-        mx = (p0x + p1x) / 2.0 - bcx
-        my = (p0y + p1y) / 2.0 - bcy
-        adx, ady = np.abs(dx), np.abs(dy)
-        out = (np.abs(mx) <= bhx + adx) & (np.abs(my) <= bhy + ady)
-        return out & (np.abs(dx * my - dy * mx) <= bhx * ady + bhy * adx + 1e-9)
-
-    def _seg_seg(p0x, p0y, p1x, p1y, q0x, q0y, q1x, q1y):
-        """proper segment-segment intersection (arrays, broadcast) -> bool."""
-
-        def orient(ax_, ay_, bx_, by_, cx_, cy_):
-            return (bx_ - ax_) * (cy_ - ay_) - (by_ - ay_) * (cx_ - ax_)
-
-        d1 = orient(q0x, q0y, q1x, q1y, p0x, p0y)
-        d2 = orient(q0x, q0y, q1x, q1y, p1x, p1y)
-        d3 = orient(p0x, p0y, p1x, p1y, q0x, q0y)
-        d4 = orient(p0x, p0y, p1x, p1y, q1x, q1y)
-        return ((d1 > 0) != (d2 > 0)) & ((d3 > 0) != (d4 > 0))
-
-    def pair_one(k, cp, q, cq):
-        """full pair cost (crowding + occlusion both ways + crossing) of k at cp vs q at cq. Scalar
-        Python on purpose: 2-opt calls this per swap trial, where length-1 numpy is all overhead."""
-        khx, khy = float(half[k, 0]), float(half[k, 1])
-        qhx, qhy = float(half[q, 0]), float(half[q, 1])
-        g = max(abs(cp[0] - cq[0]) - (khx + qhx), abs(cp[1] - cq[1]) - (khy + qhy))
-        c = W_LABEL if g < 0.0 else (W_CROWD * (TARGET_GAP - g) ** 2 if g < TARGET_GAP else 0.0)
-        if not (W_OCCL or W_CROSS):
-            return c
-
-        def seg_box(p0x, p0y, p1x, p1y, bx, by, bhx, bhy):
-            dx = (p1x - p0x) / 2.0
-            dy = (p1y - p0y) / 2.0
-            mx = (p0x + p1x) / 2.0 - bx
-            my = (p0y + p1y) / 2.0 - by
-            adx, ady = abs(dx), abs(dy)
-            if abs(mx) > bhx + adx or abs(my) > bhy + ady:
-                return False
-            return abs(dx * my - dy * mx) <= bhx * ady + bhy * adx + 1e-9
-
-        akx, aky = float(a[k, 0]), float(a[k, 1])
-        aqx, aqy = float(a[q, 0]), float(a[q, 1])
-        if seg_box(akx, aky, cp[0], cp[1], cq[0], cq[1], qhx, qhy):
-            c += W_OCCL
-        if seg_box(aqx, aqy, cq[0], cq[1], cp[0], cp[1], khx, khy):
-            c += W_OCCL
-
-        def orient(ax_, ay_, bx_, by_, cx_, cy_):
-            return (bx_ - ax_) * (cy_ - ay_) - (by_ - ay_) * (cx_ - ax_)
-
-        d1 = orient(aqx, aqy, cq[0], cq[1], akx, aky)
-        d2 = orient(aqx, aqy, cq[0], cq[1], cp[0], cp[1])
-        d3 = orient(akx, aky, cp[0], cp[1], aqx, aqy)
-        d4 = orient(akx, aky, cp[0], cp[1], cq[0], cq[1])
-        if ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0)):
-            c += W_CROSS
-        return c
-
-    def pair_vec(k, cx, cy, others, opos):
-        """crowding + occlusion + crossing cost of candidates for k against fixed labels `others`"""
-        if not others:
-            return np.zeros(len(cx))
-        oc = np.array([opos[q] for q in others])
-        oh = half[list(others)]
-        gx = np.abs(cx[:, None] - oc[None, :, 0]) - (half[k, 0] + oh[None, :, 0])
-        gy = np.abs(cy[:, None] - oc[None, :, 1]) - (half[k, 1] + oh[None, :, 1])
-        g = np.maximum(gx, gy)
-        c = np.where(g < 0.0, W_LABEL, W_CROWD * np.maximum(TARGET_GAP - g, 0.0) ** 2)
-        tot = c.sum(1)
-        if not (W_OCCL or W_CROSS):
-            return tot
-        # k's candidate leader a[k]->(cx,cy) through other boxes
-        occl_a = _seg_box(
-            a[k, 0], a[k, 1], cx[:, None], cy[:, None], oc[None, :, 0], oc[None, :, 1], oh[None, :, 0], oh[None, :, 1]
+        # Edge-relative seats first; lateral variants let long labels attach near their ends without
+        # paying for an unnecessary trip to the text center. Larger rings are escape candidates.
+        values: list[tuple[float, float]] = []
+        minimum = max(text_gap, marker_gap + text_gap + 4.0 * stroke_width if always_show and connector else 0.25)
+        for extra in (minimum, minimum + 2.0, minimum + 5.0, minimum + 10.0, minimum + 20.0, minimum + 34.0):
+            gx, gy = hw + point_radius + extra, hh + point_radius + extra
+            for sx, sy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
+                base = a[k] + (sx * gx, sy * gy)
+                lateral = hh * 0.65 if sx else hw * 0.65
+                near_shift = max(lateral, 6.0)
+                for shift in (0.0, -near_shift, near_shift, -12.0, 12.0):
+                    values.append((base[0] + (0 if sx else shift), base[1] + (shift if sx else 0)))
+        # A sparse panel-wide grid provides escape seats not restricted to an anchor's neighborhood.
+        values.extend(
+            (float(x), float(y)) for x in np.linspace(hw, width - hw, 9) for y in np.linspace(hh, height - hh, 7)
         )
-        # others' fixed leaders a[q]->opos[q] through k's candidate box
-        oa = a[list(others)]
-        occl_b = _seg_box(
-            oa[None, :, 0],
-            oa[None, :, 1],
-            oc[None, :, 0],
-            oc[None, :, 1],
-            cx[:, None],
-            cy[:, None],
-            half[k, 0],
-            half[k, 1],
-        )
-        # leader-leader crossings
-        cross = _seg_seg(
-            a[k, 0], a[k, 1], cx[:, None], cy[:, None], oa[None, :, 0], oa[None, :, 1], oc[None, :, 0], oc[None, :, 1]
-        )
-        return tot + W_OCCL * (occl_a.sum(1) + occl_b.sum(1)) + W_CROSS * cross.sum(1)
-
-    # ---- greedy: roomiest clear candidate at the smallest radius that has one ----
-    result = [(0.0, 0.0)] * n
-    placed_pos, placed_ids = {}, []
-    per_ang = len(base_ang)
-    for idx in order:
-        cx_all, cy_all = cand[idx]
-        mk = marker_hits_vec(idx, cx_all, cy_all)
-        if placed_ids:
-            oc = np.array([placed_pos[q] for q in placed_ids])
-            oh = half[placed_ids]
-            gx = np.abs(cx_all[:, None] - oc[None, :, 0]) - (half[idx, 0] + oh[None, :, 0])
-            gy = np.abs(cy_all[:, None] - oc[None, :, 1]) - (half[idx, 1] + oh[None, :, 1])
-            g = np.maximum(gx, gy)
-            hits = (g < 0.0).sum(1)
-            room = g.min(1)
+        c = np.asarray(values)
+        if 2 * hw <= width:
+            c[:, 0] = np.clip(c[:, 0], hw, width - hw)
         else:
-            hits = np.zeros(len(cx_all), int)
-            room = np.full(len(cx_all), 1e9)
-        clear = (mk == 0) & (hits == 0)
-        if clear.any():
-            first = int(np.argmax(clear))  # candidates are radius-major
-            band = (np.arange(len(cx_all)) // per_ang) == (first // per_ang)
-            sel = np.where(clear & band)[0]
-            pick = sel[int(np.argmax(np.minimum(room[sel], TARGET_GAP * 3)))]  # roomiest in that ring
+            c[:, 0] = width / 2.0
+        if 2 * hh <= height:
+            c[:, 1] = np.clip(c[:, 1], hh, height - hh)
         else:
-            pick = int(np.argmin(mk + hits * 1000))
-        result[idx] = (float(cx_all[pick]), float(cy_all[pick]))
-        placed_pos[idx] = result[idx]
-        placed_ids.append(idx)
+            c[:, 1] = height / 2.0
+        return np.unique(c, axis=0)
 
-    def cost_of(k, pos, assign):
-        cx = np.array([pos[0]])
-        cy = np.array([pos[1]])
-        others = [q for q in range(n) if q != k]
-        return float(unary_vec(k, cx, cy)[0] + pair_vec(k, cx, cy, others, assign)[0])
+    cand = [candidates(k) for k in range(n)]
+    segment_cache: dict[tuple[int, float, float], tuple[tuple[float, float], tuple[float, float]] | None] = {}
 
-    def pair_all(mv, pos, Px, Py):
-        """pair cost of every label k at every slot s against label mv fixed at pos -> (n, n)."""
-        hx = half[:, 0][:, None]
-        hy = half[:, 1][:, None]
-        gx = np.abs(Px[None, :] - pos[0]) - (hx + half[mv, 0])
-        gy = np.abs(Py[None, :] - pos[1]) - (hy + half[mv, 1])
-        g = np.maximum(gx, gy)
-        c = np.where(g < 0.0, W_LABEL, W_CROWD * np.maximum(TARGET_GAP - g, 0.0) ** 2)
-        if not (W_OCCL or W_CROSS):
-            return c
-        occ_a = _seg_box(
-            a[:, 0][:, None], a[:, 1][:, None], Px[None, :], Py[None, :], pos[0], pos[1], half[mv, 0], half[mv, 1]
-        )
-        occ_b = _seg_box(a[mv, 0], a[mv, 1], pos[0], pos[1], Px[None, :], Py[None, :], hx, hy)
-        crs = _seg_seg(a[:, 0][:, None], a[:, 1][:, None], Px[None, :], Py[None, :], a[mv, 0], a[mv, 1], pos[0], pos[1])
-        return c + W_OCCL * (occ_a + occ_b) + W_CROSS * crs
-
-    P: list[tuple[float, float]] = []  # slot positions during a two_opt run (fixed; swaps permute assignment)
-
-    def two_opt():
-        """first-improvement 2-opt over slot assignments, evaluated from incremental matrices.
-
-        U2[k, s]: unary cost of label k at slot s. R[k, s]: pair cost of label k at slot s
-        against every OTHER label at its current position. Both stay valid across accepted
-        swaps except R's terms involving the two swapped labels, which are patched in place.
-        """
-        nonlocal result
-        if n < 2:
-            return False
-        P[:] = list(result)
-        Px = np.array([p_[0] for p_ in P])
-        Py = np.array([p_[1] for p_ in P])
-        slot_of = list(range(n))  # label k currently occupies slot slot_of[k]
-        U2 = np.stack([unary_vec(k, Px, Py) for k in range(n)])
-        R = np.zeros((n, n))
-        for k in range(n):
-            others = [q for q in range(n) if q != k]
-            R[k] = pair_vec(k, Px, Py, others, {q: P[slot_of[q]] for q in others})
-        moved = False
-        for _ in range(20):
-            improved = False
-            for i_ in range(n):
-                for j_ in range(i_ + 1, n):
-                    si, sj = slot_of[i_], slot_of[j_]
-                    # R rows include the partner at its OLD slot; swap both terms out/in
-                    old_c = U2[i_, si] + U2[j_, sj] + R[i_, si] + R[j_, sj] - pair_one(i_, P[si], j_, P[sj])
-                    new_c = (
-                        U2[i_, sj]
-                        + U2[j_, si]
-                        + R[i_, sj]
-                        - pair_one(i_, P[sj], j_, P[sj])
-                        + 0.0
-                        + R[j_, si]
-                        - pair_one(j_, P[si], i_, P[si])
-                        + pair_one(i_, P[sj], j_, P[si])
+    def segments(k: int, centers: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        lines = []
+        for c in centers:
+            key = (k, float(c[0]), float(c[1]))
+            if key not in segment_cache:
+                segment_cache[key] = (
+                    _shortened_segment(
+                        tuple(a[k]),
+                        tuple(c),
+                        tuple(attach_sz[k]),
+                        marker_gap,
+                        text_gap,
+                        stroke_width=stroke_width,
+                        obstacles=obs,
+                        point_radius=point_radius,
                     )
-                    if new_c < old_c - 1e-6:
-                        # patch every R row at once: labels i_ and j_ moved slots
-                        for mv, s_old, s_new in ((i_, si, sj), (j_, sj, si)):
-                            delta = pair_all(mv, P[s_new], Px, Py) - pair_all(mv, P[s_old], Px, Py)
-                            delta[[i_, j_], :] = 0.0
-                            R += delta
-                        slot_of[i_], slot_of[j_] = sj, si
-                        # the swapped labels' own rows contain the partner at its OLD slot in every
-                        # entry - the patch above skipped them, so rebuild both outright
-                        for mv in (i_, j_):
-                            others = [q for q in range(n) if q != mv]
-                            R[mv] = pair_vec(mv, Px, Py, others, {q: P[slot_of[q]] for q in others})
-                        improved = True
-                        moved = True
-            if not improved:
-                break
-        result = [P[slot_of[k]] for k in range(n)]
-        return moved
+                    if connector
+                    else None
+                )
+            lines.append(segment_cache[key])
+        active = np.array([line is not None for line in lines])
+        starts = np.array([line[0] if line is not None else a[k] for line in lines])
+        ends = np.array([line[1] if line is not None else a[k] for line in lines])
+        return starts, ends, active
 
-    _unary_cache: dict[int, "np.ndarray"] = {}
+    def seg_point_dist(start: np.ndarray, end: np.ndarray, points: np.ndarray) -> np.ndarray:
+        v = end - start
+        vv = np.sum(v * v, axis=1)
+        rel = points[None, :, :] - start[:, None, :]
+        t = np.divide(
+            np.sum(rel * v[:, None, :], axis=2),
+            vv[:, None],
+            out=np.zeros((len(start), len(points))),
+            where=vv[:, None] > 0,
+        )
+        near = start[:, None, :] + np.clip(t, 0, 1)[:, :, None] * v[:, None, :]
+        return np.linalg.norm(points[None, :, :] - near, axis=2)
 
-    def unary_cached(k):
-        if k not in _unary_cache:
-            cx_all, cy_all = cand[k]
-            _unary_cache[k] = unary_vec(k, cx_all, cy_all)
-        return _unary_cache[k]
+    def seg_box(start: np.ndarray, end: np.ndarray, centers: np.ndarray, h: np.ndarray) -> np.ndarray:
+        # Slab intersection, vectorized candidates x boxes.
+        d = end - start
+        lo = centers[None, :, :] - h[None, :, :]
+        hi = centers[None, :, :] + h[None, :, :]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t1 = (lo - start[:, None, :]) / d[:, None, :]
+            t2 = (hi - start[:, None, :]) / d[:, None, :]
+        parallel = np.abs(d[:, None, :]) < 1e-12
+        inside = (start[:, None, :] >= lo) & (start[:, None, :] <= hi)
+        axis_ok = (~parallel) | inside
+        enter = np.max(np.where(parallel, -np.inf, np.minimum(t1, t2)), axis=2)
+        leave = np.min(np.where(parallel, np.inf, np.maximum(t1, t2)), axis=2)
+        return axis_ok.all(axis=2) & (np.maximum(enter, 0.0) <= np.minimum(leave, 1.0))
 
-    def move_pass():
-        moved = False
-        for k in range(n):
-            cx_all, cy_all = cand[k]
+    static: list[np.ndarray] = []
+    for k, c in enumerate(cand):
+        dx = np.abs(c[:, None, 0] - obs[None, :, 0])
+        dy = np.abs(c[:, None, 1] - obs[None, :, 1])
+        label_point = ((dx < half[k, 0] + point_radius) & (dy < half[k, 1] + point_radius)).sum(axis=1)
+        start, end, active = segments(k, c)
+        connector_point = (seg_point_dist(start, end, obs) < point_radius + stroke_width / 2) & active[:, None]
+        connector_point[:, np.linalg.norm(obs - a[k], axis=1) < 1e-9] = False
+        distance = np.linalg.norm(np.maximum(np.abs(c - a[k]) - half[k], 0), axis=1)
+        route_length = np.linalg.norm(end - start, axis=1)
+        # Compactness also matters without drawn connectors. Count saturation bounds the influence
+        # of a dense, infeasible cloud rather than trading one text overlap for hundreds of dots.
+        static.append(
+            250_000.0 * np.minimum(label_point, 4)
+            + 60_000.0 * np.minimum(connector_point.sum(axis=1), 4)
+            + distance
+            + 0.1 * np.maximum(distance - 12, 0) ** 2
+            + route_length
+            + 0.5 * np.maximum(route_length - 12, 0) ** 2
+            + (20_000_000.0 * (~active) if always_show and connector else 0.0)
+        )
+
+    result = np.zeros((n, 2))
+    placed: list[int] = []
+
+    def pair_cost(k: int, c: np.ndarray, others: list[int]) -> np.ndarray:
+        if not others:
+            return np.zeros(len(c))
+        op = result[others]
+        oh = half[others]
+        overlap = (np.abs(c[:, None, 0] - op[None, :, 0]) < half[k, 0] + oh[:, 0]) & (
+            np.abs(c[:, None, 1] - op[None, :, 1]) < half[k, 1] + oh[:, 1]
+        )
+        start, end, active = segments(k, c)
+        through_other = seg_box(start, end, op, oh) & active[:, None]
+        total = 10_000_000.0 * overlap.sum(axis=1) + 120_000.0 * through_other.sum(axis=1)
+        for q in others:  # labels only (normally <=25), while candidate x point work stays vectorized
+            qs, qe, qactive = segments(q, result[q : q + 1])
+            if not qactive[0]:
+                continue
+            total += 120_000.0 * seg_box(qs, qe, c, np.broadcast_to(half[k], c.shape))[0]
+            v = end - start
+            w = qe[0] - qs[0]
+            den = v[:, 0] * w[1] - v[:, 1] * w[0]
+            rel = qs[0] - start
+            with np.errstate(divide="ignore", invalid="ignore"):
+                t = (rel[:, 0] * w[1] - rel[:, 1] * w[0]) / den
+                u = (rel[:, 0] * v[:, 1] - rel[:, 1] * v[:, 0]) / den
+            total += 30_000.0 * (active & (np.abs(den) > 1e-12) & (t > 0) & (t < 1) & (u > 0) & (u < 1))
+        return total
+
+    order = sorted(range(n), key=lambda k: (-sz[k, 0], k))
+    for k in order:
+        score = static[k] + pair_cost(k, cand[k], placed)
+        result[k] = cand[k][int(np.argmin(score))]
+        placed.append(k)
+    for _ in range(6):
+        changed = False
+        for k in order:
             others = [q for q in range(n) if q != k]
-            tot = unary_cached(k) + pair_vec(k, cx_all, cy_all, others, result)
-            b = int(np.argmin(tot))
-            if tot[b] < cost_of(k, result[k], result) - 1e-6:
-                result[k] = (float(cx_all[b]), float(cy_all[b]))
-                moved = True
-        return moved
-
-    for _ in range(8):
-        m = move_pass()
-        t = two_opt()
-        if not (m or t):
+            score = static[k] + pair_cost(k, cand[k], others)
+            chosen = cand[k][int(np.argmin(score))]
+            if not np.array_equal(chosen, result[k]):
+                result[k] = chosen
+                changed = True
+        if not changed:
             break
-    return [(float(cx), float(cy)) for cx, cy in result]
+    return [(float(p[0]), float(p[1])) for p in result]
 
 
 def _sample_spread(xs: list[float], ys: list[float], n: int) -> list[int]:
-    """Return the indices of ``n`` points spread as evenly as possible across the (x, y) extent -
-    farthest-point sampling, deterministic (no RNG).
-
-    Used by ``labels(subset=n)`` to auto-pick a readable, unbiased subset to label without the
-    caller cherry-picking. Preferred over a uniform random sample, which is density-weighted and so
-    would clump labels in the busiest region. Coordinates are normalized to a unit square (so x and
-    y weigh equally); the seed is the point nearest the low corner, then each next point is the one
-    farthest from all already-chosen. ``n >= len`` returns every index; ``n <= 0`` returns none.
-    """
+    """Return deterministic farthest-point sampling indices over the normalized extent."""
     import numpy as np
 
     total = len(xs)
@@ -345,8 +473,8 @@ def _sample_spread(xs: list[float], ys: list[float], n: int) -> list[int]:
     lo = pts.min(axis=0)
     span = pts.max(axis=0) - lo
     span[span == 0] = 1.0
-    p = (pts - lo) / span  # unit square
-    chosen = [int(np.argmin(p.sum(axis=1)))]  # deterministic seed: nearest the low corner
+    p = (pts - lo) / span
+    chosen = [int(np.argmin(p.sum(axis=1)))]
     dist = np.linalg.norm(p - p[chosen[0]], axis=1)
     for _ in range(n - 1):
         i = int(np.argmax(dist))

@@ -1008,7 +1008,7 @@ def text(
     return layers[0] if len(layers) == 1 else cast(alt.LayerChart, alt.layer(*layers))
 
 
-# Auto-placed point labels (force-repel)
+# Auto-placed point labels (bounded geometry search)
 
 
 def _bool_mask(labels: Any, n_rows: int) -> "list[bool] | None":
@@ -1061,14 +1061,15 @@ def labels(
 ) -> alt.LayerChart:
     """Auto-place non-overlapping text labels for a set of points, with connector lines.
 
-    Force-directed placement (deterministic - reproducible figures) nudges each label off its
-    point and away from the others, drawing a thin leader line from each point to its label. Every
-    requested label is shown (never dropped); in an impossibly dense region labels settle at their
-    least-overlapping positions. Returns a layer to compose onto the base chart with ``+``.
+    A deterministic bounded search seats each label near its point while avoiding points, labels,
+    and connector crossings, drawing a thin leader line from each point to its label. Every
+    requested label is shown (never dropped); labels may overlap when the candidate seats cannot fit
+    the requested text. Returns a layer to compose onto the base chart with ``+``.
 
-    Placement is solved in pixels before Vega renders, but each label is emitted as a pixel offset
-    from its own marker, so it lands correctly on whatever scale the base chart uses and the base's
-    axes are left alone. Just compose ``base + ds.labels(data, ...)``.
+    Placement is modeled in pixels before Vega renders, then emitted as data coordinates so reflected
+    scales and native composition continue to work and the base's axis titles are left alone.
+    Text bounds are portable estimates, not measurements of the installed font. Rebuild the layer
+    when changing font or panel geometry; it cannot inspect marks in sibling layers.
 
     Parameters
     ----------
@@ -1089,10 +1090,11 @@ def labels(
         selecting: obstacles and the axis domain both span all of ``data``, so the labels dodge EVERY
         plotted point (not just the labelled subset) and selecting a subset never clips the axes.
     xDomain, yDomain:
-        ``(min, max)`` the placement solver assumes the base chart will render. Default: the
-        extent of ``data``'s ``x`` / ``y``. A mismatch only degrades collision avoidance -
-        labels stay attached to their markers either way. Pass explicitly when the base chart's
-        domain differs from ``data``'s extent (a zoomed axis, or derived positions like centroids).
+        ``(min, max)`` mapping assumptions for a base chart with an explicitly matching domain.
+        By default the solver models a standard linear quantitative scale including zero and the
+        theme's view padding. Pass these when the base uses a nondefault explicit domain, with
+        ``zero=False`` on the base if the supplied bounds exclude zero. Nonlinear scales, different
+        padding/nice settings, or unmatched explicit domains fall outside the pixel collision model.
     fontSize:
         Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
     fontStyle:
@@ -1106,7 +1108,8 @@ def labels(
         (default) -> none; ``True`` -> a darkmode-aware default (``greys[0]`` light / ``greys[11]``
         dark); a string -> that color. Read at build time (like ``shade``), so a ``save()``
         across backgrounds needs a callable. The connector meets the chip's edge, and the text is
-        centred inside the chip (overriding the side justification a bare label would use).
+        centred inside the chip. Bare labels are centered too, keeping modeled boxes consistent
+        when an axis is reflected.
     fillOpacity:
         Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
     stroke:
@@ -1157,8 +1160,9 @@ def labels(
         four connector stroke widths of visible line (length < ``connectorGap + 6*axisWidth``,
         i.e. < 1 px of line at the default theme) - the stub is just noise and the adjacent label
         is unambiguous. This threshold is font-independent (tied to the marker gap), so changing
-        the label font never drops real leaders. ``True`` draws every one (sub-threshold stubs
-        shrink their gaps to fit).
+        the label font never drops real leaders. ``True`` reserves candidate room for the complete
+        marker gap, text gap, and visible stroke. Clearances never shrink; if the requested gap or
+        label cannot fit in the panel, that geometrically impossible connector is omitted.
 
     Raises
     ------
@@ -1172,7 +1176,13 @@ def labels(
     if connectorCap not in (None, "arrow"):
         raise ValueError(f"connectorCap must be 'arrow' or None, got {connectorCap!r}")
     df, xCol, yCol = data, x, y
-    from ._placement import _repel_labels, _sample_spread
+    from ._placement import (
+        _estimate_attachment_size,
+        _estimate_text_size,
+        _repel_labels,
+        _sample_spread,
+        _shortened_segment,
+    )
     from .utils import _ensure_polars, _nice_domain
 
     data = _ensure_polars(df)
@@ -1210,7 +1220,7 @@ def labels(
     # Text and connectors INHERIT the theme's mark_text / mark_rule config (darkmode-aware color,
     # rounded caps, axisWidth stroke, opaque) - resolved per render, so they track darkmode without
     # a callable. We only force the connector dash solid (never the theme's dashedRule) and apply an
-    # explicit color when the caller passes one. (align is set per-label below, by side.)
+    # explicit color when the caller passes one. Labels remain center-aligned below.
     text_kwargs: dict[str, Any] = {"fontSize": fs, "baseline": "middle"}
     if color is not None:
         text_kwargs["color"] = color
@@ -1233,33 +1243,78 @@ def labels(
     if n == 0:
         return cast(alt.LayerChart, alt.layer(_empty_layer()))
 
-    # Default domain: the full df's extent rounded OUTWARD to nice tick multiples (d3's nice(), via
-    # _nice_domain) - so the pinned axes read like Vega's own nice:true (round bounds, edge markers
-    # clear of the border) even though the scale spec says nice=False (the bounds ARE nice; pinning
-    # makes our rounding self-fulfilling, no need to match Vega bit-for-bit). An explicit
-    # xDomain/yDomain is used exactly as given (no nicing - the caller asked for those bounds).
-    x0, x1 = xDomain if xDomain is not None else _nice_domain(min(all_x), max(all_x))
-    y0, y1 = yDomain if yDomain is not None else _nice_domain(min(all_y), max(all_y))
+    # Standard quantitative scales include zero. Continuous padding is applied before rendering,
+    # where the shared spec pass suppresses implicit nice rounding. Explicit domains are caller
+    # assumptions for a matching base scale, including zero=False where the bounds exclude zero.
+    padding = float(_opt("viewPadding"))
+
+    def domain(values: list[float], explicit: tuple[float, float] | None) -> tuple[float, float]:
+        if explicit is not None:
+            return explicit
+        lo, hi = min(0.0, min(values)), max(0.0, max(values))
+        return (lo, hi) if padding else _nice_domain(lo, hi)
+
+    x0, x1 = domain(all_x, xDomain)
+    y0, y1 = domain(all_y, yDomain)
     xspan = x1 - x0 or 1.0
     yspan = y1 - y0 or 1.0
+    xpad, ypad = min(padding, width / 2.0 - 1e-6), min(padding, height / 2.0 - 1e-6)
+    xlength, ylength = width - 2 * xpad, height - 2 * ypad
 
     def to_px(x: float, y: float) -> tuple[float, float]:
-        # Match Vega's linear map with a pinned domain: x -> [0, width], y inverted -> [height, 0].
-        return ((x - x0) / xspan * width, height - (y - y0) / yspan * height)
+        return (xpad + (x - x0) / xspan * xlength, height - ypad - (y - y0) / yspan * ylength)
 
     def px_to_x(px: float) -> float:
-        return x0 + px / width * xspan
+        return x0 + (px - xpad) / xlength * xspan
 
     def px_to_y(py: float) -> float:
-        return y0 + (height - py) / height * yspan
+        return y0 + (height - ypad - py) / ylength * yspan
 
     anchors = [to_px(x, y) for x, y in zip(xs, ys)]
     obstacles = [to_px(x, y) for x, y in zip(all_x, all_y)]  # ALL plotted points, so labels avoid them
-    sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in label_texts]  # rough text-box estimate
-    label_pos = _repel_labels(anchors, sizes, width=width, height=height, obstacles=obstacles)
+    effective_font_style = fontStyle if fontStyle is not None else _opt("fontStyle")
+    sizes = [
+        _estimate_text_size(
+            t,
+            fs,
+            chip=fill is not False,
+            font_family=_opt("font"),
+            font_weight=_opt("fontWeight"),
+            font_style=effective_font_style,
+        )
+        for t in label_texts
+    ]
+    attachment_sizes = [
+        _estimate_attachment_size(
+            t,
+            fs,
+            chip=fill is not False,
+            font_family=_opt("font"),
+            font_weight=_opt("fontWeight"),
+            font_style=effective_font_style,
+        )
+        for t in label_texts
+    ]
+    gap_cap = connectorGap if connectorGap is not None else _automatic_marker_gap()
+    daylight = 2.0 * _opt("axisWidth")
+    point_radius = math.sqrt(_opt("markSize") / (2.0 * math.pi)) + _opt("markStrokeWidth")
+    label_pos = _repel_labels(
+        anchors,
+        sizes,
+        width=width,
+        height=height,
+        obstacles=obstacles,
+        point_radius=point_radius,
+        marker_gap=gap_cap,
+        text_gap=daylight,
+        connector=connector,
+        always_show=alwaysShowConnectors,
+        stroke_width=float(_opt("axisWidth")),
+        attachment_sizes=attachment_sizes,
+    )
 
-    # Positions are data coordinates: contained in the panel on any scale. The stated domain
-    # matches the base's, kept only to suppress Vega-Lite's default nice:true.
+    # Raw domains preserve base-scale merging without introducing an implicit nice setting from
+    # each annotation layer. Datum positions do not add derived coordinates to the data extent.
     raw_x = alt.Scale(domain=[min(all_x), max(all_x)] if xDomain is None else list(xDomain))
     raw_y = alt.Scale(domain=[min(all_y), max(all_y)] if yDomain is None else list(yDomain))
 
@@ -1270,78 +1325,25 @@ def labels(
     bg = (fill_c, stroke_c, fillOpacity, cornerRadius) if fill_c is not None else None  # chip gated on fill
 
     layers: list[alt.Chart] = []
-    for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, label_texts):
-        hw, hh = w / 2, h / 2
-        dx, dy = ax - lx, ay - ly  # label centre -> point
-        # Attach the connector on the box side facing the point (aspect-aware: which edge a straight
-        # line to the point would cross). A left/right edge -> justify the text AWAY from the point,
-        # anchored at that edge, so it reads as flowing out of the connector and edits grow outward.
-        # A top/bottom edge (near-vertical connector, e.g. a label directly above its point) ->
-        # CENTRE-justify, connector to the middle of that edge - so the connector stays vertical and
-        # a center-justified edit keeps it aligned. The connector endpoint (ex, ey) is the box edge.
-        if hw > 0 and hh > 0 and abs(dx) / hw >= abs(dy) / hh:
-            align = "left" if dx <= 0 else "right"
-            text_x = ex = lx - hw if dx <= 0 else lx + hw
-            ey = ly
-        else:
-            align = "center"
-            text_x = ex = lx
-            ey = ly - hh if dy <= 0 else ly + hh
-        if bg is not None:
-            # With a chip, CENTRE the text inside it rather than anchoring it at the box edge: pin the
-            # text AND the chip at the box centre (lx) so they are concentric, and the text is exactly
-            # centred no matter how far the len*fs*0.6 width estimate is from the true glyph run. (An
-            # edge-anchored label drifts to one side of its chip when the estimate misjudges the run -
-            # e.g. wide all-caps like "NK" render wider than estimated and hug the far edge.) The
-            # connector endpoint (ex, ey) stays on the box edge, so it still meets the chip's edge.
-            align = "center"
-            text_x = lx
+    for (ax, ay), (lx, ly), (w, h), attachment_size, text in zip(
+        anchors, label_pos, sizes, attachment_sizes, label_texts
+    ):
+        align = "center"
+        text_x = lx
         if connector:
-            # Small gap at each end so the line points at the marker/label rather than piercing the
-            # dot or touching the glyphs. connectorGap (px) defaults to the theme's mark_point EDGE
-            # radius - sqrt(config.point.size/pi) = sqrt((markSize/2)/pi) plus the marker stroke -
-            # ASYMMETRIC end gaps, same daylight at both ends. Marker end: the mark_point edge
-            # radius (sqrt(config.point.size/pi) = sqrt((markSize/2)/pi)) + the marker stroke
-            # + 2*axisWidth of whitespace. Text end: just the 2*axisWidth whitespace - there is no
-            # marker to clear there, so a symmetric gap read as a hole between line and label.
-            # Every term scales with its visual referent: marker radius (markSize, itself
-            # chart-dimension-derived), marker stroke (markStrokeWidth), and daylight sized against
-            # the connector's OWN stroke (the connector inherits the theme mark_rule config, drawn
-            # at axisWidth). No fixed px constants. TWO axisWidths of daylight, not one: the rule's
-            # round cap paints axisWidth/2 beyond each endpoint (and the marker stroke
-            # markStrokeWidth/2 beyond its radius), so one axisWidth left only ~0.25px of true
-            # painted daylight at the default theme - sub-device-pixel in PNG exports, visible or
-            # not depending on the connector's angle (nonuniform-LOOKING gaps from uniform
-            # geometry, verified 2026-07-05). Two leaves ~0.5px painted daylight.
-            daylight = 2.0 * _opt("axisWidth")
-            gap_cap = connectorGap if connectorGap is not None else _automatic_marker_gap()
-            seg = math.hypot(ex - ax, ey - ay)  # point -> label box edge (the connector length)
-            # The gaps are UNIFORM - they never shrink, so every drawn connector sits the same
-            # visible distance off its dot and its label. (The old min(gap_cap, seg*0.25) shrink
-            # let short connectors - the nearest-clear-spot norm - start INSIDE the marker:
-            # nonuniform touching-vs-gapped dots across one chart.) A connector whose full gaps
-            # would leave less than 4 connector-stroke-widths of visible line (1px at the default
-            # theme) is dropped instead: the stub is noise and the adjacent label is unambiguous.
-            # All thresholds are FONT-INDEPENDENT (tied to marker/stroke geometry, not fontSize) so
-            # changing the label font never silently drops real leaders. alwaysShowConnectors
-            # forces every connector; forced sub-threshold stubs fall back to proportionally
-            # shrunken gaps so some line remains.
-            if seg >= gap_cap + daylight + 4.0 * _opt("axisWidth"):
-                g_mark: float | None = gap_cap
-                g_text = daylight
-            elif alwaysShowConnectors:
-                g_mark = min(gap_cap, seg * 0.25)
-                g_text = min(daylight, seg * 0.25)
-            else:
-                g_mark = None
-                g_text = 0.0
-            if g_mark is not None:
-                if seg > 0:
-                    ux, uy = (ex - ax) / seg, (ey - ay) / seg
-                    sx, sy = ax + ux * g_mark, ay + uy * g_mark
-                    tx, ty = ex - ux * g_text, ey - uy * g_text
-                else:
-                    sx, sy, tx, ty = ax, ay, ex, ey
+            # Placement and drawing share the same end gaps and short-connector policy.
+            segment = _shortened_segment(
+                (ax, ay),
+                (lx, ly),
+                attachment_size,
+                gap_cap,
+                daylight,
+                stroke_width=float(_opt("axisWidth")),
+                obstacles=obstacles,
+                point_radius=point_radius,
+            )
+            if segment is not None:
+                (sx, sy), (tx, ty) = segment
                 layers.append(
                     alt.Chart(_internal_data([{}]))
                     .mark_rule(**rule_kwargs)
@@ -1349,6 +1351,7 @@ def labels(
                 )
         if bg is not None:  # background rect behind the label (drawn after its connector, under the text)
             rk, xsh, ysh = _text_bg_props(text, fs, align, "middle", 0, 0, *bg)
+            rk.update(width=w, height=h)
             layers.append(
                 alt.Chart(_internal_data([{}]))
                 .mark_rect(**rk)
