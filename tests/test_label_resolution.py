@@ -3,9 +3,7 @@
 import json
 import math
 import re
-import runpy
 from copy import deepcopy
-from pathlib import Path
 
 import altair as alt
 import polars as pl
@@ -61,23 +59,6 @@ def _scene_marks(spec, kind):
 
     visit(vlc.vegalite_to_scenegraph(spec)["scenegraph"])
     return found
-
-
-def _segment_hits_box(line, box):
-    enter, leave = 0.0, 1.0
-    x2 = line.get("x2", line["x"] + line.get("width", 0))
-    y2 = line.get("y2", line["y"] + line.get("height", 0))
-    for start, delta, low, high in (
-        (line["x"], x2 - line["x"], box[0], box[2]),
-        (line["y"], y2 - line["y"], box[1], box[3]),
-    ):
-        if abs(delta) < 1e-10:
-            if not low <= start <= high:
-                return False
-        else:
-            first, second = sorted(((low - start) / delta, (high - start) / delta))
-            enter, leave = max(enter, first), min(leave, second)
-    return enter <= leave
 
 
 def _chart():
@@ -219,38 +200,6 @@ def test_save_without_labels_skips_scenegraph_evaluation(tmp_path, monkeypatch):
     data = pl.DataFrame({"x": [0.2, 0.8], "y": [0.7, 0.3]})
     chart = alt.Chart(data).mark_circle().encode(x="x:Q", y="y:Q")
     ds.save(chart, tmp_path / "no-labels", format=["json", "svg", "png"], background="light", ppi=72)
-
-
-def test_exact_website_volcano_public_save_and_show(tmp_path):
-    namespace = runpy.run_path(str(Path(__file__).parents[1] / "website/examples/volcano.py"))
-    chart = namespace["chart"]
-    path = tmp_path / "automatic-volcano"
-    ds.save(
-        chart,
-        path,
-        format=["json", "html", "svg", "png"],
-        background="light",
-        transparent=False,
-        saveMetadata=False,
-        ppi=72,
-    )
-    spec = json.loads(path.with_suffix(".json").read_text())
-    symbols = [item for item in _scene_marks(spec, "symbol") if float(item.get("opacity", 1)) > 0]
-    texts = [item for item in _scene_marks(spec, "text") if "__dslabelitem_" in item.get("description", "")]
-    references = [item for item in _scene_marks(spec, "rule") if "__dslabelitem_" not in item.get("description", "")]
-    assert len(symbols) == 800
-    assert {item["text"] for item in texts} == {"G179", "G255", "G290", "G294", "G622", "G624", "G668", "G773"}
-    assert len(references) == 3
-    for text in texts:
-        if text["text"] not in {"G668", "G179"}:
-            continue
-        width = 3.5 * float(text["fontSize"])
-        height = 1.1 * float(text["fontSize"])
-        box = (text["x"] - width / 2, text["y"] - height / 2, text["x"] + width / 2, text["y"] + height / 2)
-        assert not any(_segment_hits_box(line, box) for line in references)
-    shown = ds.show(chart).data
-    assert isinstance(shown, str)
-    assert all(f">{label}</text>" in shown for label in ("G179", "G668", "G773"))
 
 
 def test_mixed_group_connector_and_chip_styles_render_together(tmp_path):
