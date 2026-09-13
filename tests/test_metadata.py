@@ -235,10 +235,10 @@ class TestSaveUsermeta:
         # environment["dysonsphere-extensions"] with its version, grouped directly after dysonsphere.
         import types
 
-        from dysonsphere import discovery, ext
+        from dysonsphere import ext
 
         fake = types.SimpleNamespace(dist=types.SimpleNamespace(version="9.9.9"))
-        monkeypatch.setattr(discovery, "_extension_entry_points", lambda: {"biology": fake})
+        monkeypatch.setattr(ext, "_extension_entry_points", lambda: {"biology": fake})
         save(ext.tag_extension(simple_chart, "biology"), str(tmp_path / "out"), background=["light"])
         deps = self._usermeta(tmp_path)["dysonsphere"]["provenance"]["environment"]
         assert deps["dysonsphere-extensions"] == {"biology": "9.9.9"}

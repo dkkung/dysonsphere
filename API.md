@@ -335,6 +335,8 @@ not part of the public contract.
   operation may use the add convention, but no such redesign is currently planned.
 - Grow `ds.ext` only when real extension consumers need a stable primitive. Keep optional domain
   packages independently distributed; do not expose private internals merely for convenience.
+- Keep discovery callables at `ds.extensions()` and `ds.load_extension()`. `ds.ext` is the concise
+  extension-author namespace; the longer name would collide with the root `extensions()` callable.
 - Keep correctness fixes distinct from spelling changes so rendering and record changes are visible.
 - Before a major release, inspect deprecation markers and remove obsolete APIs scheduled for that
   release, including their compatibility paths and obsolete tests/docs. Remove markers with the

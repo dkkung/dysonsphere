@@ -22,7 +22,6 @@ import dysonsphere as ds
 # the package namespace, so attribute access would hand back the wrong object.
 _MODULE_NAMES = [
     "annotations",
-    "discovery",
     "export",
     "display_labels",
     "marks",
@@ -44,7 +43,8 @@ class TestPackageNamespace:
         # __init__.__all__ is written out explicitly (self-documenting); this keeps it in
         # sync with star-imported modules plus namespaces, not their functions.
         union = {name for mod in _MODULES for name in mod.__all__}
-        assert sorted(ds.__all__) == sorted(union | {"stats", "transforms", "metadata", "palettes", "palette"})
+        root_only = {"extensions", "load_extension", "metadata", "palette", "palettes", "stats", "transforms"}
+        assert sorted(ds.__all__) == sorted(union | root_only)
 
     @pytest.mark.parametrize(
         ("namespace", "names"),

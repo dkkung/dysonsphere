@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
 
-from . import discovery
+from . import ext
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -216,7 +216,7 @@ def _build_provenance(
     the platform + versioned toolchain (``os`` from ``platform.platform()`` first, then
     ``python``/``altair``/``vl_convert``/``dysonsphere``, then ``dysonsphere-extensions``
     ``{name: version}`` **directly after ``dysonsphere`` only when the figure actually used one**
-    (e.g. ``ds.biology.volcano`` -> ``{"biology": "0.1.0"}``; see ``discovery._used_extensions`` -
+    (e.g. ``ds.biology.volcano`` -> ``{"biology": "0.1.0"}``; see ``ext._used_extensions`` -
     grouped with the tool it extends, and the explicit label disambiguates from a pypi 'extensions'
     package), then ``numpy``/``scipy``/``polars``: the OS, interpreter, spec generator, RENDERER,
     tool + its extensions, and runtime deps; ``os`` + ``vl_convert`` together pin *rendering*). Then
@@ -263,7 +263,7 @@ def _build_provenance(
 
 def _persistent_owner(name: object) -> str | None:
     """Return a persistent statistics owner from a view name, including extension wrappers."""
-    _, underlying = discovery._unwrap_extension_markers(name)
+    _, underlying = ext._unwrap_extension_markers(name)
     if not isinstance(underlying, str) or not underlying.startswith(_STAT_OWNER_PREFIX):
         return None
     owner = underlying[len(_STAT_OWNER_PREFIX) :]
@@ -491,7 +491,7 @@ def _statistics_context(spec: dict[str, Any], target: dict[str, Any]) -> str:
         ):
             return
 
-        _, underlying = discovery._unwrap_extension_markers(node.get("name"))
+        _, underlying = ext._unwrap_extension_markers(node.get("name"))
         owner = _persistent_owner(node.get("name"))
         live_owner = _marker_hash(underlying) if isinstance(underlying, str) else None
         if node is not target and (owner is not None or live_owner is not None):
@@ -545,7 +545,7 @@ def _prepare_statistics_owners(spec: dict[str, Any]) -> tuple[list[dict[str, Any
     def prepare(node: dict[str, Any]) -> None:
         nonlocal occurrence
         name = node.get("name")
-        _, underlying = discovery._unwrap_extension_markers(name)
+        _, underlying = ext._unwrap_extension_markers(name)
         live_hash = _marker_hash(underlying) if isinstance(underlying, str) else None
         loaded_owner = _persistent_owner(name)
         record_hash = live_hash if live_hash is not None else (loaded_owner[:16] if loaded_owner is not None else None)
@@ -678,7 +678,7 @@ def _strip_markers(spec, *, statistics_owners: bool = False) -> None:
 
     def strip_node(o: dict[str, Any]) -> None:
         name = o.get("name")
-        marker_names, underlying_name = discovery._unwrap_extension_markers(name)
+        marker_names, underlying_name = ext._unwrap_extension_markers(name)
         if marker_names:
             name = underlying_name
             if name is None:

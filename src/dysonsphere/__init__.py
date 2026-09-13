@@ -3,9 +3,9 @@
 from . import ext, metadata, palettes, stats, transforms  # noqa: F401
 from .annotations import *  # noqa: F403
 from .assembly import *  # noqa: F403
-from .discovery import *  # noqa: F403
 from .display_labels import *  # noqa: F403
 from .export import *  # noqa: F403
+from .ext import extensions, load_extension
 from .marks import *  # noqa: F403
 from .multilabel import *  # noqa: F403
 from .nonlinear import *  # noqa: F403
@@ -54,9 +54,7 @@ def __getattr__(name: str):
     uninstalled extension are indistinguishable here - use ``extensions()`` to list what is
     installed, or ``load_extension(name)`` for an ImportError that names them).
     """
-    from .discovery import _extension_entry_points
-
-    ep = _extension_entry_points().get(name)
+    ep = ext._extension_entry_points().get(name)
     if ep is not None:
         module = ep.load()
         globals()[name] = module

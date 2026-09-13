@@ -9,14 +9,14 @@ import xml.etree.ElementTree as ET
 from contextlib import ExitStack
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 import altair as alt
 
 if TYPE_CHECKING:
     from IPython.display import HTML
 
-from . import discovery, metadata
+from . import ext, metadata
 from ._svg_geometry import (
     _align_figure_labels,
     _align_grid_to_content,
@@ -38,14 +38,7 @@ from .utils import _apply_spec_fixes, _json_safe
 # Public names re-exported by dysonsphere.
 __all__ = ["save", "show", "load"]
 
-_AltairChart = Union[
-    alt.Chart,
-    alt.LayerChart,
-    alt.FacetChart,
-    alt.VConcatChart,
-    alt.HConcatChart,
-    alt.ConcatChart,
-]
+_AltairChart = ext.AltairChart
 
 
 _VALID_FORMATS = ("svg", "png", "json", "html")
@@ -314,7 +307,7 @@ def save(
             spec = deepcopy(original_spec)
             # Scan extension wrappers before a wrapped live-statistics marker is replaced by its
             # persistent owner. Loaded persistent owners remain compatible with fresh extension tags.
-            _exts = discovery._used_extensions(spec) if saveMetadata else {}  # extensions that made it
+            _exts = ext._used_extensions(spec) if saveMetadata else {}  # extensions that made it
             _records, _bindings = metadata._prepare_statistics_owners(spec) if saveMetadata else ([], {})
             metadata._strip_markers(spec, statistics_owners=not saveMetadata)
             _usermeta = _usermeta_json = _report_sections = None

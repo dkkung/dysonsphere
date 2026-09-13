@@ -1,4 +1,4 @@
-"""Tests for the extension discovery layer (dysonsphere/discovery.py + package __getattr__)."""
+"""Tests for extension discovery in dysonsphere.ext and package lazy attributes."""
 
 import importlib.metadata
 import json
@@ -9,8 +9,7 @@ import polars as pl
 import pytest
 
 import dysonsphere as ds
-from dysonsphere import _statistics, metadata
-from dysonsphere import discovery as ext
+from dysonsphere import _statistics, ext, metadata
 
 
 @pytest.fixture(autouse=True)
@@ -45,28 +44,28 @@ def fake_biology(monkeypatch):
 
 def test_extensions_empty(monkeypatch):
     monkeypatch.setattr(ext, "_extension_entry_points", dict)
-    assert ext.extensions() == []
+    assert ds.extensions() == []
 
 
 def test_extensions_lists_installed_sorted(monkeypatch):
     monkeypatch.setattr(ext, "_extension_entry_points", lambda: {"physics": object(), "biology": object()})
-    assert ext.extensions() == ["biology", "physics"]
+    assert ds.extensions() == ["biology", "physics"]
 
 
 def test_load_extension_returns_module(fake_biology):
-    assert ext.load_extension("biology") is fake_biology
+    assert ds.load_extension("biology") is fake_biology
 
 
 def test_load_extension_missing_raises_with_available(monkeypatch):
     monkeypatch.setattr(ext, "_extension_entry_points", dict)
     with pytest.raises(ImportError, match="no dysonsphere extension named 'biology'.*no extensions are installed"):
-        ext.load_extension("biology")
+        ds.load_extension("biology")
 
 
 def test_load_extension_missing_lists_installed(monkeypatch):
     monkeypatch.setattr(ext, "_extension_entry_points", lambda: {"physics": object()})
     with pytest.raises(ImportError, match="installed extensions: physics"):
-        ext.load_extension("astronomy")
+        ds.load_extension("astronomy")
 
 
 def test_getattr_resolves_extension(fake_biology):
@@ -86,12 +85,11 @@ def test_getattr_unknown_raises_attributeerror(monkeypatch):
 
 
 def test_extensions_public_via_namespace():
-    # extensions() / load_extension() are exported on the top-level namespace.
-    assert callable(ds.extensions)
-    assert callable(ds.load_extension)
+    assert ds.extensions is ext.extensions
+    assert ds.load_extension is ext.load_extension
 
 
-# ── Extension-usage provenance markers (discovery._tag_extension / _used_extensions) ──────────
+# Extension-usage provenance markers (ext.tag_extension / _used_extensions).
 
 
 def _tiny_chart():
@@ -117,27 +115,27 @@ def _ext_marker_names(spec):
 
 
 def test_tag_extension_marks_chart():
-    tagged = ext._tag_extension(_tiny_chart(), "biology")
+    tagged = ext.tag_extension(_tiny_chart(), "biology")
     names = _ext_marker_names(tagged.to_dict())
     assert len(names) == 1 and names[0].startswith("__dysonsphere_ext_biology_")
 
 
 def test_tag_extension_marker_survives_composition():
     # The whole point of using a view-name marker (not usermeta): it survives `+`.
-    tagged = ext._tag_extension(alt.layer(_tiny_chart()), "biology")
+    tagged = ext.tag_extension(alt.layer(_tiny_chart()), "biology")
     composed = tagged + _tiny_chart()
     assert any(name.startswith("__dysonsphere_ext_biology_") for name in _ext_marker_names(composed.to_dict()))
 
 
 def test_tag_extension_names_are_unique_for_composition():
-    composed = alt.hconcat(ext._tag_extension(_tiny_chart(), "biology"), ext._tag_extension(_tiny_chart(), "biology"))
+    composed = alt.hconcat(ext.tag_extension(_tiny_chart(), "biology"), ext.tag_extension(_tiny_chart(), "biology"))
     names = _ext_marker_names(composed.to_dict())
     assert len(names) == len(set(names)) == 2
 
 
 def test_tag_extension_carries_statistics_marker_through_spec_roundtrip():
     marker = "__dysonsphere_0123456789abcdef_7"
-    spec = ext._tag_extension(_tiny_chart().properties(name=marker), "biology").to_dict()
+    spec = ext.tag_extension(_tiny_chart().properties(name=marker), "biology").to_dict()
     roundtripped = json.loads(json.dumps(spec))
 
     parsed = ext._parse_extension_marker(roundtripped["name"])
@@ -149,14 +147,14 @@ def test_tag_extension_carries_statistics_marker_through_spec_roundtrip():
 
 
 def test_tag_extension_restores_user_view_name_when_stripped():
-    spec = ext._tag_extension(_tiny_chart().properties(name="user-view"), "biology").to_dict()
+    spec = ext.tag_extension(_tiny_chart().properties(name="user-view"), "biology").to_dict()
     metadata._strip_markers(spec)
     assert spec["name"] == "user-view"
 
 
 def test_nested_extension_tags_preserve_all_identity():
     marker = "__dysonsphere_0123456789abcdef_7"
-    tagged = ext._tag_extension(ext._tag_extension(_tiny_chart().properties(name=marker), "biology"), "other")
+    tagged = ext.tag_extension(ext.tag_extension(_tiny_chart().properties(name=marker), "biology"), "other")
     spec = tagged.to_dict()
 
     assert ext._unwrap_extension_markers(spec["name"]) == (["other", "biology"], marker)
@@ -183,7 +181,7 @@ def test_composed_tagged_export_renders_retains_stats_and_is_reproducible(tmp_pa
     def built():
         points = alt.Chart(data).mark_point().encode(x="group:N", y="value:Q")
         comparison = ds.stats.comparisons(data, "group", "value", pairs=[("A", "B")], test="ttest_ind")
-        return alt.hconcat(ext._tag_extension(points + comparison, "biology"), ext._tag_extension(points, "biology"))
+        return alt.hconcat(ext.tag_extension(points + comparison, "biology"), ext.tag_extension(points, "biology"))
 
     ds.save(built, str(tmp_path / "first"), format=["json", "svg"], background=["light"])
     ds.save(built, str(tmp_path / "second"), format=["json", "svg"], background=["light"])
@@ -196,7 +194,7 @@ def test_composed_tagged_export_renders_retains_stats_and_is_reproducible(tmp_pa
 def test_used_extensions_maps_marker_to_version(monkeypatch):
     fake = types.SimpleNamespace(dist=types.SimpleNamespace(version="9.9.9"))
     monkeypatch.setattr(ext, "_extension_entry_points", lambda: {"biology": fake})
-    spec = ext._tag_extension(_tiny_chart(), "biology").to_dict()
+    spec = ext.tag_extension(_tiny_chart(), "biology").to_dict()
     assert ext._used_extensions(spec) == {"biology": "9.9.9"}
 
 
@@ -207,5 +205,5 @@ def test_used_extensions_empty_without_markers():
 def test_used_extensions_skips_uninstalled(monkeypatch):
     # A marker for an extension with no installed entry point isn't recorded (can't version it).
     monkeypatch.setattr(ext, "_extension_entry_points", dict)
-    spec = ext._tag_extension(_tiny_chart(), "ghost").to_dict()
+    spec = ext.tag_extension(_tiny_chart(), "ghost").to_dict()
     assert ext._used_extensions(spec) == {}
