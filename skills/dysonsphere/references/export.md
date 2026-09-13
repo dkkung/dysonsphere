@@ -1,6 +1,6 @@
 # Rendering, exports, and saved figures
 
-Read this when saving, checking light/dark output, troubleshooting rendering, or inspecting an export.
+Read this when saving, checking light/dark output, troubleshooting rendering, or inspecting exports.
 
 ## Choose the output deliberately
 

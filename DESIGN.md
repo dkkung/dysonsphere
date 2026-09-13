@@ -1,7 +1,7 @@
 # Design Decisions
 
-Reasons behind choices that are easy to undo accidentally. Public contracts live in [API.md](API.md);
-implementation details and current behavior live in source and tests. Read only relevant sections.
+Reasons for decisions that are easy to reverse accidentally. Public contracts are in [API.md](API.md);
+implementation details and current behavior are in source and tests. Read the relevant sections.
 Source references below are relative to `src/dysonsphere/`; test references are relative to `tests/`.
 
 ## Theme and Color

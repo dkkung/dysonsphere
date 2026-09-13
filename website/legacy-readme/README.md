@@ -1,6 +1,6 @@
 # dysonsphere
 
-An Altair configuration wrapper with perceptually uniform palettes and chart utilities for publication-ready figures.
+An Altair configuration wrapper with perceptually uniform palettes and chart utilities for scientific figures.
 
 ![thumbnail](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/thumbnail.png)
 
@@ -1349,4 +1349,3 @@ python3 scripts/build_all.py
 ```
 
 This runs all scripts in `scripts/build/` in sorted order, rebuilding all assets in `docs/` used by the README and the palette gallery.
-

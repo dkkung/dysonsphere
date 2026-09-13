@@ -306,7 +306,7 @@ def save(
         works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different
         Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label
         spacing), so it renders inconsistently and is left off. Use ``"svg"``/``"png"`` for the
-        publication-accurate static figure.
+        static figure with the SVG post-processing applied.
     background:
         Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles
         ``darkmode``), as a single string or a list. ``None`` (default) uses the theme
@@ -359,7 +359,7 @@ def save(
     embedReport:
         If ``True`` (default) and ``saveMetadata`` is on, also embeds the human-readable
         **report table** (the descriptive + effect-size text from ``stats.comparisons`` /
-        ``stats.correlation``) so you can read it straight out of the file — as a ``report``
+        ``stats.correlation``) as a ``report``
         member of ``usermeta.dysonsphere`` in the **JSON**, and as a dedicated readable
         channel (real newlines, not escaped JSON) in the **SVG**
         (``<metadata id="dysonsphere-report">``) and **PNG** (``iTXt dysonsphere-report``).
@@ -1364,8 +1364,7 @@ def _simplify_svg(root: ET.Element) -> None:
     ``transform``. Definition blocks (``<defs>``, ``<clipPath>``, ``<symbol>``)
     are left entirely untouched.
 
-    The result is a flatter, editor-friendly SVG that renders identically to the
-    original.
+    The result is a flatter SVG with the same rendered appearance.
     """
     KEEP_ATTRS = {"transform", "clip-path", "opacity", "mask", "filter", "style", "id"}
     SKIP_TAGS = {f"{{{_SVG_NS}}}defs", f"{{{_SVG_NS}}}clipPath", f"{{{_SVG_NS}}}symbol"}

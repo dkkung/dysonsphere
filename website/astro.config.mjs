@@ -80,7 +80,7 @@ export default defineConfig({
 				SiteTitle: './src/components/SiteTitle.astro',
 			},
 			description:
-				'An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.',
+				'An Altair theme and chart-utility library with perceptually uniform palettes and consistent defaults.',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/dkkung/dysonsphere' }],
 			// Injected raw because the CSS pipeline minifies `-webkit-text-size-adjust` away
 			// (it assumes the unprefixed property covers every target - Safari supports only the

@@ -1618,7 +1618,7 @@ def comparisons(
         pairwise results.
     postHoc:
         Post-hoc test that fills the brackets when ``test`` is omnibus and
-        ``pairs`` is given. ``None`` (default) picks a sensible default per
+        ``pairs`` is given. ``None`` (default) selects a default for each
         omnibus test: ``anova → 'tukey_hsd'``, ``alexandergovern →
         'games_howell'``, ``kruskal → 'dunn'``, ``friedman → 'nemenyi'``. May
         also be set to any pairwise test name. Dunn, Nemenyi, and Games-Howell

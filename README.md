@@ -4,24 +4,26 @@
 
 # dysonsphere
 
-`dysonsphere` is an [`altair`](https://altair-viz.github.io/) utility library for publication-ready scientific figures in Python, offering:
-- An attractive, cohesive, and sensible default configuration with a single invocation of `ds.theme()`.
+`dysonsphere` is an [`altair`](https://altair-viz.github.io/) utility library for scientific figures in Python. It provides:
+- A consistent default configuration enabled with `ds.theme()`.
 - Perceptually uniform palettes, including those from popular data visualization libraries.
-- Shareable styles through a simple `dysonsphere.toml` config file - tune the theme once and reuse it across projects.
+- Shareable styles through a `dysonsphere.toml` config file.
 
-`dysonsphere` also comes with several intuitive and powerful utilities for `altair` charts; some highlights include:
-- The ability to quickly and easily layer `altair` charts with annotations like reference lines, shades, text, and data labels.
-- Statistical inference with `scipy` through `ds.stats.comparisons()` and `ds.stats.correlation()`, layered directly onto `alt.Chart` and exported as metadata in your saved chart:
-    - Omnibus tests with effect sizes.
-    - Brackets and *p*-values for pairwise and post hoc comparisons.
-    - Correlations with fit lines.
-- Multilabels that allow for rich annotations of categorical labels, *e.g.* multi-condition axes and sample sizes.
+It also provides utilities for `altair` charts:
+- Layer annotations such as reference lines, shades, text, and data labels onto `altair` charts.
+- Statistical inference with `scipy` through `ds.stats.comparisons()` and `ds.stats.correlation()`,
+  layered onto `alt.Chart` and exported as metadata:
+  - Omnibus tests with effect sizes.
+  - Brackets and *p*-values for pairwise and post hoc comparisons.
+  - Correlations with fit lines.
+- Multilabels for categorical labels, such as multi-condition axes and sample sizes.
 - Self-documenting exports for reproducible figures:
-    - `ds.save()` writes a corrected SVG, print-ready PNG, interactive HTML, and/or Vega-Lite JSON, while also embedding the output file with its provenance: environment versions and sha256 checksums fingerprint both the Vega-Lite spec and the underlying data.
-    - `ds.metadata.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
-    - `ds.load()` rebuilds the chart from its JSON.
+  - `ds.save()` writes corrected SVG, PNG, interactive HTML, and/or Vega-Lite JSON, and embeds
+    provenance. Environment versions and SHA-256 checksums identify the Vega-Lite spec and data.
+  - `ds.metadata.read()` recovers the statistics report, metadata, and original data from a saved figure.
+  - `ds.load()` rebuilds the chart from its JSON.
 
-`dysonsphere` is extensible: you can develop and install packages of field-specific plotting toolkits (e.g. molecular biology, astronomy) for `altair`, which plug into the same theme, palettes, and export pipeline that core `dysonsphere` provides.
+Separate packages can add field-specific plotting toolkits (such as molecular biology or astronomy) that use the core theme, palettes, and export pipeline.
 
 ## Installation
 

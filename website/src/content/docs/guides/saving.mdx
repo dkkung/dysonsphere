@@ -3,9 +3,8 @@ title: Saving, reading, loading
 description: Export self-describing figures and read the provenance, statistics, and data back out.
 ---
 
-`ds.save()` is more than a renderer: it embeds provenance, the resolved theme, any statistics, and
-your data into the exported files, so every figure is its own lab-notebook entry. `ds.metadata.read()` and
-`ds.load()` pull that information back.
+`ds.save()` embeds provenance, the resolved theme, any statistics, and your data in the exported
+files. `ds.metadata.read()` and `ds.load()` retrieve that information.
 
 ## Saving
 
@@ -74,7 +73,7 @@ three formats:
 
 ## What the embedded metadata looks like
 
-This is not hand-waving - here is the actual block from a real save. Take a strip plot with a
+Here is an example block from a save. It uses a strip plot with a
 Kruskal-Wallis comparison on the classic `cars` dataset:
 
 ```python

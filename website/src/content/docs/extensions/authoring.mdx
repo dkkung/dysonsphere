@@ -61,9 +61,9 @@ contract.
 
 ## The `dysonsphere.ext` surface
 
-Your chart is just a function that returns an Altair object. To make it a *first-class*
-dysonsphere chart - themed, darkmode-aware, and correctly handled by `ds.metadata.read()` - use the
-stable primitive surface. Third-party extensions must not import dysonsphere's `_`-private
+Your chart is a function that returns an Altair object. To make it a dysonsphere chart that is themed,
+darkmode-aware, and handled by `ds.metadata.read()`, use the stable primitive surface. Third-party
+extensions must not import dysonsphere's `_`-private
 internals; coordinated first-party packages in this repository are the narrow exception.
 
 ```python

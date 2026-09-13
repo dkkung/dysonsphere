@@ -1,13 +1,12 @@
 ---
 title: Extensions
-description: Optional domain packages that add first-class dysonsphere charts - discovery, installation, and the ds.biology namespace.
+description: Optional domain packages that add dysonsphere charts through namespaces such as ds.biology.
 sidebar:
   order: 0
 ---
 
-Domain-specific charts live in **extension packages** - separately released distributions that
-plug into dysonsphere without bloating the core. Install one and its charts appear under a
-namespace on `ds`:
+Domain-specific charts live in **extension packages**, released separately from the core. After
+installation, their charts appear under a namespace on `ds`:
 
 ```sh
 pip install dysonsphere-biology
@@ -62,7 +61,7 @@ extension only has to be `pip install`ed to light up; nothing in core needs edit
 
 ## Extensions build on public surfaces only
 
-Extension charts are first-class: their generated helper data is filtered correctly by
+Extension charts use the same export behavior as core charts: generated helper data is filtered by
 `ds.metadata.read(what="data")`, and their styling tracks the active theme and darkmode. They achieve
 that through **`dysonsphere.ext`** - a small, stable, versioned surface of the core primitives an
 extension needs, so extensions never reach into `_`-private internals. That contract is what

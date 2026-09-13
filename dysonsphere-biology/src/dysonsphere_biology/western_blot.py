@@ -1,10 +1,8 @@
 """Western blot figure: stacked blot-strip images with a dysonsphere condition table below.
 
-Built on public surfaces - core (``ds.add_multilabel``) plus the extension primitive surface
-(``dysonsphere.ext``). Each blot image is loaded, scaled to the
-shared chart width (aspect preserved), optionally bordered, and stacked; the stack is handed to
-``ds.add_multilabel`` so the whole condition-table machinery (``+``/``-`` rows, symbols, spans,
-sample sizes, category labels) annotates the lanes below the blots.
+Uses ``ds.add_multilabel`` and ``dysonsphere.ext``. Each blot image is loaded, scaled to the shared
+chart width with its aspect preserved, optionally bordered, and stacked. The stack receives a
+condition table with ``+``/``-`` rows, symbols, spans, sample sizes, and category labels.
 
 The condition table is ALWAYS evenly spaced (dysonsphere's band geometry) - it is not aligned to
 the physical lane positions in the image. Molecular-weight markers are intentionally out of scope:

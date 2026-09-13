@@ -3,7 +3,7 @@
 Beyond asserting the re-exports are the real internal objects, `test_dogfood_composite_*`
 build a mini composite annotation exactly as an extension (e.g. dysonsphere-biology's volcano)
 would - scatter over the user's frame plus a GENERATED label sidecar tagged via
-`ext.internal_data` - and verify the surface actually delivers first-class behavior:
+`ext.internal_data` - and verify the surface matches core chart behavior:
 `read(what="data")` filters the sidecar, `opt` drives styling, the union types the return.
 """
 

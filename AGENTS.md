@@ -1,8 +1,8 @@
 # Repository Guidance
 
-Dysonsphere extends Altair with publication styling, composable charts, and self-documenting exports.
-`CLAUDE.md` points here. Keep this file short; API contracts belong in `API.md`, design reasons in
-`DESIGN.md`, implementation details in source/tests, and release history in `CHANGELOG.md`.
+Dysonsphere extends Altair with chart styling, composition, and metadata exports. `CLAUDE.md` points
+here. Keep this file short: API contracts belong in `API.md`, design reasons in `DESIGN.md`, current
+behavior in source and tests, and release history in `CHANGELOG.md`.
 
 ## Start Here
 
@@ -21,8 +21,7 @@ Dysonsphere extends Altair with publication styling, composable charts, and self
 
 ## Working Style
 
-- Discuss new non-trivial designs or breaking changes before building. Once approved, execute
-  within scope rather than repeatedly reopening settled decisions.
+- Discuss non-trivial designs or breaking changes before building. Once approved, work within scope.
 - Reuse settled API and commit conventions. Batch related mechanical changes; keep behavior fixes
   separate from renames so changes to figures and statistical records remain visible.
 - Inspect and test existing capabilities before proposing new API surface. Prefer native Altair
@@ -33,8 +32,7 @@ Dysonsphere extends Altair with publication styling, composable charts, and self
   checks when failures or relevant changes warrant it, not for unchanged code. Keep required
   regression, rendering, and CI checks; save on duplication, not quality or approved scope.
 - Keep known defects visible; do not hide them in a naming change or expand scope without agreement.
-- Report meaningful findings and blockers briefly. Do not narrate routine git operations or defend
-  avoidable overhead. Preserve unrelated worktree changes.
+- Report meaningful findings and blockers briefly. Preserve unrelated worktree changes.
 - Before committing code, finish docstrings and tests, verify, then update relevant documentation.
   New public functions need tests. Notable changes need an `[Unreleased]` changelog entry: user-facing
   entries under New features/Changes/Fixes, internal-only work under Internal.

@@ -36,8 +36,8 @@ can be a [polars](https://pola.rs) or a [pandas](https://pandas.pydata.org/) `Da
 
 Everything hangs off one namespace, `dysonsphere` (conventionally `ds`):
 
-- **`ds.theme()`** - register a global theme. Call it once; every Altair chart afterwards inherits
-  perceptually uniform palettes and publication-ready styling. See [Theming](/guides/theming/).
+- **`ds.theme()`** - register a global theme. Charts built afterwards inherit its palettes and
+  styling. See [Theming](/guides/theming/).
 - **Marks** - `ds.mark_strip()`, `ds.mark_violin()` build composite plots. See [Marks](/guides/marks/).
 - **Annotations** - `ds.rule()`, `ds.text()`, `ds.shade()`, `ds.labels()` return
   layers you add with `+`. See [Reference lines](/guides/reference-lines/),

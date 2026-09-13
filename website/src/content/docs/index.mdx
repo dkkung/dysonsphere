@@ -1,12 +1,12 @@
 ---
 title: dysonsphere
-description: "An Altair theme and chart-utility library: perceptually uniform palettes, publication-ready defaults, statistical annotations, and round-trippable exports."
+description: "An Altair theme and chart-utility library with perceptually uniform palettes, statistical annotations, and round-trippable exports."
 tableOfContents: false
 hero:
   image:
     file: ../../assets/dysonsphere_logo.svg
   tagline: >-
-    Publication-ready Altair charts, uniform palettes, and exports
+    Altair charts, perceptually uniform palettes, and exports
     that carry their own provenance.
   actions:
     # Relative links (resolved from the "/" or "/dysonsphere/" landing URL): frontmatter can't
@@ -50,13 +50,13 @@ pip install dysonsphere
 
 <section class="landing__features">
 <CardGrid>
-	<Card title="Publication-ready defaults" icon="approve-check">
-		Charts are authored at print scale with considered typography, tick geometry, and mark
-		styling - the SVG that comes out is the figure that goes in the paper.
+	<Card title="Consistent defaults" icon="approve-check">
+		Charts use print-scale typography, tick geometry, and mark styling. SVG output uses the same
+		settings.
 	</Card>
 	<Card title="Perceptually uniform palettes" icon="star">
-		300+ palettes built in Oklab and resampled by arc length, so sequential ramps step evenly
-		and diverging ramps balance. Exportable straight to Illustrator swatches.
+		300+ palettes built in Oklab and resampled by arc length. Sequential ramps step evenly and
+		diverging ramps balance. Export them as Illustrator swatches.
 	</Card>
 	<Card title="Statistical annotations" icon="magnifier">
 		Omnibus tests, post-hoc brackets, correlation readouts - computed with scipy, drawn as
@@ -68,8 +68,7 @@ pip install dysonsphere
 	</Card>
 	<Card title="Self-describing exports" icon="download">
 		<code>save()</code> embeds provenance, statistics, the theme, and your data into SVG, PNG,
-		and JSON; <code>read()</code> and <code>load()</code> pull them back out. Every figure is
-		its own lab notebook entry.
+		and JSON. <code>read()</code> and <code>load()</code> retrieve them.
 	</Card>
 	<Card title="Runs in your browser" icon="rocket">
 		{/* Relative hrefs (this page renders at the site root, "/" or "/dysonsphere/"): raw JSX

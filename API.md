@@ -1,11 +1,11 @@
 # Public API Framework
 
-This is the durable design framework for dysonsphere's public API, established during the v4
-refactor and maintained in subsequent versions. It describes the intended contract, not a claim
-that every current implementation already conforms. Update it when a design decision changes.
+This document defines the intended public API for dysonsphere. It was established during the v4
+refactor and is updated when design decisions change. It may differ from current implementation;
+inspect source and tests before relying on a contract.
 
-This document is intended to be committed and kept current. Release-specific plans and audit
-notes are local working material, not dependencies of this framework or part of its public contract.
+Keep this file committed and current. Release plans and audit notes are local working material,
+not part of the public contract.
 
 ## Purpose and Structure
 

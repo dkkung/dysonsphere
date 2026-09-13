@@ -9,9 +9,9 @@ import Chart from '../../../components/Chart.astro';
 import afterSource from '../../../../examples/theme_after.py?raw';
 import darkSource from '../../../../examples/darkmode_dark.py?raw';
 
-`ds.theme()` registers a global Altair theme, so every chart you build afterwards inherits
-perceptually uniform palettes and publication-ready styling. Call it once; override per chart with
-ordinary Altair encodings. Calling it again replaces the theme entirely.
+`ds.theme()` registers a global Altair theme. Charts built afterwards inherit its palettes and
+styling. Call it once; use ordinary Altair encodings for per-chart overrides. A later call replaces
+the theme.
 
 ## Before and after
 

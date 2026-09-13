@@ -2,8 +2,8 @@
 
 Biology chart extensions for [dysonsphere](https://github.com/dkkung/dysonsphere).
 
-Install alongside dysonsphere; the charts are then reachable both directly and through the
-`dysonsphere.biology` namespace (via dysonsphere's extension discovery):
+Install alongside dysonsphere. The charts are available directly and through the
+`dysonsphere.biology` namespace:
 
 ```python
 import dysonsphere as ds
