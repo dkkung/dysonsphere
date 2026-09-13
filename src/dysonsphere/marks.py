@@ -17,8 +17,7 @@ from .theme import _opt
 from .transforms import _fit_kde, _normalised_kde_density, beeswarm, jitter
 from .utils import _band_geometry, _ensure_polars, _internal_data, _nice_domain, _validate_category_order
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["mark_violin", "mark_strip"]
 
 
@@ -31,14 +30,11 @@ _UNSET: Final[_UnsetType] = _UnsetType()
 
 @dataclass
 class _MarkScaffold:
-    """Shared chart chrome for the custom mark constructors (composition, NOT a base class).
+    """Shared data, axis, and color settings for strip and violin marks.
 
-    Owns everything every ``mark_*`` function repeats - dataframe coercion, the ``_UNSET``
-    title sentinel resolution, the x-axis (label angle + ``labelMap`` -> ``labelExpr``),
-    the x/y/color encodings with category sorting and palette handling - so a new shared
-    parameter lands here once and every mark inherits it. The marks stay plain functions
-    returning Altair objects (the composition algebra belongs to Altair); their bodies
-    hold only the per-mark geometry and layers.
+    Normalizes dataframes, resolves omitted titles, and builds encodings with category order,
+    palettes, and display labels. This helper is not a base class: mark constructors remain
+    functions that build their geometry and return ordinary Altair charts.
     """
 
     df: "pl.DataFrame | pd.DataFrame"
@@ -91,10 +87,8 @@ class _MarkScaffold:
         return alt.Axis(**kwargs)
 
     def x(self, *, padding_inner: float | None = None, padding_outer: float | None = None) -> alt.X:
-        # Pin the DOMAIN (a literal list), not just sort=, so the category order survives
-        # Vega-Lite's shared-scale domain union when marks are layered/concatenated - a `sort=`
-        # order gets re-sorted (alphabetically) through a scale merge, whereas an explicit
-        # literal domain wins the union. Same reason the multilabel y scale pins domain=row_order.
+        # Pin the domain so category order survives shared-scale merges; sort alone can be
+        # re-sorted alphabetically.
         scale_kwargs = {
             **({"paddingInner": padding_inner} if padding_inner is not None else {}),
             **({"paddingOuter": padding_outer} if padding_outer is not None else {}),
@@ -125,9 +119,7 @@ class _MarkScaffold:
             title = self.xCol if self.legend else None
         legend_kwargs: dict[str, Any] = {"symbolType": symbolType} if symbolType else {}
         pal = self.palette
-        # Pin the domain (a literal list) so the category->colour mapping survives a shared-scale
-        # merge when marks are layered/concatenated - see x(). Without it, `sort=` alone is
-        # re-sorted alphabetically through the merge and colours stop matching their categories.
+        # Pin the domain so category-to-color mapping survives shared-scale merges.
         range_kwargs: dict[str, Any] = {} if pal is None else {"range": pal}
         scale = alt.Scale(domain=self.categories, **range_kwargs)
         return alt.Color(
@@ -318,32 +310,27 @@ def mark_violin(
     if strokeWidth is None:
         strokeWidth = _opt("markStrokeWidth")
     if stroke is True:
-        # The house mark outline: the theme's markStroke, kept black in darkmode
-        # too - it outlines the light palette fills, like mark_strip's points.
+        # Keep the outline dark in both modes so it remains visible against palette fills.
         stroke = "black" if _opt("darkmode") else _opt("markStroke")
     elif stroke is False:
         stroke = None
     if innerColor is None:
-        # Deliberately NOT darkmode-sensitive: the lines sit inside the mark fill,
-        # not on the background, so black reads in both modes.
+        # These lines sit inside the fill, so black is readable in both modes.
         innerColor = "black"
     mark_size = _opt("markSize")
     chart_width = _opt("width")  # x:Q domain of the violin layer
-    # Vega-Lite routes "rect and other marks" - boxplot included - through rectPadding,
-    # NOT barPadding (scale="rect"), and not the xOffset/mark_circle variant ("offset").
+    # Vega-Lite uses rectPadding for rects and boxplots, not barPadding or offset padding.
     geo = _band_geometry(len(categories), scale="rect")
     rect_padding = float(_opt("rectPadding"))
     outer_padding = float(_opt("outerPadding"))
-    # Pin the nominal scaffold to the same rect-band geometry used for the absolute-pixel
+    # Pin the nominal axis to the same rect-band geometry used for the absolute-pixel
     # silhouette. Explicit scale padding also prevents a later figure-wide bandPaddingInner
-    # config from moving the scaffold or boxplot away from the already-constructed shape.
+    # config from moving the axis or boxplot away from the already-constructed shape.
     violin_x = s.x(padding_inner=rect_padding, padding_outer=outer_padding)
     half_width = mark_size * 0.75
 
-    # Precompute absolute x positions for each violin point so the violin
-    # layer uses x:Q (not xOffset), avoiding Vega-Lite's shared xOffset
-    # scale resolution that squishes the violin when hconcated with any
-    # chart that also uses xOffset (e.g. mark_strip).
+    # Use absolute x positions rather than xOffset so a concatenated chart with another xOffset
+    # scale cannot compress the violin.
     violin_rows = []
     group_kde = []
     for i, (group, vals) in enumerate(group_values):
@@ -434,13 +421,8 @@ def mark_violin(
                             "__x2": x_center + d * half_width,
                         }
                     )
-            # The median is TRUE-CLIPPED to the violin border: a straight stroked
-            # line is a rectangle, and on a squat violin the outline sweeps inward
-            # by whole pixels across the line's own thickness, so its corners jut
-            # past the border no matter where it ends. Instead the median is a thin
-            # polygon spanning q2 +/- half its thickness whose left/right edges
-            # FOLLOW the outline - every grid point in the band plus interpolated
-            # band edges, rendered as a mark_area.
+            # Clip the median to the outline. A stroked line can extend past a narrow violin, so use
+            # a polygon whose edges follow the outline.
             band_lo = max(q2 - h_med, float(y_grid[0]))
             band_hi = min(q2 + h_med, float(y_grid[-1]))
             band_ys = sorted({band_lo, *(float(y) for y in y_grid if band_lo < y < band_hi), q2, band_hi})
@@ -509,16 +491,9 @@ def mark_violin(
     layers: list[Any] = [violin]
 
     if inner in ("quartiles", "median"):
-        # Same pinned pixel x scale as the violin layer so the shared-scale merge
-        # can't shift the marks. Quartiles = dashed rules (strokeDash pinned -
-        # config.rule is dashed under the theme's dashedRule default); the median =
-        # a solid outline-clipped area band at double weight. Each quartile line is
-        # its OWN layer because its dash pattern is SCALED TO FIT its length (an
-        # integer number of cycles plus one dash), so every line both starts AND
-        # ends with a full dash touching the outline - a fixed pattern ends
-        # wherever the length lands in the cycle, up to a whole gap of blank before
-        # the endpoint (the ink visibly stops short of the outline), and strokeDash
-        # is a mark property, per layer not per datum.
+        # Keep the pixel x scale shared with the violin. Quartiles use fitted dashed rules and the
+        # median uses an outline-clipped area band; each quartile needs its own mark layer because
+        # strokeDash is a mark property.
         pixel_x_scale = alt.Scale(domain=[0, chart_width], padding=0)
 
         dash_len, gap_len = _opt("dashedWidth")[:2]
@@ -681,7 +656,7 @@ def mark_strip(
 
     band_padding = _opt("outerPadding")  # the offset variant's padding - see _band_geometry
     step = _band_geometry(len(categories)).step
-    # NOT a band centre: the xOffset scale positions relative to the band start, so this
+    # This is not a band centre: the xOffset scale positions relative to the band start, so this
     # is the in-band midpoint expressed in xOffset range coordinates.
     band_center = step * (0.5 - band_padding)
     max_offset = cast(float, data[offset_col].abs().cast(pl.Float64).max() or 0.0)
@@ -711,9 +686,8 @@ def mark_strip(
 
     points = (
         alt.Chart(data)
-        # Stroke pinned here, NOT inherited: the theme's config.circle has stroke=None
-        # (bare overlay dots are stroke-less), but strip/beeswarm points keep the house
-        # outlined-dot look. Black in darkmode too (outlines light palette fills).
+        # Set the stroke explicitly because config.circle has no outline. Keep it black in
+        # dark mode too, where it outlines light palette fills.
         .mark_circle(**point_mark_kwargs)
         .encode(**point_encoding)
     )
@@ -759,11 +733,8 @@ def mark_strip(
         )
     )
 
-    # The centre tick draws the MEAN - the statistic the error bars are computed from -
-    # so it always sits centred between the caps (a median tick drifts off-centre on
-    # skewed data). All styling inherits config.tick (the crossbar defaults: errorbar-cap
-    # colour/round caps, boxplot-median span), which also resolves darkmode at render
-    # time - no callable needed for correct tick colour across save() backgrounds.
+    # Use the mean so the tick is centred between the error-bar caps, even for skewed data.
+    # Inherit config.tick styling so its color follows the background at render time.
     mean_tick = (
         alt.Chart(summary)
         .mark_tick()

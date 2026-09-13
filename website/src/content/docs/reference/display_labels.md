@@ -17,9 +17,8 @@ def label_expr(mapping: Mapping[Any, str | list[str]]) -> str: ...
 
 Build a Vega ``labelExpr`` that maps raw data values to display labels.
 
-The common Altair pain: the dataframe holds machine values (``metadata_group1``)
-but the plot needs presentable labels (``group 1``), and hand-writing the Vega
-expression is tedious and quoting-fragile. This returns that expression for you::
+Data often contains machine values (``metadata_group1``) while a plot needs presentable
+labels (``group 1``). This builds the Vega expression with the required string quoting::
 
     expr = ds.label_expr({"metadata_group1": "group 1", "metadata_group2": "group 2"})
     alt.X("treatment:N", axis=alt.Axis(labelExpr=expr))

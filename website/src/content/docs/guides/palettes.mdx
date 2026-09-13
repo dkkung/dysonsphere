@@ -57,8 +57,9 @@ Set the defaults for every chart with `theme(heatmapPalette=..., rampPalette=...
 
 ## Qualitative categories
 
-`ds.palettes.categorical(members=n)` returns the CVD-robust qualitative palette (blue / pink / yellow /
-green) sized to your group count. The default (`members=1`) is a **flat, tier-major** palette -
+`ds.palettes.categorical(members=n)` returns a qualitative palette tested for color-vision deficiency
+(blue / pink / yellow / green) sized to your group count. The default (`members=1`) is a
+**flat, tier-major** palette -
 adjacent categories differ in hue, for unrelated groups:
 
 <Example name="palette_categorical" alt="Strip plot colored with the categorical palette" />

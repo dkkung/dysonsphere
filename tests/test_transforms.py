@@ -115,7 +115,7 @@ class TestQuasirandom:
         assert "my_q" in result.columns
 
     def test_rows_map_back_in_order(self, group_df):
-        # the offset must line up with its own row after the group_by/sort round-trip
+        # the offset must line up with its own row after group_by/sort processing
         result = quasirandom(group_df, column="value", groupBy=["group"])
         assert result["value"].to_list() == group_df["value"].to_list()
 

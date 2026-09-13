@@ -1,12 +1,12 @@
 ---
 title: Writing an extension
-description: Build your own dysonsphere extension - packaging, entry point registration, the ds.ext primitive surface, and data tagging.
+description: Build your own dysonsphere extension - packaging, entry point registration, the ds.ext API, and data tagging.
 sidebar:
   order: 2
 ---
 
 An extension is an ordinary Python distribution that registers one entry point. Do that, build
-your charts on the public **`dysonsphere.ext`** surface, and they resolve under `ds.<name>` and
+your charts on the public **`dysonsphere.ext`** API, and they resolve under `ds.<name>` and
 behave like built-ins. This guide covers packaging, entry point registration, the `ext`
 primitives, and tagging generated data.
 
@@ -59,12 +59,11 @@ Now `pip install dysonsphere-yourname` makes `ds.yourname.yourchart(...)` work, 
 `ds.extensions()` lists `yourname` - with no change to core. That's the entire integration
 contract.
 
-## The `dysonsphere.ext` surface
+## The `dysonsphere.ext` API
 
-Your chart is just a function that returns an Altair object. To make it a *first-class*
-dysonsphere chart - themed, darkmode-aware, and correctly handled by `ds.metadata.read()` - use the
-stable primitive surface. Third-party extensions must not import dysonsphere's `_`-private
-internals; coordinated first-party packages in this repository are the narrow exception.
+Return an Altair object and use `dysonsphere.ext` for theme settings and data tagging. Third-party
+extensions must not import private core helpers; coordinated first-party packages in this repository
+are the exception.
 
 ```python
 import altair as alt
@@ -92,17 +91,16 @@ def yourchart(data, *, x="x", y="y") -> ext.AltairChart:
     return band + points
 ```
 
-The `ext` surface is deliberately minimal - promoted primitive by primitive as real extensions
-need them. Today it is exactly three names:
+The following `ext` helpers cover chart types, theme settings, and generated data:
 
 - **`ext.AltairChart`** - the chart-object union (`Chart | LayerChart | FacetChart |
   VConcatChart | HConcatChart | ConcatChart`). Use it as your return annotation, matching core's
   own `save()`.
 - **`ext.opt(key)`** - read an active-theme option (`opt("markSize")`, `opt("width")`,
   `opt("darkmode")`, …). It falls back to the derived built-in default when called before any
-  `ds.theme()`, so your styling code never sees `None` sentinels. This is the only supported way
+  `ds.theme()`, so your styling code receives derived defaults rather than `None` values. This is the only supported way
   to read theme options outside core.
-- **`ext.internal_data(data)`** - tag a generated sidecar dataset (next section).
+- **`ext.internal_data(data)`** - tag generated annotation data (next section).
 
 Because colors resolve from the theme *at call time*, a chart exported for both light and dark
 must be built inside a `ds.save()` callable so it re-runs per variant:
@@ -113,7 +111,7 @@ ds.save(lambda: ds.yourname.yourchart(df), "figure")
 
 ## Tagging generated data
 
-Composite charts often generate their own small "sidecar" datasets - reference bands, computed
+Composite charts often generate separate annotation datasets - reference bands, computed
 label coordinates, fit lines. Altair inlines each as a separate dataset, so `ds.metadata.read(what="data")`
 needs to tell your generated data from the user's frame.
 
@@ -129,7 +127,7 @@ alt.Chart(pl.from_pandas(df) if not isinstance(df, pl.DataFrame) else df)
 ```
 
 `internal_data` accepts a `list[dict]` (→ `alt.Data`) or a polars/pandas DataFrame (→ a tagged
-polars frame). Miss a sidecar and it leaks as a phantom "user" dataframe - a false multi-frame
+polars frame). Miss an annotation dataset and it can appear as a user dataframe - a false multi-frame
 error from `read`, or the wrong frame returned. Tag the user's frame and you hide their real
 data. So: *data you computed → tag it; data the caller passed in → leave it.*
 
@@ -156,8 +154,6 @@ colors from the theme, and lives in-repo as a uv workspace member. Read its sour
 guide.
 
 :::note
-Need a primitive that isn't on `ext` yet - a facet-safe base, the mark scaffold, band geometry?
-Those exist in core but aren't part of the public surface until a real extension needs them
-(adding to a public surface is non-breaking; removing is not). Open an issue describing the plot
-you're building.
+If your extension needs another core helper, such as shared data for facets or band geometry,
+open an issue describing the plot you're building.
 :::

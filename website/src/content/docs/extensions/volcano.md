@@ -9,11 +9,9 @@ sidebar:
 
 Volcano plot for differential-expression results.
 
-Built on dysonsphere's public surfaces - core (``ds.theme`` / ``ds.rule`` /
-``ds.palettes.colors``) plus the extension-author primitive surface (``dysonsphere.ext``:
-``opt`` / ``internal_data`` / ``AltairChart``). As coordinated first-party code, this package
-may use shared core implementation helpers internally; third-party extensions should use only
-the ``dysonsphere.ext`` surface for such primitives.
+Uses dysonsphere's public core and extension APIs. This coordinated first-party package
+may use shared core helpers internally; third-party extensions should use ``dysonsphere.ext`` for
+extension primitives rather than shared private helpers.
 
 ## `volcano`
 

@@ -9,13 +9,11 @@ import altair as alt
 
 from .palettes import _DEFAULT_QUALITATIVE_PALETTE, _PALETTE_ALIASES, colors
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["theme", "create_config"]
 
-# Snapshot of the original palette catalogue at import time — restored on each
-# theme() call so custom palettes from config files don't accumulate or bleed
-# across theme resets.
+# Restore the imported palette catalogue on each theme() call so config palettes do not
+# accumulate across theme resets.
 _ORIGINAL_COLORS: dict[str, list[str]] = dict(colors)
 _DEFAULT_MARK_FILL_LIGHT = "#DBDBDB"
 _DEFAULT_MARK_FILL_DARK = "#9D9D9D"
@@ -489,7 +487,7 @@ def theme(
         val = p[key]
         p[key] = custom_palettes.get(val, _ORIGINAL_COLORS.get(val, val)) if isinstance(val, str) else val
 
-    # Commit only after every input has been validated and all derived values have been computed.
+    # Commit only after validation and derivation complete.
     colors.clear()
     colors.update(_ORIGINAL_COLORS)
     colors.update(custom_palettes)
@@ -498,14 +496,13 @@ def theme(
 
 
 def _compute_derived(p: dict[str, Any]) -> None:
-    """Resolve the derive-at-theme-time sentinels in *p* in place (None / True markers).
+    """Resolve the derive-at-theme-time markers in *p* in place (None / True values).
 
     Shared by :func:`theme` and the :func:`_opt` fallback so both resolve the same way.
     """
     # Computed defaults — None means "derive from other params"
     if p["closed"] is None:
-        # inward ticks point into the plot, so they need a closed (non-offset) axis;
-        # default closed=True for inward ticks (an explicit closed=False still wins).
+        # Inward ticks need a closed axis unless the caller explicitly sets closed=False.
         p["closed"] = p["tickDirection"] == "in" or p["viewFill"] is not None
     if p["markSize"] is None:
         p["markSize"] = min(p["width"], p["height"]) * 0.1
@@ -517,10 +514,9 @@ def _compute_derived(p: dict[str, Any]) -> None:
         p["boxplotOutliers"] = p["markSize"] / 10
     if p["viewPadding"] is True:  # continuous-scale data inset, chart-scaled like markSize
         p["viewPadding"] = min(p["width"], p["height"]) * 0.05
-    # chartFill=None is resolved at config-build time in _dysonsphere_theme(), NOT here, so it
-    # follows darkmode live (save() toggles darkmode per background without re-running theme()).
-    # Axes are flush by default; the gap between axis and data comes from viewPadding instead.
-    # True restores the Prism-style detached axis at 1.5x tick length - a sentinel rather than a
+    # Resolve chartFill when the config is built so it follows darkmode during save().
+    # Axes are flush by default; viewPadding supplies the gap between axes and data.
+    # True restores the Prism-style detached axis at 1.5x tick length - a marker rather than a
     # literal 4.5 so it keeps tracking tickSize. Resolved once here so the axis config and
     # save()'s grid-span fix read one consistent value.
     if p["axisOffset"] is None:
@@ -618,7 +614,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
             return opts[type_key]
         return default
 
-    # config.range.category must be a BARE array so a nominal scale maps positionally
+    # config.range.category must be an array so a nominal scale maps positionally
     # (category i -> color i), which the tier-major `categorical` palette relies on. The
     # {"scheme": [...]} form is invalid for nominal and silently drops the range. A Vega
     # scheme *name* (a str, e.g. "tableau10") still needs the {"scheme": ...} wrapper.
@@ -846,7 +842,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "offset": opts["legendOffset"],
                 # Legend text spacing mirrors the axis defaults: label gap 2, title gap 4.
                 # titlePadding = title->content (default 5); labelOffset = symbol->label (default
-                # 4); gradientLabelOffset = gradient-bar->label (labelOffset does NOT reach
+                # 4); gradientLabelOffset = gradient-bar->label (labelOffset does not reach
                 # gradient labels). Applies to every legend (symbol + gradient).
                 "titlePadding": 4,
                 "labelOffset": 2,
@@ -855,8 +851,8 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 # reads loose on a horizontal legend next to this theme's 2/4px gaps.
                 "columnPadding": opts["legendColumnPadding"],
                 "rowPadding": opts["legendRowPadding"],
-                # Save/show replace this non-executable ExprRef marker with panel geometry.
-                # Bare Altair rendering cannot resolve it; explicit configure_legend lengths win.
+                # save/show replace this non-executable marker with panel geometry. Bare Altair
+                # rendering cannot resolve it; explicit legend lengths take precedence.
                 "gradientLength": {"expr": f"dysonsphereLegendGradientLength({opts['legendGradientLength']!r})"},
                 "gradientThickness": opts["legendGradientThickness"],
                 "gradientOpacity": opts["markFillOpacity"],

@@ -191,8 +191,8 @@ def _shortened_segment(
     """Choose a short straight connector among sampled visible boundary attachments."""
     cx, cy = center
     hw, hh = size[0] / 2.0, size[1] / 2.0
-    # Near-axis corner approaches resemble detached underlines. Prefer readable edge-body ports,
-    # but allow a facing corner when the route is genuinely diagonal to both adjacent edges.
+    # Attach connectors away from corners unless they approach diagonally; near-parallel corner
+    # connections can look like detached underlines.
     inset = min(hw, hh)
     xlo, xhi = cx - hw + inset, cx + hw - inset
     projected_x = min(max(anchor[0], xlo), xhi)
@@ -211,13 +211,11 @@ def _shortened_segment(
     for x, x_visible in ((cx - hw, anchor[0] < cx - hw), (cx + hw, anchor[0] > cx + hw)):
         for y, y_visible in ((cy - hh, anchor[1] < cy - hh), (cy + hh, anchor[1] > cy + hh)):
             dx, dy = abs(x - anchor[0]), abs(y - anchor[1])
-            # Both faces must face the anchor. Exclude only essentially edge-parallel approaches
-            # (within about 6 degrees), not the shallow but readable diagonals of short leaders.
+            # Both edges must face the anchor. Exclude approaches within about 6 degrees of an edge.
             if x_visible and y_visible and min(dx, dy) >= 0.1 * max(dx, dy):
                 preferred.append((x, y))
     if not preferred:
-        # A label covering its anchor is already an infeasible overlap. A connector through the
-        # label's own interior cannot explain the association more clearly.
+        # Do not draw a connector through a label that covers its point.
         return None
     nearest = min(preferred, key=lambda p: math.dist(anchor, p))
     attachments = list(dict.fromkeys([*preferred, *attachments]))
@@ -248,7 +246,7 @@ def _shortened_segment(
     length2 = float(vec @ vec)
     t = np.clip((points - start) @ vec / length2, 0, 1) if length2 else np.zeros(len(points))
     if np.all(np.linalg.norm(points - start - t[:, None] * vec, axis=1) >= point_radius + stroke_width / 2):
-        # Keep the readable edge-body attachment when clear; sliding is an obstacle fallback.
+        # Keep the nearest attachment point unless an obstacle blocks the connector.
         return nearest_line
     lines = [shorten(end) for end in attachments]
     active = np.array([line is not None for line in lines])
@@ -307,8 +305,7 @@ def _repel_labels(
 
     def candidates(k: int) -> np.ndarray:
         hw, hh = half[k]
-        # Edge-relative seats first; lateral variants let long labels attach near their ends without
-        # paying for an unnecessary trip to the text center. Larger rings are escape candidates.
+        # Try positions beside the point first, then sideways shifts and more distant positions.
         values: list[tuple[float, float]] = []
         minimum = max(text_gap, marker_gap + text_gap + 4.0 * stroke_width if always_show and connector else 0.25)
         for extra in (minimum, minimum + 2.0, minimum + 5.0, minimum + 10.0, minimum + 20.0, minimum + 34.0):
@@ -319,7 +316,7 @@ def _repel_labels(
                 near_shift = max(lateral, 6.0)
                 for shift in (0.0, -near_shift, near_shift, -12.0, 12.0):
                     values.append((base[0] + (0 if sx else shift), base[1] + (shift if sx else 0)))
-        # A sparse panel-wide grid provides escape seats not restricted to an anchor's neighborhood.
+        # A sparse panel-wide grid adds positions beyond the point's neighborhood.
         values.extend(
             (float(x), float(y)) for x in np.linspace(hw, width - hw, 9) for y in np.linspace(hh, height - hh, 7)
         )
@@ -400,8 +397,7 @@ def _repel_labels(
         connector_point[:, np.linalg.norm(obs - a[k], axis=1) < 1e-9] = False
         distance = np.linalg.norm(np.maximum(np.abs(c - a[k]) - half[k], 0), axis=1)
         route_length = np.linalg.norm(end - start, axis=1)
-        # Compactness also matters without drawn connectors. Count saturation bounds the influence
-        # of a dense, infeasible cloud rather than trading one text overlap for hundreds of dots.
+        # Limit overlap penalties so avoiding dense clusters of points cannot outweigh text overlap.
         static.append(
             250_000.0 * np.minimum(label_point, 4)
             + 60_000.0 * np.minimum(connector_point.sum(axis=1), 4)

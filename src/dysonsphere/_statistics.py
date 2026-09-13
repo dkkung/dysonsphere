@@ -23,10 +23,10 @@ from typing import Any
 
 import numpy as np
 
-# Private computation engine; clear_stats is explicitly re-exported by ds.stats.
+# Private computation engine; clear_stats is re-exported by ds.stats.
 __all__: list[str] = []
 
-# Omnibus tests ("are *any* of the groups different?").
+# Omnibus tests.
 _OMNIBUS_TESTS = {"anova", "kruskal", "friedman", "alexandergovern"}
 
 # Display names + the post-hoc each omnibus test defaults to.
@@ -70,7 +70,7 @@ _TEST_DISPLAY = {
 }
 
 
-# ── Shared numerical validation ────────────────────────────────────────────
+# Shared numerical validation
 def _validate_pvalue(value: Any, context: str = "p-value") -> float:
     """Return a supplied probability after rejecting bools, non-numbers, and undefined values."""
     if isinstance(value, bool) or isinstance(value, numbers.Complex) and not isinstance(value, numbers.Real):
@@ -167,15 +167,10 @@ def _validate_family_size(n_comparisons: Any, actual: int, *, correction: str | 
     return result
 
 
-# ── Report registry ────────────────────────────────────────────────────────
-# stats.comparisons()/stats.correlation() register a structured report *record* (a plain
-# dict — the single source of truth) here, keyed by a hash of its content, and get back
-# a unique marker name to tag their annotation layer with.  export.save() resolves the
-# chart, finds which markers are actually present, and embeds ONLY those records — so a
-# record from a chart that's built but never saved can't contaminate a later save().
-# Module-level state is the only channel available because Altair strips custom metadata
-# when layers are combined with ``+`` (see AGENTS.md); the marker (a Vega-Lite view
-# ``name``, which DOES survive ``+``) is what ties a queued record back to its chart.
+# Report registry
+# stats.comparisons()/stats.correlation() register records keyed by content hash and return
+# marker names for their annotation layers. Altair strips custom metadata when layers are
+# combined, but preserves view names, which link queued records back to their chart.
 _MARKER_PREFIX = "__dysonsphere_"
 _REPORTS: dict[str, dict[str, Any]] = {}  # content-hash -> record
 # Records reconstructed from a current-version export are deduplicated by record and analytical
@@ -254,7 +249,7 @@ def clear_stats() -> None:
     _REPORTS.clear()
 
 
-# ── Omnibus result ─────────────────────────────────────────────────────────
+# Omnibus result
 @dataclass
 class _OmnibusResult:
     test: str  # key, e.g. "anova"
@@ -268,7 +263,7 @@ class _OmnibusResult:
     descriptives: list[dict[str, Any]] = field(default_factory=list)
 
 
-# ── Descriptive statistics ─────────────────────────────────────────────────
+# Descriptive statistics
 def _describe(label: str, x: np.ndarray) -> dict[str, Any]:
     x = np.asarray(x, dtype=float)
     return {
@@ -288,7 +283,7 @@ def _describe_all(groups: list[np.ndarray], labels: list[str]) -> list[dict[str,
     return [_describe(str(lab), g) for lab, g in zip(labels, groups)]
 
 
-# ── Effect sizes (omnibus) ─────────────────────────────────────────────────
+# Effect sizes (omnibus)
 def _eta_squared(groups: list[np.ndarray]) -> float:
     """Classic eta-squared: SS_between / SS_total, computed directly from the data."""
     all_vals = np.concatenate(groups)
@@ -309,7 +304,7 @@ def _kendalls_w(chi2: float, n_subjects: int, k_groups: int) -> float:
     return chi2 / denom if denom > 0 else 0.0
 
 
-# ── Omnibus runners ────────────────────────────────────────────────────────
+# Omnibus runners
 def _run_omnibus(test: str, groups: list[np.ndarray], labels: list[str]) -> _OmnibusResult:
     from scipy import stats as _stats
 
@@ -377,7 +372,7 @@ def _run_omnibus(test: str, groups: list[np.ndarray], labels: list[str]) -> _Omn
     return _OmnibusResult(test, name, stat, pval, "A", (k - 1,), "η²", effect, descriptives)
 
 
-# ── Correlation ────────────────────────────────────────────────────────────
+# Correlation
 def _run_correlation(method: str, x: np.ndarray, y: np.ndarray) -> dict[str, Any]:
     """Compute a correlation coefficient (+ OLS fit for Pearson) between two continuous vars."""
     from scipy import stats as _stats
@@ -474,7 +469,7 @@ def _ols_band(
 def _make_correlation_record(
     result: dict[str, Any], xCol: str, yCol: str, data_checksum: str | None = None, group: Any = None
 ) -> dict[str, Any]:
-    """Structured record for a correlation (the single source of truth, → usermeta).
+    """Structured record for a correlation, used to build usermeta.
 
     Supplied comparison p-values leave ``comparisons.test``, correction, and pair effects absent;
     an omnibus result remains recorded when omnibus mode was requested.
@@ -517,7 +512,7 @@ def _make_correlation_record(
     return record
 
 
-# ── Post-hoc tests (hand-rolled) ───────────────────────────────────────────
+# Post-hoc tests
 def _dunn_matrix(groups: list[np.ndarray]) -> np.ndarray:
     """Dunn's test (post-hoc for Kruskal-Wallis). Returns a k×k matrix of unadjusted p-values.
 
@@ -693,7 +688,7 @@ def _post_hoc_matrix(
     return out
 
 
-# ── Pairwise effect sizes ──────────────────────────────────────────────────
+# Pairwise effect sizes
 def _cohens_d(a: np.ndarray, b: np.ndarray, paired: bool) -> float:
     if paired:
         d = a - b
@@ -718,7 +713,7 @@ def _pair_effect(a: np.ndarray, b: np.ndarray, *, parametric: bool, paired: bool
     return "r", _validate_finite_result(_rank_biserial(a, b), "effect size", "pairwise test")
 
 
-# ── Report record (single source of truth) ─────────────────────────────────
+# Report record
 def _clamp_p(p: float) -> float:
     """Clamp a p-value away from an impossible ``0.0``.
 
@@ -745,7 +740,7 @@ def _make_record(
 ) -> dict[str, Any]:
     """Build the structured report record.
 
-    This dict is the single source of truth: ``_render_report`` turns it into the
+    This dict supplies the report data: ``_render_report`` turns it into the
     plain-text report, and ``export.save`` embeds it verbatim under
     ``usermeta.dysonsphere.statistics``.  ``comparisons`` is the internal list of
     dicts with keys ``g1``/``g2``/``pvalue`` and optionally ``effectName``/``effect``.
@@ -802,9 +797,8 @@ def _make_record(
     return record
 
 
-# ── Text report (rendered from a record) ───────────────────────────────────
-# The report/metadata uses a fixed 3 significant figures — independent of the on-plot
-# label's theme sigFigs, so a cosmetic on-plot choice never coarsens the record.
+# Text report (rendered from a record)
+# Reports use three significant figures, independent of the plot's sigFigs setting.
 _REPORT_SIGFIGS = 3
 
 

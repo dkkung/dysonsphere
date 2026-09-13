@@ -1,4 +1,4 @@
-# Support modules are namespaced surfaces; their contents are deliberately NOT star-imported
+# Support modules stay separate; their contents are not star-imported
 # into the top namespace.
 from . import ext, metadata, palettes, stats, transforms  # noqa: F401
 from .annotations import *  # noqa: F403
@@ -13,10 +13,8 @@ from .palettes import palette
 from .table import *  # noqa: F403
 from .theme import *  # noqa: F403
 
-# The public API - star-imported names, palette, and public namespaces, written out so the
-# surface is documented in one place and guarded by tests (test_package_namespace). Every
-# module defines its own __all__, so the star-imports above bind exactly these names and
-# nothing else (no leaked stdlib/third-party imports on the dysonsphere namespace).
+# Keep the root namespace explicit. Module-level __all__ values control the star imports above;
+# namespace tests check that unrelated imports do not leak here.
 __all__ = [
     "add_log_ticks",
     "add_multilabel",

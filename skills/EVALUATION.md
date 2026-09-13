@@ -1,7 +1,7 @@
 # Behavioral evaluation
 
 This is a repeatable evaluation protocol, not a record of completed harness evaluations. It stays
-outside the installed skill so agents do not receive the evaluator's expected answers.
+outside the installed skill so agents do not receive the expected answers.
 
 ## Setup
 

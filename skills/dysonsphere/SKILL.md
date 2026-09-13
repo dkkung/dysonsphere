@@ -15,7 +15,7 @@ metadata:
 
 # Dysonsphere
 
-Help the user obtain a scientifically faithful, readable figure with reproducible source.
+Help the user produce a scientifically faithful, readable figure with reproducible source.
 Use native Altair charts and composition; Dysonsphere supplies publication styling, selected
 composite marks, annotations, statistics, and corrected exports. This skill covers core only.
 
@@ -78,8 +78,8 @@ desired p-value. Synthetic examples below demonstrate syntax; never substitute t
   delivered caption. A panel label such as "b" and embedded metadata do not explain "6 mN; mean +/- SD".
   Keep the explanation concise; do not clutter every panel with a methods paragraph.
 
-Read only the reference needed for the next step. Paths are relative to this skill directory,
-not the user's working directory; no Dysonsphere source checkout is required.
+Read the reference needed for the next step. Paths are relative to this skill directory, not the
+user's working directory; no Dysonsphere source checkout is required.
 
 | Need | Reference |
 | --- | --- |

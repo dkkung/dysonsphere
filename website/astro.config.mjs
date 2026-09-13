@@ -80,7 +80,7 @@ export default defineConfig({
 				SiteTitle: './src/components/SiteTitle.astro',
 			},
 			description:
-				'An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.',
+				'An Altair theme and chart-utility library with perceptually uniform palettes and consistent defaults.',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/dkkung/dysonsphere' }],
 			// Injected raw because the CSS pipeline minifies `-webkit-text-size-adjust` away
 			// (it assumes the unprefixed property covers every target - Safari supports only the
@@ -97,9 +97,8 @@ export default defineConfig({
 				'./src/styles/theme.css',
 			],
 			expressiveCode: {
-				// geist-australis (custom, defined above): grayscale scaffold + australis accents.
-				// The ground comes from --ds-code-bg (theme.css) so code cells share one surface
-				// with the CodeMirror editors; the theme only supplies token colors.
+				// Code blocks and CodeMirror share --ds-code-bg from theme.css.
+				// The geist-australis themes supply token colors only.
 				themes: [geistAustralisDark, geistAustralisLight],
 				styleOverrides: {
 					borderRadius: '0.65rem',

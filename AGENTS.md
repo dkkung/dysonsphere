@@ -1,8 +1,8 @@
 # Repository Guidance
 
-Dysonsphere extends Altair with publication styling, composable charts, and self-documenting exports.
-`CLAUDE.md` points here. Keep this file short; API contracts belong in `API.md`, design reasons in
-`DESIGN.md`, implementation details in source/tests, and release history in `CHANGELOG.md`.
+Dysonsphere extends Altair with chart styling, composition, and metadata exports. `CLAUDE.md` points
+here. Keep this file short: API contracts belong in `API.md`, design reasons in `DESIGN.md`, current
+behavior in source and tests, and release history in `CHANGELOG.md`.
 
 ## Start Here
 
@@ -21,8 +21,7 @@ Dysonsphere extends Altair with publication styling, composable charts, and self
 
 ## Working Style
 
-- Discuss new non-trivial designs or breaking changes before building. Once approved, execute
-  within scope rather than repeatedly reopening settled decisions.
+- Discuss non-trivial designs or breaking changes before building. Once approved, work within scope.
 - Reuse settled API and commit conventions. Batch related mechanical changes; keep behavior fixes
   separate from renames so changes to figures and statistical records remain visible.
 - Inspect and test existing capabilities before proposing new API surface. Prefer native Altair
@@ -33,8 +32,7 @@ Dysonsphere extends Altair with publication styling, composable charts, and self
   checks when failures or relevant changes warrant it, not for unchanged code. Keep required
   regression, rendering, and CI checks; save on duplication, not quality or approved scope.
 - Keep known defects visible; do not hide them in a naming change or expand scope without agreement.
-- Report meaningful findings and blockers briefly. Do not narrate routine git operations or defend
-  avoidable overhead. Preserve unrelated worktree changes.
+- Report meaningful findings and blockers briefly. Preserve unrelated worktree changes.
 - Before committing code, finish docstrings and tests, verify, then update relevant documentation.
   New public functions need tests. Notable changes need an `[Unreleased]` changelog entry: user-facing
   entries under New features/Changes/Fixes, internal-only work under Internal.
@@ -83,7 +81,7 @@ examples during iteration and regenerate affected references after updating sour
   live in `stats.py`. Dependencies flow `export -> metadata`, not the reverse. The checksum core is
   `utils._frame_checksum`, publicly re-exported by metadata; stats use the private helper directly.
 - Tag every generated chart dataset with `utils._internal_data` (extensions use `ext.internal_data`).
-  Never tag the user's data. Otherwise sidecars leak into recovered data and provenance checksums.
+  Never tag the user's data. Otherwise generated annotation data leaks into recovered data and provenance checksums.
 - Preserve chart-specific statistics markers: exports select records present in the chart, not all
   accumulated records. Saving does not clear the registry. Marker names must remain unique when
   charts are composed; stored metadata field names are separate from Python parameter names.
@@ -96,10 +94,10 @@ examples during iteration and regenerate affected references after updating sour
 - Fixed reference annotations use datum/value positions to avoid clobbering shared axis titles.
   Facet-safe references share user data through `_datum_base`; global statistical results must not
   simply repeat across facets as though computed per panel.
-- Preserve the common save/show SVG pipeline and its ordering. Apply shared spec fixes wherever
+- Preserve the common save/show SVG processing and its ordering. Apply shared spec fixes wherever
   specs are resolved for export, comparison, or website generation. Bare Altair display and interactive
-  HTML do not receive the full SVG formatting pipeline.
-- Figure/shade markers must survive saved-spec round trips; they deliberately do not use the
+  HTML do not receive all SVG formatting fixes.
+- Figure/shade markers must survive save/reload; they deliberately do not use the
   statistics prefix stripped during export. Keep internal identity separate from visible labels.
 - Keep palette data as precomputed literals, not import-time color calculations. Preserve palette
   ordering and run the quality/CVD tests when changing ramps; use the recipe script for authoring.

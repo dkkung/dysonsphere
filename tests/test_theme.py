@@ -1334,7 +1334,7 @@ class TestOptAccessor:
 
     def test_fallback_resolves_derived_defaults(self):
         # the raw builtin for markSize/axisOffset is None (a derive-at-theme-time
-        # sentinel); the fallback must expose the DERIVED value, not the sentinel
+        # marker); the fallback must expose the derived value, not the marker
         from dysonsphere.theme import _opt
 
         alt.theme.options = {}

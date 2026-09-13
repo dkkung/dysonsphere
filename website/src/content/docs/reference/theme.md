@@ -1,6 +1,6 @@
 ---
 title: "Theming"
-description: "Register the dysonsphere Altair theme and scaffold config files."
+description: "Register the dysonsphere Altair theme and create config files."
 sidebar:
   order: 15
 ---

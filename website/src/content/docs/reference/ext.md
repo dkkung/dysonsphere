@@ -1,56 +1,46 @@
 ---
 title: "Extension authoring"
-description: "The stable primitive surface for extension authors (dysonsphere.ext)."
+description: "The public API for extension authors (dysonsphere.ext)."
 sidebar:
   order: 4
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
 
-Public primitive surface for dysonsphere extension authors (``dysonsphere.ext``).
+API for dysonsphere extensions (``dysonsphere.ext``).
 
-Extensions (e.g. ``dysonsphere-biology``) build composite charts that must behave like
-first-class dysonsphere objects - their generated data filtered correctly by
-``ds.metadata.read(what="data")``, their styling driven by the active theme. That requires a handful of
-core primitives which are otherwise ``_``-private. This module is the **stable, versioned
-contract**: import from here (``from dysonsphere import ext``), never reach into
-``dysonsphere.utils._internal_data`` / ``dysonsphere.theme._opt`` / etc. directly - those
-signatures are free to change; the names re-exported here are not (changes go through a
-deprecation cycle, like any public API).
+Extensions use these core helpers to match core chart behavior for metadata filtering and theme
+styling. Import them from ``dysonsphere.ext`` rather than private core modules. The re-exported
+names are stable and changes follow the usual public-API deprecation process.
 
-Kept deliberately **minimal**. Primitives are promoted here only once a real consumer needs
-them (growing a public surface is cheap and non-breaking; walking one back is not). The
-current set is what a composite scatter annotation - the volcano plot - actually uses.
-
-Surface:
+The current API supports the composite annotation used by the volcano plot:
 
 - **``AltairChart``** - the chart-object union (``alt.Chart | LayerChart | FacetChart |
   VConcatChart | HConcatChart | ConcatChart``). Use it as the return annotation for a
-  composite constructor, matching core's own ``save()`` signature.
+  composite constructor, matching core's ``save()`` signature.
 
 - **``opt(key)``** - read an active-theme option (``opt("markSize")``, ``opt("width")``,
   ``opt("fontSize")``, ``opt("darkmode")``, …). Falls back to the derived built-in default
-  when called before any ``ds.theme()``, so styling code never sees ``None`` sentinels.
+  when called before any ``ds.theme()``, so styling code receives derived defaults rather than
+  ``None`` values.
   Unknown keys raise ``KeyError``. This is the ONLY supported way to read theme options
   outside core.
 
-- **``internal_data(data)``** - tag a dysonsphere-GENERATED "sidecar" dataset (label
+- **``internal_data(data)``** - tag a dysonsphere-generated annotation dataset (label
   coordinates, computed reference frames, …) so ``ds.metadata.read(what="data")`` filters it out and
   returns only the user's dataframe(s). Accepts a ``list[dict]`` (→ ``alt.Data``) or a
   polars/pandas DataFrame (→ tagged polars df); pass the result straight to
   ``alt.Chart(...)``.
 
-  **DISCIPLINE:** route EVERY generated data source through ``internal_data`` -
-  ``alt.Chart(internal_data(rows_or_df))``. Miss one and that sidecar leaks as a phantom
-  "user" dataframe (a false multi-frame error from ``read``, or the wrong frame returned).
-  Conversely, do NOT tag the USER's own frame (the points you were handed) - tagging it would
-  hide the user's data from ``read``. Rule of thumb: data you computed → tag it; data the
-  caller passed in → leave it.
+  Route every generated data source through ``internal_data`` -
+  ``alt.Chart(internal_data(rows_or_df))``. An untagged dataset can appear as a user dataframe
+  or cause a false multi-frame error in ``read``. Do not tag the user's frame; tagging it hides
+  that data from ``read``. Tag data computed by the extension and leave caller-provided data alone.
 
-  **Facet caveat:** an ``internal_data`` sidecar gives its layer its own dataset, which makes
+  **Facet caveat:** an ``internal_data`` dataset gives its layer its own data source, which makes
   the composite un-faceteable (Altair requires all layers of a faceted chart to share one
   data variable). Core's facet-safe annotations take a ``data=`` param and build on a shared
-  base instead; that helper (``_datum_base``) is not yet part of this public surface - ask if
+  base instead; that helper (``_datum_base``) is not yet part of this API - ask if
   your extension needs faceting.
 
 - **``tag_extension(chart, name)``** - tag a chart your extension built so ``ds.save()`` records
@@ -83,10 +73,10 @@ def internal_data(
 ) -> Any: ...
 ```
 
-Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
+Tag dysonsphere-generated (non-user) chart data with the internal marker column.
 
 Accepts a list of record dicts (returned as an ``alt.Data``) or a polars/pandas
-DataFrame (returned as a polars DataFrame with the sentinel column added).  Pass the
+DataFrame (returned as a polars DataFrame with the marker column added). Pass the
 result straight to ``alt.Chart(...)``.
 
 ## `opt`

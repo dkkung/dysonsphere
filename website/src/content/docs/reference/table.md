@@ -47,8 +47,8 @@ The table lays cells out in pixel space (so it drops into ``+`` / ``hconcat`` / 
 without scale-merge surprises) but drives every per-row mark off the **user's dataframe** via
 ``transform_window`` (row index) and ``transform_calculate`` (formatted labels, contrast
 colours). Those transforms never touch the inlined data, so ``read(what="data")`` and the
-provenance ``dataChecksum`` recover the frame you passed **byte-for-byte** - only the fixed
-chrome (strokes, header text) rides on internal sidecar datasets.
+provenance ``dataChecksum`` recover the frame you passed **byte-for-byte**. Fixed elements
+such as strokes and header text use internal annotation datasets.
 
 Because a table cannot render at the 100×100 default canvas, ``mark_table`` sizes itself from
 the row/column counts and a per-column content estimate, overriding theme ``width`` /

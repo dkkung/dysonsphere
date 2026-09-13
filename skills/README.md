@@ -4,10 +4,9 @@
 scientific figures using core Dysonsphere and Altair. It includes focused plotting, statistics, and
 export references, with five executable examples. Optional biology extensions are not covered.
 
-The bundle uses the [Agent Skills format](https://agentskills.io/specification). One canonical
-directory serves Claude Code, Codex, and OpenCode; no harness-specific permissions, plugins, or
-subagent configuration are required. Installing a skill supplies guidance, not a guarantee that
-an agent will follow it or choose a statistically appropriate analysis.
+The bundle uses the [Agent Skills format](https://agentskills.io/specification). One directory serves
+Claude Code, Codex, and OpenCode; no harness-specific permissions or plugins are required. The skill
+provides guidance but does not ensure that an agent follows it or chooses an appropriate analysis.
 
 ## Compatibility and availability
 
@@ -37,10 +36,9 @@ npx skills add "/path/to/dysonsphere/skills/dysonsphere" --skill dysonsphere \
   --agent claude-code codex opencode --copy
 ```
 
-Project-local installation is the recommended starting point. Add `--global` only if you want the
-guidance available across projects, potentially with different Dysonsphere versions. Review the
-destination and any existing skill before confirming an installation or update. Avoid duplicate
-copies of the same skill at several discovery locations.
+Start with a project-local installation. Add `--global` only when the guidance should apply across
+projects, which may use different Dysonsphere versions. Review the destination and existing skills
+before confirming an installation or update; avoid duplicate copies.
 
 The CLI is optional and requires Node tooling. Its telemetry and security-audit requests can be
 disabled with `DISABLE_TELEMETRY=1`; consult its documentation for current behavior.
@@ -88,7 +86,7 @@ default raster quality if PNG is requested separately. They do not add PNG solel
 uv run pytest tests/test_skills.py
 ```
 
-These tests copy just the skill directory to temporary storage, check its controlled frontmatter
+These tests copy the skill directory to temporary storage, check its controlled frontmatter
 and internal links, and execute the actual examples to produce SVG and JSON. They assert the exact
 default deliverable set before rasterizing the corrected SVGs into a separate temporary inspection
 directory. Those PNG previews use the default density from `ds.save()` and an appropriate background

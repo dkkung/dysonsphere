@@ -157,9 +157,8 @@ def _beeswarm_offsets(
     for idx in order:
         y = y_px[idx]
 
-        # For each already-placed point within vertical range, compute the
-        # forbidden x interval: placed_x[j] ± sqrt((2r)² - dy²).
-        # The optimal x is the candidate closest to 0 outside all intervals.
+        # For nearby placed points, compute the forbidden x interval at this y. Choose the
+        # candidate closest to zero outside all intervals.
         candidates = [0.0]
         for j in range(n_placed):
             dy = abs(placed_y[j] - y)
@@ -169,7 +168,7 @@ def _beeswarm_offsets(
             candidates.append(placed_x[j] + half)
             candidates.append(placed_x[j] - half)
 
-        # Pick the candidate closest to 0 that doesn't overlap any placed point.
+        # Choose the closest non-overlapping candidate.
         candidates.sort(key=abs)
         for cx in candidates:
             dists_sq = (placed_y[:n_placed] - y) ** 2 + (placed_x[:n_placed] - cx) ** 2  # ty: ignore[unsupported-operator]
@@ -299,10 +298,8 @@ def _quasirandom_offsets(
             kind="quasirandom KDE column",
         )
 
-    # Auto width: match the swarm's footprint. peak = the most points within one 2*spread-tall
-    # window (a swarm "row"); at that density the van der Corput fills +/- spread*peak, giving
-    # ~one-diameter horizontal spacing - the same extent the swarm's row would occupy. Vectorised:
-    # for each point (sorted), searchsorted finds the window's low edge, so the count is O(n log n).
+    # Auto width matches the densest swarm row. searchsorted finds each window's lower edge in
+    # O(n log n), and the van der Corput sequence fills the resulting horizontal footprint.
     if width is None:
         sorted_px = np.sort(y_px)
         lo = np.searchsorted(sorted_px, sorted_px - 2 * spread, side="left")
@@ -314,8 +311,7 @@ def _quasirandom_offsets(
     offsets = np.empty(n)
     offsets[order] = centered
     offsets = offsets * dens * width
-    # Centre on the midrange: a rigid, overlap-safe shift that seats the swarm's left/right extremes
-    # equidistant from the tick (symmetric outline) and lifts small even-count groups off centre.
+    # Center on the midrange so the swarm's extremes are symmetric around the tick.
     result = offsets - (offsets.max() + offsets.min()) / 2
     if not np.all(np.isfinite(result)):
         raise ValueError(f"quasirandom KDE column {column!r} produced non-finite offsets in group {group!r}.")
@@ -331,7 +327,7 @@ def _grouped_offsets(
 ) -> pl.DataFrame:
     """Apply a per-group offset function over ``yCol`` and attach the result as ``outCol``.
 
-    Shared ``with_row_index`` / ``group_by`` / ``map_groups`` / ``sort`` / ``drop`` plumbing for
+    Shared ``with_row_index`` / ``group_by`` / ``map_groups`` / ``sort`` / ``drop`` operations for
     :func:`beeswarm` and :func:`quasirandom` (both compute one x-offset per row, per group).
     """
     return (

@@ -122,7 +122,7 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   page of all ~19 live vega-embed charts was slow, so ~4/page. ~19 examples generating their own data (numpy/scipy/polars - all in the Pyodide runtime, so Open-in-studio
   works), spanning scientific domains, each `codeToggle`. **Dense heatmaps:** encode `x`/`x2` +
   `y`/`y2` CELL EDGES (not a single binned `x`) with the far edge overhanging the next by ~30% of
-  a cell (`+ step * 0.3`) - the overlap hides the sub-pixel rasterization seams (the transparent
+  a cell (`+ step * 0.3`) - the overlap hides sub-pixel rasterization gaps (the transparent
   page showing through cell gaps) that are invisible in the raw render but appear at the site's
   chart zoom. Also `mark_rect(stroke=None, clip=True)` and `alt.data_transformers.enable("default",
   max_rows=None)` (the grids exceed Altair's 5000-row cap). Keep grids ~90-110/side: specs inline
@@ -222,7 +222,7 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   a fraction of its intended size (position right, digits unreadable) - mobile-only, desktop and
   "Request Desktop Website" both fine. Fixed by pinning `text-size-adjust: 100%` on `.vega-embed`.
   **The `-webkit-` twin lives in astro.config.mjs's `head` as a raw `<style>`, NOT in theme.css:**
-  the CSS pipeline strips a prefixed declaration (it assumes the unprefixed property covers every
+  the CSS processing strips a prefixed declaration (it assumes the unprefixed property covers every
   target), and Safari - the entire point - honours ONLY the prefixed one. Verify after a build with
   `grep -o -- '-webkit-text-size-adjust:100%' dist/index.html`.
 - **Figure labels are re-aligned client-side.** `alignFigureLabels` (fixSuperscripts.ts) ports
@@ -415,7 +415,7 @@ aside so they stay visible while scrolling the 300+ palettes; stacks on narrow s
 guide links to it. Studio
 gains "Import an export" (ds.load rebuild + ds.read metadata panel) and the Pyodide boot fix (see
 the deps=False gotcha above). All verified headless (incl. a full Pyodide boot + JSON/PNG import
-round-trip) plus the deploy-equivalent base-path grep.
+save/import check) plus the deploy-equivalent base-path grep.
 
 Deploy wiring (since 2026-07-11): pages.yml regenerates ALL site inputs from the checked-out
 library (uv + the four gen_*.py scripts) before the Astro build, then deploys `website/dist` to
