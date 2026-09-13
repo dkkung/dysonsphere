@@ -548,7 +548,9 @@ def _apply_spec_fixes(spec: dict[str, Any]) -> dict[str, Any]:
     if spec.get("config", {}).get("scale", {}).get("continuousPadding"):
         _suppress_nice(spec)
     _resolve_gradient_legend_lengths(spec)
-    return spec
+    from ._label_resolution import _resolve_labels
+
+    return _resolve_labels(spec)
 
 
 def resolve_palette(name_or_list: "str | list[str]") -> list[str]:

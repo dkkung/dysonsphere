@@ -310,7 +310,7 @@ class TestLabelConnectorCaps:
         assert 'class="ds-rule-cap"' in (tmp_path / "loaded.svg").read_text()
         assert ds.metadata.read(tmp_path / "labels.json", what="data").equals(df)
 
-    def test_too_short_arrow_connector_is_omitted_but_label_remains(self, tmp_path):
+    def test_forced_arrow_connector_moves_to_a_valid_seat(self, tmp_path):
         theme(width=100, height=100)
         df = pl.DataFrame({"x": [5.0], "y": [5.0], "label": ["a"]})
         import dysonsphere as ds
@@ -319,8 +319,8 @@ class TestLabelConnectorCaps:
         save(chart, tmp_path / "short", format="svg", saveMetadata=False)
         svg = (tmp_path / "short.svg").read_text()
         assert ">a</text>" in svg
-        # A sub-arrow-depth connector is omitted as a whole; no intersecting/shrunken arrow is emitted.
-        assert 'class="ds-rule-cap"' not in svg
+        # Renderer-time forced placement chooses a seat with enough room for the requested arrow.
+        assert 'class="ds-rule-cap"' in svg
 
 
 def test_png_ppi_scales_from_svg_72_units_per_inch(tmp_path):

@@ -36,11 +36,14 @@ species names), and give them a background chip with `fill` / `fillOpacity` / `s
 
 Labels are centered, using approximate character-aware text bounds. Connectors prefer edge-body
 attachments, allowing facing corners for diagonal approaches rather than detached, edge-parallel stubs.
-The layout models standard linear scales, including zero and the theme's view padding. For a custom explicit domain, pass
-matching `xDomain` / `yDomain` values and use `zero=False` on the base scale if those bounds exclude
-zero. Arbitrary nonlinear scales, different native padding/nice settings, custom fonts, or later
-resizing can degrade collision avoidance. Rebuild the layer after changing its theme geometry.
-Every requested label remains visible, so an overfull plot may still contain overlaps.
+When you call `ds.save()` or `ds.show()`, dysonsphere automatically evaluates the complete composed
+panel and reruns placement against visible sibling points, straight lines and rules, rectangles, and
+fixed text - including marks added before or after `ds.labels()`. The same intent survives `ds.load()`,
+resizing, and nested concat composition; no separate placement call is needed. An omitted
+`connectorGap` expands to clear the rendered anchor symbol, while an explicit zero or numeric value
+remains exact. Arbitrary curves, areas, images, and paths are not treated as exact obstacles. Every
+requested label remains visible, so an overfull plot may still contain overlaps. Bare Altair display
+uses the construction-time fallback; use `ds.show()` to preview the authoritative saved layout.
 
 Set `connectorCap="arrow"` to point each connector toward its target. The existing `connectorGap`
 controls target clearance and is applied once; label placement and text-end clearance do not change.

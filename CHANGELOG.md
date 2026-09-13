@@ -48,7 +48,9 @@
   width estimates, centered text, and boundary-sliding straight connectors. Placement accounts for
   standard linear-scale zero inclusion and view padding, and scores point, text, and connector
   collisions while preferring shorter leaders. Small layouts can take longer because routing checks
-  more geometry; bounded candidates reduce the larger-layout search cost.
+  more geometry; bounded candidates reduce the larger-layout search cost. `save()` and `show()`
+  automatically resolve serialized label intent against visible sibling symbols, straight lines and
+  rules, rectangles, and fixed text across layered and concatenated charts.
 - Forced point-label connectors now reserve their complete marker/text clearances instead of shrinking
   gaps into nearby marks. Bare connectors attach to tighter typographic estimates while conservative
   padding remains in collision detection; filled labels continue to attach at the actual chip edge.

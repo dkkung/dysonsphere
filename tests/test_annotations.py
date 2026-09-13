@@ -46,15 +46,13 @@ class TestLabels:
         assert isinstance(labels(df, "x", "y", "g"), alt.LayerChart)
 
     def test_layer_count_with_leaders(self, df):
-        # (connector + text) per label, nothing else - the scale pin rides on the first label layer,
-        # no invisible sidecar mark (alwaysShowConnectors so no short-connector is dropped, making
-        # the count deterministic)
+        # Connector + text + one serializable datum anchor probe per label.
         chart = labels(df, "x", "y", "g", alwaysShowConnectors=True)
-        assert len(chart.to_dict()["layer"]) == 3 * 2
+        assert len(chart.to_dict()["layer"]) == 3 * 3
 
     def test_no_connector(self, df):
-        # 1 text per label, no pin layer
-        assert len(labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 3
+        # One text and one serializable datum anchor probe per label.
+        assert len(labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 6
 
     @pytest.mark.parametrize("coordinate", ["x", "y"])
     @pytest.mark.parametrize("value", [float("nan"), None, float("inf"), float("-inf")])
@@ -167,12 +165,12 @@ class TestLabels:
             assert r["encoding"]["y"]["datum"] == pytest.approx(t["encoding"]["y"]["datum"])
             assert r["encoding"]["xOffset"]["value"] == 0.0  # centred chip: no horizontal shift
 
-    def test_no_invisible_pin_mark(self, df):
-        # the scale pin must ride on the label marks themselves - no invisible point may land in
-        # the spec (it used to show up as a phantom element in the exported SVG)
+    def test_serializable_anchor_probes_are_zero_size(self, df):
         spec = labels(df, "x", "y", "g", alwaysShowConnectors=True).to_dict()
         types = {lyr["mark"]["type"] for lyr in spec["layer"]}
-        assert types == {"rule", "text"}
+        assert types == {"point", "rule", "text"}
+        probes = [layer for layer in spec["layer"] if layer["mark"]["type"] == "point"]
+        assert all(layer["mark"]["opacity"] == layer["mark"]["size"] == 0 for layer in probes)
 
     def test_positions_are_datum_not_value(self, df):
         # label geometry is emitted in data coordinates (alt.datum) - a datum contributes no axis

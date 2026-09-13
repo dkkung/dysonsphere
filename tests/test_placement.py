@@ -5,6 +5,7 @@ import math
 import pytest
 
 from dysonsphere._placement import (
+    _CircleObstacle,
     _estimate_text_size,
     _repel_labels,
     _sample_spread,
@@ -41,6 +42,59 @@ class TestRepelLabelsObstacles:
         )
         assert segment is not None
         assert segment[1] != (10.0, 5.0)
+
+    def test_attachment_slides_for_circle_without_standard_points(self):
+        nearest = _shortened_segment((0.0, 5.0), (15.0, 5.0), (10.0, 10.0), 0.0, 0.0)
+        segment = _shortened_segment(
+            (0.0, 5.0),
+            (15.0, 5.0),
+            (10.0, 10.0),
+            0.0,
+            0.0,
+            obstacles=[],
+            circle_obstacles=[_CircleObstacle((5.0, 5.0), 1.0)],
+        )
+        assert segment is not None and nearest is not None
+        assert nearest[1] == (10.0, 5.0)
+        assert segment[1] != nearest[1]
+
+    def test_connector_circle_penalty_can_relocate_candidate(self):
+        args = ([(20.0, 50.0)], [(24.0, 10.0)])
+        plain = _repel_labels(
+            *args,
+            width=100,
+            height=100,
+            obstacles=[],
+            point_radius=0,
+            marker_gap=4,
+            text_gap=1,
+            always_show=True,
+        )
+        blocked = _repel_labels(
+            *args,
+            width=100,
+            height=100,
+            obstacles=[],
+            point_radius=0,
+            marker_gap=4,
+            text_gap=1,
+            always_show=True,
+            connector_circle_obstacles=[_CircleObstacle((19.2, 45.0), 1.0)],
+        )
+        assert plain == [(20.0, 39.0)]
+        assert blocked == [(20.0, 61.0)]
+
+    def test_optional_line_obstacle_moves_text_without_changing_default(self):
+        args = ([(50.0, 50.0)], [(30.0, 10.0)])
+        default = _repel_labels(*args, width=100, height=100)
+        assert default == _repel_labels(*args, width=100, height=100, line_obstacles=None)
+        aware = _repel_labels(
+            *args,
+            width=100,
+            height=100,
+            line_obstacles=[((0.0, default[0][1]), (100.0, default[0][1]))],
+        )
+        assert abs(aware[0][1] - default[0][1]) > 5.0
 
     def test_obstacles_shift_placement(self):
         # background points near where the label would sit must push it off them

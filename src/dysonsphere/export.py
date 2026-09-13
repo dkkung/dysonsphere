@@ -54,7 +54,7 @@ def _resolve_choice(value, default, valid: tuple[str, ...], name: str) -> list[s
     return _validate_choice(raw, valid, name)
 
 
-def _render_fixed_svg(base_obj, svg_path: str) -> str:
+def _render_fixed_svg(base_obj, svg_path: str, *, resolved_spec: dict[str, Any] | None = None) -> str:
     """Render an Altair object to SVG at *svg_path*, run every dysonsphere SVG post-processor,
     and return the corrected SVG string.
 
@@ -80,7 +80,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     """
     import vl_convert as vlc
 
-    spec = _apply_spec_fixes(base_obj.to_dict())
+    spec = resolved_spec if resolved_spec is not None else _apply_spec_fixes(base_obj.to_dict())
     root = ET.fromstring(vlc.vegalite_to_svg(spec))  # parsed ONCE; every fixer mutates this tree
     _decorate_rule_segments(root)  # marker classes and unsimplified line transforms are still intact
     axis_offset = 0 if _opt("closed") else _opt("axisOffset")
@@ -263,6 +263,9 @@ def save(
         #   → fig_light.svg / fig_dark.svg + fig_light.json / fig_dark.json
 
     Each background toggles ``darkmode`` for its render, restoring the original after.
+
+    Point labels are resolved once per background against the complete composed panel before any
+    format is written, so JSON, HTML, SVG, and PNG share the same initial obstacle-aware layout.
 
     Labels are typeset on export (SVG/PNG): a ``^`` marks a superscript (``"x^2"``, ``"10^3"``)
     and a **double** underscore a subscript (``"C__t"`` -> C with a subscript t; single ``_`` is
@@ -502,7 +505,18 @@ def save(
             if _want_render:
                 alt.theme.options["transparent"] = transparent
                 svg_path = _path(bg, "svg")
-                svg_content = _render_fixed_svg(base_obj, svg_path)
+                # Reuse the preflighted layout so JSON/HTML/SVG/PNG for this variant all start from
+                # one scenegraph evaluation and callable charts remain once-per-variant.
+                render_spec = deepcopy(original_spec)
+                # Re-materializing only the root background under the physical transparency option
+                # preserves custom chartFill and explicit native chart backgrounds without rerunning
+                # deferred label layout.
+                physical_spec = _json_safe(base_obj.to_dict())
+                if "background" in physical_spec:
+                    render_spec["background"] = physical_spec["background"]
+                else:
+                    render_spec.pop("background", None)
+                svg_content = _render_fixed_svg(base_obj, svg_path, resolved_spec=render_spec)
                 # Inject the metadata channels + user <desc> after the opening <svg> tag.  A
                 # lambda replacement keeps backslashes/braces in the JSON literal (not regex).
                 _inserts = metadata._svg_inserts(_usermeta_json, _report_sections, description)
@@ -541,6 +555,9 @@ def show(
     :func:`save` writes and returns it as an ``IPython.display.HTML`` for inline display, so
     the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
     ``transparent`` and writes no file.
+
+    This includes automatic obstacle-aware point-label placement from serialized ``ds.labels()``
+    intent; no separate placement or finalization call is required.
 
     The SVG is returned as **HTML** rather than ``IPython.display.SVG`` so the preview lands on
     the notebook's own background, exactly like a bare Altair chart. An ``image/svg+xml`` output

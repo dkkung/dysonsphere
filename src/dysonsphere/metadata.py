@@ -470,7 +470,30 @@ def _statistics_context(spec: dict[str, Any], target: dict[str, Any]) -> str:
     leaves: list[Any] = []
 
     def collect(node: dict[str, Any], state: dict[str, Any]) -> None:
+        from ._label_resolution import _LABEL_GROUP_COL, _LABEL_ITEM_PREFIX
         from ._statistics import _marker_hash
+
+        # Deferred point-label output is presentation geometry derived from the durable intent
+        # leaves. Reflow replaces these pixel-valued connectors/chips/text, so hashing them would
+        # make a presentation-only resize look like changed analytical context. Require both private
+        # mark and data identities; the invisible intent marks have a different description and stay
+        # in the context, preserving anchors, selected rows, styles, and connector policy.
+        mark = node.get("mark")
+        description = mark.get("description", "") if isinstance(mark, dict) else ""
+        raw_data = node.get("data")
+        generated_values = None
+        if isinstance(raw_data, dict):
+            if isinstance(raw_data.get("values"), list):
+                generated_values = raw_data["values"]
+            elif isinstance(raw_data.get("name"), str):
+                generated_values = datasets.get(raw_data["name"])
+        if (
+            _LABEL_ITEM_PREFIX in str(description)
+            and isinstance(generated_values, list)
+            and generated_values
+            and all(isinstance(row, dict) and _LABEL_GROUP_COL in row for row in generated_values)
+        ):
+            return
 
         _, underlying = discovery._unwrap_extension_markers(node.get("name"))
         owner = _persistent_owner(node.get("name"))

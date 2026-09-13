@@ -22,7 +22,9 @@ def _marks(chart: Any) -> dict[str, list[dict[str, Any]]]:
         if isinstance(node, dict):
             kind = node.get("marktype")
             if kind in found and node.get("role") == "mark":
-                found[kind].extend(node.get("items", []))
+                # Deferred labels persist zero-size, zero-opacity symbol probes for renderer-time
+                # anchor mapping. They are serialization infrastructure, not painted point marks.
+                found[kind].extend(item for item in node.get("items", []) if float(item.get("opacity", 1)) > 0)
             for value in node.values():
                 visit(value)
         elif isinstance(node, list):
@@ -228,8 +230,6 @@ def test_pixel_model_matches_native_linear_scales(monkeypatch, reverse, explicit
     assert [(p["x"], p["y"]) for p in before["symbol"]] == [(p["x"], p["y"]) for p in after["symbol"]]
     for expected, actual in zip(captured["positions"], after["text"]):
         x, y = expected
-        if reverse:
-            x, y = 160 - x, 120 - y
         assert (actual["x"], actual["y"]) == pytest.approx((x, y), abs=1e-8)
 
 

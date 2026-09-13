@@ -41,6 +41,9 @@ keeps clean names::
 
 Each background toggles ``darkmode`` for its render, restoring the original after.
 
+Point labels are resolved once per background against the complete composed panel before any
+format is written, so JSON, HTML, SVG, and PNG share the same initial obstacle-aware layout.
+
 Labels are typeset on export (SVG/PNG): a ``^`` marks a superscript (``"x^2"``, ``"10^3"``)
 and a **double** underscore a subscript (``"C__t"`` -> C with a subscript t; single ``_`` is
 left alone so snake_case column names used as default titles are not mangled). Unicode
@@ -101,6 +104,9 @@ ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG t
 :func:`save` writes and returns it as an ``IPython.display.HTML`` for inline display, so
 the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
 ``transparent`` and writes no file.
+
+This includes automatic obstacle-aware point-label placement from serialized ``ds.labels()``
+intent; no separate placement or finalization call is required.
 
 The SVG is returned as **HTML** rather than ``IPython.display.SVG`` so the preview lands on
 the notebook's own background, exactly like a bare Altair chart. An ``image/svg+xml`` output

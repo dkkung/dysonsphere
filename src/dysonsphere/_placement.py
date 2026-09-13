@@ -4,9 +4,33 @@ from __future__ import annotations
 
 import math
 import unicodedata
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
+
+
+@dataclass(frozen=True)
+class _CircleObstacle:
+    center: tuple[float, float]
+    radius: float
+
+
+@dataclass(frozen=True)
+class _SegmentObstacle:
+    start: tuple[float, float]
+    end: tuple[float, float]
+    radius: float = 0.0
+
+
+@dataclass(frozen=True)
+class _BoxObstacle:
+    center: tuple[float, float]
+    half_size: tuple[float, float]
+    angle: float = 0.0
+
+
+_GeometryObstacle = _CircleObstacle | _SegmentObstacle | _BoxObstacle
 
 # ASCII advances (U+0020 through U+007E) in thousandths of an em, measured from Helvetica Neue
 # Regular. Literal metrics keep the default-font estimate portable, including in Pyodide. Other
@@ -187,6 +211,7 @@ def _shortened_segment(
     stroke_width: float = 0.25,
     obstacles: list[tuple[float, float]] | NDArray[np.float64] | None = None,
     point_radius: float = 0.0,
+    circle_obstacles: list[_CircleObstacle] | None = None,
 ) -> tuple[tuple[float, float], tuple[float, float]] | None:
     """Choose a short straight connector among sampled visible boundary attachments."""
     cx, cy = center
@@ -241,13 +266,23 @@ def _shortened_segment(
         points = np.unique(points, axis=0)
     points = points[np.linalg.norm(points - anchor, axis=1) > 1e-9]
     nearest_line = shorten(nearest)
-    if nearest_line is None or not len(points):
+    circles = circle_obstacles or []
+    if nearest_line is None or (not len(points) and not circles):
         return nearest_line
     start, finish = np.asarray(nearest_line)
     vec = finish - start
     length2 = float(vec @ vec)
     t = np.clip((points - start) @ vec / length2, 0, 1) if length2 else np.zeros(len(points))
-    if np.all(np.linalg.norm(points - start - t[:, None] * vec, axis=1) >= point_radius + stroke_width / 2):
+    clear = np.all(np.linalg.norm(points - start - t[:, None] * vec, axis=1) >= point_radius + stroke_width / 2)
+    for circle in circles:
+        if math.dist(circle.center, anchor) < 1e-9:
+            continue
+        relative = np.asarray(circle.center) - start
+        fraction = float(np.clip(relative @ vec / length2, 0, 1)) if length2 else 0.0
+        if np.linalg.norm(relative - fraction * vec) < circle.radius + stroke_width / 2:
+            clear = False
+            break
+    if clear:
         # Keep the readable edge-body attachment when clear; sliding is an obstacle fallback.
         return nearest_line
     lines = [shorten(end) for end in attachments]
@@ -267,6 +302,20 @@ def _shortened_segment(
     hits = (
         (np.linalg.norm(points[None, :, :] - nearest, axis=2) < point_radius + stroke_width / 2) & active[:, None]
     ).sum(axis=1)
+    for circle in circles:
+        if math.dist(circle.center, anchor) < 1e-9:
+            continue
+        relative = np.asarray(circle.center)[None, :] - starts
+        fraction = np.divide(
+            np.sum(relative * vec, axis=1),
+            length2,
+            out=np.zeros(len(lines)),
+            where=length2 > 0,
+        )
+        nearest_circle = starts + np.clip(fraction, 0, 1)[:, None] * vec
+        hits += active & (
+            np.linalg.norm(np.asarray(circle.center) - nearest_circle, axis=1) < circle.radius + stroke_width / 2
+        )
     pick = int(np.lexsort((length2, hits))[0])
     return lines[pick]
 
@@ -278,6 +327,8 @@ def _repel_labels(
     width: float,
     height: float,
     obstacles: list[tuple[float, float]] | None = None,
+    line_obstacles: list[tuple[tuple[float, float], tuple[float, float]]] | None = None,
+    geometry_obstacles: list[_GeometryObstacle] | None = None,
     point_radius: float = 3.0,
     marker_gap: float = 0.0,
     text_gap: float = 0.0,
@@ -285,12 +336,22 @@ def _repel_labels(
     always_show: bool = False,
     stroke_width: float = 0.25,
     attachment_sizes: list[tuple[float, float]] | None = None,
+    marker_gaps: list[float] | None = None,
+    connector_circle_obstacles: list[_CircleObstacle] | None = None,
+    connectors: list[bool] | None = None,
+    always_shows: list[bool] | None = None,
+    text_gaps: list[float] | None = None,
+    stroke_widths: list[float] | None = None,
+    point_radii: list[float] | None = None,
 ) -> list[tuple[float, float]]:
     """Place every label using a deterministic, finite geometry-aware candidate search.
 
     Boxes remain in the panel whenever they fit. The score treats label/point overlap and every
     symmetric label/connector collision as defects before minimizing visible connector length.
     The search has fixed bounded passes and retains oversized labels at the panel center.
+    Legacy ``line_obstacles`` are centerlines and preserve their original scoring. Opt-in typed
+    geometry obstacles add stroked segments, circles, and oriented boxes without making segments
+    connector barriers. Per-anchor marker gaps and circle footprints support variable symbols.
     """
     import numpy as np
 
@@ -301,8 +362,15 @@ def _repel_labels(
     obs = np.asarray(obstacles if obstacles is not None else anchors, dtype=float).reshape(-1, 2)
     # Coincident rows paint the same obstacle; duplicates must not multiply a geometric penalty.
     obs = np.unique(obs, axis=0)
+    line_obs = np.asarray(line_obstacles if line_obstacles is not None else [], dtype=float).reshape(-1, 2, 2)
     sz = np.asarray(sizes, dtype=float)
     attach_sz = np.asarray(attachment_sizes if attachment_sizes is not None else sizes, dtype=float)
+    marker_gap_values = np.asarray(marker_gaps if marker_gaps is not None else [marker_gap] * n, dtype=float)
+    connector_values = np.asarray(connectors if connectors is not None else [connector] * n, dtype=bool)
+    always_values = np.asarray(always_shows if always_shows is not None else [always_show] * n, dtype=bool)
+    text_gap_values = np.asarray(text_gaps if text_gaps is not None else [text_gap] * n, dtype=float)
+    stroke_values = np.asarray(stroke_widths if stroke_widths is not None else [stroke_width] * n, dtype=float)
+    point_radius_values = np.asarray(point_radii if point_radii is not None else [point_radius] * n, dtype=float)
     half = sz / 2.0
 
     def candidates(k: int) -> np.ndarray:
@@ -310,9 +378,14 @@ def _repel_labels(
         # Edge-relative seats first; lateral variants let long labels attach near their ends without
         # paying for an unnecessary trip to the text center. Larger rings are escape candidates.
         values: list[tuple[float, float]] = []
-        minimum = max(text_gap, marker_gap + text_gap + 4.0 * stroke_width if always_show and connector else 0.25)
+        minimum = max(
+            text_gap_values[k],
+            marker_gap_values[k] + text_gap_values[k] + 4.0 * stroke_values[k]
+            if always_values[k] and connector_values[k]
+            else 0.25,
+        )
         for extra in (minimum, minimum + 2.0, minimum + 5.0, minimum + 10.0, minimum + 20.0, minimum + 34.0):
-            gx, gy = hw + point_radius + extra, hh + point_radius + extra
+            gx, gy = hw + point_radius_values[k] + extra, hh + point_radius_values[k] + extra
             for sx, sy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
                 base = a[k] + (sx * gx, sy * gy)
                 lateral = hh * 0.65 if sx else hw * 0.65
@@ -347,13 +420,14 @@ def _repel_labels(
                         tuple(a[k]),
                         tuple(c),
                         tuple(attach_sz[k]),
-                        marker_gap,
-                        text_gap,
-                        stroke_width=stroke_width,
+                        float(marker_gap_values[k]),
+                        float(text_gap_values[k]),
+                        stroke_width=float(stroke_values[k]),
                         obstacles=obs,
-                        point_radius=point_radius,
+                        point_radius=float(point_radius_values[k]),
+                        circle_obstacles=connector_circle_obstacles,
                     )
-                    if connector
+                    if connector_values[k]
                     else None
                 )
             lines.append(segment_cache[key])
@@ -390,26 +464,84 @@ def _repel_labels(
         leave = np.min(np.where(parallel, np.inf, np.maximum(t1, t2)), axis=2)
         return axis_ok.all(axis=2) & (np.maximum(enter, 0.0) <= np.minimum(leave, 1.0))
 
+    def geometry_hits(centers: np.ndarray, h: np.ndarray) -> np.ndarray:
+        hits = np.zeros(len(centers), dtype=int)
+        for obstacle in geometry_obstacles or []:
+            if isinstance(obstacle, _CircleObstacle):
+                delta = np.maximum(np.abs(centers - obstacle.center) - h, 0)
+                hits += np.linalg.norm(delta, axis=1) < obstacle.radius
+            elif isinstance(obstacle, _SegmentObstacle):
+                expanded = h + obstacle.radius
+                hits += seg_box(np.asarray([obstacle.start]), np.asarray([obstacle.end]), centers, expanded)[0]
+            else:
+                angle = math.radians(obstacle.angle)
+                u = np.array((math.cos(angle), math.sin(angle)))
+                v = np.array((-math.sin(angle), math.cos(angle)))
+                relative = centers - obstacle.center
+                # SAT for an axis-aligned candidate rectangle and an oriented obstacle rectangle.
+                separate_x = (
+                    np.abs(relative[:, 0])
+                    > h[:, 0] + abs(u[0]) * obstacle.half_size[0] + abs(v[0]) * obstacle.half_size[1]
+                )
+                separate_y = (
+                    np.abs(relative[:, 1])
+                    > h[:, 1] + abs(u[1]) * obstacle.half_size[0] + abs(v[1]) * obstacle.half_size[1]
+                )
+                separate_u = np.abs(relative @ u) > obstacle.half_size[0] + h[:, 0] * abs(u[0]) + h[:, 1] * abs(u[1])
+                separate_v = np.abs(relative @ v) > obstacle.half_size[1] + h[:, 0] * abs(v[0]) + h[:, 1] * abs(v[1])
+                hits += ~(separate_x | separate_y | separate_u | separate_v)
+        return hits
+
+    def connector_circle_hits(start: np.ndarray, end: np.ndarray, active: np.ndarray, anchor: np.ndarray) -> np.ndarray:
+        hits = np.zeros(len(start), dtype=int)
+        vec = end - start
+        length2 = np.sum(vec * vec, axis=1)
+        for circle in connector_circle_obstacles or []:
+            if math.dist(circle.center, anchor) < 1e-9:
+                continue
+            relative = np.asarray(circle.center)[None, :] - start
+            fraction = np.divide(
+                np.sum(relative * vec, axis=1),
+                length2,
+                out=np.zeros(len(start)),
+                where=length2 > 0,
+            )
+            nearest = start + np.clip(fraction, 0, 1)[:, None] * vec
+            hits += active & (
+                np.linalg.norm(np.asarray(circle.center) - nearest, axis=1) < circle.radius + stroke_values[k] / 2
+            )
+        return hits
+
     static: list[np.ndarray] = []
     for k, c in enumerate(cand):
         dx = np.abs(c[:, None, 0] - obs[None, :, 0])
         dy = np.abs(c[:, None, 1] - obs[None, :, 1])
-        label_point = ((dx < half[k, 0] + point_radius) & (dy < half[k, 1] + point_radius)).sum(axis=1)
+        label_point = ((dx < half[k, 0] + point_radius_values[k]) & (dy < half[k, 1] + point_radius_values[k])).sum(
+            axis=1
+        )
         start, end, active = segments(k, c)
-        connector_point = (seg_point_dist(start, end, obs) < point_radius + stroke_width / 2) & active[:, None]
+        connector_point = (seg_point_dist(start, end, obs) < point_radius_values[k] + stroke_values[k] / 2) & active[
+            :, None
+        ]
         connector_point[:, np.linalg.norm(obs - a[k], axis=1) < 1e-9] = False
+        connector_circle = connector_circle_hits(start, end, active, a[k])
+        label_line = seg_box(line_obs[:, 0], line_obs[:, 1], c, np.broadcast_to(half[k], c.shape)).sum(axis=0)
+        label_geometry = geometry_hits(c, np.broadcast_to(half[k], c.shape))
         distance = np.linalg.norm(np.maximum(np.abs(c - a[k]) - half[k], 0), axis=1)
         route_length = np.linalg.norm(end - start, axis=1)
         # Compactness also matters without drawn connectors. Count saturation bounds the influence
         # of a dense, infeasible cloud rather than trading one text overlap for hundreds of dots.
         static.append(
             250_000.0 * np.minimum(label_point, 4)
+            + 250_000.0 * np.minimum(label_line, 4)
+            + 250_000.0 * np.minimum(label_geometry, 4)
             + 60_000.0 * np.minimum(connector_point.sum(axis=1), 4)
+            + 60_000.0 * np.minimum(connector_circle, 4)
             + distance
             + 0.1 * np.maximum(distance - 12, 0) ** 2
             + route_length
             + 0.5 * np.maximum(route_length - 12, 0) ** 2
-            + (20_000_000.0 * (~active) if always_show and connector else 0.0)
+            + (20_000_000.0 * (~active) if always_values[k] and connector_values[k] else 0.0)
         )
 
     result = np.zeros((n, 2))

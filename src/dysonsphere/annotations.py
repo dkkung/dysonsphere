@@ -7,6 +7,7 @@ engine lives in ``_placement.py``). Statistical annotations (``comparisons``,
 ``correlation``) live in ``stats.py``.
 """
 
+import hashlib
 import json
 import math
 from collections.abc import Callable
@@ -1062,7 +1063,10 @@ def labels(
     """Auto-place non-overlapping text labels for a set of points, with connector lines.
 
     A deterministic bounded search seats each label near its point while avoiding points, labels,
-    and connector crossings, drawing a thin leader line from each point to its label. Every
+    and connector crossings, drawing a thin leader line from each point to its label. On
+    ``ds.save()`` and ``ds.show()``, placement is automatically rerun against supported visible
+    sibling marks in the complete composed panel, including marks layered before or after this call.
+    Serialized anchor intent survives ``ds.load()``; no finalization call is needed. Every
     requested label is shown (never dropped); labels may overlap when the candidate seats cannot fit
     the requested text. Returns a layer to compose onto the base chart with ``+``.
 
@@ -1148,9 +1152,9 @@ def labels(
         connector stroke widths of whitespace
         (``sqrt(markSize/2/pi) + markStrokeWidth + 2*axisWidth``), which clears the default point
         mark (and the smaller ``mark_circle``) with a visible sliver of daylight at any theme
-        scale; ``0`` -> no marker gap; a float -> that many pixels (set this for unusually large
-        or heavily stroked markers, which the gap can't measure since the base chart isn't visible
-        here). The TEXT end always keeps just the whitespace term (``2*axisWidth`` - there is no
+        scale. During ``ds.save()``/``ds.show()``, the automatic gap expands to clear the actual
+        rendered anchor symbol when it is larger; ``0`` -> no marker gap; a float -> that many
+        pixels exactly. The TEXT end always keeps just the whitespace term (``2*axisWidth`` - there is no
         marker to clear there, so a symmetric gap would open a hole between line and label). Both
         gaps are uniform - they never shrink, so every drawn connector sits the same distance off
         its dot and its label; a connector too short to keep the full gaps is dropped instead (see
@@ -1324,6 +1328,50 @@ def labels(
     fill_c, stroke_c = _resolve_text_bg(fill, stroke)
     bg = (fill_c, stroke_c, fillOpacity, cornerRadius) if fill_c is not None else None  # chip gated on fill
 
+    # Preserve original anchors and rendering intent so save/show can place labels against sibling marks.
+    from ._label_resolution import _LABEL_GROUP_COL, _LABEL_INTENT_PREFIX, _LABEL_ITEM_PREFIX
+
+    intent_config = {
+        "fontSize": fs,
+        "fontFamily": _opt("font"),
+        "fontWeight": _opt("fontWeight"),
+        "fontStyle": effective_font_style,
+        "color": color,
+        "connector": connector,
+        "connectorCap": connectorCap,
+        "connectorColor": connectorColor,
+        "connectorOpacity": connectorOpacity,
+        "connectorStrokeDash": rule_kwargs["strokeDash"],
+        "connectorGap": gap_cap,
+        "connectorGapAutomatic": connectorGap is None,
+        "pointRadius": point_radius,
+        "textGap": daylight,
+        "alwaysShowConnectors": alwaysShowConnectors if connector else False,
+        "strokeWidth": float(_opt("axisWidth")),
+        "fill": fill_c,
+        "stroke": stroke_c,
+        "fillOpacity": fillOpacity,
+        "cornerRadius": cornerRadius,
+    }
+    intent_rows = [
+        {
+            "__dslabel_x": x,
+            "__dslabel_y": y,
+            "__dslabel_text": text,
+            "__dslabel_row": index,
+            "__dslabel_config": json.dumps(intent_config, sort_keys=True, separators=(",", ":")),
+        }
+        for index, (x, y, text) in enumerate(zip(xs, ys, label_texts, strict=True))
+    ]
+    token = hashlib.sha256(json.dumps(intent_rows, sort_keys=True).encode()).hexdigest()[:20]
+    sidecar = _internal_data([{_LABEL_GROUP_COL: token}])
+    item_marker = f"{_LABEL_ITEM_PREFIX}{token}"
+    text_kwargs["description"] = item_marker
+    existing_rule_description = rule_kwargs.get("description")
+    rule_kwargs["description"] = (
+        f"{existing_rule_description} {item_marker}" if existing_rule_description is not None else item_marker
+    )
+
     layers: list[alt.Chart] = []
     for (ax, ay), (lx, ly), (w, h), attachment_size, text in zip(
         anchors, label_pos, sizes, attachment_sizes, label_texts
@@ -1345,7 +1393,7 @@ def labels(
             if segment is not None:
                 (sx, sy), (tx, ty) = segment
                 layers.append(
-                    alt.Chart(_internal_data([{}]))
+                    alt.Chart(sidecar)
                     .mark_rule(**rule_kwargs)
                     .encode(**datum_xy(sx, sy), x2=alt.X2Datum(px_to_x(tx)), y2=alt.Y2Datum(px_to_y(ty)))
                 )
@@ -1353,14 +1401,24 @@ def labels(
             rk, xsh, ysh = _text_bg_props(text, fs, align, "middle", 0, 0, *bg)
             rk.update(width=w, height=h)
             layers.append(
-                alt.Chart(_internal_data([{}]))
-                .mark_rect(**rk)
+                alt.Chart(sidecar)
+                .mark_rect(description=item_marker, **rk)
                 .encode(**datum_xy(text_x, ly), xOffset=alt.value(xsh), yOffset=alt.value(ysh))
             )
         layers.append(
-            alt.Chart(_internal_data([{}]))
+            alt.Chart(sidecar)
             .mark_text(align=align, **text_kwargs)
             .encode(**datum_xy(text_x, ly), text=alt.value(text))
+        )
+    # One datum-positioned probe per row maps the original anchor through the merged scales without
+    # introducing private fields into domains or axis-title resolution. Its data carries the full
+    # serializable row intent; no process-global registry is needed after ds.load().
+    for row in intent_rows:
+        intent_data = _internal_data([{**row, _LABEL_GROUP_COL: token}])
+        layers.append(
+            alt.Chart(intent_data)
+            .mark_point(opacity=0, size=0, description=f"{_LABEL_INTENT_PREFIX}{token}_{row['__dslabel_row']}")
+            .encode(x=alt.XDatum(row["__dslabel_x"], scale=raw_x), y=alt.YDatum(row["__dslabel_y"], scale=raw_y))
         )
     return cast(alt.LayerChart, alt.layer(*layers))
 

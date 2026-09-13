@@ -132,16 +132,20 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   `connectorGap` once. A connector too short for the resolved cap is omitted without moving its label.
   References: `annotations.py::labels`; `export.py::_decorate_rule_segments`.
 
-- **Point labels keep native data-coordinate composition.** Placement models standard linear scales
-  in pixels but emits ordinary data-coordinate datums, preserving reflected scales, concat behavior,
-  and base axis titles without scale-name expressions or renderer-time layout. Centered text and the
+- **Point labels resolve automatically in the shared save/show pipeline.** `labels` emits ordinary
+  data-coordinate fallback marks plus serializable datum anchor probes. The shared spec pass evaluates
+  the complete composed scenegraph, solves all label groups in each panel together against supported
+  visible sibling symbols, straight lines/rules, filled or outlined rectangles, and fixed text, then
+  writes deterministic panel-pixel marks. This runs for every `save` format and `show`, survives JSON
+  load, and leaves the source chart unchanged; unsupported panel mappings fail rather than silently
+  using incomplete obstacle geometry. Bare Altair rendering intentionally keeps the fallback. The
   boundary-sliding attachments keep emitted geometry consistent with the solver's standard linear
   model. Only visible faces are eligible: a route to the far side would cross its own label. Collision
   checks use the same shortened segments as drawing, not center-to-center rays or invisible stubs.
   Side attachments prefer the middle of the text edge, with limited obstacle-driven sliding;
   top/bottom attachments stay inset. Facing corners remain eligible for genuinely diagonal routes,
   not nearly edge-parallel approaches that resemble detached underlines.
-  References: `annotations.py::labels`; `_placement.py::_shortened_segment`.
+  References: `annotations.py::labels`; `_label_resolution.py`; `_placement.py::_shortened_segment`.
 
 - **Forced label connectors preserve clearance.** `alwaysShowConnectors=True` moves among bounded
   seats to reserve the full marker gap, text gap, and visible stroke; it never shrinks those gaps.
@@ -223,7 +227,9 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   saved spec and ordinary Altair composition. `load()` allocates fresh owner identities and imports
   exact records, while re-export regenerates prose, provenance, and export identity. Each owner binds
   the record to a compact digest of its effective analytical panel (data, transforms, mappings,
-  parameters, and annotation sidecars). Load validates the guard transactionally and every save checks
+  parameters, and annotation sidecars). Durable point-label intent remains analytical context, while
+  recognized generated label connectors/chips/text are excluded because resize reflows that derived
+  pixel geometry. Load validates the guard transactionally and every save checks
   it again, failing closed after analytical edits while allowing presentation changes and intact panel
   composition. Lookup transforms and runtime parameters/selections are rejected rather than treated as
   guardable; expressions are limited to deterministic `datum` operations with a small pure-function
