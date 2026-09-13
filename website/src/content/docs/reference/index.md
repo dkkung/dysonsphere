@@ -12,7 +12,7 @@ Browse by area in the sidebar:
 
 - **Annotations** - `ds.rule()`, `ds.text()`, `ds.shade()`, `ds.labels()`
 - **[Display labels](/reference/display_labels/)** - `ds.label_expr()`
-- **Extension authoring** - the `dysonsphere.ext` primitive surface
+- **Extension authoring** - the `dysonsphere.ext` API
 - **Extensions** - `extensions()`, `load_extension()`
 - **Marks** - `mark_strip()`, `mark_violin()`
 - **Multilabels** - `add_multilabel()`
@@ -23,7 +23,7 @@ Browse by area in the sidebar:
   `ds.metadata.frame_checksum()`
 - **Saving & loading** - `save()`, `load()`, `show()`
 - **[Statistics](/reference/stats/)** - `ds.stats.comparisons()`, `ds.stats.correlation()`, `ds.stats.clear_stats()`
-- **Theming** - `theme()` and config-file scaffolding (`create_config()`)
+- **Theming** - `theme()` and config-file creation (`create_config()`)
 - **Transforms** - `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, `ds.transforms.quasirandom()`
 Every public function carries type annotations (the package ships a `py.typed` marker), so the
 signatures shown here are the same contract your editor and type checker see.

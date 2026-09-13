@@ -20,9 +20,9 @@ not part of the public contract.
   extensions. Shared implementation helpers in `utils.py` are private and are not a supported
   public namespace.
 - Keep `ds.theme()` and top-level `ds.create_config()`. A one-function config namespace adds little.
-- `ds.theme()` keeps `style` positional and exposes every styling option as an explicit typed keyword-only parameter. Its internal omission
-  sentinel preserves configuration/style precedence; explicit `None` remains meaningful only for the
-  options that advertise it. `fontSize` is the sole theme font-size control and accepts positive finite
+- `ds.theme()` keeps `style` positional and exposes every styling option as an explicit typed keyword-only parameter.
+  An internal marker for omitted arguments preserves configuration/style precedence; explicit `None` is meaningful
+  only for options that advertise it. `fontSize` is the sole theme font-size control and accepts positive finite
   fractional values. Plot dimensions use `width` and `height`; the removed `chartWidth` and
   `chartHeight` names are not aliases and are invalid as keywords or configuration keys.
 - Keep `ds.palette()` as the common selector; categorical construction, the color registry, and
@@ -77,12 +77,12 @@ not part of the public contract.
 - Rule endpoint caps are `arrow`, `circle`, or `square`; start/end follow primary/secondary endpoint
   order. Omitted gaps with a cap derive the same theme-aware point clearance used by label
   connectors; capless omitted gaps are 0 and explicit zero is preserved. This rendered geometry is
-  part of the shared SVG/PNG/save/show pipeline, not bare Altair or HTML. Arrow depth is
+  part of the shared SVG/PNG/save/show processing, not bare Altair or HTML. Arrow depth is
   `4 * sqrt(rendered strokeWidth)` pixels (2 px at the default 0.25 px stroke), with width 1.2 times
   its depth; circle and square sizes retain their 4 px minimum.
 - Point-label connectors optionally use `connectorCap="arrow"` at their point-facing end. Their
   existing `connectorGap` is applied once; no second cap gap is introduced. As with rule caps, this
-  decoration is available in the shared SVG/PNG/save/show pipeline, not bare Altair or HTML.
+  decoration is available in the shared SVG/PNG/save/show processing, not bare Altair or HTML.
 - `add_*` operations take an existing chart and return an augmented chart.
 - Keep `mark_*` for general-purpose composite mark constructors, matching Altair vocabulary.
 - Keep `multilabel` as the name of the condition-table system.
@@ -114,14 +114,14 @@ not part of the public contract.
 
 - State whether omission inherits a theme option, derives a value, disables a feature, or uses a
   fixed default. Do not force every `None` to mean the same thing.
-- Use a sentinel where omission differs from explicit None, such as an inferred versus suppressed
+- Use an omission marker where omission differs from explicit None, such as an inferred versus suppressed
   axis title. Preserve meaningful distinctions rather than relying on truthiness.
 - Explicit zero must override a default wherever zero is a valid value.
 - Distinguish bool switches from numeric values by identity. Counts and probabilities should not
   accept booleans unless explicitly designed as switches.
 - Validate malformed enums, shapes, and values consistently across dispatch modes. Unsupported
   explicit requests should not silently disappear when intent is detectable.
-- Disabled components may retain harmless ordinary defaults. Do not add sentinels everywhere just
+- Disabled components may retain harmless ordinary defaults. Do not add omission markers everywhere just
   to reject redundant styling options.
 - Valid styling options may remain inactive when their component is disabled, such as connector
   colors with connector=False. Reject malformed values and unsupported explicit feature requests,
@@ -217,7 +217,7 @@ not part of the public contract.
   automatic domain rounding (`nice`) when continuous padding is present, but preserve explicit `nice` settings.
 - `tickDirection` is `"out"` by default and accepts only `"in"` or `"out"`. Inward ticks imply a
   closed frame only when `closed` is omitted; explicit `closed=False` wins. Inward reversal is part
-  of the corrected SVG/PNG/show pipeline, not bare Altair display or interactive HTML.
+  of the corrected SVG/PNG/show processing, not bare Altair display or interactive HTML.
 - Document construction-time versus render-time defaults and the need for callable rebuilding
   when colors or geometry are already baked into a chart.
 - A dataframe transform's computed offsets are not an unconditional guarantee of rendered pixel
@@ -270,7 +270,7 @@ not part of the public contract.
 
 - `ds.theme()` replaces active configuration; it does not incrementally update previous settings.
 - `ds.show()` returns corrected SVG wrapped in `IPython.display.HTML` for compatible interactive
-  display. `ds.save()` writes figures. Bare Altair display does not run the full formatting pipeline.
+  display. `ds.save()` writes figures. Bare Altair display does not apply all formatting fixes.
 - Preserve the distinction between static corrected output and browser-rendered interactive HTML.
   Save's SVG/PNG transparency override is separate from the theme's logical background.
 - Statistical constructors calculate annotations and register export records. Standalone numerical
@@ -300,7 +300,7 @@ not part of the public contract.
   of one save share the identifier, while their spec checksums may differ. Unset or blank uses
   ordinary time and a fresh identifier; malformed or out-of-range epochs raise, never fall back.
 - Spec, data, and export identities answer different questions. Data identity ignores row order
-  but preserves duplicate rows and excludes generated sidecars. Single-file verification reports
+  but preserves duplicate rows and excludes generated annotation data. Single-file verification reports
   True/False for checks that ran and None for unavailable checks; an unavailable check is not a
   failure or proof of a match. Comparing files' recorded identities is not checking their integrity.
 - Treat filesystem paths consistently as strings or Path objects; distinguish directory arguments

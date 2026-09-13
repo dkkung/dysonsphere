@@ -255,7 +255,7 @@ class TestAddComparisons:
             pvalues=[0.5, 0.001, 0.001],
             categories=["A", "B", "C"],
         ).to_dict()
-        # All rungs of a ladder hang off ONE anchor, so their spacing is a difference of pixel
+        # All rungs of a ladder hang off one anchor, so their spacing is a difference of pixel
         # offsets - no data-to-pixel map involved, which is what makes it exact on a log axis.
         anchors = {pair["layer"][0]["data"]["values"][0]["y"] for pair in spec["layer"]}
         assert len(anchors) == 1, f"one ladder should share one anchor, got {anchors}"
@@ -1342,7 +1342,7 @@ class TestAddCorrelation:
         assert len(layer.to_dict()["layer"]) == 2  # line + readout
 
     def test_fit_line_fields_match_the_columns(self):
-        # The fit line's sidecar must carry the REAL column names: Vega-Lite merges a shared
+        # The fit line's generated data must carry the REAL column names: Vega-Lite merges a shared
         # axis title by joining the layers' DISTINCT derived titles, so private names ("_x")
         # rendered as "height, _x" on the base chart's axes. Matching names dedupe to one.
         rng = np.random.default_rng(1)
@@ -1415,7 +1415,7 @@ class TestAddCorrelation:
     def test_prediction_band_wider_than_confidence(self, scatter_df):
         def _spread(spec):
             band = self._area_layer(spec)
-            # The sidecar frame is hoisted to top-level `datasets` and referenced by name.
+            # The annotation frame is hoisted to top-level `datasets` and referenced by name.
             vals = band["data"].get("values") or spec["datasets"][band["data"]["name"]]
             return max(v["__ci_hi"] - v["y"] for v in vals)
 

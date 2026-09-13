@@ -22,8 +22,7 @@ from . import discovery, metadata
 from .theme import _opt
 from .utils import _RULE_CAP_PREFIX, _SHADE_PREFIX, _SUP, _apply_spec_fixes, _json_safe
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["save", "show", "load"]
 
 _AltairChart = Union[
@@ -55,25 +54,18 @@ def _resolve_choice(value, default, valid: tuple[str, ...], name: str) -> list[s
 
 
 def _render_fixed_svg(base_obj, svg_path: str) -> str:
-    """Render an Altair object to SVG at *svg_path*, run every dysonsphere SVG post-processor,
-    and return the corrected SVG string.
+    """Render an Altair object to *svg_path* and return the corrected SVG string.
 
-    Tick and grid POSITIONS need no post-processing: the theme renders with Vega's
-    ``tickRound: false`` (``config.axis``) and ``tickOffset: 0`` (``config.axisBand``), so
-    every tick lands on the exact fractional scale position - i.e. exactly on its mark - at
-    render time, on every axis type (band, linear, log/power minors) and in every panel.
-    The remaining post-processors are shared by :func:`save` and :func:`show` so the pipeline
-    stays identical: grid alignment (seat both grid directions onto the plot content, off the
-    detached axes), inward-tick flip (when ``tickDirection="in"``), axis layering, ``<g>``
-    simplification, super/subscript typesetting, statistical-symbol italicization
+    The theme's ``tickRound: false`` and ``tickOffset: 0`` keep tick positions aligned with marks
+    on all axes and panels. The remaining corrections are shared by :func:`save` and :func:`show`:
+    grid alignment with plot content, inward ticks when ``tickDirection="in"``, axis layering,
+    ``<g>`` simplification, super/subscript typesetting, statistical-symbol italicization
     (``P``/``n``/``F``/``r``/… - after the script fixer, which only scans element
     ``.text``), Greek-only font switching, and Illustrator font-family collapse (the CSS fallback stack renders as plain
     Helvetica in Illustrator; the SVG - and only the SVG - is pinned to the resolvable
     PostScript name). The SVG is parsed once here and each
-    fixer mutates the shared ElementTree;
-    the corrected tree is serialized once at the end (a single parse/write round trip, not
-    one per fixer). The caller sets up the theme (e.g. ``transparent``) and owns the file's
-    lifecycle.
+    correction modifies the shared ElementTree, which is written once at the end.
+    The caller sets up the theme (e.g. ``transparent``) and manages the output file.
 
     Rendering goes through the resolved spec dict (``to_dict()`` + ``vlc.vegalite_to_svg`` -
     the same engine/spec ``base_obj.save()`` uses).
@@ -81,7 +73,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     import vl_convert as vlc
 
     spec = _apply_spec_fixes(base_obj.to_dict())
-    root = ET.fromstring(vlc.vegalite_to_svg(spec))  # parsed ONCE; every fixer mutates this tree
+    root = ET.fromstring(vlc.vegalite_to_svg(spec))  # Parse once; every fixer mutates this tree.
     _decorate_rule_segments(root)  # marker classes and unsimplified line transforms are still intact
     axis_offset = 0 if _opt("closed") else _opt("axisOffset")
     if axis_offset:
@@ -300,7 +292,7 @@ def save(
         ``"html"`` is the **interactive** tier: it renders live in the browser via Vega, so
         it is fully themed, carries the metadata block, and gets exact tick positions (that
         fix lives in the theme config), but it does NOT get dysonsphere's static SVG
-        post-processors (superscript typesetting, Illustrator-friendly flattening).
+        processing steps (superscript typesetting, Illustrator-friendly flattening).
         ``tickDirection="in"`` is deliberately **not** applied to HTML:
         the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that
         works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different
@@ -382,36 +374,25 @@ def save(
             background=["light", "dark"],
         )
     """
-    # Best-effort call-site capture for provenance.chart: the source text of the `chart`
-    # argument at THIS call (the variable name or inline composition). The caller's frame
-    # must be read here at save()'s own top level (one frame up); None -> field omitted.
+    # Capture the chart expression from the caller when source is available.
     _chart_expression = metadata._call_expression(sys._getframe(1)) if saveMetadata else None
 
     if not alt.theme.options:
         raise RuntimeError("ds.theme() must be called before ds.save().")
 
-    # Resolve format/background (str or list) against the theme defaults, then validate up
-    # front — before draining — so an invalid request errors cleanly and leaves the queue
-    # for the next real save().
+    # Validate format and background before resolving charts.
     _formats = _resolve_choice(format, _opt("saveFormat"), _VALID_FORMATS, "format")
     _backgrounds = _resolve_choice(background, _opt("saveBackground"), _VALID_BACKGROUNDS, "background")
 
-    # Records are NOT drained here.  Instead, each stats.comparisons()/stats.correlation() tagged
-    # its annotation layer with a marker name; below we resolve the chart, find which markers
-    # are actually present, and embed ONLY those records — so a record from a chart that was
-    # built but never saved can't contaminate this save.  `exportIdentifier` + `timestamp` are
-    # generated once (shared by every variant of this export); the checksum is per-variant.
-    # Under SOURCE_DATE_EPOCH both are pinned so two saves of one figure are byte-identical:
-    # the timestamp comes from the epoch, and the run id is derived from the first variant's
-    # content below (it needs the checksums, which are only computed inside the loop).
+    # Select records by markers on the resolved chart without removing them from the registry.
+    # Variants share a timestamp and export identifier but have separate checksums.
+    # SOURCE_DATE_EPOCH fixes the timestamp and derives the identifier from the first variant's content.
     _reproducible = metadata._source_date_epoch() is not None
     export_id = "" if _reproducible else str(uuid.uuid4())
     timestamp = metadata._resolve_timestamp()
 
-    # Resolve the base chart (callable re-invoked each variant so darkmode-sensitive colours
-    # rebuild correctly).  The `description` property feeds the JSON spec's description key
-    # (user text only); the dysonsphere block is attached to the JSON dict / injected into the
-    # SVG+PNG below, never here.
+    # Reinvoke callables for each variant so construction-time colors rebuild. The description
+    # stays user text; Dysonsphere metadata is added to the output formats below.
     def _resolve_base() -> _AltairChart:
         c = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
         if description is not None:
@@ -437,9 +418,8 @@ def save(
         if _want_render or "html" in _formats:
             import vl_convert as vlc
 
-        # Resolve and validate every variant before writing anything. Besides making multi-background
-        # exports transactional, this calls a callable exactly once per variant and keeps the object
-        # used by the SVG renderer paired with the exact preflighted spec.
+        # Resolve and validate all variants before writing. Build each variant once so the renderer
+        # and saved spec use the same chart.
         _variants: list[tuple[str, _AltairChart, dict[str, Any]]] = []
         for bg in _backgrounds:
             alt.theme.options["darkmode"] = bg == "dark"
@@ -487,12 +467,9 @@ def save(
                 Path(_path(bg, "json")).write_text(json.dumps(jspec, ensure_ascii=False, indent=2), encoding="utf-8")
 
             if "html" in _formats:
-                # Interactive, self-contained HTML (Vega JS bundled in). It renders live in the
-                # browser via Vega, so it does NOT get dysonsphere's static SVG fixers (tick
-                # alignment, inward ticks, superscript typesetting) - the interactive/approximate
-                # tier. It IS fully themed and carries the metadata block; use svg/png for the
-                # publication-accurate static figure. (inward tick direction is intentionally not applied: the
-                # negative-tickSize trick renders inconsistently across the browser's Vega build.)
+                # Interactive HTML bundles Vega and omits static SVG fixers. It remains themed and
+                # carries metadata; inward ticks are omitted because negative tick sizes render
+                # inconsistently across browser Vega builds.
                 hspec = dict(spec)
                 if _usermeta is not None:
                     base_um = hspec["usermeta"] if isinstance(hspec.get("usermeta"), dict) else {}
@@ -531,11 +508,11 @@ def save(
 def show(
     chart: _AltairChart | Callable[[], _AltairChart], *, maxRows: int = 5000, overrideMaxRows: bool = False
 ) -> "HTML":
-    """Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
+    """Render *chart* through the full ``ds.save()`` processing and return it for accurate
     inline display in a notebook.
 
     Altair's own inline renderer (used when you just display a chart) does NOT run
-    dysonsphere's SVG post-processors, so its preview is approximate - superscript labels
+    dysonsphere's SVG processing, so its preview is approximate - superscript labels
     aren't typeset, the axisOffset grid gap remains, and with ``tickDirection="in"`` the
     ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
     :func:`save` writes and returns it as an ``IPython.display.HTML`` for inline display, so
@@ -550,7 +527,7 @@ def show(
     Like :func:`save`, the render is wrapped in the ``"default"`` data transformer capped at
     ``maxRows`` (``overrideMaxRows=True`` lifts the cap), so ``ds.show()`` works regardless of
     whichever transformer is active in the session — in particular ``vegafusion``, which
-    otherwise makes Altair's ``to_dict()`` raise (dysonsphere's SVG pipeline needs the
+    otherwise makes Altair's ``to_dict()`` raise (dysonsphere's SVG processing needs the
     vega-lite spec, and a scatter's points must all inline anyway, so vegafusion cannot help
     here). Over the cap Altair raises, re-raised as a clear :class:`ValueError`.
 
@@ -980,14 +957,11 @@ def _layer_axes_below_marks(root: ET.Element) -> None:
     reorder(root)
 
 
-# --- Super/subscript typesetting --------------------------------------------------------------
+# Super/subscript typesetting
 #
-# Vega renders every label as one flat string, so a real super/subscript can only be produced by
-# editing the SVG after render: the run is pulled into a <tspan> that is shrunk and shifted up
-# (superscript) or down (subscript). ONE engine, `_typeset_scripts`, does both directions - each
-# spec below names the characters to detect, the map to plain ASCII, and the shift direction. Plain
-# ASCII is used in the tspan because some fonts (Helvetica Neue) lack the rarer Unicode super/sub
-# glyphs and substitute a slanted fallback (the log-axis `10⁰` bug) - an ASCII digit always resolves.
+# Vega renders each label as a flat string. `_typeset_scripts` moves super/subscripts into smaller,
+# raised or lowered <tspan> elements. Plain ASCII avoids font substitution for missing Unicode glyphs,
+# such as superscript zero in Helvetica Neue.
 
 # Unicode super/subscript -> plain ASCII (the superscript minus becomes the real minus U+2212).
 _SUPERSCRIPT_MAP = str.maketrans(_SUP + "⁻", "0123456789−")
@@ -998,17 +972,12 @@ _SUBSCRIPT_MAP = str.maketrans("₀₁₂₃₄₅₆₇₈₉₋ₐₑₒₓₕ
 _SCRIPT_SIZE_RATIO = 2 / 3
 _SCRIPT_RISE_RATIO = 5 / 12
 
-# Detection specs: (pattern, translate-map-or-None, direction). EACH pattern captures group(1) =
-# the base to keep and group(2) = the run to typeset; any connector between them (the `^` / `__`
-# author tokens) sits outside both groups and is dropped. Superscripts: the Unicode exponents that
-# log_label_expr / p-values emit (10⁰, 2²⁰, ×10⁻⁵ - a base char is required so letter+superscript
-# labels r²/η²/χ² stay upright) plus a `^` author token (q^2 / mc^2 - the char right before `^` is
-# the base, no boundary guard needed since `^` never appears in data/column names). Subscripts:
-# literal Unicode (t₀) plus a DOUBLE-underscore author token (q__x). The `__` token is boundary-
-# GUARDED (`(?<![A-Za-z0-9])…(?![A-Za-z0-9])`): a single-alnum base at a word boundary with a 1-2
-# char run, so a snake_case column name used as a default axis title is never mistaken for a
-# subscript - neither single-underscore (x_1, flipper_length_mm) nor double-underscore sklearn-style
-# names (model__alpha, param__C, which the guard rejects because their base is mid-word).
+# Detection specs: (pattern, translate-map-or-None, direction). Each pattern captures the base
+# and the run to typeset; author connectors (`^` and `__`) are outside those groups and are dropped.
+# Superscript patterns cover Unicode exponents emitted by log labels and p-values, plus the caret
+# form used by authors. Subscript patterns cover literal Unicode and the guarded double-underscore
+# form. The boundary check prevents ordinary column names such as `x_1`, `model__alpha`, and
+# `flipper_length_mm` from being interpreted as notation.
 _SUP_UNICODE = re.compile(r"([×≈]\s*10|\d)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)")
 _SUP_CARET = re.compile(r"([A-Za-z0-9])\^([A-Za-z0-9]{1,2})")
 _SUB_UNICODE = re.compile(r"([A-Za-z0-9])([₀₁₂₃₄₅₆₇₈₉₋ₐₑₒₓₕₖₗₘₙₚₛₜ]+)")

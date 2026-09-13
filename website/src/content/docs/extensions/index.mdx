@@ -59,11 +59,11 @@ ds.biology.volcano(df, ...)          # or reach it as an attribute (resolved + c
 All three are the same mechanism - a package `__getattr__` plus entry-point discovery - so an
 extension only has to be `pip install`ed to light up; nothing in core needs editing.
 
-## Extensions build on public surfaces only
+## Extensions use documented APIs only
 
 Extension charts use the same export behavior as core charts: generated helper data is filtered by
 `ds.metadata.read(what="data")`, and their styling tracks the active theme and darkmode. They achieve
-that through **`dysonsphere.ext`** - a small, stable, versioned surface of the core primitives an
+that through **`dysonsphere.ext`** - a small, stable, versioned API containing the core primitives an
 extension needs, so extensions never reach into `_`-private internals. That contract is what
 makes an extension chart behave exactly like a built-in one; the [authoring
 guide](/extensions/authoring/) walks through it.

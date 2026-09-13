@@ -108,7 +108,7 @@ def western_blot(
     ::
 
         fig = ds.biology.western_blot(
-            ["pakt.png", "akt.png", "gapdh.png"],   # three antibody strips, stacked
+            ["pakt.png", "akt.png", "gapdh.png"],   # antibody strips, stacked
             {"EGF": [False, True, True], "Inhibitor": [False, False, True]},
             categories=["Ctrl", "EGF", "EGF + Inh"],
             categoryLabel=True,
@@ -129,7 +129,7 @@ def western_blot(
     strips: list[Any] = []
     for image in image_list:
         uri, iw, ih = _load_image(image)
-        h = cw * ih / iw  # preserve the blot's aspect at the shared chart width
+        h = cw * ih / iw  # preserve aspect at the shared width
         strips.append(
             alt.Chart(ext.internal_data([{"__blot": uri}]))
             .mark_image(aspect=False)

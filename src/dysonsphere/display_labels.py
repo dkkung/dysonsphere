@@ -3,8 +3,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["label_expr"]
 
 # Escapes for embedding a Python string inside a single-quoted Vega expression literal.
@@ -26,9 +25,8 @@ def label_expr(mapping: Mapping[Any, str | list[str]]) -> str:
     """
     Build a Vega ``labelExpr`` that maps raw data values to display labels.
 
-    The common Altair pain: the dataframe holds machine values (``metadata_group1``)
-    but the plot needs presentable labels (``group 1``), and hand-writing the Vega
-    expression is tedious and quoting-fragile. This returns that expression for you::
+    Data often contains machine values (``metadata_group1``) while a plot needs presentable
+    labels (``group 1``). This builds the Vega expression with the required string quoting::
 
         expr = ds.label_expr({"metadata_group1": "group 1", "metadata_group2": "group 2"})
         alt.X("treatment:N", axis=alt.Axis(labelExpr=expr))

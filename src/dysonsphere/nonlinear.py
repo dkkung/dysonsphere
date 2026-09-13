@@ -10,13 +10,10 @@ if TYPE_CHECKING:
 from .theme import _opt
 from .utils import _SUP, _ensure_polars
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["log_label_expr", "add_log_ticks", "add_pow_ticks"]
 
-# ---------------------------------------------------------------------------
-# Log-scale axis label helper
-# ---------------------------------------------------------------------------
+# Log-scale axis labels
 
 
 def log_label_expr(base: int = 10, notation: str = "power") -> str:
@@ -110,9 +107,7 @@ def log_label_expr(base: int = 10, notation: str = "power") -> str:
     return f"{e} < 0 ? '{b}⁻' + {two} : '{b}' + {two}"
 
 
-# ---------------------------------------------------------------------------
 # Log-scale minor ticks
-# ---------------------------------------------------------------------------
 
 
 def _minor_tick_layer(
@@ -339,9 +334,7 @@ def add_log_ticks(
         return alt.layer(chart, minor_layer).resolve_axis(x="independent")
 
 
-# ---------------------------------------------------------------------------
-# Power / sqrt-scale minor ticks
-# ---------------------------------------------------------------------------
+# Power and sqrt-scale minor ticks
 
 
 def _pow_minor_layer(

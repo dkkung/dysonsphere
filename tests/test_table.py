@@ -49,7 +49,7 @@ class TestMarkTable:
 
     def test_columns_subset_and_order(self, df):
         spec = mark_table(df, columns=["pvalue", "gene"]).to_dict()
-        # Header labels ride as literal text values on the sidecar layers.
+        # Header labels are literal text values on the annotation layers.
         texts = [layer.get("encoding", {}).get("text", {}).get("value") for layer in spec["layer"]]
         assert "pvalue" in texts and "gene" in texts and "hits" not in texts
 

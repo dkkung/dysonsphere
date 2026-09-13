@@ -40,7 +40,7 @@ from .utils import (
     _validate_category_order,
 )
 
-# The public ds.stats API; its contents are not star-imported into the root namespace.
+# Public names in ds.stats; they are not re-exported at the root.
 __all__ = ["comparisons", "correlation", "clear_stats"]
 
 # Length of a p-value bracket's end ticks in pixels.
@@ -65,19 +65,15 @@ def _scientific_parts(value: float, sigFigs: int) -> tuple[str, int]:
 
 
 def _format_pvalue(p: float, sigFigs: int = 3, notation: str | None = None, symbol: bool = True) -> str:
-    # `sigFigs` sets the significant-figure precision; `%g` gives that and strips trailing
-    # zeros. Plain notation floors at a fixed 0.001 convention (`P < 0.001`); scientific/e/
-    # power never floor (they represent any magnitude at `sigFigs` figures). `symbol=False`
-    # (labelStyle="value") drops the "P" symbol AND the redundant "= ", but keeps a MEANINGFUL
-    # operator - "< " (the flooring convention) and "≈ " (power's nearest-power rounding).
+    # `%g` provides the requested precision and removes trailing zeros. Plain notation floors at
+    # 0.001; scientific, e, and power notation preserve smaller values. Without the symbol, omit
+    # both "P" and "= " but retain the comparison operator.
     if notation not in (None, "scientific", "e", "power"):
         raise ValueError(f"notation must be 'power', 'scientific', or 'e', got {notation!r}")
     lead = "P " if symbol else ""  # the statistical symbol
     eq = "= " if symbol else ""  # the equals is redundant once the symbol is gone
     if p == 0.0:
-        # A zero from a floating-point statistical routine is an underflow, not an exact probability.
-        # Use the same minimum-normal bound as the report record, and keep the bound operator in
-        # every notation so notation never turns underflow into an exact value or log10(0) failure.
+        # Treat zero as underflow and use the same minimum-normal bound as the report record.
         bound = _clamp_p(p)
         mantissa, exp = _scientific_parts(bound, sigFigs)
         if notation is None:
@@ -133,10 +129,8 @@ def _validate_ci_syntax(ci: float | bool | None) -> None:
         raise ValueError(f"ci must be True or a confidence level in (0, 1), got {ci!r}")
 
 
-# --- shared resolvers for comparisons / _add_grouped_comparisons ---------------------------
-# Extracted so the single-factor and grouped paths share one implementation (they had drifted -
-# see the y-spacing chart_height guard). Pure functions; error messages are load-bearing (pinned
-# by `match=` tests in test_statistics.py) - keep them verbatim.
+# Comparison resolvers
+# Shared by single-factor and grouped paths. Error messages are pinned by `match=` tests.
 
 
 _VALID_NOTATIONS = {None, "scientific", "e", "power"}
@@ -436,14 +430,9 @@ def _bracket_offsets(
     placed_out: list[tuple[float, float]] = [(anchors[i], 0.0) for i in range(n)]
     for root in set(comp):
         members = [i for i in range(n) if comp[i] == root]
-        # Two candidate rung orders, scored and the better one taken. LEXICOGRAPHIC reads as a
-        # fan - every comparison sharing a left group runs consecutively (1v2, 1v3, 1v4, then
-        # 2v3, 2v4) instead of alternating anchors. BY DATA DEMAND puts the bracket nearest the
-        # data on the first rung, which is what lets the ladder sit tight against its groups.
-        # Neither wins outright: on ordered groups (a dose response) they cost the same, so the
-        # fan is free; on unordered groups the fan drags brackets far above the data they
-        # compare, and demand order stays tight. Score = (rungs used, total pixels the brackets
-        # float above their own data), lower better, ties to lexicographic.
+        # Score lexicographic and data-demand rung orders by rung count and distance above the
+        # compared data. The tie-break keeps ordered groups readable without lifting unordered
+        # comparisons unnecessarily.
         candidates = (
             sorted(members, key=lambda i: (spans[i][0], spans[i][1])),
             sorted(members, key=lambda i: (_dir * required[i], i)),
@@ -453,8 +442,7 @@ def _bracket_offsets(
             level = _assign(order)
             base = pick(required[i] - _dir * level[i] * step_px for i in members)
             float_px = sum(_dir * ((base + _dir * level[i] * step_px) - required[i]) for i in members)
-            # Rounded: the two orders often tie mathematically and differ only in summation order,
-            # by ~1e-14 px - without this that noise, not the tie-break, picks the layout.
+            # Rounding prevents floating-point noise from deciding a mathematical tie.
             score = (max(level.values()), round(float_px, 6))
             if best is None or score < best[0]:
                 best = (score, level, base)
@@ -520,9 +508,8 @@ def _drop_tick_lengths(
                 lx0, lx1, ledge = label_edge[j]
                 if lx0 <= x <= lx1:
                     padded, hard = min(padded, _dist(ledge) - _DROP_PAD_PX), min(hard, _dist(ledge))
-            # The pad is a target for the DROP; the minimum cap only has to avoid touching, so it
-            # is held back by `hard` rather than `padded` - otherwise a label directly beneath
-            # deletes the tick instead of just stopping it from dropping.
+            # Use the padded target for the drop, but keep the cap at least clear of the nearest
+            # label or bracket.
             ends.append(max(0.0, min(max(_BRACKET_TICK_PX, padded), hard)))
         out.append((ends[0], ends[1]))
     return out
@@ -579,7 +566,7 @@ def _pvalue_layer(
 ) -> alt.LayerChart:
     from scipy import stats as _stats
 
-    # --- p-value ---
+    # P-value
     if pvalue is None:
         if df is None or x_col is None or y_col is None:
             raise ValueError("df, x_col, and y_col are required when pvalue is not provided.")
@@ -613,7 +600,7 @@ def _pvalue_layer(
 
     label = _format_label(pvalue, label_style, sigFigs, notation)
 
-    # --- y position ---
+    # Y position
     if y is None:
         if df is None or x_col is None or y_col is None:
             raise ValueError("y is required when df, x_col, and y_col are not provided.")
@@ -625,7 +612,7 @@ def _pvalue_layer(
             + y_pad
         )
 
-    # --- resolve theme-linked defaults ---
+    # Theme-linked defaults
     if chartWidth is None:
         chartWidth = _opt("width")
     if strokeWidth is None:
@@ -633,7 +620,7 @@ def _pvalue_layer(
     if fontSize is None:
         fontSize = _opt("fontSize")
 
-    # --- categories and text x position ---
+    # Categories and text position
     if categories is None:
         if df is None or x_col is None:
             raise ValueError("categories is required when df and x_col are not provided.")
@@ -643,18 +630,15 @@ def _pvalue_layer(
     g2_idx = categories.index(group2)
 
     stroke_cap = _opt("strokeCap")
-    # `offset_px` lifts the bracket off its data anchor in PIXELS, so the gap does not depend on
-    # the rendered y domain (which Vega only fixes after nice-rounding and the layer domain union
-    # - the circularity that made data-unit gaps drift). Everything above the anchor is a pixel
-    # offset and contributes nothing to the domain; the anchor itself is already in the data.
+    # Lift brackets from their data anchor in pixels so the gap does not depend on the rendered
+    # domain. The anchor remains in data units; the offset does not extend the domain.
     _sign = 1 if reverse else -1
     _rule_kwargs = {
         "strokeWidth": strokeWidth,
         "strokeDash": [0, 0],
         "strokeCap": stroke_cap,
     }
-    # A CONSTANT pixel offset off the data anchor: exact at any y domain, and it survives being
-    # placed inside a facet/concat, which a scale expression does not.
+    # A pixel offset is independent of the y domain and survives facet/concat composition.
     if offset_px:
         _rule_kwargs["yOffset"] = _sign * offset_px
 
@@ -671,16 +655,15 @@ def _pvalue_layer(
     # drop ticks differ per end, so each gets its own kwargs
     _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
     _tick_kwargs_l, _tick_kwargs_r = dict(_rule_kwargs), dict(_rule_kwargs)
-    # A drop tick ends at a DATA position. comparisons cannot see the base chart's y domain,
-    # so a pixel length measured against a guessed one overshoots through the data it should stop
-    # above - the further the rendered domain is from that guess, the worse.
+    # A drop tick ends at a data position. The comparison layer cannot see the base y domain, so
+    # converting a pixel length using an estimated domain can place it through the data.
     tick_y2_l, tick_y2_r = tick_data if tick_data is not None else (tick_y2, tick_y2)
     if _lens is not None and tick_data is None:
         _tick_kwargs_l["y2Offset"] = _sign * offset_px - _sign * _lens[0]
         _tick_kwargs_r["y2Offset"] = _sign * offset_px - _sign * _lens[1]
 
-    # `domain_max` raises ONLY the top of the shared y scale, leaving the lower bound, `zero`,
-    # nice-rounding and any user setting on the other end intact. It is set on one bracket layer
+    # `domain_max` raises only the top of the shared y scale, leaving the lower bound, `zero`,
+    # nice-rounding, and other user settings intact. It is set on one bracket layer
     # (an explicit bound wins the scale merge) to make room for a top-preset test label above the
     # stack; without it the label would sit flush at the plot edge, on top of the brackets.
     _y_enc = alt.Y("y:Q") if domain_max is None else alt.Y("y:Q", scale=alt.Scale(domainMax=domain_max))
@@ -867,7 +850,7 @@ def _grouped_bracket_layer(
     # Asterisk glyphs sit close to the baseline; alphanumeric labels ("ns", "P = …") need more.
     _dym = 2 if label_style == "asterisks" and label != "ns" else 4
     dy = (_dym if reverse else -_dym) + _sign * offset_px
-    # Centred on the bracket's own midpoint in PIXELS. The label cannot ride the xOffset
+    # Centre the label on the bracket midpoint in pixels. The label cannot use the xOffset
     # encoding (a subset domain there reorders the bars), and the band centre it used through
     # 3.10.1 drifts a whole sub-bar away from an asymmetric pair - far enough to sit over a
     # group the comparison does not involve.
@@ -888,7 +871,7 @@ def _grouped_bracket_layer(
             tk = dict(rk)
             y2_val = y + tick_height if reverse else y - tick_height
             if tend is not None:
-                # A drop tick ends at a DATA position, not a pixel distance. comparisons
+                # A drop tick ends at a data position, not a pixel distance. Comparisons
                 # cannot see the base chart's y domain - an explicit scale=alt.Scale(domain=...)
                 # is invisible to it - so a pixel length measured against a guessed domain runs
                 # straight through the data it should stop above.
@@ -1013,10 +996,8 @@ def _add_grouped_comparisons(
     from ._statistics import _TEST_DISPLAY, _adjust, _describe_all, _make_record, _pair_effect
     from .utils import _frame_checksum
 
-    # Guard the sort footgun: `categories`/`xOffsetSort` must match the chart's x/xOffset sort or the
-    # shared scale silently reorders the bars. We can't see the chart to check the *order*, but an
-    # explicit list that doesn't even COVER the data's values (a typo or omission) is a guaranteed
-    # mismatch - catch it with a clear error instead of a mysterious reorder.
+    # Validate that explicit categories and xOffsetSort cover the data; otherwise a shared scale
+    # can silently reorder bars.
     _check_coverage(
         df,
         x_col,
@@ -1041,7 +1022,7 @@ def _add_grouped_comparisons(
     # Resolved before the reference block so `reference` + pairs="all" hits its don't-also-pass raise.
     pairs = _resolve_pairs(pairs, level_order, f"xOffset {xoffset_col!r} levels")
 
-    # Reference mode: compare every other level against `reference` WITHIN each category, drawing the
+    # Reference mode: compare every other level against `reference` within each category, drawing the
     # p-value above each non-reference sub-bar (no bracket). Derives its own level-pairs.
     # Remember which spacing args the caller passed: any one of them opts out of pixel
     # placement below, since an explicit number is data units on the user's own scale.
@@ -1120,7 +1101,7 @@ def _add_grouped_comparisons(
     # All comparison keys, in the category-major then pair order the loops use.
     all_keys = [_grouped_key(cat, l1, l2, is_reference) for cat in categories for l1, l2 in pairs]
 
-    # Explicit p-values (a dict keyed by (category, level|pair)) skip the test AND correction, like
+    # Explicit p-values (a dict keyed by (category, level|pair)) skip the test and correction, like
     # the single-factor `pvalues` list. Must cover every comparison exactly (no missing, no extra).
     pval_map = _normalize_grouped_map(pvalues, is_reference, "pvalues") if pvalues is not None else None
     if pval_map is not None:
@@ -1175,11 +1156,9 @@ def _add_grouped_comparisons(
             desc_labels.append(f"{cat} ({lv})")
     descriptives = _describe_all(desc_groups, desc_labels)
 
-    # Explicit y control. `yStart` (brackets only) mirrors single-factor: the EXACT stack base -
-    # a scalar for all categories, or a dict for a per-category base (partial - unlisted → auto).
-    # It does NOT apply to reference mode (no stack); passing it there raises. `yPositions` is the
-    # exact y in three forms: a single number → one global flat row; a dict keyed by CATEGORY → a
-    # flat row per category; a dict keyed by (category, level)/(category, pair) → per-comparison.
+    # Explicit y control: yStart sets a scalar or per-category bracket base. It does not apply to
+    # reference mode. yPositions accepts a global value, per-category values, or per-comparison
+    # values.
     # Dict keys must be uniform. Precedence: flat > per-category > per-comparison > (yStart / auto).
     ypos_flat = float(yPositions) if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool) else None
     ypos_cat: dict[Any, float] | None = None
@@ -1246,7 +1225,7 @@ def _add_grouped_comparisons(
         cat_max = cast(float, cdf[y_col].cast(pl.Float64).max() or 0.0)
         bracket_base = _cat_base(cat, cat_max + yPad)  # brackets only; reference ignores yStart
         # Pixel placement, matching the single-factor path: each bracket anchors at its own
-        # level-pair's maximum WITHIN this category, and overlapping pairs are pushed apart by a
+        # level-pair's maximum within this category, and overlapping pairs are pushed apart by a
         # label's worth of pixels - all resolved by Vega against the real scale.
         grp_pixel_mode = (
             not is_reference and yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
@@ -1260,9 +1239,9 @@ def _add_grouped_comparisons(
                 (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
                 for a, b in pairs
             ]
-            # Over every sub-bar the bracket SPANS, not just its endpoints - see the single-factor
+            # Over every sub-bar the bracket spans, not only its endpoints - see the single-factor
             # path: a taller level in the middle would otherwise sit above the bracket. A reverse
-            # bracket hangs BELOW its groups, so it anchors on their minimum instead.
+            # bracket hangs below its groups, so it anchors on their minimum instead.
             cat_pair_anchor = [
                 cast(
                     float,
@@ -1306,7 +1285,7 @@ def _add_grouped_comparisons(
                     cat_pair_anchor[_slot], cat_offsets[_slot] = _a, _o
             if bracketStyle == "drop":
                 # The y scale is shared across categories, so drop lengths - unlike the ladder
-                # offsets above, which are relative - must be measured against the WHOLE frame's
+                # offsets above, which are relative - must be measured against the whole frame's
                 # domain. A per-category domain sends the ticks straight through the data.
                 _dlo, _dhi = _nice_domain(
                     min(0.0, cast(float, df[y_col].cast(pl.Float64).min() or 0.0)),
@@ -1918,7 +1897,7 @@ def comparisons(
     else:
         _validate_statistical_data(data, x, yCol, x)
 
-    # Grouped mode: compare xOffset subgroups WITHIN each x-category (a two-factor design, e.g. a
+    # Grouped mode: compare xOffset subgroups within each x-category (a two-factor design, e.g. a
     # qPCR gene x condition panel). A fully separate path so the single-factor logic below is
     # untouched; see the grouped-comparisons design point.
     if xOffset is not None:
@@ -1960,7 +1939,7 @@ def comparisons(
 
     # Dict pvalues/yPositions/yStart are the grouped (xOffset) form; single-factor takes scalars/lists.
     # Reference mode is exempt: it uses a group-keyed dict (pvalues/yPositions) or a scalar (flat row),
-    # validated in the reference block below - so only guard these OUTSIDE reference mode.
+    # validated in the reference block below - so only guard these outside reference mode.
     if reference is None:
         if isinstance(pvalues, dict):
             raise ValueError("a dict pvalues is for grouped mode (xOffset) or reference mode; pairwise takes a list.")
@@ -1971,7 +1950,7 @@ def comparisons(
     if isinstance(yStart, dict) and reference is None:
         raise ValueError("a dict yStart is for grouped mode (xOffset); single-factor takes a number.")
 
-    # Guard the categories footgun: brackets are positioned by the order/count of `categories`, so an
+    # Validate categories: brackets use their order and count, so an
     # explicit list that doesn't cover the data's x-values (a typo or omission) mis-sizes the band
     # geometry and silently shifts every bracket. Raise instead (mirrors the grouped path). The
     # order-vs-chart mismatch stays undetectable without the chart (documented).
@@ -2019,7 +1998,7 @@ def comparisons(
             raise ValueError(f"reference {reference!r} is not a category of {x!r}: {categories}.")
         pairs = [(reference, c) for c in categories if c != reference]
         non_ref = [c for c in categories if c != reference]
-        # Explicit p-values: a dict keyed by the non-reference GROUP (the single-factor analogue of
+        # Explicit p-values: a dict keyed by the non-reference group (the single-factor analogue of
         # grouped reference's (category, level) dict). Must cover every non-reference group exactly.
         if pvalues is not None:
             if not isinstance(pvalues, dict):
@@ -2065,7 +2044,7 @@ def comparisons(
     if is_omnibus:
         omnibus_result = _run_omnibus(test, groups, categories)
 
-    # --- resolve comparison method (a post-hoc for omnibus, the test itself for pairwise) ---
+    # Resolve the comparison method
     idx = {c: i for i, c in enumerate(categories)}
     method = _resolve_method(test, postHoc, pvalues, is_omnibus)
     # tukey_hsd carries its own correction; explicit p-values aren't corrected by us.
@@ -2077,7 +2056,7 @@ def comparisons(
     # "test" key for the omnibus/test label. Pair notations are read below in the bracket loop.
     test_notation, pair_notations = _resolve_notation(notation, pairs)
 
-    # --- unified test label: the omnibus result, or the pairwise/post-hoc test name ---
+    # Unified test label
     # Position "auto" (default) → shown for omnibus (topLeft), hidden for pairwise.
     resolved_pos = ("topLeft" if is_omnibus else None) if testLabelPosition == "auto" else testLabelPosition
     if resolved_pos is not None or testLabelX is not None or testLabelY is not None:
@@ -2101,9 +2080,9 @@ def comparisons(
             )
         )
 
-    # --- report comparisons ---
-    # Omnibus reports ALL pairwise post-hoc comparisons (the full picture), even when
-    # only a subset is bracketed or none is. Pairwise reports exactly the requested pairs.
+    # Report comparisons
+    # Omnibus reports all pairwise post-hoc comparisons, even when few or no brackets are drawn.
+    # Pairwise reports exactly the requested pairs.
     if is_omnibus and method is not None:
         report_pairs = _all_pairs(categories)
     else:
@@ -2130,10 +2109,10 @@ def comparisons(
         pval_lookup = {frozenset((reference, g)): pvalues[g] for _, g in (pairs or [])}
         comparisons = [{"g1": reference, "g2": g, "pvalue": pvalues[g]} for _, g in (pairs or [])]
 
-    # --- reference labels (no brackets) ---
+    # Reference labels
     if is_reference and pairs:
-        # A bare p-value above each non-reference mark, at that group's OWN data max (per-group,
-        # so groups of different magnitude each get a label sitting just above their data).
+        # A p-value above each non-reference mark, at that group's own data max (per-group,
+        # so groups of different magnitude each get a label sitting directly above their data).
         y_all = data[yCol].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
         ref_pad, _, _ = _resolve_y_spacing(False, y_range, _opt("height"), yPad, None, None)
@@ -2163,7 +2142,7 @@ def comparisons(
                 )
             )
 
-    # --- brackets ---
+    # Brackets
     elif pairs:
         pair_styles = _resolve_bracket_styles(bracketStyle, pairs)
         if tickHeight is not None and "drop" in pair_styles:
@@ -2180,9 +2159,9 @@ def comparisons(
         else:
             computed_pvalues = [pval_lookup[frozenset((g1, g2))] for g1, g2 in pairs]
 
-        # --- y positioning ---
+        # Y positioning
         annotated_groups_for_pad = list({g for pair in pairs for g in pair})
-        # Base the gap on the FULL data extent, not just the compared groups: Vega fits the
+        # Base the gap on the full data extent, not only the compared groups: Vega fits the
         # rendered domain to every group, and the visual gap is yStep * panel height / domain.
         # Using only the annotated groups' range collapses the brackets when an un-annotated
         # group (e.g. a saturating positive control) blows up the domain; the full extent
@@ -2190,7 +2169,7 @@ def comparisons(
         # groups - see below.)
         y_all = data[yCol].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
-        # End legs are a PIXEL length by definition ("matching the axis ticks"), so an auto
+        # End legs have a pixel length by definition ("matching the axis ticks"), so an auto
         # tickHeight rides in y2Offset whatever the placement mode. Converting it to data units
         # assumes a linear axis - on a log axis the legs collapse to a fraction of a pixel.
         _tick_arg = tickHeight
@@ -2205,13 +2184,8 @@ def comparisons(
             yStep,
         )
 
-        # Pixel mode is the AUTO path only: anchor every bracket at the annotated groups' data
-        # maximum and lift it in pixels, so the gap and the stack step are exact regardless of the
-        # rendered domain. Any explicit yStart/yPositions keeps data-unit semantics (the escape
-        # hatch), because those are the user's own numbers on their own scale.
-        # Pixel mode is the AUTO path only. ANY explicit spacing argument opts back into
-        # data-unit semantics - those are the user's own numbers on their own scale, and
-        # silently ignoring one would make a documented parameter a no-op.
+        # Automatic placement uses pixel offsets from the data so gaps are independent of the
+        # rendered domain. Any explicit position or spacing argument uses data units instead.
         pixel_mode = yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
         offsets_px = [0.0] * len(pairs)
         tick_px = _BRACKET_TICK_PX if _tick_arg is None else None
@@ -2255,7 +2229,7 @@ def comparisons(
                 data.filter(pl.col(x).is_in(annotated_groups_for_pad))[yCol].cast(pl.Float64).max() or 0.0,
             )
             if pixel_mode:
-                # Each bracket anchors above ITS OWN pair's data and lifts a CONSTANT number of
+                # Each bracket anchors above its own pair's data and lifts a constant number of
                 # pixels, so it stays with the groups it compares instead of riding the tallest
                 # annotated group, and the gap is exact at any y domain. Only the collision test
                 # between overlapping brackets needs pixel positions, and for that the rendered
@@ -2264,11 +2238,11 @@ def comparisons(
                 # A bracket occupies its bar plus the label above it - `fontSize` of glyph and the
                 # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
                 min_step_px = float(fontSize or _opt("fontSize")) + 6.0
-                # Anchor over every category the bracket SPANS, not just its two endpoints: a
+                # Anchor over every category the bracket spans, not only its two endpoints: a
                 # bracket from a to c passes over b, so a taller b would sit above the bar - on a
                 # bar chart the bracket would cross straight through it. (statannotations does the
                 # same; ggsignif sidesteps it by anchoring everything at the global maximum.)
-                # A `reverse` bracket hangs BELOW its groups, so it anchors on their MINIMUM and
+                # A `reverse` bracket hangs below its groups, so it anchors on their minimum and
                 # its ladder descends. The two directions never collide with each other (opposite
                 # sides of the data), so each gets its own placement pass.
                 pair_anchor = [
@@ -2418,8 +2392,7 @@ def comparisons(
                 )
             )
 
-    # --- report: a structured record is always queued for export metadata; ---
-    # --- rendered to text when report=True (print) or save is set (file).   ---
+    # Queue a structured report for export metadata; render it when requested.
     record = _make_record(
         test=test,
         is_omnibus=is_omnibus,
@@ -2948,9 +2921,9 @@ def correlation(
     if line and result["slope"] is not None:
         x0, x1 = float(x_values.min()), float(x_values.max())
         slope, intercept = result["slope"], result["intercept"]
-        # The sidecar's fields carry the REAL column names: Vega-Lite merges a shared axis's
-        # title by joining the layers' DISTINCT titles, so private names ("_x") concatenated
-        # into the base chart's derived title ("height, _x"). Matching names dedupe to one.
+        # Use the original column names because Vega-Lite combines derived axis titles from
+        # layers. Private names such as "_x" would appear in the base title; matching names avoid
+        # duplicate title text.
         fit_df = pl.DataFrame({xCol: [x0, x1], yCol: [slope * x0 + intercept, slope * x1 + intercept]})
         # By default the line inherits the theme's mark_line config (no overrides).
         # Curated params override only what's passed; lineStyle overrides everything.
@@ -2965,7 +2938,7 @@ def correlation(
             mark_kwargs["opacity"] = opacity
         if lineStyle:
             mark_kwargs.update(lineStyle)
-        # No title/axis override: with matching field names the derived titles dedupe, and
+        # No title/axis override: matching field names avoid duplicate derived titles, and
         # an explicit base title still beats this layer's derived one.  (Setting title=None
         # nulls the base title; axis=None suppresses the axis entirely — both wrong here.)
         # field=/type= rather than shorthand, so column names containing ':' survive.

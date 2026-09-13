@@ -7,7 +7,7 @@ ds.theme(width=124, height=124)
 
 # Diagonal linear ramp: the palette itself, laid out as a surface. Cells carry explicit
 # edges (x/x2) on linear axes so the domain ends exactly on the 0 and 6 ticks; each cell
-# overhangs by 0.02 units to cover the sub-pixel antialiasing seam.
+# overhangs by 0.02 units to cover the sub-pixel antialiasing gap.
 N = 30
 step = 6 / N
 cells = []

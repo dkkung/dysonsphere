@@ -29,7 +29,7 @@ Do not change the example's deliverable formats or add an
 unrequested PNG to the final output set just to satisfy the inspection tool. There is no direct
 PDF format in this API; do not invent one or claim an external conversion has been verified.
 
-SVG/PNG and `show()` use Dysonsphere's corrected static pipeline. Bare Altair display bypasses it;
+SVG/PNG and `show()` use Dysonsphere's corrected static processing. Bare Altair display bypasses it;
 continuous legend sizing markers can even make that display fail. HTML saved with `ds.save()` resolves
 shared specification fixes but does not apply static corrections such as script typography, inward
 ticks, and rule-cap decorations. Inspect the output tier the user actually requested.
@@ -83,8 +83,8 @@ match the requested mode.
 ## Troubleshoot at the right level
 
 - **Unknown keyword or missing attribute:** check the executing environment's versions, installed
-  signature, and docstring. These examples use Dysonsphere 4.0.0; do not import core private helpers or add a
-  compatibility shim to make a guessed name work.
+  signature, and docstring. These examples use Dysonsphere 4.0.0; do not import core private helpers or add
+  compatibility code to make a guessed name work.
 - **Too many rows:** every save format resolves inlined data. Assess the output size and privacy
   implications before increasing `maxRows` or using `overrideMaxRows=True`. Do not silently sample
   rows, globally disable protections, or assume saving only PNG bypasses the cap.
@@ -134,5 +134,5 @@ Use only the capability the format supports:
   integrity. Checksums are not signatures proving authorship or that nobody modified a figure.
 
 Keep edits to loaded charts presentation-only unless rebuilding their statistics from source.
-Analytical changes can cause re-export to fail closed; suppressing metadata is not a workaround.
+Changes to the analysis can prevent re-export. Do not bypass this check by suppressing metadata.
 Explain verification limits and missing provenance rather than treating an unavailable check as a match.

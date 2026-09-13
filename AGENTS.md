@@ -81,7 +81,7 @@ examples during iteration and regenerate affected references after updating sour
   live in `stats.py`. Dependencies flow `export -> metadata`, not the reverse. The checksum core is
   `utils._frame_checksum`, publicly re-exported by metadata; stats use the private helper directly.
 - Tag every generated chart dataset with `utils._internal_data` (extensions use `ext.internal_data`).
-  Never tag the user's data. Otherwise sidecars leak into recovered data and provenance checksums.
+  Never tag the user's data. Otherwise generated annotation data leaks into recovered data and provenance checksums.
 - Preserve chart-specific statistics markers: exports select records present in the chart, not all
   accumulated records. Saving does not clear the registry. Marker names must remain unique when
   charts are composed; stored metadata field names are separate from Python parameter names.
@@ -94,10 +94,10 @@ examples during iteration and regenerate affected references after updating sour
 - Fixed reference annotations use datum/value positions to avoid clobbering shared axis titles.
   Facet-safe references share user data through `_datum_base`; global statistical results must not
   simply repeat across facets as though computed per panel.
-- Preserve the common save/show SVG pipeline and its ordering. Apply shared spec fixes wherever
+- Preserve the common save/show SVG processing and its ordering. Apply shared spec fixes wherever
   specs are resolved for export, comparison, or website generation. Bare Altair display and interactive
-  HTML do not receive the full SVG formatting pipeline.
-- Figure/shade markers must survive saved-spec round trips; they deliberately do not use the
+  HTML do not receive all SVG formatting fixes.
+- Figure/shade markers must survive save/reload; they deliberately do not use the
   statistics prefix stripped during export. Keep internal identity separate from visible labels.
 - Keep palette data as precomputed literals, not import-time color calculations. Preserve palette
   ordering and run the quality/CVD tests when changing ramps; use the recipe script for authoring.

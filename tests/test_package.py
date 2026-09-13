@@ -189,7 +189,7 @@ class TestPackageNamespace:
             assert leaked not in ds.__all__, f"ds.__all__ leaks {leaked!r}"
 
     def test_ext_surface_is_namespaced_only(self):
-        # dysonsphere.ext (the extension-author primitive surface) is bound as ds.ext but its
+        # dysonsphere.ext (the extension API) is bound as ds.ext but its
         # contents stay OFF the top namespace - `ext` is deliberately absent from _MODULE_NAMES
         # above because it is not star-imported (its __all__ must not join ds.__all__).
         from dysonsphere import ext

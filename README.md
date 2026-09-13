@@ -23,7 +23,7 @@ It also provides utilities for `altair` charts:
   - `ds.metadata.read()` recovers the statistics report, metadata, and original data from a saved figure.
   - `ds.load()` rebuilds the chart from its JSON.
 
-Separate packages can add field-specific plotting toolkits (such as molecular biology or astronomy) that use the core theme, palettes, and export pipeline.
+Separate packages can add field-specific plotting toolkits (such as molecular biology or astronomy) that use the core theme, palettes, and export behavior.
 
 ## Installation
 

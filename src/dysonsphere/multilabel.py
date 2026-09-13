@@ -10,8 +10,7 @@ if TYPE_CHECKING:
 from .theme import _opt
 from .utils import _band_geometry, _count_n, _internal_data
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["add_multilabel"]
 
 
@@ -60,7 +59,7 @@ def _multilabel_layer(
     -----
     **Row label alignment.** Row labels are rendered as explicit ``mark_text`` marks
     (not as y-axis labels) so they share the exact same y coordinate as the content
-    marks. Vega-Lite's axis label rendering pipeline does not guarantee pixel-perfect
+    marks. Vega-Lite's axis label rendering does not guarantee pixel-perfect
     alignment with ``mark_text`` even when both use ``baseline="middle"``, so the y
     axis is suppressed and labels are placed via ``alt.value(x)`` instead.
 
@@ -138,7 +137,7 @@ def _multilabel_layer(
     if spanLabelPosition not in ("top", "bottom"):
         raise ValueError(f"spanLabelPosition must be 'top' or 'bottom', got {spanLabelPosition!r}")
 
-    # Normalise rowStyles to a dict so the rest of the code has a single code path.
+    # Normalize rowStyles to a dict.
     if isinstance(rowStyles, list):
         if len(rowStyles) != len(row_order):
             raise ValueError(f"rowStyles list has {len(rowStyles)} entries but there are {len(row_order)} rows.")
@@ -148,9 +147,8 @@ def _multilabel_layer(
         if unknown:
             raise ValueError(f"rowStyles has unknown row label(s) {unknown}. Rows are {list(groups)}.")
 
-    # Per-row style resolution: rowStyles overrides global style; non-bool values always
-    # force "text" regardless. Check isinstance(v, bool) before isinstance(v, int) because
-    # bool subclasses int.
+    # Per-row styles override the global style. Check bool before int because bool is an int
+    # subclass; non-bool values use text style.
     def _row_style(label: str) -> str:
         s = (rowStyles or {}).get(label, style)
         if s not in ("plusminus", "text", "symbol"):
@@ -292,7 +290,7 @@ def _multilabel_layer(
     x_enc = alt.X(
         "__category:N",
         sort=categories,
-        # Pin the domain (not just sort) so `resolve_scale(x="shared")` can't re-sort the
+        # Pin the domain (not only sort) so `resolve_scale(x="shared")` can't re-sort the
         # merged x domain alphabetically - the same shared-scale union fix as `domain=row_order`
         # on the y scale below. Without it the chart's x renders in a different order than its
         # (unshared) colour scale, so category colours stop matching their bars.
@@ -326,7 +324,7 @@ def _multilabel_layer(
 
     layers: list[Any] = [row_labels]
 
-    # --- plusminus rows ---
+    # Plus/minus rows
     if plusminus_rows:
         pm_df = marks_df.filter(pl.col("__label").is_in(plusminus_rows))
         # align="center" keeps rotated text centered on its category - the mark rotates
@@ -337,7 +335,7 @@ def _multilabel_layer(
             .encode(x=x_enc, y=y_enc, angle=angle_enc, text=alt.Text("__value:N"))
         )
 
-    # --- text rows ---
+    # Text rows
     if text_rows:
         text_df = marks_df.filter(pl.col("__label").is_in(text_rows))
         layers.append(
@@ -346,10 +344,9 @@ def _multilabel_layer(
             .encode(x=x_enc, y=y_enc, angle=angle_enc, text=alt.Text("__value:N"))
         )
 
-    # --- symbol rows ---
+    # Symbol rows
     if symbol_rows:
-        # Colours are resolved at call time from alt.theme.options so that darkmode
-        # variants are correct. Use a callable with ds.save() to rebuild per variant.
+        # Colors are fixed at construction. Use a callable with ds.save() to rebuild for each background.
         darkmode = _opt("darkmode")
         if darkmode:
             positive_color = "white"
@@ -893,7 +890,7 @@ def add_multilabel(
             )
         counts = _count_n(data, xCol, categories)
         # Pin each list to its row labels before the n-row joins groups, or the entries
-        # shift by one. The basis is the DISPLAY order, matching how _multilabel_layer
+        # shift by one. The basis is the display order, matching how _multilabel_layer
         # zips a list, and the length is checked here because that check sees a dict.
         list_order = order or list(groups.keys())
 
@@ -928,7 +925,7 @@ def add_multilabel(
                 x = enc._kwds.get("x", alt.Undefined)
                 if x is not alt.Undefined and isinstance(x, alt.X):
                     axis = x._kwds.get("axis", alt.Undefined)
-                    # An explicit axis=None means the layer HIDES its axis (e.g.
+                    # An explicit axis=None means the layer hides its axis (e.g.
                     # mark_violin's internal pixel-x layers) - leave it hidden.
                     # Replacing it with Axis(labels=False) re-enables the domain
                     # line and ticks (a phantom axis above the chart).

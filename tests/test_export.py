@@ -1653,7 +1653,7 @@ class TestItalicizeStatSymbols:
             assert self._italic_runs(root) == [], label
 
     def test_after_superscript_fixer(self):
-        # pipeline order: superscript fixer splits the exponent out first; the P (still in
+        # processing order: superscript fixer splits the exponent out first; the P (still in
         # .text) and any symbols in the exponent tspan's TAIL must still be found
         root = self._root_with_text("r = 0.9, P = 3.03×10⁻¹⁴, y = 0.8x + 0.2")
         _fix_superscript_labels(root)

@@ -1,6 +1,6 @@
 """Volcano plot for differential-expression results.
 
-Uses dysonsphere's public core and extension-author surfaces. This coordinated first-party package
+Uses dysonsphere's public core and extension APIs. This coordinated first-party package
 may use shared core helpers internally; third-party extensions should use ``dysonsphere.ext`` for
 extension primitives rather than shared private helpers.
 """
@@ -21,22 +21,18 @@ import dysonsphere as ds
 from dysonsphere import ext
 from dysonsphere.utils import _ensure_polars
 
-# Sentinel so "caller passed None (no title)" is distinct from "caller passed nothing (default
-# title)" - the same _UNSET pattern the core marks use for yTitle/xTitle.
+# Distinguish an omitted title from an explicit None title.
 _UNSET: Any = object()
 
-# Tools can underflow a p-value to exactly 0, which -log10 sends to +inf (an unplottable y).
-# Clamp to the smallest positive float so the point plots at a finite, very high y.
+# Clamp underflowed p-values before -log10 so y remains finite.
 _P_FLOOR = sys.float_info.min
 
-# Derived columns added to the frame (the "data of record", like add_jitter's jitter_x).
+# Derived columns included in saved chart data.
 _NEGLOG_COL = "neglog10p"
 _SIG_COL = "significance"
 
-# The three differential-call categories (also the legend labels - the values render directly).
-# "Non-differential" describes the analytical CALL, not statistical significance: a point can
-# clear the p-value cutoff yet miss the fold-change threshold, so it is neither Gained nor Lost
-# but is NOT "non-significant" - the old "ns" label was wrong for exactly those points.
+# These values are also the legend labels. "Non-differential" describes the classification, not
+# statistical significance: a point can pass the p-value cutoff but miss the fold-change cutoff.
 _GAINED = "Gained"
 _LOST = "Lost"
 _NONDIFF = "Non-differential"
@@ -117,7 +113,7 @@ def volcano(
     data = data.with_columns(
         pl.when(gained).then(pl.lit(_GAINED)).when(lost).then(pl.lit(_LOST)).otherwise(pl.lit(_NONDIFF)).alias(_SIG_COL)
     )
-    # Draw non-differential points first (behind) so the called points sit on top.
+    # Draw non-differential points first so called points remain visible.
     data = data.sort(pl.col(_SIG_COL) != _NONDIFF)
 
     darkmode = bool(ext.opt("darkmode"))
@@ -180,8 +176,7 @@ def volcano(
 
     layers: list[ext.AltairChart] = [points]
     if legend:
-        # A separate one-entry symbol legend keeps the neutral independent of the diverging scale.
-        # Its source is filtered away before drawing, so no helper data or invisible mark is exported.
+        # Keep the neutral entry independent of the diverging scale without exporting helper data.
         neutral_legend = (
             alt.Chart(data)
             .transform_filter("false")
@@ -197,17 +192,16 @@ def volcano(
         layers.append(neutral_legend)
 
     if thresholdLines:
-        # Dashed theme-styled reference guides at the +-fold-change and p-value cutoffs. ds.rule
-        # positions by alt.datum, so it composes here without nulling the axis titles.
+        # Datum-positioned rules preserve the base chart's axis titles.
         layers.append(ds.rule(x=-fcThreshold))
         layers.append(ds.rule(x=fcThreshold))
         layers.append(ds.rule(y=-math.log10(pThreshold)))
 
     chart: ext.AltairChart = alt.layer(*layers).resolve_scale(color="independent")
     if subset is not None:
-        # ds.labels returns a LayerChart; compose with + (it also self-pins the x/y scale).
+        # labels returns a layer and pins the x/y scales.
         chart = chart + _label_layer(data, subset, log2fc, labels)
-    # Tag the chart so ds.save() records dysonsphere-biology's version in the figure's provenance.
+    # Record the extension version in export provenance.
     return cast(alt.LayerChart, ext.tag_extension(chart, "biology"))
 
 
@@ -226,8 +220,7 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
     if isinstance(label, bool):  # bool is an int subclass - reject before the int branch
         raise ValueError("volcano(subset=...) does not accept a bool")
     elif isinstance(label, int):
-        # Keep row identity through ranking: converting the selected rows to display names and
-        # rematching them would select every row with a duplicate name, exceeding top-N.
+        # Preserve row identity so duplicate display names cannot expand top-N selection.
         row_index = "__dysonsphere_volcano_row"
         while row_index in data.columns:
             row_index += "_"
@@ -246,9 +239,8 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
             raise ValueError(f"volcano(subset={label!r}) is not recognized; use 'significant', an int, or a list")
         selected = (data[_SIG_COL] != _NONDIFF).to_list()
     else:
-        # Explicit lists intentionally retain ds.labels' value-matching semantics.
+        # Lists retain ds.labels' value-matching semantics.
         selected = [str(v) for v in data.filter(pl.col(geneCol).is_in(label))[geneCol].to_list()]
 
-    # ds.labels' default connectorGap sizes itself to the theme's mark_point edge radius, which is
-    # exactly what the volcano's dots need - so no explicit gap is required here.
+    # ds.labels derives connectorGap from the theme's point radius.
     return ds.labels(data, log2fcCol, _NEGLOG_COL, geneCol, subset=selected)

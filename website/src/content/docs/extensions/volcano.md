@@ -9,7 +9,7 @@ sidebar:
 
 Volcano plot for differential-expression results.
 
-Uses dysonsphere's public core and extension-author surfaces. This coordinated first-party package
+Uses dysonsphere's public core and extension APIs. This coordinated first-party package
 may use shared core helpers internally; third-party extensions should use ``dysonsphere.ext`` for
 extension primitives rather than shared private helpers.
 

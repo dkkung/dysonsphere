@@ -28,8 +28,8 @@ ds.save(chart, "figure", format="html")   # a self-contained interactive HTML pa
 ```
 
 The SVG post-processing means a notebook's inline preview (Altair renders straight from Vega-Lite)
-can differ subtly from the saved file. `ds.show(chart)` renders a chart *through* the `save()`
-pipeline so the preview matches the exported figure exactly.
+can differ subtly from the saved file. `ds.show(chart)` applies the same processing as `save()`
+so the preview matches the exported figure exactly.
 
 `show()` styles the preview entirely from the theme, including `transparent` - unlike `save()`,
 which defaults to a transparent background so exports composite onto a page. The preview is
@@ -181,9 +181,9 @@ Vega-Lite spec checksum: sha256:53a99fe9…
 Export identifier: ef49895a-2e06-495a-86d3-7b0f2980cd8b
 ```
 
-The **data** itself round-trips too. `ds.metadata.read("mpg_by_origin.json", what="data")` returns the
+The **data** can also be recovered. `ds.metadata.read("mpg_by_origin.json", what="data")` returns the
 original 398-row dataframe - every column Altair inlined, including transform columns like
-`jitter_x` (the honest data of record), with dysonsphere's own sidecar layers (bracket
+`jitter_x` (the data recorded in the spec), with dysonsphere's own annotation layers (bracket
 coordinates, error bars) filtered out.
 
 ## Reading it back
@@ -197,7 +197,7 @@ ds.metadata.read("figure.json", what="data")       # the original DataFrame
 
 `ds.metadata.read()` works on JSON, SVG, and PNG for metadata and reports; `what="data"` is JSON-only (only the
 JSON carries the full data). `what="data"` returns the user's frame, filtering out dysonsphere's
-internal sidecar datasets; pick the output type with `output=` (`"polars"`, `"pandas"`, `"duckdb"`,
+internal annotation datasets; pick the output type with `output=` (`"polars"`, `"pandas"`, `"duckdb"`,
 or `"records"`).
 
 ## Verifying a figure
