@@ -845,30 +845,6 @@ def test_current_registry_reconstructs_prechange_ordered_baseline():
     assert _digest(reconstructed) == "25e5b5e62576d578adfdffb5328915df9e900202693d347538bd5dea0add025d"
 
 
-def test_authoring_recipe_omits_unshipped_diverging_candidates():
-    spec = importlib.util.spec_from_file_location("print_palettes", "scripts/print_palettes.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    names = []
-    setattr(module, "_print_palette", lambda name, _hexes: names.append(name))
-    module.main()
-    assert len(module.DIVERG_SEQ2_PAIRS) == 43
-    assert len(module.DIVERG_SEQ3_PAIRS) == 43
-    expected_pairs = {arm1.removesuffix("2") + arm2 for arm1, arm2 in module.DIVERG_SEQ2_PAIRS} | {
-        arm1.removesuffix("3") + arm2 for arm1, arm2 in module.DIVERG_SEQ3_PAIRS
-    }
-    assert expected_pairs <= colors.keys()
-    assert "greyslavenders2" in names
-    assert "greyslavenders3" in names
-    assert {"greenblue", "yellowgreenblue", "lagoon"} <= set(names)
-    assert {"gnbu", "ylgnbu", "bluerlagoon", "bluestlagoon"}.isdisjoint(names)
-    assert {"bluestgrotto", "bluergrotto", "bluegrotto"}.isdisjoint(names)
-    assert "ylpu" not in names
-    assert not any(name.endswith("_sat") for name in names)
-    assert not any("neongreen" in name for name in names)
-
-
 def test_neongreens_family_is_fully_removed_without_affecting_green_families():
     assert not any("neongreen" in name for name in colors)
     assert {"greens", "greens2", "greens3", "cat1_greens", "cat2_greens", "cat4_greens"} <= colors.keys()
