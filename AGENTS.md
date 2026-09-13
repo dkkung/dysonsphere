@@ -16,6 +16,8 @@ Dysonsphere extends Altair with publication styling, composable charts, and self
   Read `website/AGENTS.md` when working on the site, not for unrelated library changes.
 - Palette recipes: `scripts/print_palettes.py`. Swatch export: `ds.palettes.export_swatches()`.
   Root `docs/` contains only the two README logos. Do not recreate retired gallery/build scripts.
+- User-facing agent skill: `skills/dysonsphere/`; installation and evaluation guidance: `skills/README.md`.
+  Keep its examples aligned with implementation and run `tests/test_skills.py` when changing the bundle.
 
 ## Working Style
 

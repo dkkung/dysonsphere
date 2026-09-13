@@ -72,3 +72,10 @@ ds.save(chart, "myplot") # writes myplot.svg + myplot.json
 ## Documentation
 
 Documentation, examples, palettes, and an interactive chart studio at **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**
+
+## Agent skill
+
+The core [Dysonsphere skill](skills/README.md) provides plotting, statistical-annotation, and export
+guidance for Claude Code, Codex, and OpenCode. It is installed separately from the Python library
+and targets Dysonsphere 4.0.0. See its installation instructions and compatibility notes before
+using it with a different release.
