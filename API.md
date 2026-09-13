@@ -254,10 +254,14 @@ not part of the public contract.
   connectors that can slide along the visible label boundary to avoid other points. Collision boxes
   include conservative safety padding, while connectors attach to tighter estimated text bounds or
   the actual chip edge. Forced connectors reserve full clearances and visible stroke rather than
-  shrinking gaps; geometrically impossible connectors are omitted. Placement models standard linear
-  scales, including zero and theme view padding; explicit `xDomain`/`yDomain` must match the base's scale assumptions.
-  It cannot inspect sibling marks or custom scales, measure arbitrary installed fonts, or guarantee
-  a collision-free layout in an overfull panel. Rebuild labels after geometry-related theme changes.
+  shrinking gaps; geometrically impossible connectors are omitted. `ds.save()` and `ds.show()`
+  automatically reevaluate the complete composed panel and avoid supported visible sibling symbols,
+  straight lines/rules, rectangles, and fixed text regardless of layer order. The serialized intent
+  survives `ds.load()` and reruns after resizing or recomposition. Unsupported curves, areas, images,
+  and arbitrary paths are not treated as exact obstacles; an overfull panel cannot guarantee a
+  collision-free layout. Bare Altair display retains the construction-time fallback.
+  An omitted `connectorGap` expands to the rendered anchor symbol footprint plus daylight during
+  automatic resolution; explicit zero and numeric gaps remain exact overrides.
 - Volcano uses the same labels/content-column and subset/selection vocabulary. Its log2fc and
   pvalue inputs name columns containing log2 fold changes and raw p-values; do not imply arbitrary
   effect-size support. Label content may identify any measured feature, not only genes/proteins.
