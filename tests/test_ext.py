@@ -12,7 +12,6 @@ import polars as pl
 
 import dysonsphere as ds
 from dysonsphere import ext
-from dysonsphere.discovery import _tag_extension
 from dysonsphere.export import _AltairChart
 from dysonsphere.theme import _opt
 from dysonsphere.utils import _INTERNAL_COL, _internal_data
@@ -23,13 +22,32 @@ def test_reexports_are_the_internal_objects():
     assert ext.opt is _opt
     assert ext.internal_data is _internal_data
     assert ext.AltairChart is _AltairChart
-    assert ext.tag_extension is _tag_extension
+    assert ext.tag_extension.__module__ == "dysonsphere.ext"
 
 
 def test_all_is_minimal():
     # Guard the surface: it grows only when a consumer justifies it (see ext.py docstring).
     # tag_extension was added for the volcano's provenance self-tagging.
     assert set(ext.__all__) == {"AltairChart", "internal_data", "opt", "tag_extension"}
+
+
+def test_biology_first_import_preserves_namespace_and_chart_type_identity():
+    """The extension can import first without a cycle or root helper leakage."""
+    import subprocess
+    import sys
+
+    code = """
+import dysonsphere_biology
+import dysonsphere as ds
+from dysonsphere import export, ext
+assert ext.AltairChart is export._AltairChart
+assert callable(ds.extensions) and callable(ds.load_extension)
+assert ds.extensions is ext.extensions and ds.load_extension is ext.load_extension
+assert not hasattr(ds, "discovery")
+for name in ("AltairChart", "internal_data", "opt", "tag_extension"):
+    assert not hasattr(ds, name)
+"""
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_ext_namespaced_not_polluting_top_namespace():

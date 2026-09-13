@@ -170,6 +170,8 @@
 
 ### Internal
 
+- Consolidated optional-extension discovery, provenance markers, and the extension-author API in
+  `dysonsphere.ext`, removing the separate internal discovery module while preserving public paths.
 - Removed redundant full-example point-label rendering tests, retaining focused geometry and export regressions.
 - Split private SVG geometry/layering and typography helpers out of `export.py` while preserving the
   shared `save()`/`show()` correction pipeline and output behavior.

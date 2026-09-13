@@ -1,17 +1,22 @@
 ---
-title: "Extension authoring"
-description: "The public API for extension authors (dysonsphere.ext)."
+title: "Extensions"
+description: "Discover extensions and use the extension-author API (dysonsphere.ext)."
 sidebar:
-  order: 4
+  order: 3
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
 
-API for dysonsphere extensions (``dysonsphere.ext``).
+Extension discovery implementation and author API (``dysonsphere.ext``).
 
-Extensions use these core helpers to match core chart behavior for metadata filtering and theme
-styling. Import them from ``dysonsphere.ext`` rather than private core modules. The re-exported
-names are stable and changes follow the usual public-API deprecation process.
+Optional distributions register an entry point under ``dysonsphere.extensions``, for example
+``biology = "dysonsphere_biology"``. Core uses these entry points to enumerate extensions and lazily
+resolve aliases such as ``ds.biology``. Users discover and explicitly load extensions through the
+canonical ``ds.extensions()`` and ``ds.load_extension()`` call paths, not through ``ds.ext``.
+
+Extension authors use the supported names below to match core chart behavior for metadata filtering
+and theme styling. Import them from ``dysonsphere.ext`` rather than private core modules. These names
+are stable and changes follow the usual public-API deprecation process.
 
 The current API supports the composite annotation used by the volcano plot:
 
@@ -50,22 +55,55 @@ The current API supports the composite annotation used by the volcano plot:
   view-name marker that survives ``+``/layer/concat and is stripped from the written spec, so it
   only affects provenance - never the rendered output. ``name`` is your extension's registered
   entry-point name (the ``ds.<name>`` alias); its version is looked up from the installed
-  distribution. Only extensions that actually produced a figure are recorded (not merely installed).
+  distribution. It returns a tagged chart copy and does not mutate ``chart``. Only extensions that
+  actually produced a figure are recorded (not merely installed).
+
+## `extensions`
+
+Call as `ds.extensions(...)`.
+
+```python
+def extensions() -> list[str]: ...
+```
+
+Implement the canonical ``ds.extensions()`` discovery call.
+
+Return the sorted names of installed dysonsphere extensions.
+
+Each name is also accessible as an attribute of the top-level ``dysonsphere`` module
+(e.g. ``dysonsphere.biology`` when ``dysonsphere-biology`` is installed).
+
+## `load_extension`
+
+Call as `ds.load_extension(...)`.
+
+```python
+def load_extension(name: str) -> ModuleType: ...
+```
+
+Implement the canonical ``ds.load_extension(name)`` discovery call.
+
+Import and return the extension registered under ``name``.
+
+Equivalent to accessing ``dysonsphere.<name>`` but explicit. Raises ``ImportError`` with
+the list of installed extensions if no extension is registered under ``name``.
 
 ## `tag_extension`
 
+Call as `ds.ext.tag_extension(...)`.
+
 ```python
-def tag_extension(chart: _AltairChart, name: str) -> _AltairChart: ...
+def tag_extension(chart: AltairChart, name: str) -> AltairChart: ...
 ```
 
-Tag ``chart`` as produced by the extension ``name`` (e.g. ``"biology"``) so ``save()``
-records that extension's version in provenance.
+Return a tagged chart copy carrying the extension name for export provenance.
 
 The unique view-name marker survives composition and is stripped from the written spec.
-An existing name is carried inside it so statistical identity is not overwritten and a
-user-supplied name can be restored when internal markers are removed.
+An existing name is carried inside it so statistical and user-supplied identity survives.
 
 ## `internal_data`
+
+Call as `ds.ext.internal_data(...)`.
 
 ```python
 def internal_data(
@@ -80,6 +118,8 @@ DataFrame (returned as a polars DataFrame with the marker column added). Pass th
 result straight to ``alt.Chart(...)``.
 
 ## `opt`
+
+Call as `ds.ext.opt(...)`.
 
 ```python
 def opt(key: str) -> Any: ...

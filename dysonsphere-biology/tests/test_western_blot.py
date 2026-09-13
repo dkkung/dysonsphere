@@ -120,7 +120,7 @@ def test_image_sidecar_tagged_internal():
 
 def test_tagged_for_provenance():
     # ext.tag_extension marks the figure so save() records dysonsphere-biology's version.
-    from dysonsphere.discovery import _used_extensions
+    from dysonsphere.ext import _used_extensions
 
     spec = ds.biology.western_blot(_img(), categories=["x", "y"]).to_dict()
     assert "biology" in _used_extensions(spec)

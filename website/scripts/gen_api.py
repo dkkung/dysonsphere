@@ -18,13 +18,11 @@ import griffe
 from griffe import ParameterKind
 
 # (module name, page title, sidebar order, one-line description)
-# Alphabetical by page title (the sidebar order mirrors it), with one deliberate
-# exception: Extensions precedes Extension authoring (discovery before the SDK).
+# Alphabetical by page title (the sidebar order mirrors it).
 MODULES = [
     ("annotations", "Annotations", 1, "Composable annotation layers: reference lines, text, shading, point labels."),
     ("display_labels", "Display labels", 2, "Map raw data values to display labels on axes, legends, and headers."),
-    ("discovery", "Extensions", 3, "Discover and load installed dysonsphere extensions."),
-    ("ext", "Extension authoring", 4, "The public API for extension authors (dysonsphere.ext)."),
+    ("ext", "Extensions", 3, "Discover extensions and use the extension-author API (dysonsphere.ext)."),
     ("marks", "Marks", 5, "Composite marks: strip and violin plots."),
     ("assembly", "Assembling figures", 6, "Compose several charts into one figure, each at its own size."),
     ("multilabel", "Multilabels", 7, "Attach a multilabel annotation table below a chart."),
@@ -182,8 +180,9 @@ def render_page(mod, title: str, order: int, description: str) -> str:
     for name, f in fns:
         out.append(f"## `{name}`")
         out.append("")
-        if mod.name in {"metadata", "palettes"}:
-            public_path = f"ds.{name}" if name == "palette" else f"ds.{mod.name}.{name}"
+        if mod.name in {"ext", "metadata", "palettes"}:
+            root_names = {"extensions", "load_extension", "palette"}
+            public_path = f"ds.{name}" if name in root_names else f"ds.{mod.name}.{name}"
             out += [f"Call as `{public_path}(...)`.", ""]
         out += ["```python", format_signature(f, name), "```", ""]
         out += render_docstring(f)

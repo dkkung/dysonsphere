@@ -161,8 +161,12 @@ Source references below are relative to `src/dysonsphere/`; test references are 
 - **Extensions have their own distributions.** Keep optional dependencies and release schedules
   outside core. Extras would couple releases; namespace-package restructuring would disrupt the
   core import path for little gain. Discovery supplies `ds.biology` without either change, and
-  `ds.ext` grows only for real consumers rather than publishing speculative helpers.
-  References: `discovery.py`; `ext.py`; `dysonsphere-biology/pyproject.toml` (repository root).
+  `ds.ext` grows only for real consumers rather than publishing speculative helpers. Discovery and
+  author support share `ext.py`, but discovery stays at `ds.extensions()` and `ds.load_extension()`;
+  naming the namespace `extensions` would collide with the callable. Defining the chart union there
+  gives extension authors and export one type identity without an extension-to-export import cycle.
+  References: `ext.py`; `__init__.py::__getattr__`; `test_ext.py`, `test_extensions.py`;
+  `dysonsphere-biology/pyproject.toml` (repository root).
 
 - **Pin category domains, not just sort order.** Vega-Lite can reorder domains when merging
   layers. Explicit domains keep non-alphabetical categories, colors, and multilabel columns
