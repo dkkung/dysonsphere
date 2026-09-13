@@ -36,6 +36,15 @@ notes are local working material, not dependencies of this framework or part of 
   empty list, repeated colors when oversampling, inclusive end, and n taking precedence over step.
   When n is supplied, require a nonnegative integer and reject booleans and non-integer values,
   including integral floats. This tightens validation without changing valid sampling behavior.
+- `cat1` is the static default ten-color categorical palette. It places the five light-theme
+  grey/blue/green/purple/teal accents first, followed by lighter companions. Grey reuses `greys`;
+  the four colors come from independent 12-stop `cat1_*` ramps. Grouped construction uses zero-based
+  stops 1-10 and supports at most ten members per hue; flat stops are selected independently per ramp.
+- The categorical families and companions are paired by number: `cat1`/`div1` are accent-derived
+  grey-blue-green-purple-teal and purple/teal defaults; `cat2`/`div2` are the prior saturated cool
+  family; `cat3`/`div3` are the legacy blue-pink-yellow-green family and a pink-negative/blue-positive
+  companion; `cat4`/`div4` are the muted australis-harmonious family. Diverging companions have 13
+  stops and their family-specific neutral at zero (`#F6F6F6`, except the retained warm `div4`).
 - Palette lookup is case-sensitive. Native palette names are lowercase; imported palette names
   preserve their upstream spelling and case without source-package prefixes. Registered names take
   precedence over renderer-native schemes in every palette-valued consumer.
@@ -44,7 +53,7 @@ notes are local working material, not dependencies of this framework or part of 
   imported, case-sensitive `gray` and `Greys` palettes.
 - The 12 discrete Matplotlib category palettes expose their complete upstream color lists.
 - The native `neongreens` family and every diverging palette derived from it are removed; no aliases
-  or replacement colors are provided. Ordinary `greens` and the `cat1_greens`/`cat2_greens` families
+  or replacement colors are provided. Ordinary `greens` and the `cat1_greens`/`cat2_greens`/`cat4_greens` families
   are distinct and remain available.
 - Native `greenblue` and `yellowgreenblue` are distinct from the case-sensitive imported Matplotlib
   palettes `GnBu` and `YlGnBu`. The `bluerlagoon` and `bluestlagoon` variants are removed;

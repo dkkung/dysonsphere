@@ -86,7 +86,7 @@ def activity_fit():
         .encode(
             x=alt.X("expression:Q", title="Expression"),
             y=alt.Y("activity:Q", title="Activity"),
-            color=alt.Color("activity:Q", title=None, legend=None, scale=alt.Scale(range=ds.palette("div2", 9))),
+            color=alt.Color("activity:Q", title=None, legend=None, scale=alt.Scale(range=ds.palette("div4", 9))),
         )
     )
     return points + ds.stats.correlation(activity, "expression", "activity", position="topLeft")

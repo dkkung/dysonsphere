@@ -426,7 +426,7 @@ class TestRangePalettes:
         theme(darkmode=darkmode)
         ranges = _dysonsphere_theme()["config"]["range"]
         digest = hashlib.sha256(json.dumps(ranges, separators=(",", ":")).encode()).hexdigest()
-        assert digest == "92f22343bbe5ac3adeda22b515b3b58bcde2ffb287b6e2458b14674754fc56a7"
+        assert digest == "9207afe1535ef2daca42434d28cdb5267e148af8c343d05628ba19c902cae1be"
 
     def test_category_is_bare_array(self):
         # nominal scales map positionally, so category must NOT be {"scheme": ...}

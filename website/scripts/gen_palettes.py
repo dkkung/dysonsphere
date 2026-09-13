@@ -36,7 +36,7 @@ def main() -> None:
         # By stop count: diverging ramps carry 13 (neutral midpoint), sequential ramps 12; the
         # remaining short palettes (nucleotides, proteins, the matplotlib sets) are qualitative.
         # The assembled qualitative palettes are hue-cycling, not ramps.
-        if name in {"cat1", "cat2", "cat3"} | _MATPLOTLIB_DISCRETE_PALETTES:
+        if name in {"cat1", "cat2", "cat3", "cat4"} | _MATPLOTLIB_DISCRETE_PALETTES:
             kind = "qualitative"
         elif len(colors) == 13:
             kind = "diverging"
