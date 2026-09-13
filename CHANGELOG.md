@@ -4,6 +4,11 @@
 
 ### New features
 
+- Added a portable core Dysonsphere agent skill with plotting, statistics, and export references,
+  executable examples with verified composite-panel scales, and installation guidance for Claude Code,
+  Codex, and OpenCode. Guidance covers focused input validation, explanatory captions, and checks of
+  actual rendered output. Examples preserve default SVG + JSON exports, with separate inspection
+  previews at default raster quality.
 - Added default `theme(fontGreek="Symbol")` switching for Unicode Greek letters in editable SVG
   text, rasterized PNG, and `show()` output. Set `fontGreek=None` to disable it or name a custom
   installed font.
