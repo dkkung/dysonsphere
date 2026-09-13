@@ -209,6 +209,18 @@ def test_save_formats_evaluate_label_scene_once_and_callable_once(tmp_path, monk
     assert calls == {"chart": 1, "scene": 1}
 
 
+def test_save_without_labels_skips_scenegraph_evaluation(tmp_path, monkeypatch):
+    import vl_convert as vlc
+
+    def unexpected_scenegraph(_spec):
+        raise AssertionError("charts without automatic-label intent must use the no-label fast path")
+
+    monkeypatch.setattr(vlc, "vegalite_to_scenegraph", unexpected_scenegraph)
+    data = pl.DataFrame({"x": [0.2, 0.8], "y": [0.7, 0.3]})
+    chart = alt.Chart(data).mark_circle().encode(x="x:Q", y="y:Q")
+    ds.save(chart, tmp_path / "no-labels", format=["json", "svg", "png"], background="light", ppi=72)
+
+
 def test_exact_website_volcano_public_save_and_show(tmp_path):
     namespace = runpy.run_path(str(Path(__file__).parents[1] / "website/examples/volcano.py"))
     chart = namespace["chart"]

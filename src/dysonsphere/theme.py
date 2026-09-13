@@ -919,7 +919,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "bandWithNestedOffsetPaddingOuter": opts["groupPadding"],
                 "offsetBandPaddingInner": opts["subgroupPadding"],
                 "offsetBandPaddingOuter": opts["subgroupPadding"],
-                # The data inset that keeps marks off the axes. export._suppress_nice drops `nice`
+                # The data inset that keeps marks off the axes. utils._suppress_nice drops `nice`
                 # wherever this is emitted, so the inset lands at exactly this many pixels.
                 **({"continuousPadding": opts["viewPadding"]} if opts["viewPadding"] else {}),
                 "round": False,

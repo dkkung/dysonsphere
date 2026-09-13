@@ -10,25 +10,27 @@ import altair as alt
 import polars as pl
 import pytest
 
-from dysonsphere.annotations import _rule_cap_marker
-from dysonsphere.export import (
+from dysonsphere._svg_geometry import (
     _TRANSLATE,
     _align_grid_to_content,
     _decorate_rule_segments,
-    _fix_font_for_illustrator,
-    _fix_subscript_labels,
-    _fix_superscript_labels,
     _flip_ticks_inward,
-    _illustrator_font_family,
-    _italicize_stat_symbols,
     _layer_axes_below_marks,
     _rule_cap_options,
     _simplify_svg,
     _sink_border_below_shade,
+)
+from dysonsphere._svg_typography import (
+    _fix_font_for_illustrator,
+    _fix_subscript_labels,
+    _fix_superscript_labels,
+    _illustrator_font_family,
+    _italicize_stat_symbols,
     _switch_greek_font,
     _typeset_scripts,
-    save,
 )
+from dysonsphere.annotations import _rule_cap_marker
+from dysonsphere.export import save
 from dysonsphere.theme import theme
 from dysonsphere.utils import _apply_spec_fixes, _suppress_nice
 

@@ -10,7 +10,7 @@ from .utils import _internal_data
 __all__ = ["assemble"]
 
 # Markers on a labelled wrapper and on a reserved slot. Vega copies a view name into the SVG
-# group class, which is how export._align_figure_labels finds figure labels and leaves charts'
+# group class, which is how _svg_geometry._align_figure_labels finds figure labels and leaves charts'
 # own titles alone. The prefix differs from the statistics one: that channel is stripped
 # from written output, and these must survive save/reload so ds.load() renders identically.
 _FIGURE_PREFIX = "__dsfigure_"

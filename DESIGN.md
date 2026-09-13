@@ -60,6 +60,12 @@ Source references below are relative to `src/dysonsphere/`; test references are 
 
 ## Rendering and Text
 
+- **Corrected SVG uses one ordered pipeline.** `export.py::_render_fixed_svg` renders and parses once,
+  then applies geometry and layering from `_svg_geometry.py` followed by text handling from
+  `_svg_typography.py`. Rule decoration and figure-label alignment precede simplification; axis
+  reordering precedes border/shade sinking; scripts precede statistical italics and Greek handling;
+  Illustrator font normalization remains last. `save()` and `show()` share this sequence.
+
 - **Align ticks at the source.** Fractional tick positions are intentional for print alignment,
   even if hairlines look softer at screen scale. Keep `axis.tickRound=False` and
   `axisBand.tickOffset=0`; do not restore mark-specific SVG tick-position heuristics.
@@ -69,7 +75,7 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   constraints and disrupt browser label spacing. Keep the SVG correction rather than inserting
   negative lengths into specs that also feed interactive HTML. `tickDirection="in"` defaults an
   omitted frame to closed; explicit `closed=False` wins.
-  References: `export.py::_flip_ticks_inward`; `test_export.py::TestFlipTicksInward`.
+  References: `_svg_geometry.py::_flip_ticks_inward`; `test_export.py::TestFlipTicksInward`.
 
 - **Remove scaffolding at its source, not transparent data.** Minor-axis hosts filter to zero
   rows. An SVG pass deleting opacity-zero marks would also erase the user's transparent data
@@ -80,27 +86,27 @@ Source references below are relative to `src/dysonsphere/`; test references are 
 - **Typography does not depend on authorship.** Matching handwritten labels receive the same
   script and statistical-symbol treatment as generated labels. `ns` is an abbreviation, not a
   symbol; Greek symbols stay upright. Whole-label italics are not a substitute for symbol italics.
-  References: `export.py::_typeset_scripts`, `_italicize_stat_symbols`;
+  References: `_svg_typography.py::_typeset_scripts`, `_italicize_stat_symbols`;
   `test_export.py::TestItalicizeStatSymbols`.
 
 - **Subscript syntax must not reinterpret column names.** Use boundary-guarded double underscores
   for author tokens. Single underscores collide with snake_case; unguarded double underscores
   collide with names such as `model__alpha`. Typeset script runs rather than trusting fonts to
   supply consistent Unicode script glyphs. Leave accessibility attributes unchanged.
-  References: `export.py::_SUB_DUNDER`, `_typeset_scripts`;
+  References: `_svg_typography.py::_SUB_DUNDER`, `_typeset_scripts`;
   `test_export.py::TestFixSubscriptLabels`, `TestFixSuperscriptLabels`.
 
 - **Font handling is output-specific.** Keep a family-name-first stack for renderer italic faces.
   Illustrator needs its resolvable alias in saved SVG, but other-family and generic fallbacks
   must survive. Do not globally replace the theme font with a PostScript-only name.
-  References: `export.py::_illustrator_font_family`; `test_export.py::TestFixFontForIllustrator`.
+  References: `_svg_typography.py::_illustrator_font_family`; `test_export.py::TestFixFontForIllustrator`.
 
 - **Greek font switching is a local editable-text correction.** In shared static SVG processing,
   wrap Unicode letters identified as Greek (plus attached combining marks) in font-family tspans;
   do not substitute legacy Symbol character codes or replace the surrounding font. Unicode naming
   avoids sweeping Coptic and punctuation into the feature; U+00B5 MICRO SIGN remains in the main
   font. Named fonts are not embedded, so availability and publisher compliance remain user concerns.
-  References: `export.py::_switch_greek_font`; `test_export.py::TestSwitchGreekFont`.
+  References: `_svg_typography.py::_switch_greek_font`; `test_export.py::TestSwitchGreekFont`.
 
 ## Composition and Annotations
 
@@ -116,7 +122,7 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   save/reload, while common SVG processing measures the rendered line and adds editable SVG
   decoration objects before simplification. This keeps reversed scales, facets, and aspect ratios
   correct without scale-name expressions. Bare Altair and HTML remain intentionally undecorated.
-  References: `annotations.py::_rule_cap_marker`; `export.py::_decorate_rule_segments`;
+  References: `annotations.py::_rule_cap_marker`; `_svg_geometry.py::_decorate_rule_segments`;
   `test_export.py::TestRuleCaps`.
 
 - **Automatic point-facing gaps share one construction-time formula.** Label connectors and capped
@@ -130,7 +136,7 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   point- and text-end clearances before emitting a connector. Its point-facing arrow therefore uses
   the shared rule-cap marker with zero additional SVG gap, preserving placement and applying
   `connectorGap` once. A connector too short for the resolved cap is omitted without moving its label.
-  References: `annotations.py::labels`; `export.py::_decorate_rule_segments`.
+  References: `annotations.py::labels`; `_svg_geometry.py::_decorate_rule_segments`.
 
 - **Point labels resolve automatically in the shared save/show pipeline.** `labels` emits ordinary
   data-coordinate fallback marks plus serializable datum anchor probes. The shared spec pass evaluates
