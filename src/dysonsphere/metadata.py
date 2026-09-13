@@ -471,11 +471,9 @@ def _statistics_context(spec: dict[str, Any], target: dict[str, Any]) -> str:
         from ._label_resolution import _LABEL_GROUP_COL, _LABEL_ITEM_PREFIX
         from ._statistics import _marker_hash
 
-        # Deferred point-label output is presentation geometry derived from the durable intent
-        # leaves. Reflow replaces these pixel-valued connectors/chips/text, so hashing them would
-        # make a presentation-only resize look like changed analytical context. Require both private
-        # mark and data identities; the invisible intent marks have a different description and stay
-        # in the context, preserving anchors, selected rows, styles, and connector policy.
+        # Generated label connectors, chips, and text are derived pixel geometry. Resizing places
+        # them again, so hashing them would make a presentation change look analytical. Require both
+        # mark and data identities; anchor records remain in the context with their settings.
         mark = node.get("mark")
         description = mark.get("description", "") if isinstance(mark, dict) else ""
         raw_data = node.get("data")

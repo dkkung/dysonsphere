@@ -321,7 +321,7 @@ class TestLabelConnectorCaps:
         save(chart, tmp_path / "short", format="svg", saveMetadata=False)
         svg = (tmp_path / "short.svg").read_text()
         assert ">a</text>" in svg
-        # Renderer-time forced placement chooses a seat with enough room for the requested arrow.
+        # Forced placement chooses a position with room for the requested arrow.
         assert 'class="ds-rule-cap"' in svg
 
 

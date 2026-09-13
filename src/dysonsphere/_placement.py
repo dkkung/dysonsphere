@@ -347,9 +347,9 @@ def _repel_labels(
     Boxes remain in the panel whenever they fit. The score treats label/point overlap and every
     symmetric label/connector collision as defects before minimizing visible connector length.
     The search has fixed bounded passes and retains oversized labels at the panel center.
-    Legacy ``line_obstacles`` are centerlines and preserve their original scoring. Opt-in typed
-    geometry obstacles add stroked segments, circles, and oriented boxes without making segments
-    connector barriers. Per-anchor marker gaps and circle footprints support variable symbols.
+    ``line_obstacles`` are centerlines and retain their original scoring. Typed geometry obstacles
+    add stroked segments, circles, and oriented boxes; segments do not block connectors. Marker
+    gaps and circle footprints can vary by anchor.
     """
     import numpy as np
 
@@ -475,7 +475,7 @@ def _repel_labels(
                 u = np.array((math.cos(angle), math.sin(angle)))
                 v = np.array((-math.sin(angle), math.cos(angle)))
                 relative = centers - obstacle.center
-                # SAT for an axis-aligned candidate rectangle and an oriented obstacle rectangle.
+                # Separating-axis test for an axis-aligned candidate and rotated rectangle.
                 separate_x = (
                     np.abs(relative[:, 0])
                     > h[:, 0] + abs(u[0]) * obstacle.half_size[0] + abs(v[0]) * obstacle.half_size[1]

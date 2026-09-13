@@ -1,4 +1,4 @@
-"""Maintained regressions for production label obstacle extraction."""
+"""Regression tests for label obstacle extraction."""
 
 import math
 import re
@@ -190,8 +190,8 @@ def test_curves_visibility_clipping_outlines_and_shade_policy():
     obstacles, _ = _panel_obstacles(marks, 100, 80)
     segments = [item for item in obstacles if isinstance(item, _placement._SegmentObstacle)]
     boxes = [item for item in obstacles if isinstance(item, _placement._BoxObstacle)]
-    assert len(segments) == 5  # clipped thick rule plus four outline edges; curved line is unsupported
-    assert len(boxes) == 1  # translucent foreground bar only; zero-alpha and shade are excluded
+    assert len(segments) == 5  # clipped rule plus four outline edges; curves are unsupported
+    assert len(boxes) == 1  # translucent foreground bar; zero-alpha and shade are excluded
     assert not any(_hits((50, 40), (2, 2), edge) for edge in segments[1:])
     clipped = next(item for item in segments if item.start[1] == pytest.approx(-0.4))
     assert clipped.start[0] == pytest.approx(-1)

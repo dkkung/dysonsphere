@@ -130,8 +130,8 @@ def save(
 
     Each background toggles ``darkmode`` for its render, restoring the original after.
 
-    Point labels are resolved once per background against the complete composed panel before any
-    format is written, so JSON, HTML, SVG, and PNG share the same initial obstacle-aware layout.
+    Point labels are placed once per background against the complete composed panel before writing
+    any format, so JSON, HTML, SVG, and PNG start with the same obstacle-aware layout.
 
     Labels are typeset on export (SVG/PNG): a ``^`` marks a superscript (``"x^2"``, ``"10^3"``)
     and a **double** underscore a subscript (``"C__t"`` -> C with a subscript t; single ``_`` is
@@ -356,12 +356,11 @@ def save(
             if _want_render:
                 alt.theme.options["transparent"] = transparent
                 svg_path = _path(bg, "svg")
-                # Reuse the preflighted layout so JSON/HTML/SVG/PNG for this variant all start from
-                # one scenegraph evaluation and callable charts remain once-per-variant.
+                # Reuse the computed layout for all formats; callable charts are built once per
+                # background.
                 render_spec = deepcopy(original_spec)
-                # Re-materializing only the root background under the physical transparency option
-                # preserves custom chartFill and explicit native chart backgrounds without rerunning
-                # deferred label layout.
+                # Apply export transparency while preserving custom chart backgrounds, without placing
+                # labels again.
                 physical_spec = _json_safe(base_obj.to_dict())
                 if "background" in physical_spec:
                     render_spec["background"] = physical_spec["background"]
@@ -407,8 +406,8 @@ def show(
     the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
     ``transparent`` and writes no file.
 
-    This includes automatic obstacle-aware point-label placement from serialized ``ds.labels()``
-    intent; no separate placement or finalization call is required.
+    This also places labels from the saved point coordinates and label settings; no extra placement
+    call is needed.
 
     The SVG is returned as **HTML** rather than ``IPython.display.SVG`` so the preview lands on
     the notebook's own background, exactly like a bare Altair chart. An ``image/svg+xml`` output

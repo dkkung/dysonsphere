@@ -1,4 +1,4 @@
-"""Production-path regressions for automatic point-label resolution."""
+"""Regression tests for automatic point-label placement."""
 
 import json
 import math

@@ -1,4 +1,4 @@
-"""Private deferred point-label resolution for the shared save/show spec pipeline."""
+"""Place point labels during save() and show()."""
 
 from __future__ import annotations
 
@@ -257,7 +257,7 @@ def _panel_obstacles(marks: list[dict[str, Any]], width: float, height: float):
 
 
 def _tag_panel_probes(spec: dict[str, Any]) -> list[dict[str, Any]]:
-    """Give evaluation-only intent marks a source-panel identity."""
+    """Attach each label anchor to its source panel."""
     targets = _target_specs(spec)
     for index, target in enumerate(targets):
 
@@ -278,7 +278,7 @@ def _tag_panel_probes(spec: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _scene_frames(scene: dict[str, Any], count: int) -> list[dict[str, Any]]:
-    """Map each source leaf to the nearest rendered frame containing its private probe."""
+    """Map each source panel to its rendered frame."""
     frames: dict[int, dict[str, Any]] = {}
 
     def visit(node: Any, ancestors: list[dict[str, Any]]) -> None:
