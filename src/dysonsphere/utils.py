@@ -365,7 +365,7 @@ def _frame_checksum(data: "pl.DataFrame | pd.DataFrame") -> str:
 # annotation dataset for a user dataframe.
 _INTERNAL_COL = "__dysonsphere__"
 
-# Marks a `shade` background rect so `export._layer_axes_below_marks` can sink it behind the
+# Marks a `shade` background rect so `_svg_geometry._layer_axes_below_marks` can sink it behind the
 # grid and axes. It does not use the `__dysonsphere_` prefix because `metadata._strip_markers` deletes
 # that from written output, which would break the fixer after save/reload.
 _SHADE_PREFIX = "__dsshade_"
@@ -375,7 +375,7 @@ _RULE_CAP_PREFIX = "__dsrulecap_"
 
 # Unicode superscript digits 0-9 - the source for every notation label that renders an
 # exponent: nonlinear.log_label_expr (10ⁿ / bⁿ log labels), stats._superscript (p-value
-# ×10ⁿ), and table.py power/scientific columns all index this string. export._fix_superscript_labels
+# ×10ⁿ), and table.py power/scientific columns all index this string. `_svg_typography` script handling
 # reverses it (and the superscript minus ⁻) to raised ASCII at render time. Keep it here, without
 # an Altair dependency, so all four consumers use the same mapping.
 _SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹"

@@ -640,8 +640,8 @@ class TestRule:
         assert "description" not in rule(y=1).to_dict()["mark"]
 
     def test_explicit_zero_gap_is_distinct_from_cap_default(self):
+        from dysonsphere._svg_geometry import _rule_cap_options
         from dysonsphere.annotations import _automatic_marker_gap
-        from dysonsphere.export import _rule_cap_options
 
         zero_name = rule(y=1, startCap="circle", startGap=0).to_dict()["mark"]["description"]
         auto_name = rule(y=1, startCap="circle").to_dict()["mark"]["description"]
@@ -649,8 +649,8 @@ class TestRule:
         assert _rule_cap_options(auto_name) == ("circle", None, _automatic_marker_gap(), 0.0)
 
     def test_automatic_cap_gap_exactly_matches_labels_formula_and_theme(self):
+        from dysonsphere._svg_geometry import _rule_cap_options
         from dysonsphere.annotations import _automatic_marker_gap
-        from dysonsphere.export import _rule_cap_options
 
         theme(markSize=50, markStrokeWidth=1.5, axisWidth=0.75)
         expected = math.sqrt(50 / (2 * math.pi)) + 1.5 + 2 * 0.75
@@ -659,7 +659,7 @@ class TestRule:
         assert _rule_cap_options(marker) == ("arrow", None, pytest.approx(expected), 0.0)
 
     def test_explicit_rule_gap_is_theme_invariant_and_capless_default_is_zero(self):
-        from dysonsphere.export import _rule_cap_options
+        from dysonsphere._svg_geometry import _rule_cap_options
 
         theme(markSize=10, axisWidth=0.25)
         explicit_a = rule(y=1, startCap="arrow", startGap=1.25).to_dict()["mark"]["description"]

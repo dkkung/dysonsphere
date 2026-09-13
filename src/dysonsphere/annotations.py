@@ -1407,7 +1407,7 @@ def labels(
 # Background shading
 
 
-# Shade rects are background; `export._layer_axes_below_marks` sinks them behind the grid and axes
+# Shade rects are background; `_svg_geometry._layer_axes_below_marks` sinks them behind the grid and axes
 # by the view-`name` marker Vega copies into the SVG group class.
 _shade_counter = 0
 
