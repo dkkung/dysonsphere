@@ -288,6 +288,34 @@ def build_single_hue(hue_deg, L_lo, L_hi, *, space="oklab", frac=SEQ_FRAC, n=N_O
     return _arc_resample(Ld, ad, bd, n, to_hex)
 
 
+def build_anchored_ramp(anchor_hex, *, anchor_index, light_L, light_chroma_scale, dark_L, dark_chroma_scale):
+    """Build a 12-stop Oklab ramp that contains an exact reviewed anchor.
+
+    Each arm linearly interpolates between an explicitly in-gamut endpoint and the anchor. The
+    endpoint settings are selected so the two arms have similar Oklab step lengths after assigning
+    an integer anchor stop. Output is checked independently for uniformity; this helper does not
+    claim exact equality after the corner, sRGB conversion, and hex quantization.
+    """
+    anchor = hex_to_oklab(anchor_hex)
+    chroma = math.hypot(anchor[1], anchor[2])
+    hue_a = anchor[1] / chroma if chroma > 1e-5 else 0.0
+    hue_b = anchor[2] / chroma if chroma > 1e-5 else 0.0
+    light = (light_L, hue_a * chroma * light_chroma_scale, hue_b * chroma * light_chroma_scale)
+    dark = (dark_L, hue_a * chroma * dark_chroma_scale, hue_b * chroma * dark_chroma_scale)
+    out = []
+    for index in range(N_OUT_SEQ):
+        if index <= anchor_index:
+            point = tuple(start + (end - start) * index / anchor_index for start, end in zip(light, anchor))
+        else:
+            point = tuple(
+                start + (end - start) * (index - anchor_index) / (N_OUT_SEQ - 1 - anchor_index)
+                for start, end in zip(anchor, dark)
+            )
+        out.append(oklab_to_hex(*point))
+    out[anchor_index] = anchor_hex.upper()
+    return out
+
+
 # ── Recipe 2: sequential multi-hue (keyframe path) ───────────────────────
 
 
@@ -456,6 +484,16 @@ ACCENT_LIGHT = {
 }
 ACCENT_DARK_LIGHTNESS = {"yellow": 0.76, "lime": 0.74, "cyan": 0.73, "blue": 0.64, "purple": 0.64, "violet": 0.64}
 
+# cat1 keeps each reviewed light-theme accent at a selected stop. The bounded light/dark endpoints
+# retain the anchor hue direction and stay inside sRGB rather than relying on conversion clipping.
+CAT1_ANCHORED = {
+    # anchor, anchor index, light L/chroma scale, dark L/chroma scale
+    "cat1_blues": ("#28287D", 9, 0.86, 0.4, 0.24, 0.6),
+    "cat1_greens": ("#004225", 9, 0.86, 0.4, 0.23, 0.6),
+    "cat1_purples": ("#47266F", 9, 0.86, 0.4, 0.24, 0.6),
+    "cat1_teals": ("#00605D", 8, 0.86, 0.4, 0.27, 0.6),
+}
+
 
 def build_cyan_accent():
     """Build the curated cyan light anchor from its Oklch authoring coordinates."""
@@ -497,19 +535,19 @@ SEQ_SINGLE_OKLAB = {
     "magentas": (330, 0.25, 0.92),
     "byzantiums": (290, 0.22, 0.92),
     "lavenders": (285, 0.30, 0.95),
-    # cat1 family - L ranges fitted to measured anchors, so narrower than above.
-    "cat1_blues": (260.6, 0.28, 0.85),
-    "cat1_greens": (151.9, 0.28, 0.85),
-    "cat1_purples": (292.0, 0.22, 0.82),
-    "cat1_teals": (187.8, 0.25, 0.88),
+    # cat2 family - L ranges fitted to measured anchors, so narrower than above.
+    "cat2_blues": (260.6, 0.28, 0.85),
+    "cat2_greens": (151.9, 0.28, 0.85),
+    "cat2_purples": (292.0, 0.22, 0.82),
+    "cat2_teals": (187.8, 0.25, 0.88),
 }
 
 # Per-palette chroma overrides for the single-hue recipe (mirrors SEQ_MULTI_FRAC).
 SEQ_SINGLE_FRAC = {
-    "cat1_blues": 0.65,
-    "cat1_greens": 1.00,
-    "cat1_purples": 0.55,
-    "cat1_teals": 0.70,
+    "cat2_blues": 0.65,
+    "cat2_greens": 1.00,
+    "cat2_purples": 0.55,
+    "cat2_teals": 0.70,
 }
 
 # Base single-hue palettes in gallery order - used to build the "3" pastel set.
@@ -692,7 +730,7 @@ SEQ_MULTI_OKLAB = {
     ],
     # ── Qualitative base ramps (the cat_* family) ────────────────────────
     # Five australis-harmonious hues sliced at stops (1,4,7) to build the
-    # cat2 categorical palette (see palettes.py `categorical`). Each is a
+    # cat4 categorical palette (see palettes.py `categorical`). Each is a
     # 2-keyframe ramp whose hue drifts as it darkens; the chroma cap
     # (SEQ_MULTI_MAX_CHROMA) sets the register.  Tuned for COLORBLINDNESS
     # (deut/prot): the three cool hues are pulled apart - teal (h205) leads and
@@ -702,11 +740,11 @@ SEQ_MULTI_OKLAB = {
     # yellow-side pair (gold is the pure-yellow warm anchor, maximally distinct
     # from the cools under dichromacy).  Teal leads the cycle (slot 0 = the
     # lone-series default, needs presence); gold is the warm end.
-    "cat2_blues": [(0.90, 252), (0.31, 266)],
-    "cat2_golds": [(0.955, 88), (0.42, 80)],
-    "cat2_greens": [(0.90, 145), (0.34, 160)],
-    "cat2_purples": [(0.84, 288), (0.22, 302)],
-    "cat2_teals": [(0.74, 205), (0.13, 218)],
+    "cat4_blues": [(0.90, 252), (0.31, 266)],
+    "cat4_golds": [(0.955, 88), (0.42, 80)],
+    "cat4_greens": [(0.90, 145), (0.34, 160)],
+    "cat4_purples": [(0.84, 288), (0.22, 302)],
+    "cat4_teals": [(0.74, 205), (0.13, 218)],
 }
 
 # Per-palette frac overrides for build_multihue (default SEQ_FRAC).
@@ -739,11 +777,11 @@ SEQ_MULTI_MAX_CHROMA = {
     "brass": [0.12, 0.09, 0.035, 0.09, 0.13],
     "pewter": [0.12, 0.09, 0.035, 0.045, 0.035],
     # Qualitative base ramps - chroma tuned per hue for CVD contrast.
-    "cat2_blues": 0.070,
-    "cat2_golds": 0.078,
-    "cat2_greens": 0.065,
-    "cat2_purples": 0.070,
-    "cat2_teals": 0.080,
+    "cat4_blues": 0.070,
+    "cat4_golds": 0.078,
+    "cat4_greens": 0.065,
+    "cat4_purples": 0.070,
+    "cat4_teals": 0.080,
 }
 
 # Baked magma Oklab L, sampled at the 12 output positions (matplotlib magma).
@@ -926,6 +964,20 @@ def _print_accents(light, dark):
 def main():
     print("# ─── Named accents (not registered chart palettes; light/dark pairs) ───")
     _print_accents(ACCENT_LIGHT, build_dark_accents())
+    print("# ─── cat1 anchored accent ramps (Oklab) ───────────────────────────")
+    for name, settings in CAT1_ANCHORED.items():
+        anchor, anchor_index, light_L, light_scale, dark_L, dark_scale = settings
+        _print_palette(
+            name,
+            build_anchored_ramp(
+                anchor,
+                anchor_index=anchor_index,
+                light_L=light_L,
+                light_chroma_scale=light_scale,
+                dark_L=dark_L,
+                dark_chroma_scale=dark_scale,
+            ),
+        )
     print("# ─── Sequential single-hue (Oklab) ───────────────────────────────")
     for name, (hue, L_lo, L_hi) in SEQ_SINGLE_OKLAB.items():
         _print_palette(name, build_single_hue(hue, L_lo, L_hi, frac=SEQ_SINGLE_FRAC.get(name, SEQ_FRAC)))
@@ -966,16 +1018,25 @@ def main():
         name = arm1.removesuffix("3") + arm2  # e.g. "reds3","blues3" → "redsblues3"
         _print_palette(name, build_diverging(_pal[arm1][11], _pal[arm2][11], frac=PASTEL_FRAC))
 
-    print("\n# ─── cat2 companion diverging (gold ↔ teal, from cat2_golds/cat2_teals) ───")
+    print("\n# ─── cat4 companion diverging (gold ↔ teal, from cat4_golds/cat4_teals) ───")
     # arm2 = gold (low, stop 0), arm1 = teal (high, stop 12), warm light pivot; default FRAC.
-    _print_palette("div2", build_diverging("#6D572F", "#2C555D", center_hex="#F4F1E9"))
+    _print_palette("div4", build_diverging("#6D572F", "#2C555D", center_hex="#F4F1E9"))
 
-    print("\n# ─── cat1 companion diverging (purple ↔ teal, from cat1_purples/cat1_teals) ───")
+    print("\n# ─── cat2 companion diverging (purple ↔ teal, from cat2_purples/cat2_teals) ───")
     # arm2 = purple (low, stop 0), arm1 = teal (high, stop 12), neutral pivot. Both arms are taken
-    # from the RAMPS at stop 8, not from cat1's flat palette, so retiering the qualitative set
+    # from the RAMPS at stop 8, not from cat2's flat palette, so retiering the qualitative set
     # leaves this palette untouched. Stop 8 balances the arms - the flat palette's own stops sit at
-    # different lightnesses per hue - and matches cat1's chromatic register (C 0.116 vs 0.117).
-    _print_palette("div1", build_diverging("#47347C", "#285753", center_hex="#F6F6F6"))
+    # different lightnesses per hue - and matches cat2's chromatic register (C 0.116 vs 0.117).
+    _print_palette("div2", build_diverging("#47347C", "#285753", center_hex="#F6F6F6"))
+
+    print("\n# ─── cat1 companion diverging (purple ↔ teal, balanced ramp stops) ─────────")
+    # Purple stop 8 (L 0.408, C 0.114) and teal stop 9 (L 0.383, C 0.065) differ by
+    # only 0.025 in Oklab lightness. Inputs come from ramps, so flat cat1 retiering is irrelevant.
+    _print_palette("div1", build_diverging(_pal["cat1_purples"][8], _pal["cat1_teals"][9], center_hex="#F6F6F6"))
+
+    print("\n# ─── cat3 companion diverging (pink ↔ blue, balanced family stops) ─────────")
+    # pinks[8] (L 0.544) and blues[7] (L 0.559) differ by 0.015 in Oklab lightness.
+    _print_palette("div3", build_diverging(_pal["pinks"][8], _pal["blues"][7], center_hex="#F6F6F6"))
 
     print("\n# ─── Tinted greys (same lightness as greys, a fixed small chroma) ───────────")
     # Warm and cool siblings of `greys`: identical Oklab L at every stop, so they are drop-in

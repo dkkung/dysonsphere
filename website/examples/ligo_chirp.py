@@ -15,8 +15,8 @@ from dysonsphere.palettes import colors
 
 ds.theme(width=235, height=155, tickDirection="in")
 dark = bool(alt.theme.options.get("darkmode"))  # the site injects darkmode per light/dark spec
-H1C = colors["cat2_teals"][5 if dark else 8]  # two contrasting hues, brighter on dark
-L1C = colors["cat2_golds"][5 if dark else 7]
+H1C = colors["cat4_teals"][5 if dark else 8]  # two contrasting hues, brighter on dark
+L1C = colors["cat4_golds"][5 if dark else 7]
 
 # time from merger (ms); whitened, band-passed strain (arbitrary units)
 T = [

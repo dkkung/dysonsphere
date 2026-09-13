@@ -192,36 +192,45 @@ _MATPLOTLIB_DISCRETE_PALETTES = frozenset(
 
 _QUALITATIVE_HUES = {
     "cat1": ("greys", "cat1_blues", "cat1_greens", "cat1_purples", "cat1_teals"),
-    "cat2": ("cat2_teals", "cat2_blues", "cat2_purples", "cat2_greens", "cat2_golds"),
+    "cat2": ("greys", "cat2_blues", "cat2_greens", "cat2_purples", "cat2_teals"),
     "cat3": ("blues", "pinks", "yellows", "greens"),
+    "cat4": ("cat4_teals", "cat4_blues", "cat4_purples", "cat4_greens", "cat4_golds"),
 }
 _DEFAULT_QUALITATIVE_PALETTE = "cat1"
 
-# cat1's flat palette: tier-major over grey/blue/green/purple/teal.
-# Explicit stops, not the usual (1, 4, 7)
-_CAT1_FLAT = (
-    ("greys", 3),
-    ("cat1_blues", 5),
-    ("cat1_greens", 6),
-    ("cat1_purples", 6),
-    ("cat1_teals", 4),
-    ("greys", 7),
-    ("cat1_blues", 8),
-    ("cat1_greens", 9),
-    ("cat1_purples", 9),
-    ("cat1_teals", 8),
+_CAT1_ANCHOR_STOPS = (4, 9, 9, 9, 8)
+_CAT1_LIGHTER_STOPS = (1, 4, 4, 4, 4)
+_CAT1_FLAT = tuple(zip(_QUALITATIVE_HUES["cat1"], _CAT1_ANCHOR_STOPS)) + tuple(
+    zip(_QUALITATIVE_HUES["cat1"], _CAT1_LIGHTER_STOPS)
 )
-_QUALITATIVE_FLAT = {"cat1": _CAT1_FLAT}
+
+# cat2's flat palette: tier-major over grey/blue/green/purple/teal.
+# Explicit stops, not the usual (1, 4, 7)
+_CAT2_FLAT = (
+    ("greys", 3),
+    ("cat2_blues", 5),
+    ("cat2_greens", 6),
+    ("cat2_purples", 6),
+    ("cat2_teals", 4),
+    ("greys", 7),
+    ("cat2_blues", 8),
+    ("cat2_greens", 9),
+    ("cat2_purples", 9),
+    ("cat2_teals", 8),
+)
+_QUALITATIVE_FLAT = {"cat1": _CAT1_FLAT, "cat2": _CAT2_FLAT}
 
 # Usable stop window per qualitative family for grouped mode
 _QUALITATIVE_RANGES = {
-    "cat1": {
+    "cat2": {
         "greys": (3, 10),
-        "cat1_blues": (1, 11),
-        "cat1_greens": (6, 11),
-        "cat1_purples": (1, 10),
-        "cat1_teals": (3, 10),
-    }
+        "cat2_blues": (1, 11),
+        "cat2_greens": (6, 11),
+        "cat2_purples": (1, 10),
+        "cat2_teals": (3, 10),
+    },
+    # Exclude only the endpoints; all five ramps retain ten useful grouped levels.
+    "cat1": {hue: (1, 10) for hue in _QUALITATIVE_HUES["cat1"]},
 }
 
 
@@ -237,37 +246,39 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
     members:
         Colors per associated group.
 
-        - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major**
-          (cycle the hues at the light tier, then mid, then dark) so adjacent categories
-          differ in hue. Canonical families return ``3 * len(hues)`` colors; the default
-          ``cat1`` uses a curated 10-color sequence. The default palette's flat form is what
-          ``config.range.category`` uses.
+        - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major** so
+          adjacent categories differ in hue. Canonical families cycle light, mid, then dark
+          and return ``3 * len(hues)`` colors. ``cat2`` uses a curated 10-color sequence;
+          ``cat1`` instead places five dark accent anchors before five lighter companions.
+          The default ``cat1`` flat form is what ``config.range.category`` uses.
         - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered
           **hue-major** - each consecutive block of ``members`` categories is one hue
           climbing through ``members`` lightness levels. Returns ``len(hues) * members``
           colors. Sort your categories so a group's members are adjacent, then pass this
           as the color scale range.
 
-        Up to ``4`` members the lightness stops are the classic tier stops
-        (``1, 4, 7, 10`` - three ramp steps apart, matching the flat palette's tiers);
-        beyond ``4`` the stops spread evenly across the usable ramp (``1``-``10``),
-        which **shrinks the within-hue contrast** with every extra member - fine at
-        normal mark sizes for ``5``-``6``, increasingly ambiguous past that, and capped
-        at ``10`` where distinct stops run out. If your "members" are actually ordinal
+        For the canonical ``cat3`` and ``cat4`` families, up to ``4`` members use the
+        classic tier stops (``1, 4, 7, 10``); beyond ``4``, stops spread evenly across
+        ``1``-``10``. ``cat1`` and ``cat2`` instead spread every grouped selection across
+        their per-hue usable windows. In either path, adding members shrinks within-hue
+        contrast; ``5``-``6`` are reasonable at normal mark sizes but larger groups become
+        increasingly ambiguous. If your "members" are actually ordinal
         (a dose series, timepoints), a sequential slice per group -
-        ``palette("cat_azures", n=5)`` - usually communicates that better than a
+        ``palette("cat1_blues", n=5)`` - usually communicates that better than a
         categorical palette pretending they're unordered.
     palette:
-        Which qualitative palette to build. ``"cat1"`` (default) is the saturated cool set -
-        grey, blue, green, purple, and teal (also stored as ``colors["cat1"]`` and wired to
-        ``config.range.category``); ``"cat2"`` is the muted, australis-harmonious five-hue
-        set (``colors["cat2"]``); ``"cat3"`` is the legacy four-hue pastel set
-        (``colors["cat3"]``).
+        Which qualitative palette to build. ``"cat1"`` (default) is the static two-tier accent
+        set - grey, blue, green, purple, and teal - with five light-theme accents followed by
+        lighter companions (also stored as ``colors["cat1"]`` and wired to ``config.range.category``).
+        ``"cat2"`` is the saturated cool set, ``"cat3"`` is the legacy four-hue pastel set,
+        and ``"cat4"`` is the muted australis-harmonious set.
 
-        ``cat1`` differs from the other two in how its stops are chosen: its flat
+        ``cat2`` differs from the canonical-stop palettes in how its stops are chosen: its flat
         palette uses explicit stops (not the canonical ``(1, 4, 7)``), and in grouped
         mode each family spreads across its own usable window rather than a shared
-        ``1``-``10``. That caps it at ``members=6``, set by ``cat1_greens``.
+        ``1``-``10``. That caps it at ``members=6``, set by ``cat2_greens``.
+        ``cat1`` likewise uses per-family stops ``1``-``10`` and is capped at ``members=10``;
+        its flat form remains ten colors.
 
     Raises
     ------
@@ -288,7 +299,7 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
 
         groups = ["A1", "A2", "B1", "B2"]
         alt.Color("g:N", sort=groups, scale=alt.Scale(range=categorical(2)))
-        # -> A1=azure-light, A2=azure-dark, B1=blue-light, B2=blue-dark, ...
+        # -> A1=grey-light, A2=grey-dark, B1=blue-light, B2=blue-dark, ...
     """
     if members < 1:
         raise ValueError(f"members must be at least 1, got {members}")
@@ -719,9 +730,9 @@ colors = {
         "#552D7D",
         "#3A2570",
     ],
-    # Base ramps for cat1, fitted so its colors land on stops (see _CAT1_FLAT).
-    # cat1_greens rides the full gamut, so only stops 6-11 are usable in the palette.
-    "cat1_blues": [
+    # Base ramps for cat2, fitted so its colors land on stops (see _CAT2_FLAT).
+    # cat2_greens rides the full gamut, so only stops 6-11 are usable in the palette.
+    "cat2_blues": [
         "#BCCFEE",
         "#A5BEE8",
         "#8FAEE3",
@@ -735,7 +746,7 @@ colors = {
         "#193464",
         "#11274E",
     ],
-    "cat1_greens": [
+    "cat2_greens": [
         "#00F57F",
         "#00E274",
         "#00CE6A",
@@ -749,7 +760,7 @@ colors = {
         "#00421D",
         "#003315",
     ],
-    "cat1_purples": [
+    "cat2_purples": [
         "#C4BEE5",
         "#B3ABDE",
         "#A398D6",
@@ -763,7 +774,7 @@ colors = {
         "#2A1D4D",
         "#1C1337",
     ],
-    "cat1_teals": [
+    "cat2_teals": [
         "#7AEFE4",
         "#6FDAD1",
         "#65C6BD",
@@ -777,14 +788,72 @@ colors = {
         "#173633",
         "#0E2624",
     ],
+    # Independent colored cat1 ramps. Exact accent and lighter-tier stops are selected per hue
+    # in _CAT1_*_STOPS; grey reuses greys. The bounded Oklab recipe is in print_palettes.py.
+    "cat1_blues": [
+        "#C6CFF6",
+        "#B2BBE9",
+        "#9FA9DC",
+        "#8B96CE",
+        "#7983C1",
+        "#6771B3",
+        "#565FA6",
+        "#454D98",
+        "#363B8B",
+        "#28287D",
+        "#1F2061",
+        "#161846",
+    ],
+    "cat1_greens": [
+        "#C1D8C9",
+        "#ACC6B5",
+        "#97B4A1",
+        "#82A38E",
+        "#6E927B",
+        "#5A8169",
+        "#467157",
+        "#326146",
+        "#1C5135",
+        "#004225",
+        "#04321C",
+        "#052314",
+    ],
+    "cat1_purples": [
+        "#D6CAED",
+        "#C5B7DE",
+        "#B4A4D0",
+        "#A391C2",
+        "#937FB4",
+        "#836DA6",
+        "#735B98",
+        "#644A8A",
+        "#55387D",
+        "#47266F",
+        "#361D55",
+        "#26153C",
+    ],
+    "cat1_teals": [
+        "#BBD8D6",
+        "#A6C8C6",
+        "#92B9B6",
+        "#7DA9A6",
+        "#699A97",
+        "#548B88",
+        "#3E7D79",
+        "#266E6B",
+        "#00605D",
+        "#014E4C",
+        "#013E3B",
+        "#012D2C",
+    ],
     # Qualitative base ramps: the five australis-harmonious hues sliced by
-    # categorical() to build the cat2 palette. Tuned for colorblindness -
+    # categorical() to build the cat4 palette. Tuned for colorblindness -
     # the three cool hues (teal/blue/purple) are pulled apart in hue AND given
     # distinct lightnesses so a CVD viewer separates them by lightness when hue
     # collapses; green + gold are the yellow-side anchors. Teal leads, gold is
     # the warm end. Distinct de-novo ramps, NOT slices of the saturated
     # blues/greens/etc. (See print_palettes.py for the recipe.)
-    "cat2_blues": [
+    "cat4_blues": [
         "#CFE0F4",
         "#B7D0EE",
         "#A0C0E8",
@@ -798,7 +867,7 @@ colors = {
         "#2C3D63",
         "#1F2E54",
     ],
-    "cat2_golds": [
+    "cat4_golds": [
         "#FAEFD7",
         "#F5E1B3",
         "#EAD199",
@@ -812,7 +881,7 @@ colors = {
         "#6D572F",
         "#5D4A27",
     ],
-    "cat2_greens": [
+    "cat4_greens": [
         "#C4EAC4",
         "#B3DAB5",
         "#A2C9A6",
@@ -826,7 +895,7 @@ colors = {
         "#274F39",
         "#1E402F",
     ],
-    "cat2_purples": [
+    "cat4_purples": [
         "#C8C6ED",
         "#B7B3E4",
         "#A7A0D1",
@@ -840,7 +909,7 @@ colors = {
         "#2E1E45",
         "#211035",
     ],
-    "cat2_teals": [
+    "cat4_teals": [
         "#69BAC3",
         "#5CA7B1",
         "#51959F",
@@ -2735,7 +2804,7 @@ colors = {
         "#9C62B7",
         "#8A43A9",
     ],
-    "div2": [
+    "div4": [
         "#6F572A",
         "#876E43",
         "#9E875F",
@@ -2750,7 +2819,7 @@ colors = {
         "#36717C",
         "#1A5762",
     ],
-    "div1": [
+    "div2": [
         "#443E60",
         "#5F597E",
         "#7C759B",
@@ -2764,6 +2833,40 @@ colors = {
         "#578E89",
         "#37736E",
         "#1B5954",
+    ],
+    # cat1 companion: purple negative -> neutral -> teal positive. Recipe inputs are
+    # cat1_purples[8] and cat1_teals[9], selected for balanced endpoint lightness.
+    "div1": [
+        "#4F4265",
+        "#6A5C82",
+        "#85789D",
+        "#A196B7",
+        "#BDB5CE",
+        "#D8D6DD",
+        "#F6F6F6",
+        "#CED8D7",
+        "#9DBFBD",
+        "#75A3A0",
+        "#518683",
+        "#326967",
+        "#164D4B",
+    ],
+    # cat3 companion: pink negative -> neutral -> blue positive, generated from balanced
+    # family ramp stops pinks[8] and blues[7].
+    "div3": [
+        "#AA4876",
+        "#C0628C",
+        "#C9819F",
+        "#CDA0B1",
+        "#D4BEC6",
+        "#E1DBDD",
+        "#F6F6F6",
+        "#DADEE3",
+        "#BAC8D8",
+        "#97B4D4",
+        "#71A1D6",
+        "#488DD7",
+        "#2876C3",
     ],
     "gdbu": [
         "#674824",
@@ -5161,6 +5264,7 @@ colors = {
 colors["cat2"] = categorical(1, palette="cat2")
 colors["cat3"] = categorical(1, palette="cat3")
 colors["cat1"] = categorical(1, palette="cat1")
+colors["cat4"] = categorical(1, palette="cat4")
 
 # Aliases deliberately share the canonical list object. Theme resets and custom configuration
 # restore both names together rather than copying palette values.

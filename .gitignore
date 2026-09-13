@@ -51,6 +51,7 @@ pipenv
 *.nd2
 
 # Project-specific #
+demo_output/
 *.png
 *.svg
 *.json

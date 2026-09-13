@@ -4,6 +4,9 @@
 
 ### New features
 
+- Added a static ten-color accent-derived default `cat1`, reusing `greys` alongside independent,
+  perceptually uniform `cat1_blues`, `cat1_greens`, `cat1_purples`, and `cat1_teals` ramps.
+- Added the purple-to-teal default `div1` and a pink-to-blue `div3` companion for `cat3`.
 - Added a portable core Dysonsphere agent skill with plotting, statistics, and export references,
   executable examples with verified composite-panel scales, and installation guidance for Claude Code,
   Codex, and OpenCode. Guidance covers focused input validation, explanatory captions, and checks of
@@ -20,6 +23,8 @@
 
 ### Changes
 
+- Renumbered the prior `cat1`/`div1` family to `cat2`/`div2` and the prior `cat2`/`div2` family
+  to `cat4`/`div4`, including their categorical hue ramps, without aliases. `cat3` retains its colors.
 - The omitted, unconfigured `markFill` default now uses `#DBDBDB` in light mode and `#9D9D9D` in
   dark mode. Explicit and configured fills remain fixed, and circle defaults remain black/white.
 
