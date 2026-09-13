@@ -1,7 +1,7 @@
 # Statistical annotations
 
-Read this before adding or changing inferential results. These are chart constructors, not a
-general numerical-analysis API. Use the installed docstrings for the supported test/mode combinations.
+Read this before adding or changing inferential results. These are chart constructors, not a general
+numerical-analysis API. Use installed docstrings for supported test/mode combinations.
 
 ## Establish the analysis before choosing syntax
 

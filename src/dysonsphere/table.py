@@ -14,8 +14,7 @@ if TYPE_CHECKING:
 from .theme import _opt
 from .utils import _SUP, _ensure_polars, _internal_data, resolve_palette, stripe_colors
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["mark_table"]
 
 # The stroke placements composable via the `strokes` set. "grid" expands to rows+cols (the
@@ -31,12 +30,9 @@ _D3_FORMAT_RE = re.compile(
 )
 
 
-# ── Number formatting ────────────────────────────────────────────────────────
-# Two parallel formatters keep the recovered df byte-identical: display strings are
-# measured in Python (Vega can't measure text at build time) but RENDERED without
-# mutating the frame - d3/e/si via native alt.Text(format=), and the two Unicode
-# superscript notations via a transform_calculate expression (a computed field is never
-# inlined into data.values, so read(what="data") returns the frame untouched).
+# Number formatting
+# Display strings are measured in Python, while rendering uses Vega formatters without mutating
+# the frame. Computed formatting fields are not inlined, so read(what="data") returns the frame.
 
 
 def _is_missing(value: Any) -> bool:
@@ -55,7 +51,7 @@ def _sup(n: int) -> str:
 
 
 def _fmt_scientific(v: float, sig_figs: int) -> str:
-    """``1.23×10⁻⁵`` - Python side, for width measurement + sidecar rendering."""
+    """``1.23×10⁻⁵`` - Python-side formatting for width measurement and annotation rendering."""
     if _is_missing(v):
         return ""
     if v == 0:
@@ -192,7 +188,7 @@ def _calc_expr(col: str, notation: str, sig_figs: int) -> str:
     return f"(!isValid({v}) ? '' : {v} == 0 ? '0' : {sign} + {mant} + '×10' + ({e} < 0 ? '⁻' : '') + {superscript})"
 
 
-# ── Value-based cell colouring ───────────────────────────────────────────────
+# Value-based cell colouring
 
 
 def _rel_luminance(hex_color: str) -> float:
@@ -260,8 +256,8 @@ def mark_table(
     without scale-merge surprises) but drives every per-row mark off the **user's dataframe** via
     ``transform_window`` (row index) and ``transform_calculate`` (formatted labels, contrast
     colours). Those transforms never touch the inlined data, so ``read(what="data")`` and the
-    provenance ``dataChecksum`` recover the frame you passed **byte-for-byte** - only the fixed
-    chrome (strokes, header text) rides on internal sidecar datasets.
+    provenance ``dataChecksum`` recover the frame you passed **byte-for-byte**. Fixed elements
+    such as strokes and header text use internal annotation datasets.
 
     Because a table cannot render at the 100×100 default canvas, ``mark_table`` sizes itself from
     the row/column counts and a per-column content estimate, overriding theme ``width`` /
@@ -402,7 +398,7 @@ def mark_table(
         if c not in data.columns:
             raise ValueError(f"column {c!r} is not in data (has {list(data.columns)}).")
 
-    # Resolve the stroke set.
+    # Resolve strokes.
     strokes_seq = [strokes] if isinstance(strokes, str) else list(strokes)
     bad = set(strokes_seq) - _STROKE_KINDS
     if bad:
@@ -434,7 +430,7 @@ def mark_table(
         if c in cols and not data[c].dtype.is_numeric():
             raise ValueError(f"cellPalette column {c!r} must be numeric.")
 
-    # Theme-derived defaults.
+    # Theme defaults.
     fs = _opt("fontSize") if fontSize is None else fontSize
     sig_figs = _opt("sigFigs") if sigFigs is None else sigFigs
     pad = fs * 0.6 if cellPadding is None else cellPadding
@@ -472,9 +468,8 @@ def mark_table(
                 raise ValueError(f"columnFormat[{col!r}] is not a valid Vega/d3 format: {notation!r}.") from exc
 
     def _col_align(col: str, numeric: bool) -> str:
-        # Explicit align wins (global string, or a per-column dict entry); otherwise the default is
-        # type-aware - numeric columns right-aligned (so decimals/units line up) and everything
-        # else left-aligned.
+        # Explicit alignment wins; otherwise numeric columns are right-aligned and other columns
+        # are left-aligned.
         if isinstance(align, str):
             return align
         if isinstance(align, dict) and col in align:
@@ -483,9 +478,8 @@ def mark_table(
 
     def _text_color(col: str) -> tuple[str, str | None]:
         # ("fixed", colour) | ("contrast", None) | ("inherit", None).
-        # A per-column dict entry wins everywhere (deliberate override, even on a heatmap
-        # column); otherwise a cellPalette column auto-contrasts; a global string colours the
-        # rest; None inherits the theme text colour.
+        # A per-column entry overrides heatmap contrast. Otherwise cellPalette supplies contrast,
+        # a global string supplies the color, and None inherits the theme.
         if isinstance(textColor, dict) and col in textColor:
             return ("fixed", textColor[col])
         if col in cellPalette:
@@ -555,7 +549,7 @@ def mark_table(
             }
         )
 
-    # Column widths (px): content estimate unless overridden.
+    # Estimate column widths unless overridden.
     est = [max(p["longest"] * fs * 0.6 + 2 * pad, fs * 3) for p in plans]
     if columnWidths is None:
         widths = est
@@ -579,15 +573,8 @@ def mark_table(
             return left + w - pad
         return left + w / 2  # center
 
-    # Row positions in PIXELS (not a band scale): abutting per-cell rects otherwise leave a
-    # sub-pixel gap that shows the page through at the browser's chart zoom (invisible at print
-    # DPI, so a PNG looks clean - the same seam the gallery heatmaps avoid). Each rect spans
-    # [__ytop, __ybot] where __ybot overhangs the next row by `_seam`, and _cell_x2 overhangs the
-    # next column the same way, so the cell backgrounds are gapless in BOTH directions -
-    # invisible between same-colour stripe cells, a value-coloured cell bleeds <=`_seam` px into
-    # its neighbours (hidden under any cell stroke). Text sits at __ymid (the row centre). An
-    # identity linear y scale (range == domain) maps the pixel field straight through, shared by
-    # every df-driven layer so they align; the header/stroke marks use alt.value pixels directly.
+    # Position rows in pixel space. A small overlap removes browser zoom gaps between adjacent
+    # cell backgrounds; the identity y scale keeps dataframe-driven layers aligned.
     _seam = 0.5
     # padding=0: the row spans are precomputed pixels, so viewPadding would compress the
     # identity mapping and shrink every row.
@@ -602,15 +589,15 @@ def mark_table(
             .transform_window(__rowidx="row_number()")
             .transform_calculate(
                 __ytop=f"{header_h} + (datum.__rowidx - 1) * {row_h}",
-                __ybot=f"min({header_h} + datum.__rowidx * {row_h} + {_seam}, {total_h})",  # clamp last row
+                __ybot=f"min({header_h} + datum.__rowidx * {row_h} + {_seam}, {total_h})",  # limit the last row
                 __ymid=f"{header_h} + (datum.__rowidx - 0.5) * {row_h}",
             )
         )
 
     layers: list[alt.Chart] = []
-    one = _internal_data([{}])  # 1-row sidecar for the pixel-positioned chrome (band, strokes, header)
+    one = _internal_data([{}])  # One row for the background, strokes, and header, positioned in pixels.
 
-    # --- header background band (bottom) ---
+    # Header background band
     if header and header_fill_c is not None:
         layers.append(
             alt.Chart(one)
@@ -623,9 +610,8 @@ def mark_table(
     def _cell_x2(i: int) -> float:
         return min(lefts[i] + widths[i] + _seam, total_w)
 
-    # --- row striping ---
-    # One rect PER CELL (per column span), never a full-width per-row rect, so every cell
-    # background is an independent <rect> - individually editable in Illustrator.
+    # Row striping
+    # Use one rect per cell so each background remains independently editable.
     if striping:
         stripe_cols = stripe_colors(stripePalette, nStripes, darkmode=dark)
         for i in range(len(cols)):
@@ -638,7 +624,7 @@ def mark_table(
                     .encode(x=alt.value(lefts[i]), x2=alt.value(_cell_x2(i)), y=_y("__ytop"), y2=alt.Y2("__ybot"))
                 )
 
-    # --- value-coloured cells ---
+    # Value-coloured cells
     for i, p in enumerate(plans):
         col = p["col"]
         if col not in cellPalette:
@@ -669,7 +655,7 @@ def mark_table(
             )
         )
 
-    # --- strokes ---
+    # Strokes
     rules: list[dict[str, float]] = []
     if header and "header" in stroke_set:
         rules.append({"o": 0, "x1": 0, "x2": total_w, "y": header_h})
@@ -691,13 +677,11 @@ def mark_table(
         else:  # vertical
             layers.append(rule.encode(x=alt.value(r["x"]), y=alt.value(r["y1"]), y2=alt.value(r["y2"])))
 
-    # --- cell text (per column) ---
+    # Cell text
     for i, p in enumerate(plans):
         col, a = p["col"], p["align"]
         base = _df_base()
-        # Vega's text formatter renders a null quantitative value as the literal string "null"
-        # (and a nominal null similarly). Filtering only this generated text layer leaves the row,
-        # its stripe, and the original user dataset intact while making every missing/non-finite cell blank.
+        # Filter generated text so missing values render blank without removing the row or source data.
         base = base.transform_filter(f"isValid(datum[{col!r}])")
         render = p["render"]
         if render[0] == "calc":
@@ -722,11 +706,10 @@ def mark_table(
             mark_kwargs["color"] = color_val
         layers.append(base.mark_text(**mark_kwargs).encode(**enc))
 
-    # --- header text (per column) ---
+    # Header text
     if header:
         header_center = header_h / 2
-        # bold is fontWeight, NOT fontStyle - Vega only takes normal/italic/oblique there, so the
-        # old headerFontStyle="bold" default rendered a regular-weight header.
+        # Bold is fontWeight; fontStyle accepts normal, italic, or oblique.
         hdr_kwargs: dict[str, Any] = {"fontSize": fs, "fontWeight": headerFontWeight, "baseline": "middle"}
         if headerFontStyle is not None:
             hdr_kwargs["fontStyle"] = headerFontStyle

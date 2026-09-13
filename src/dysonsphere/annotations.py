@@ -31,8 +31,7 @@ from .utils import (
     _resolve_dash,
 )
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["rule", "text", "shade", "labels"]
 
 # Reference lines
@@ -243,7 +242,7 @@ def _datum_base(src: Any) -> alt.Chart:
     requires all layers of a facet to share one data variable — and the dummy ``transform_aggregate``
     collapses N rows to one so constant ``alt.datum`` / ``alt.value`` marks don't overplot N times.
     Build the mark + a datum/value-only encoding on the result; **never reference a data field**
-    (that would reintroduce a sidecar dataset and break faceting).  See the facet-safe datum-mode
+    (that would reintroduce a separate annotation dataset and break faceting). See the facet-safe datum-mode
     discipline in AGENTS.md.
     """
     # Altair's transform_aggregate **kwds form isn't stubbed, hence the ty ignore.
@@ -271,7 +270,7 @@ def _datum_ref_layers(
     derived field title concatenates into it), whereas a constant datum contributes no title.
     ``span_enc`` (from ``_span_enc``) optionally slices each rule to a portion of its running axis;
     it too uses only ``alt.datum``/``alt.value`` so the base title survives. ``base_factory``
-    decides faceting: ``_datum_base(src)`` (shared frame) is facet-safe; a fresh internal sidecar
+    decides faceting: ``_datum_base(src)`` (shared frame) is facet-safe; a fresh internal annotation
     is the non-facet-safe default. One layer per value, so multiple values yield multiple layers."""
     span_enc = span_enc or {}
     layers = [base_factory().mark_rule(**mark_kwargs).encode(**{pos_ch: alt.datum(v), **span_enc}) for v in vals]
@@ -399,7 +398,7 @@ def rule(
         connectors when that endpoint has a cap, and means 0 otherwise; explicit 0 is respected.
         Gaps also shorten capless rules. The resolved value is stored at construction, so use a
         callable with ``ds.save()`` when exporting across themes with different geometry. Caps and
-        gaps are applied by the shared SVG pipeline (and therefore PNG export), not bare Altair display
+        gaps are applied by shared SVG processing (and therefore PNG export), not bare Altair display
         or interactive HTML. A screen-coincident or too-short segment is omitted rather than shrinking
         a requested gap or drawing decorations beyond the opposite target.
     data:
@@ -407,7 +406,7 @@ def rule(
         dataset — the normal behavior, but **incompatible with faceting** (Altair requires every
         layer of a faceted chart to share one data variable). Pass the **same DataFrame you gave
         the base chart** to switch to datum mode: the rule then shares that data and is positioned
-        by a constant ``alt.datum`` instead of a sidecar dataset, so ``(base + rule(..., data=df))``
+        by a constant ``alt.datum`` instead of a separate annotation dataset, so ``(base + rule(..., data=df))``
         can be faceted and the line repeats in every panel. Accepts a polars or pandas DataFrame.
 
     Examples
@@ -497,13 +496,12 @@ def rule(
 
     mark_kwargs = _rule_mark_kwargs(color, strokeWidth, strokeDash, opacity)
     if decorate:
-        # Description is durable mark-local metadata that Vega renders as the line's aria-label. It
-        # cannot encompass label/native siblings or collide when the same chart is composed twice.
+        # Keep the description on the line; labels and sibling marks need separate metadata.
         mark_kwargs["description"] = _rule_cap_marker(startCap, endCap, start_gap, end_gap)
     fs = fontSize if fontSize is not None else _opt("fontSize")
 
-    # Reduce axis-aligned endpoint forms to the established axis-rule implementation. This preserves
-    # category spans, labels, facet sharing, and datum/value positioning exactly.
+    # Reuse the axis-rule implementation for axis-aligned endpoints so spans, labels, and facet
+    # sharing use the same positioning.
     axis: str | None = None
     value: float | list[float] | None = None
     effective_span = span
@@ -594,11 +592,8 @@ def rule(
         else None
     )
 
-    # Both modes position by a constant `alt.datum` (never a data field), so the base chart's axis
-    # title survives the Vega-Lite layer merge - see _datum_ref_layers.  They differ only in the
-    # per-layer base: datum (facet-safe) mode shares `data` (via _datum_base) so
-    # `(base + rule(..., data=df))` can be faceted; the default builds a fresh internal sidecar
-    # (filtered by read(what="data"), and deliberately NOT facet-safe).
+    # Constant datum positions keep the base chart's axis title through the layer merge. Datum mode
+    # shares the base data for faceting; the default uses a filtered internal dataset.
     if data is not None:
         src = _ensure_polars(data)
 
@@ -699,7 +694,7 @@ def _text_bg_props(
     tw = len(text) * fs * 0.6  # text width estimate (no padding)
     w = tw + fs * 0.7  # chip width = text estimate + horizontal padding
     h = fs * 1.4
-    # Recentre the chip on the TEXT via the text half-width, NOT the padded chip half-width: a
+    # Recentre the chip on the text half-width, not the padded chip half-width: a
     # left/right-anchored label then sits centred in its chip with equal padding on both sides
     # (shifting by w/2 hugged the text to the near edge, piling all the padding on the far side).
     x_shift = {"left": tw / 2, "right": -tw / 2}.get(align, 0.0) + dx
@@ -732,7 +727,7 @@ def _text_datum_layers(
     base. Positions come from ``alt.datum`` (data coords) or ``alt.value`` (pixels) - never a data
     field - so the base chart's axis titles survive the layer merge (a ``title=None`` field would
     null them; a derived field title would concatenate into them). ``base_factory`` decides
-    faceting: ``_datum_base(src)`` (shared frame) is facet-safe; a fresh internal sidecar is the
+    faceting: ``_datum_base(src)`` (shared frame) is facet-safe; a fresh internal dataset is the
     non-facet-safe default."""
 
     def _pos(v) -> Any:
@@ -743,7 +738,7 @@ def _text_datum_layers(
     fs = mark_kwargs.get("fontSize") or _opt("fontSize")
     layers: list[alt.Chart] = []
     for t, xv, yv in zip(texts, xs, ys):
-        if bg is not None:  # background rect BEHIND the text (drawn first)
+        if bg is not None:  # Draw the background rect first, behind the text.
             rk, xsh, ysh = _text_bg_props(
                 t, fs, mark_kwargs["align"], mark_kwargs["baseline"], mark_kwargs["dx"], mark_kwargs["dy"], *bg
             )
@@ -919,15 +914,13 @@ def text(
     if position is not None and position not in _TEXT_PRESETS:
         raise ValueError(f"position must be one of {sorted(_TEXT_PRESETS)}, got {position!r}")
 
-    # Resolve position — fills x/y/align/baseline only where not already provided
+    # Fill unspecified position, alignment, and baseline values.
     if position is not None:
         p = _TEXT_PRESETS[position]
         cw = _opt("width")
         ch = _opt("height")
-        # Auto-inset when text would touch the border or flush axis line.
-        # Triggers when the plot has a closed box (closed=True) or the axis
-        # sits flush with the plot edge (axisOffset=0). Center positions
-        # (x_frac=0.5, y_frac=0.5) are unaffected.
+        # Inset labels that would touch a closed border or flush axis. Center positions are
+        # unaffected.
         _closed = _opt("closed")
         _axis_offset = _opt("axisOffset")
         _pad = _EDGE_OFFSET if (_closed or _axis_offset == 0) else 0
@@ -986,12 +979,8 @@ def text(
     if font is not None:
         mark_kwargs["font"] = font
 
-    # Both modes position each annotation by a constant `alt.datum` (data coords) or `alt.value`
-    # (pixels), never a data field, so the base chart's axis titles survive the layer merge - see
-    # _text_datum_layers.  They differ only in the per-layer base: datum (facet-safe) mode shares
-    # `data` (via _datum_base) so `(base + text(..., data=df))` can be faceted; the default
-    # builds a fresh internal sidecar (filtered by read(what="data"), and deliberately NOT
-    # facet-safe).
+    # Constant datum/value positions keep the base chart's axis titles through the layer merge.
+    # Datum mode shares the base data for faceting; the default uses a filtered internal dataset.
     if data is not None:
         src = _ensure_polars(data)
 
@@ -1193,12 +1182,8 @@ def labels(
     missing = [column for column in (xCol, yCol, labels) if column not in data.columns]
     if missing:
         raise ValueError(f"labels data column(s) not found: {missing}.")
-    # Domain and obstacles both span the FULL data (so labeling a subset via subset= never clips the
-    # axes AND the labels dodge every plotted point, not just the labelled ones); the label positions
-    # come from the selected rows. subset=None labels every row; an int auto-selects that many evenly
-    # spread across the plot (unbiased, no cherry-picking); a BOOLEAN MASK selects rows positionally -
-    # decoupling selection from the display column, so a non-unique labels column selects exactly the
-    # intended rows; any other list selects the rows whose labels-column value is in it.
+    # Use all data for domains and obstacles; only selected rows receive labels. Integer selection is
+    # spatially even, while boolean masks select rows by position.
     if data.height:
         all_x = _validate_observations(data[xCol].to_list(), xCol, kind="label coordinate").tolist()
         all_y = _validate_observations(data[yCol].to_list(), yCol, kind="label coordinate").tolist()
@@ -1221,16 +1206,14 @@ def labels(
 
     width, height = _opt("width"), _opt("height")
     fs = fontSize if fontSize is not None else _opt("fontSize")
-    # Text and connectors INHERIT the theme's mark_text / mark_rule config (darkmode-aware color,
-    # rounded caps, axisWidth stroke, opaque) - resolved per render, so they track darkmode without
-    # a callable. We only force the connector dash solid (never the theme's dashedRule) and apply an
-    # explicit color when the caller passes one. Labels remain center-aligned below.
+    # Text and connectors inherit the theme's mark_text and mark_rule configuration. Connectors
+    # force a solid dash unless the caller supplies a dash pattern.
     text_kwargs: dict[str, Any] = {"fontSize": fs, "baseline": "middle"}
     if color is not None:
         text_kwargs["color"] = color
     if fontStyle is not None:
         text_kwargs["fontStyle"] = fontStyle
-    # connectorStrokeDash: False -> solid ([0, 0]); True -> the theme's dashedWidth; a list -> as given.
+    # False gives a solid connector; True uses the theme's dash pattern; a list is used as given.
     rule_kwargs: dict[str, Any] = {"strokeDash": _resolve_dash(connectorStrokeDash)}
     if connectorCap == "arrow":
         # Connector coordinates already include marker- and text-end clearances. Decorate the
@@ -1238,9 +1221,7 @@ def labels(
         rule_kwargs["description"] = _rule_cap_marker("arrow", None, 0.0, 0.0)
     if connectorColor is not None:
         rule_kwargs["color"] = connectorColor
-    # connectorOpacity only sets the mark's opacity, leaving color to the (darkmode-aware) default or
-    # connectorColor - so a faded leader stays legible in both light and dark mode, unlike baking the
-    # alpha into an rgba color. None -> inherit the theme's mark_rule opacity (opaque).
+    # Keep opacity separate from color so the theme can choose a mode-appropriate connector color.
     if connectorOpacity is not None:
         rule_kwargs["opacity"] = connectorOpacity
 
@@ -1275,7 +1256,7 @@ def labels(
         return y0 + (height - ypad - py) / ylength * yspan
 
     anchors = [to_px(x, y) for x, y in zip(xs, ys)]
-    obstacles = [to_px(x, y) for x, y in zip(all_x, all_y)]  # ALL plotted points, so labels avoid them
+    obstacles = [to_px(x, y) for x, y in zip(all_x, all_y)]  # Include all plotted points as obstacles.
     effective_font_style = fontStyle if fontStyle is not None else _opt("fontStyle")
     sizes = [
         _estimate_text_size(
@@ -1426,7 +1407,7 @@ def labels(
 # Background shading
 
 
-# Shade rects are BACKGROUND; `export._layer_axes_below_marks` sinks them behind the grid and axes
+# Shade rects are background; `export._layer_axes_below_marks` sinks them behind the grid and axes
 # by the view-`name` marker Vega copies into the SVG group class.
 _shade_counter = 0
 
@@ -1462,7 +1443,7 @@ def shade(
     **Band mode** (``categories`` provided, ``positions`` omitted): shades every
     band on the x-axis, cycling colors through ``palette`` with ``repeat``
     consecutive ticks per color. Consecutive same-color categories are merged
-    into a single wider rect to eliminate sub-pixel antialiasing seams in PNG
+    into a single wider rect to eliminate sub-pixel antialiasing gaps in PNG
     output. Always operates on ``axis='x'``.
 
     **Positions mode** (``positions`` provided): shades explicit coordinate
@@ -1611,7 +1592,7 @@ def shade(
         hi)``, or a data range ``("q", start, end)``. Pixel ranges use ``alt.value``; data ranges
         use ``alt.datum`` - NEVER a data field, whose ``title=None`` would null the base chart's
         axis title (a field on the shared channel joins Vega-Lite's layer axis-title merge). Datum
-        mode shares ``src`` (faceteable); the default builds a fresh internal sidecar
+        mode shares ``src`` (faceteable); the default builds a fresh internal annotation dataset
         (read-filtered, deliberately NOT faceteable). Both share the base chart's scale, so the
         datum lands at the right data coordinate."""
         enc: dict[str, Any] = {}
@@ -1627,7 +1608,7 @@ def shade(
         base = _datum_base(src) if datum_mode else alt.Chart(_internal_data(dummy_df))
         return _tag_shade(base.mark_rect(**mark_kwargs, color=color).encode(**enc))
 
-    # ── positions mode ────────────────────────────────────────────────────────
+    # Positions mode
     if positions is not None:
         layers: list[alt.Chart] = []
 
@@ -1693,7 +1674,7 @@ def shade(
 
         return cast(alt.LayerChart, alt.layer(*layers))
 
-    # ── band mode ─────────────────────────────────────────────────────────────
+    # Band mode
     if categories is None:
         raise ValueError(
             "categories is required for band mode. Pass positions= to shade explicit coordinate ranges instead."
@@ -1709,7 +1690,7 @@ def shade(
         flush = _default_flush()
 
     # Merge consecutive same-color categories so there is no coincident edge
-    # between two rects of the same fill — that edge would show as a faint seam
+    # between two rects of the same fill — that edge would show as a faint gap
     # in rasterized PNG output regardless of opacity.
     run_layers: list[alt.Chart] = []
     i = 0

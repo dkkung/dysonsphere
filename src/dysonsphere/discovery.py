@@ -13,8 +13,9 @@ Core discovers them lazily. Accessing ``dysonsphere.<name>`` (resolved by the pa
 extension is also importable directly (``import dysonsphere_biology``); the entry point only
 adds the ``dysonsphere.<name>`` alias and lets core enumerate what is installed.
 
-Public surface: ``extensions()`` (list installed names) and ``load_extension(name)`` (import
-one by name). Both live here; ``__getattr__`` delegates to ``_extension_entry_points``.
+The public functions are ``extensions()`` (list installed names) and
+``load_extension(name)`` (import one by name). Both live here; ``__getattr__`` delegates to
+``_extension_entry_points``.
 """
 
 from __future__ import annotations
@@ -61,12 +62,8 @@ def load_extension(name: str) -> ModuleType:
     return ep.load()
 
 
-# ── Extension-usage provenance ──────────────────────────────────────────────────────────────
-# An extension tags each chart it builds with a durable view-``name`` marker so ``save()`` can
-# record which extensions actually PRODUCED a figure (not merely which are installed). Reuses the
-# same layer-``name`` channel as the stats markers: it survives ``+``/layer/concat, unlike custom
-# ``usermeta`` (which Altair strips across ``+``). ``metadata._strip_markers`` recognizes these
-# markers explicitly, while retaining unrelated figure/shade identity markers.
+# Extension-usage provenance. Extensions use durable view-name markers so save() records the
+# packages that produced a figure. View names survive composition, unlike custom usermeta.
 _EXT_MARKER_PREFIX = "__dysonsphere_ext_"
 _EXT_MARKER_SEPARATOR = "::"
 _ext_marker_counter = 0

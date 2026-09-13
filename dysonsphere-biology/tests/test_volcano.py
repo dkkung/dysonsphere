@@ -1,9 +1,8 @@
 """Tests for dysonsphere_biology.volcano - and the full extension-discovery path.
 
-`test_entry_point_*` prove the real installed entry point resolves (ds.extensions() /
-ds.biology.volcano), which the monkeypatched core tests can't. The rest cover volcano's
-classification, labeling, and - crucially - that its generated label sidecar is filtered by
-ds.metadata.read(what="data"), the payoff of building on the ext.internal_data primitive.
+The entry-point tests check that the installed extension resolves through ds.extensions() and
+ds.biology.volcano. Other tests cover classification, labeling, and the exclusion of generated
+annotation data from ds.metadata.read(what="data").
 """
 
 import altair as alt
@@ -248,8 +247,7 @@ def test_read_filters_generated_label_sidecar(tmp_path):
     out = tmp_path / "volcano"
     ds.save(lambda: ds.biology.volcano(df, labels="gene", subset=3), str(out), format="json")
     frame = ds.metadata.read(str(out) + ".json", what="data")
-    # Only the user's frame returns (with volcano's derived columns) - the tagged label
-    # sidecar and the threshold-rule sidecars are all filtered out.
+    # Recover the user's frame with derived columns, excluding generated labels and threshold rules.
     assert frame.height == df.height
     assert set(frame.columns) == set(df.columns) | {"neglog10p", "significance"}
     assert sorted(frame["__dysonsphere_volcano_row"].to_list()) == list(range(df.height))
@@ -271,7 +269,7 @@ def test_user_significance_score_column_is_preserved(tmp_path):
 
 
 def test_provenance_records_biology_extension(tmp_path):
-    # End-to-end via the REAL entry point: a saved volcano records dysonsphere-biology's version in
+    # End-to-end via the actual entry point: a saved volcano records dysonsphere-biology's version in
     # provenance (ext.tag_extension self-tagging -> save() scans it -> environment[dysonsphere-extensions]).
     import importlib.metadata
 

@@ -3,11 +3,10 @@
 
 Writes two build inputs for ConfigGenerator.astro:
 
-- ``website/src/generated/default_config.toml`` - the exact file ``ds.create_config()``
-  scaffolds (the honest starting point for edits).
+- ``website/src/generated/default_config.toml`` - the template written by ``ds.create_config()``.
 - ``website/src/generated/theme_defaults.json`` - the ``ds.theme()`` parameter cheat sheet:
   every ``_BUILTIN_DEFAULTS`` key with its default rendered as a TOML value (``null`` for the
-  ``None`` sentinels that are derived at theme() time).
+  ``None`` markers that are resolved at theme() time).
 
 Run from the repo/worktree root:
 
@@ -25,7 +24,7 @@ from dysonsphere.theme import _BUILTIN_DEFAULTS
 
 OUT = Path("website/src/generated")
 
-# One-line hints for the derived (None-default) sentinels, so the cheat sheet can say what
+# One-line hints for the derived (None-default) markers, so the cheat sheet can say what
 # "auto" resolves to instead of showing nothing.
 AUTO_HINTS = {
     "axisOffset": "true: tickSize * 1.5",

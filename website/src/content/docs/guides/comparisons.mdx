@@ -5,9 +5,9 @@ description: Pairwise and omnibus significance tests with ds.stats.comparisons -
 
 import Example from '../../../components/Example.astro';
 
-[`ds.stats.comparisons()`](/reference/stats/#comparisons) computes significance tests with scipy and draws them as a layer you compose
-with `+`. Every call also builds a structured report - descriptives, exact p-values, and effect
-sizes - that `save()` embeds in the export metadata, so a figure carries its own analysis. Pass
+[`ds.stats.comparisons()`](/reference/stats/#comparisons) computes significance tests with scipy and
+draws them as a layer you compose with `+`. Every call also builds a structured report - descriptives,
+exact p-values, and effect sizes - that `save()` embeds in the export metadata. Pass
 `report=True` to print it, or `saveReport=True` to write a text file.
 
 Which annotation you get is decided by `test=`, which classifies into **pairwise** (`mannwhitneyu`,
@@ -43,13 +43,12 @@ without drawing any of them, which is usually the better figure.
 
 ### Compare against a control
 
-Pass `reference=` (a group name) to compare every other group against one control and draw the
-p-value **above each mark, with no brackets** - the clean many-vs-one layout that a fan of brackets
-makes noisy. It derives its own comparisons (leave `pairs` unset), supports the pairwise tests, and
-corrects over the whole family. Labels sit above each group's data, so overlay your points and they
-clear the data; distinguishing the reference (a darker fill, etc.) stays in your hands. It also works
-in grouped mode - with `xOffset` set, `reference` is an xOffset level compared within each
-category.
+Pass `reference=` (a group name) to compare every other group with one control. The p-value appears
+**above each mark, without brackets**, which keeps many-vs-one comparisons readable. The function
+derives these comparisons when `pairs` is unset, supports the pairwise tests, and corrects over the
+whole family. Labels sit above each group's data, so they clear overlaid points; distinguishing the
+reference (for example, with a darker fill) remains your choice. In grouped mode, `reference` is an
+`xOffset` level compared within each category.
 
 <Example name="comparisons_reference" alt="Dose-response bars compared to a control with asterisks over each bar" />
 

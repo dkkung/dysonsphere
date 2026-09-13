@@ -255,7 +255,7 @@ class TestLabels:
 
     def test_marker_gap_is_uniform(self, monkeypatch):
         # every DRAWN connector starts exactly connectorGap px off its point centre. Domains pinned
-        # to the chart pixel size so data units == px and distances survive the datum round-trip.
+        # to the chart pixel size so data units == px and distances survive the datum conversion.
         import math
 
         from dysonsphere import _placement
@@ -708,7 +708,7 @@ class TestRule:
         svg = vlc.vegalite_to_svg((base + rule(x=1.0)).to_dict())
         texts = re.findall(r"<text[^>]*>([^<]+)</text>", svg)
         assert "weight" in texts
-        assert not any("__" in t for t in texts)  # no leaked sidecar field name
+        assert not any("__" in t for t in texts)  # no leaked generated-data field name
 
 
 class TestRuleLabelInset:
@@ -965,8 +965,8 @@ class TestRuleDatum:
         import json
 
         spec = json.dumps(rule(y=2.0, data=df).to_dict())
-        assert "__v" not in spec  # no field-based sidecar
-        assert "__dysonsphere__" not in spec  # no internal sentinel dataset (shares the user's df)
+        assert "__v" not in spec  # no field-based generated data
+        assert "__dysonsphere__" not in spec  # no internal marker dataset (shares the user's df)
         assert '"datum"' in spec  # positioned by a constant datum
 
     def test_datum_pandas_accepted(self, df):
@@ -1002,7 +1002,7 @@ class TestTextDatum:
         import json
 
         spec = json.dumps(text("hi", x="X", y=2.0, data=df).to_dict())
-        assert "__text" not in spec and "__dysonsphere__" not in spec  # no sidecar
+        assert "__text" not in spec and "__dysonsphere__" not in spec  # no generated data
         assert '"datum"' in spec and '"value": "hi"' in spec  # datum position + value text
 
     def test_datum_faceting_succeeds(self, df):
@@ -1038,7 +1038,7 @@ class TestShadeDatum:
         import json
 
         spec = json.dumps(shade(positions=[(1.5, 2.5)], axis="x", data=df).to_dict())
-        assert "__xs" not in spec and "__dysonsphere__" not in spec  # no sidecar fields
+        assert "__xs" not in spec and "__dysonsphere__" not in spec  # no generated-data fields
         assert '"datum"' in spec
 
     def test_band_mode_with_data_raises(self, df):

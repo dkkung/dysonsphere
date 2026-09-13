@@ -955,7 +955,7 @@ class TestReadLoad:
     def test_read_data_rebuilds_full_dataframe(self, tmp_path):
         import dysonsphere as ds
 
-        # include a column the chart never plots — it must still round-trip
+        # include a column the chart never plots - it must still be recovered
         orig = pl.DataFrame({"g": ["A", "A", "B", "B"], "v": [1.0, 2.0, 3.0, 4.0], "extra": [10, 20, 30, 40]})
         chart = alt.Chart(orig).mark_boxplot().encode(x="g:N", y="v:Q")
         ds.save(chart, str(tmp_path / "d"), format="json", background=["light"])
@@ -1006,8 +1006,8 @@ class TestReadLoad:
             ds.metadata.read(self._data_json(tmp_path), what="data", output="dask")
 
     def test_read_data_filters_internal_sidecars(self, tmp_path):
-        # Every dysonsphere composite chart embeds internal sidecar datasets; read(what="data")
-        # must filter them (via the sentinel) and return exactly ONE user frame per chart.  This
+        # Every dysonsphere composite chart embeds internal annotation data; read(what="data")
+        # must filter them (via the internal marker) and return exactly one user frame per chart. This
         # is the safety net: a newly-untagged internal data source makes one of these fail.
         import numpy as np
 
@@ -1252,9 +1252,9 @@ class TestStatsQueueRobustness:
 
         ds.save(self._stats_layer(), str(tmp_path / "s"), format=["svg", "json"], background=["light"])
         # The layer-name marker (a "name" field) must be stripped; check precisely, since the
-        # internal-data sentinel COLUMN "__dysonsphere__" legitimately remains and shares the prefix.
+        # internal-data marker column "__dysonsphere__" legitimately remains and shares the prefix.
         assert '"name": "__dysonsphere_' not in (tmp_path / "s.json").read_text()
-        assert "__dysonsphere_" not in (tmp_path / "s.svg").read_text()  # neither marker nor sentinel renders
+        assert "__dysonsphere_" not in (tmp_path / "s.svg").read_text()  # neither marker renders
 
     def test_provenance_has_checksum_and_export(self, simple_chart, tmp_path):
         import dysonsphere as ds
@@ -1347,7 +1347,7 @@ class TestStatsQueueRobustness:
         assert pl_["dataChecksum"] == pd_["dataChecksum"]  # data is the same
 
     def test_data_checksum_excludes_internal_sidecars(self, tmp_path):
-        # Adding a dysonsphere annotation layer (which embeds internal sidecar data) must NOT
+        # Adding a dysonsphere annotation layer (which embeds internal annotation data) must not
         # change the dataChecksum — only the user's frame is hashed.
         import dysonsphere as ds
 

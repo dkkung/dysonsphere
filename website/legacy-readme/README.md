@@ -1,6 +1,6 @@
 # dysonsphere
 
-An Altair configuration wrapper with perceptually uniform palettes and chart utilities for publication-ready figures.
+An Altair configuration wrapper with perceptually uniform palettes and chart utilities for scientific figures.
 
 ![thumbnail](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/thumbnail.png)
 
@@ -389,7 +389,7 @@ ds.save(chart, "plots/myplot")
 # writes: plots/myplot.svg, plots/myplot.json   (SVG + JSON, light — the defaults)
 ```
 
-**Always use `ds.save()` instead of `chart.save()`.** `ds.save()` is a wrapper around Altair's built-in save that runs several post-processing steps essential for correct rendering in dysonsphere-themed charts:
+**Use `ds.save()` instead of `chart.save()`** to apply dysonsphere's rendering corrections:
 
 - **Superscript typesetting** — fixes misaligned Unicode superscripts in scientific/power notation labels (e.g. p-values like 10⁻¹⁴).
 - **Grid span** — extends grid lines across the small gap left by the detached axis (`axisOffset`), so they reach the top chart border.
@@ -399,9 +399,9 @@ ds.save(chart, "plots/myplot")
 - **Light/dark variants** — renders both background modes in a single call by toggling `darkmode` in the active theme.
 - **Transparent background** — exports render with a transparent background by default so figures composite onto any page or slide; pass `transparent=False` for an opaque background (the theme's `chartFill` — white in light mode, black in dark).
 
-(Tick positions need no post-processing: the theme itself disables Vega's integer tick rounding, so ticks land exactly on their marks in every output, including plain `chart.save()` and notebook previews.)
+Tick positions need no correction: the theme disables Vega's integer tick rounding, so ticks align with their marks in every output, including `chart.save()` and notebook previews.
 
-> **Notebook preview is approximate.** Displaying an Altair chart inline (in a notebook or IDE) renders it through Vega-Lite's own renderer, which does **not** run these post-processing steps — superscript labels aren't typeset and (most visibly) with `inwardTicks=True` the ticks still point **outward** in the preview. For an accurate inline preview, use **`ds.show(chart)`** — it runs the same pipeline as `ds.save()` and returns an `IPython.display.SVG`, so the preview matches the saved figure (no file written). Requires IPython.
+> **Notebook previews omit these corrections.** Vega-Lite's inline renderer leaves superscripts unformatted and ticks pointing outward, even with `inwardTicks=True`. Use **`ds.show(chart)`** to apply the same corrections as `ds.save()` without writing a file. It returns an `IPython.display.SVG` and requires IPython.
 >
 > ```python
 > ds.show(chart)   # accurate inline preview in a notebook (last expression in a cell)
@@ -409,7 +409,7 @@ ds.save(chart, "plots/myplot")
 
 `ds.save()` writes a chart in one or more formats and background variants. **By default it writes SVG + the Vega-Lite JSON spec, light background only** — `myplot.svg` and `myplot.json`. The formats (`"svg"`/`"png"`/`"json"`/`"html"`) and backgrounds (`"light"`/`"dark"`) are set by `format` / `background` (a string or a list), each defaulting to the theme options `saveFormat` / `saveBackground` (so you can change the defaults globally or in `dysonsphere.toml`). A `_light`/`_dark` suffix is added **only when more than one background** is rendered. It accepts any Altair chart type — `Chart`, `LayerChart`, `FacetChart`, `HConcatChart`, `VConcatChart`, or `ConcatChart` — as well as a zero-argument callable that returns one.
 
-> **`format="html"` is the interactive tier.** It writes a self-contained interactive page (the Vega JS is bundled in, so it works offline — tooltips, pan, zoom), fully themed and with the metadata block embedded. But it renders live in the browser via Vega, so — like the notebook preview — it does **not** get the static SVG post-processors: no inward ticks, no superscript typesetting. (Tick positions are exact in every output, including HTML — that fix lives in the theme itself.) Use `"svg"`/`"png"` for the publication-accurate static figure.
+> **`format="html"` is the interactive tier.** It writes a self-contained interactive page (the Vega JS is bundled in, so it works offline — tooltips, pan, zoom), fully themed and with the metadata block embedded. But it renders live in the browser via Vega, so — like the notebook preview — it does **not** get the static SVG processing: no inward ticks, no superscript typesetting. (Tick positions are exact in every output, including HTML — that fix lives in the theme itself.) Use `"svg"`/`"png"` for the publication-accurate static figure.
 
 ```python
 ds.save(chart, "myplot")                              # myplot.svg + myplot.json  (defaults)
@@ -459,7 +459,7 @@ ds.read("myplot.json", what="data", output="pandas")   # or "duckdb" / "records"
 ds.read("myplot.json", what="data", dataset="all")     # multi-frame charts → {name: frame}
 ```
 
-`what="report"` (default) even **re-renders the table from the records** if the prose wasn't embedded (`embedReport=False`), so it works on any dysonsphere-saved file. `what="data"` returns the **whole** frame Altair inlined into the JSON — every column you passed to `alt.Chart(df)`, including ones the chart never plotted (so mind what you hand it), dtypes re-inferred from JSON. dysonsphere's composite marks embed small internal sidecar datasets (bracket coords, mean/error bars, …); those are tagged and **filtered out**, so you get back just *your* data. `output` picks the form: `"polars"` (default), `"pandas"`, `"duckdb"` (a queryable relation), or `"records"` (raw `list[dict]`, no dataframe library needed) — `pandas`/`duckdb` are imported only if asked, not dependencies. If a chart genuinely layers **two of your own DataFrames**, `what="data"` **raises** rather than silently returning one; pass `dataset="all"` for a `{name: frame}` dict or `dataset="<name>"` for a specific one.
+`what="report"` (default) even **re-renders the table from the records** if the prose wasn't embedded (`embedReport=False`), so it works on any dysonsphere-saved file. `what="data"` returns the **whole** frame Altair inlined into the JSON — every column you passed to `alt.Chart(df)`, including ones the chart never plotted (so mind what you hand it), dtypes re-inferred from JSON. dysonsphere's composite marks embed small internal annotation datasets (bracket coords, mean/error bars, …); those are tagged and **filtered out**, so you get back just *your* data. `output` picks the form: `"polars"` (default), `"pandas"`, `"duckdb"` (a queryable relation), or `"records"` (raw `list[dict]`, no dataframe library needed) — `pandas`/`duckdb` are imported only if asked, not dependencies. If a chart genuinely layers **two of your own DataFrames**, `what="data"` **raises** rather than silently returning one; pass `dataset="all"` for a `{name: frame}` dict or `dataset="<name>"` for a specific one.
 
 `ds.load()` rebuilds the chart from the **Vega-Lite JSON** (the `.json` spec):
 
@@ -1147,7 +1147,7 @@ Returns an `alt.LayerChart`.
 
 `add_log_ticks()` and `add_pow_ticks()` add unlabeled minor ticks to log- and power-scaled axes respectively. Both wrap your chart in a layer with an invisible second axis — your chart's data, scale domain, and axis labels are unaffected. Both work with `alt.Chart`, `alt.LayerChart`, and any chart type composable with `alt.layer()`, including `hconcat` and `vconcat` layouts.
 
-> **Note:** Always use `ds.save()` rather than `chart.save()`. `ds.save()` runs an SVG post-processing step that corrects the sub-pixel rounding Vega applies to tick transforms, ensuring consistent minor tick spacing at high DPI.
+> **Note:** Use `ds.save()` rather than `chart.save()` to correct Vega's sub-pixel tick rounding and keep minor tick spacing consistent at high DPI.
 
 ![Nonlinear scale example](https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/nonlinear_example.png)
 
@@ -1349,4 +1349,3 @@ python3 scripts/build_all.py
 ```
 
 This runs all scripts in `scripts/build/` in sorted order, rebuilding all assets in `docs/` used by the README and the palette gallery.
-

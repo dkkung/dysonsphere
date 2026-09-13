@@ -24,7 +24,7 @@ MODULES = [
     ("annotations", "Annotations", 1, "Composable annotation layers: reference lines, text, shading, point labels."),
     ("display_labels", "Display labels", 2, "Map raw data values to display labels on axes, legends, and headers."),
     ("discovery", "Extensions", 3, "Discover and load installed dysonsphere extensions."),
-    ("ext", "Extension authoring", 4, "The stable primitive surface for extension authors (dysonsphere.ext)."),
+    ("ext", "Extension authoring", 4, "The public API for extension authors (dysonsphere.ext)."),
     ("marks", "Marks", 5, "Composite marks: strip and violin plots."),
     ("assembly", "Assembling figures", 6, "Compose several charts into one figure, each at its own size."),
     ("multilabel", "Multilabels", 7, "Attach a multilabel annotation table below a chart."),
@@ -34,7 +34,7 @@ MODULES = [
     ("export", "Saving & loading", 11, "Export charts to files and rebuild them from the Vega-Lite JSON."),
     ("stats", "Statistics", 12, "Pairwise/omnibus comparisons, correlation layers, and report queue management."),
     ("table", "Tables", 14, "Render a DataFrame as a publication-styled table."),
-    ("theme", "Theming", 15, "Register the dysonsphere Altair theme and scaffold config files."),
+    ("theme", "Theming", 15, "Register the dysonsphere Altair theme and create config files."),
     ("transforms", "Transforms", 16, "Data transforms for jittered and beeswarm x-offsets."),
 ]
 
@@ -63,9 +63,8 @@ OUT = Path("website/src/content/docs/reference")
 def public_functions(mod):
     """Public functions of this module, in source order.
 
-    Includes deliberate re-exports (aliases listed in the module's ``__all__``, e.g. the whole
-    ``dysonsphere.ext`` surface and ``stats.clear_stats`` from ``_statistics``) -
-    plain imports are skipped, since they are documented in their home module.
+    Includes re-exports listed in ``__all__``, such as the ``dysonsphere.ext`` helpers and
+    ``stats.clear_stats`` from ``_statistics``. Other imports are documented in their own modules.
     """
     exports = set(mod.exports or [])
     fns = []

@@ -1,7 +1,7 @@
 # Design Decisions
 
-Reasons behind choices that are easy to undo accidentally. Public contracts live in [API.md](API.md);
-implementation details and current behavior live in source and tests. Read only relevant sections.
+Reasons for decisions that are easy to reverse accidentally. Public contracts are in [API.md](API.md);
+implementation details and current behavior are in source and tests. Read the relevant sections.
 Source references below are relative to `src/dysonsphere/`; test references are relative to `tests/`.
 
 ## Theme and Color
@@ -95,7 +95,7 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   must survive. Do not globally replace the theme font with a PostScript-only name.
   References: `export.py::_illustrator_font_family`; `test_export.py::TestFixFontForIllustrator`.
 
-- **Greek font switching is a local editable-text correction.** In the shared static SVG pipeline,
+- **Greek font switching is a local editable-text correction.** In shared static SVG processing,
   wrap Unicode letters identified as Greek (plus attached combining marks) in font-family tspans;
   do not substitute legacy Symbol character codes or replace the surrounding font. Unicode naming
   avoids sweeping Coptic and punctuation into the feature; U+00B5 MICRO SIGN remains in the main
@@ -113,7 +113,7 @@ Source references below are relative to `src/dysonsphere/`; test references are 
 
 - **Rule caps use resolved SVG segment geometry.** Vega-Lite does not expose a facet-local rendered
   direction for sibling cap marks. Durable rule markers therefore carry cap/gap intent through JSON
-  round trips, while the common SVG pipeline measures the rendered line and adds editable SVG
+  save/reload, while common SVG processing measures the rendered line and adds editable SVG
   decoration objects before simplification. This keeps reversed scales, facets, and aspect ratios
   correct without scale-name expressions. Bare Altair and HTML remain intentionally undecorated.
   References: `annotations.py::_rule_cap_marker`; `export.py::_decorate_rule_segments`;
@@ -227,7 +227,7 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   saved spec and ordinary Altair composition. `load()` allocates fresh owner identities and imports
   exact records, while re-export regenerates prose, provenance, and export identity. Each owner binds
   the record to a compact digest of its effective analytical panel (data, transforms, mappings,
-  parameters, and annotation sidecars). Durable point-label intent remains analytical context, while
+  parameters, and generated annotation data). Durable point-label intent remains analytical context, while
   recognized generated label connectors/chips/text are excluded because resize reflows that derived
   pixel geometry. Load validates the guard transactionally and every save checks
   it again, failing closed after analytical edits while allowing presentation changes and intact panel

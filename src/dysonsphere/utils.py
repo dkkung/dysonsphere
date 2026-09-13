@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 from .theme import _opt
 
-# This module is internal. Keep the empty export list so an incidental module import cannot expose
+# This module is internal. Keep the empty export list so incidental imports cannot expose
 # implementation helpers through star-imports.
 __all__: list[str] = []
 
@@ -282,7 +282,7 @@ def _json_safe(value: Any) -> Any:
     writes into the HTML export - so this makes the JSON agree with its sibling formats.
 
     Deliberately does NOT touch anything else.  In particular it leaves ``1.0`` as a float, so a
-    ``Float64`` column survives a ``save()`` -> ``read(what="data")`` round-trip as ``Float64``;
+    ``Float64`` column survives save and ``read(what="data")`` as ``Float64``;
     collapsing it to ``1`` is a *hashing* concern only (see :func:`_canonicalize`).
     """
     return _walk(value, lambda v: None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
@@ -356,39 +356,36 @@ def _frame_checksum(data: "pl.DataFrame | pd.DataFrame") -> str:
     return _hash_rows(_ensure_polars(data).to_dicts())
 
 
-# ── Internal-data sentinel ───────────────────────────────────────────────────
-# dysonsphere's composite marks / annotations generate their own small "sidecar" data
-# (bracket coords, mean/error bars, KDE curves, labels, …).  Altair inlines each of those
-# as a separate named dataset in the saved spec, alongside the user's dataframe.  To let
-# metadata.read(what="data") return only the USER's frame(s), every internal data source is
-# tagged with this sentinel column; read() treats any dataset carrying it as internal.
+# Internal data marker
+# Composite marks and annotations generate annotation data (bracket coordinates, summaries, KDE
+# curves, labels, and so on). Altair inlines each dataset alongside the user's dataframe. This
+# marker lets metadata.read(what="data") exclude that data.
 #
-# DISCIPLINE: any NEW code that builds a dysonsphere-generated data source for a chart layer
-# MUST route it through `_internal_data(...)` (i.e. `alt.Chart(_internal_data(rows_or_df))`).
-# Miss one, and that sidecar leaks as a phantom "user" dataframe on read.  See AGENTS.md.
+# New generated datasets must go through `_internal_data(...)`; otherwise read() can mistake an
+# annotation dataset for a user dataframe.
 _INTERNAL_COL = "__dysonsphere__"
 
 # Marks a `shade` background rect so `export._layer_axes_below_marks` can sink it behind the
-# grid and axes. Deliberately NOT the `__dysonsphere_` prefix: `metadata._strip_markers` deletes
-# that from written output, which would break the fixer after a `ds.load()` round trip.
+# grid and axes. It does not use the `__dysonsphere_` prefix because `metadata._strip_markers` deletes
+# that from written output, which would break the fixer after save/reload.
 _SHADE_PREFIX = "__dsshade_"
 # Durable rule-decoration marker. Unlike transient statistics/extension markers, this remains in
 # saved Vega-Lite JSON so SVG/PNG rendering after ``load()`` can reapply the decoration geometry.
 _RULE_CAP_PREFIX = "__dsrulecap_"
 
-# Unicode superscript digits 0-9 - the SINGLE source for every notation label that renders an
+# Unicode superscript digits 0-9 - the source for every notation label that renders an
 # exponent: nonlinear.log_label_expr (10ⁿ / bⁿ log labels), stats._superscript (p-value
 # ×10ⁿ), and table.py power/scientific columns all index this string. export._fix_superscript_labels
-# reverses it (and the superscript minus ⁻) back to raised ASCII at render time - see its design
-# point. Kept here (no Altair dependency, imported by all four) so it can't drift between copies.
+# reverses it (and the superscript minus ⁻) to raised ASCII at render time. Keep it here, without
+# an Altair dependency, so all four consumers use the same mapping.
 _SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹"
 
 
 def _internal_data(data: "list[dict[str, Any]] | pl.DataFrame | Any") -> "Any":
-    """Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
+    """Tag dysonsphere-generated (non-user) chart data with the internal marker column.
 
     Accepts a list of record dicts (returned as an ``alt.Data``) or a polars/pandas
-    DataFrame (returned as a polars DataFrame with the sentinel column added).  Pass the
+    DataFrame (returned as a polars DataFrame with the marker column added). Pass the
     result straight to ``alt.Chart(...)``.
     """
     import altair as alt

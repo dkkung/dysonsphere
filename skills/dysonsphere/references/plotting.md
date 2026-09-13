@@ -1,8 +1,8 @@
 # Plotting and composition
 
 Read this for chart selection, styling, category alignment, labels, or size-dependent panels.
-Examples target core Dysonsphere 4.0.0. Each Python block is standalone, uses synthetic data, and writes
-to the current directory. Run examples in an empty directory; adapt their inputs and paths for real work.
+Examples target core Dysonsphere 4.0.0. Each Python block is standalone, uses synthetic data, and
+writes to the current directory. Run examples in an empty directory; adapt inputs and paths for real work.
 
 ## Choose a representation, not a wrapper
 

@@ -6,8 +6,7 @@ from collections.abc import Iterator, Mapping
 from numbers import Integral
 from pathlib import Path
 
-# The public ds.palettes API; palette is also explicitly exported at the root.
-# Everything else here is internal (underscore or not).
+# Public names in ds.palettes; palette is also exported at the root.
 __all__ = ["colors", "accents", "palette", "categorical", "export_swatches"]
 
 # Alternate native lookup spellings. Values are canonical catalogue/export names.
@@ -534,7 +533,7 @@ def export_swatches(
             canonical = _PALETTE_ALIASES.get(palette_name, palette_name)
             selected.setdefault(canonical, colors[palette_name])
 
-    # --- JSX: loads swatches into the active document ---
+    # JSX: load swatches into the active document
     js_palettes = json.dumps(selected, indent=4)
     jsx = f"""\
 // Adobe Illustrator script to import {name} palettes as named swatch groups.
@@ -590,7 +589,7 @@ alert("Loaded " + paletteCount + " palettes into the active document.\\n"
     jsx_path.write_text(jsx, encoding="utf-8")
     print(f"Created {jsx_path}")
 
-    # --- ASE: persistent swatch library ---
+    # ASE: persistent swatch library
     ase_path = dest_dir / f"{name}.ase"
     _write_ase(selected, ase_path)
     print(f"Created {ase_path}")
@@ -606,32 +605,14 @@ alert("Loaded " + paletteCount + " palettes into the active document.\\n"
         print("Typical location: ~/Library/Application Support/Adobe/Adobe Illustrator <ver>/<locale>/Swatches/")
 
 
-# ============================ Palette data ============================
-# Large color table. The derived colors["categorical"] line must stay AFTER it.
+# Palette data
+# The derived colors["categorical"] entry must follow the palette table.
 
 colors = {
-    # ── Palette build methodology ─────────────────────────────────────────────────
-    # All palettes below are built in Oklab (Ottosson 2020) for true
-    # perceptual uniformity.  CIELAB variants (previously stored alongside as
-    # *_cielab) were dropped because Oklab has strictly lower hue non-linearity,
-    # especially in the blue region.
-    #
-    # Sequential recipe (_cielab, now removed):
-    #   1. Start from the Matplotlib base palette (e.g. Blues) in CIELAB.
-    #   2. At each of N base stops, set C* = 0.65 × max_gamut_chroma(L*, hue).
-    #   3. Densify the piecewise-linear path; resample 12 stops at equal CIELAB arc-length.
-    #   Result: MAD(Oklab ΔE) ≈ 5–25% (cross-space metric mismatch).
-    #
-    # Sequential recipe (Oklab, current):
-    #   1. Fix hue in Oklab; sweep L from light → dark with C = 0.65 × Cmax(L, h).
-    #   2. Densify dense path; resample 12 stops at equal Oklab arc-length.
-    #   Result: MAD(Oklab ΔE) ≈ 0.05–2% — true perceptual uniformity.
-    #
-    # Diverging recipe (Oklab, current):
-    #   C(L) = FRAC × min_gamut_both_arms(L) × (1 − t); FRAC=0.85 for base,
-    #   FRAC=1.0 for *_sat variants.  13 stops (odd) so the white pivot at stop 6
-    #   lands exactly on the V-corner, avoiding the mid-palette dip that an even
-    #   count introduces.
+    # Native ramps use Oklab (Ottosson 2020). Sequential ramps sweep lightness at fixed hue with
+    # C = 0.65 * Cmax(L, h), then resample to 12 equal arc-length stops. Diverging ramps use
+    # C(L) = FRAC * min_gamut_both_arms(L) * (1 - t), with FRAC=0.85 for base palettes and 1.0
+    # for saturation variants. Their 13 stops place the neutral pivot at the center.
     "australis": [
         "#32022B",
         "#43044D",
@@ -848,10 +829,10 @@ colors = {
     ],
     # Qualitative base ramps: the five australis-harmonious hues sliced by
     # categorical() to build the cat4 palette. Tuned for colorblindness -
-    # the three cool hues (teal/blue/purple) are pulled apart in hue AND given
+    # the three cool hues (teal/blue/purple) are pulled apart in hue and given
     # distinct lightnesses so a CVD viewer separates them by lightness when hue
     # collapses; green + gold are the yellow-side anchors. Teal leads, gold is
-    # the warm end. Distinct de-novo ramps, NOT slices of the saturated
+    # the warm end. These are distinct ramps, not slices of the saturated
     # blues/greens/etc. (See print_palettes.py for the recipe.)
     "cat4_blues": [
         "#CFE0F4",
@@ -937,9 +918,7 @@ colors = {
         "#E987C4",
         "#FC9BC6",
     ],
-    # ── Showcase multi-hue sequential (Oklab, 65% gamut chroma, equal arc length) ─
-    # Curated keyframe paths through Oklab designed to be perceptually uniform AND
-    # aesthetically distinct from the mpl viridis/magma/plasma/inferno family.
+    # Multi-hue sequential ramps: Oklab paths at 65% gamut chroma, resampled at equal arc length.
     "cyans": [
         "#A1F6F5",
         "#86E6E5",
@@ -1108,7 +1087,7 @@ colors = {
         "#4E208B",
         "#3F007D",
     ],
-    # --- discrete qualitative — nucleotide chemical identity ---
+    # Discrete qualitative - nucleotide chemical identity
     # 5 colors: A, T, G, C, U — chromatogram convention (A=green, T=red, G=gold, C=blue)
     # U (uracil) violet to distinguish from T.
     "magentas": [
@@ -2683,7 +2662,7 @@ colors = {
         "#382C25",
         "#221E1B",
     ],
-    # --- Native diverging palettes ---
+    # Native diverging palettes
     "brgn": [
         "#7D4816",
         "#92643E",
@@ -2973,7 +2952,7 @@ colors = {
         "#A55EA2",
         "#933F91",
     ],
-    # ── Diverging — "2"-suffix sequential single-hue pairs ────────────────────────
+    # Diverging - "2"-suffix sequential single-hue pairs
     # Outer tips taken from index 7 of each "2" sequential palette.
     "greysoranges": [
         "#636363",
@@ -3290,7 +3269,7 @@ colors = {
         "#43746E",
         "#1A5C55",
     ],
-    # ── Diverging — sequential single-hue pairs ───────────────────────────────
+    # Diverging - sequential single-hue pairs
     # Outer tips taken from index 7 of each sequential palette (4th from dark
     # end); 13 stops interpolated at equal Oklab arc-length through #F6F6F6.
     "pugn": [
@@ -5069,7 +5048,7 @@ colors = {
         "#4177B1",  # C — blue (blues[7])
         "#9866D5",  # U — violet (purples[6])
     ],
-    # --- discrete qualitative — amino acid biochemical properties (Zappo-inspired) ---
+    # Discrete qualitative - amino acid biochemical properties (Zappo-inspired)
     # 8 groups: hydrophobic (A,I,L,M,V), aromatic (F,Y,W), positive (R,K),
     #           negative (D,E), polar (S,T,N,Q,H), proline (P), glycine (G), cysteine (C)
     #
@@ -5084,7 +5063,7 @@ colors = {
         "#898989",  # glycine — grey (greys[5])
         "#E97D1C",  # cysteine — orange (oranges[7])
     ],
-    # --- Matplotlib qualitative palettes ---
+    # Matplotlib qualitative palettes
     # Complete ListedColormap colors from Matplotlib 3.11.1 (matplotlib.org), preserving upstream order.
     "Accent": [
         "#7FC97F",

@@ -6,14 +6,13 @@ from .export import _AltairChart
 from .theme import _opt, _temporary_theme
 from .utils import _internal_data
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["assemble"]
 
 # Markers on a labelled wrapper and on a reserved slot. Vega copies a view name into the SVG
 # group class, which is how export._align_figure_labels finds figure labels and leaves charts'
-# own titles alone. The prefix is deliberately NOT the statistics one: that channel is stripped
-# from written output, and these must survive so a ds.load() round trip re-renders identically.
+# own titles alone. The prefix differs from the statistics one: that channel is stripped
+# from written output, and these must survive save/reload so ds.load() renders identically.
 _FIGURE_PREFIX = "__dsfigure_"
 _LABEL_NAME = f"{_FIGURE_PREFIX}label_"
 _BLANK_NAME = f"{_FIGURE_PREFIX}blank_"
@@ -134,13 +133,10 @@ def _build(member: _Member, style: dict[str, Any]) -> _AltairChart:
     overrides = {k: v for k, v in (("width", width), ("height", height)) if v is not None}
     size = {key: value for key, value in overrides.items()}
     if source is None:
-        # A reserved slot: no builder runs, so there is nothing derived to compute - the size is
-        # simply the space held. It carries no axis chrome, so it occupies exactly its width,
-        # where a real chart of the same width occupies that plus its axis margin.
+        # A reserved slot has no builder or axes and occupies its declared size.
         chart = _blank().properties(**size) if size else _blank()
     elif not callable(source):
-        # An already-built chart: its derived pixel values are baked, so a size here cannot be
-        # honored - stamping one would leave exactly the stale geometry assemble exists to avoid.
+        # An already-built chart has baked pixel values, so its size cannot be changed here.
         if overrides:
             raise ValueError("a size cannot be applied to an already-built chart - pass a builder instead")
         chart = source
@@ -201,9 +197,8 @@ def assemble(
         ``chart`` is required, and it takes a builder or an already-built chart.
 
         ``None`` as the chart reserves an empty slot of that size - ``(None, 190, 110, "a")``
-        holds space to fill in later, labelled so the lettering stays in sequence. A blank
-        carries no axis chrome, so it occupies exactly its width, where a real chart of the
-        same width occupies that plus its axis margin.
+        holds space to fill in later, labelled so the lettering stays in sequence. An empty slot
+        has no axes, so it occupies exactly its width; a chart also needs space for axis margins.
     spacing:
         Gap between charts in pixels - a number for both directions, or
         ``{"row": 40, "column": 10}`` to set them independently. ``None`` uses Vega-Lite's
@@ -269,8 +264,7 @@ def assemble(
         if len(charts) == 1:
             built.append(charts[0])
             continue
-        # hconcat defaults its legends to shared and DROPS them outright when the panels'
-        # colour scales cannot merge; resolving makes each keep its own.
+        # hconcat can drop legends when panel color scales cannot merge; keep them independent.
         built.append(alt.hconcat(*charts, **_spacing_kwargs(column_gap)).resolve_scale(color="independent"))
     result = (
         built[0]

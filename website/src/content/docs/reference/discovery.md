@@ -22,8 +22,9 @@ Core discovers them lazily. Accessing ``dysonsphere.<name>`` (resolved by the pa
 extension is also importable directly (``import dysonsphere_biology``); the entry point only
 adds the ``dysonsphere.<name>`` alias and lets core enumerate what is installed.
 
-Public surface: ``extensions()`` (list installed names) and ``load_extension(name)`` (import
-one by name). Both live here; ``__getattr__`` delegates to ``_extension_entry_points``.
+The public functions are ``extensions()`` (list installed names) and
+``load_extension(name)`` (import one by name). Both live here; ``__getattr__`` delegates to
+``_extension_entry_points``.
 
 ## `extensions`
 

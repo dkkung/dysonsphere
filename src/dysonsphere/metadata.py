@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 from .utils import _frame_checksum as frame_checksum
 
-# The public ds.metadata API. Everything else here is internal (underscore or not).
+# Public names in ds.metadata.
 __all__ = ["VerifyResult", "frame_checksum", "read", "verify"]
 
 _REPORT_PREFIX = "dysonsphere-report-"
@@ -42,7 +42,7 @@ _STAT_OWNER_PREFIX = "__dsstatistics_owner_"
 _EXPORT_ID_NAMESPACE = "https://github.com/dkkung/dysonsphere/export/"
 
 
-# ── Writing metadata into output files ───────────────────────────────────────
+# Writing metadata into output files
 
 
 def _inject_png_metadata(png_bytes: bytes, text: str, keyword: str = "Description") -> bytes:
@@ -249,9 +249,7 @@ def _build_provenance(
             "altair": alt.__version__,
             "vl_convert": importlib.metadata.version("vl-convert-python"),
             "dysonsphere": importlib.metadata.version("dysonsphere"),
-            # dysonsphere extensions that actually PRODUCED this figure (empty -> key omitted).
-            # Grouped directly under `dysonsphere` (the tool + its extensions together); the explicit
-            # `dysonsphere-extensions` label disambiguates from any pypi package named 'extensions'.
+            # Record extensions that produced this figure, grouped under dysonsphere.
             **({"dysonsphere-extensions": extensions} if extensions else {}),
             "numpy": importlib.metadata.version("numpy"),
             "scipy": importlib.metadata.version("scipy"),
@@ -717,11 +715,11 @@ def _spec_checksum(spec) -> str:
 
 
 def _user_datasets(spec) -> dict[str, list[Any]]:
-    """Every user (non-sidecar) inlined row-list in a spec, keyed by name.
+    """Every user (non-annotation) inlined row-list in a spec, keyed by name.
 
     Collects named datasets (``spec["datasets"]``) then any inline ``data.values`` found by
     walking the tree (named ``inline-<i>``), and drops empty datasets plus dysonsphere's own
-    internal sidecars — those carry the ``_INTERNAL_COL`` sentinel column.  Shared by
+    internal annotation data - those carry the ``_INTERNAL_COL`` marker column. Shared by
     ``_read_data`` and ``_data_checksum`` so both see the same set of user frames.
     """
     from .utils import _INTERNAL_COL
@@ -751,7 +749,7 @@ def _data_checksum(spec) -> list[str]:
     Unlike ``vegaliteChecksum`` (which changes with row order, since the inlined data is part
     of the spec it hashes), this ignores row order: it hashes the *multiset* of per-row
     canonical-JSON digests, so a reordered-but-identical frame yields the same value.  Duplicate
-    rows are preserved.  Internal sidecar datasets are excluded, so the checksum is independent
+    rows are preserved. Internal annotation datasets are excluded, so the checksum is independent
     of how the data is drawn — two charts built from the same data match even across different
     marks/encodings/themes.  The list is sorted so multi-frame charts are order-independent too.
     """
@@ -819,9 +817,8 @@ def _build_block(
     if alt.theme.options.get("_markFillAuto", True):
         # Keep the public theme snapshot fully resolved while retaining omission provenance for load().
         ds_block["themeAutomatic"] = ["markFill"]
-    # The SVG/PNG structured blob is report-free (they get per-section readable channels) but
-    # DOES carry `description` — as the last member, mirroring the JSON.  ensure_ascii=False
-    # keeps η²/─ literal.
+    # SVG/PNG store report sections separately from the structured metadata, which ends with
+    # description when supplied. ensure_ascii=False preserves literal non-ASCII characters.
     blob: dict[str, Any] = dict[str, Any](ds_block)
     if description is not None:
         blob["description"] = description
@@ -873,7 +870,7 @@ def _inject_png_block(
     return png_bytes
 
 
-# ── Reading metadata back ────────────────────────────────────────────────────
+# Reading metadata back
 
 
 def _iter_png_itxt(png_bytes: bytes):
@@ -964,7 +961,7 @@ def _read_data(path: str | Path, output: str, dataset: str | None) -> Any:
 
     Altair inlines the whole ``alt.Chart(df)`` frame — **every column, even unused ones** —
     as named datasets.  dysonsphere's own composite marks/annotations also embed small
-    internal sidecar datasets, each tagged with the ``_INTERNAL_COL`` sentinel; those are
+    internal annotation datasets, each tagged with the ``_INTERNAL_COL`` marker; those are
     filtered out here so only the user's frame(s) remain.  ``dataset``: ``None`` (default)
     returns the single user frame — **raising** (with a listing) if there are ≥2, so a
     multi-frame chart is never silently truncated; ``"all"`` returns a ``{name: frame}`` dict;
@@ -977,7 +974,7 @@ def _read_data(path: str | Path, output: str, dataset: str | None) -> Any:
         raise ValueError(f"what='data' needs the Vega-Lite JSON (the .json spec), got {p.suffix!r}")
     spec = json.loads(p.read_text(encoding="utf-8"))
 
-    # User frames = non-empty inlined datasets WITHOUT the internal sentinel column.
+    # User frames are non-empty inlined datasets without the internal marker column.
     user = _user_datasets(spec)
 
     if dataset == "all":

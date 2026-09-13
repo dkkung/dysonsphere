@@ -1,7 +1,7 @@
 """Tests for dysonsphere_biology.western_blot - image loading, stacking, and the condition table.
 
 Uses in-memory PIL images (no fixture files). Covers the entry-point resolution, the stroke /
-padding controls, multi-strip stacking, and that the generated image sidecar is tagged internal.
+padding controls, multi-strip stacking, and that the generated image data is tagged internal.
 """
 
 import base64
@@ -110,7 +110,7 @@ def test_accepts_pathlib_image(tmp_path):
 
 
 def test_image_sidecar_tagged_internal():
-    # The image URI frame is generated, not user data - it must carry the internal sentinel so
+    # The image URI frame is generated, not user data - it must carry the internal marker so
     # read(what="data") never returns it as a phantom user frame.
     spec = ds.biology.western_blot(_img(), categories=["x", "y"]).to_dict()
     data = _image_units(spec)[0]["data"]
