@@ -1051,18 +1051,16 @@ def labels(
 ) -> alt.LayerChart:
     """Auto-place non-overlapping text labels for a set of points, with connector lines.
 
-    A deterministic bounded search seats each label near its point while avoiding points, labels,
-    and connector crossings, drawing a thin leader line from each point to its label. On
-    ``ds.save()`` and ``ds.show()``, placement is automatically rerun against supported visible
-    sibling marks in the complete composed panel, including marks layered before or after this call.
-    Serialized anchor intent survives ``ds.load()``; no finalization call is needed. Every
-    requested label is shown (never dropped); labels may overlap when the candidate seats cannot fit
-    the requested text. Returns a layer to compose onto the base chart with ``+``.
+    A deterministic search places labels near their points, avoiding other points, labels, and
+    connector crossings. Returns a layer to add to the base chart with ``+``. Every requested label
+    is shown, though labels may overlap if the available positions cannot fit the text.
 
-    Placement is modeled in pixels before Vega renders, then emitted as data coordinates so reflected
-    scales and native composition continue to work and the base's axis titles are left alone.
-    Text bounds are portable estimates, not measurements of the installed font. Rebuild the layer
-    when changing font or panel geometry; it cannot inspect marks in sibling layers.
+    Initial placement is calculated in pixels and stored as data coordinates to preserve reflected
+    scales, native composition, and axis titles. Bare Altair displays this initial placement.
+    ``ds.save()`` and ``ds.show()`` place labels again to avoid supported visible marks in the completed
+    panel, including layers added before or after this call. Point coordinates and label settings
+    survive ``ds.load()``, so this also works after loading, resizing, or composing charts.
+    Text bounds are estimates, not measurements of the installed font.
 
     Parameters
     ----------
@@ -1141,9 +1139,9 @@ def labels(
         connector stroke widths of whitespace
         (``sqrt(markSize/2/pi) + markStrokeWidth + 2*axisWidth``), which clears the default point
         mark (and the smaller ``mark_circle``) with a visible sliver of daylight at any theme
-        scale. During ``ds.save()``/``ds.show()``, the automatic gap expands to clear the actual
-        rendered anchor symbol when it is larger; ``0`` -> no marker gap; a float -> that many
-        pixels exactly. The TEXT end always keeps just the whitespace term (``2*axisWidth`` - there is no
+        scale. During ``ds.save()``/``ds.show()``, the automatic gap expands to clear a larger
+        rendered anchor symbol; ``0`` -> no marker gap; a float -> that many pixels exactly. The
+        TEXT end always keeps just the whitespace term (``2*axisWidth`` - there is no
         marker to clear there, so a symmetric gap would open a hole between line and label). Both
         gaps are uniform - they never shrink, so every drawn connector sits the same distance off
         its dot and its label; a connector too short to keep the full gaps is dropped instead (see
@@ -1309,7 +1307,7 @@ def labels(
     fill_c, stroke_c = _resolve_text_bg(fill, stroke)
     bg = (fill_c, stroke_c, fillOpacity, cornerRadius) if fill_c is not None else None  # chip gated on fill
 
-    # Preserve original anchors and rendering intent so save/show can place labels against sibling marks.
+    # Preserve anchors and label settings so save/show can place labels against sibling marks.
     from ._label_resolution import _LABEL_GROUP_COL, _LABEL_INTENT_PREFIX, _LABEL_ITEM_PREFIX
 
     intent_config = {
@@ -1345,7 +1343,7 @@ def labels(
         for index, (x, y, text) in enumerate(zip(xs, ys, label_texts, strict=True))
     ]
     token = hashlib.sha256(json.dumps(intent_rows, sort_keys=True).encode()).hexdigest()[:20]
-    sidecar = _internal_data([{_LABEL_GROUP_COL: token}])
+    label_data = _internal_data([{_LABEL_GROUP_COL: token}])
     item_marker = f"{_LABEL_ITEM_PREFIX}{token}"
     text_kwargs["description"] = item_marker
     existing_rule_description = rule_kwargs.get("description")
@@ -1374,7 +1372,7 @@ def labels(
             if segment is not None:
                 (sx, sy), (tx, ty) = segment
                 layers.append(
-                    alt.Chart(sidecar)
+                    alt.Chart(label_data)
                     .mark_rule(**rule_kwargs)
                     .encode(**datum_xy(sx, sy), x2=alt.X2Datum(px_to_x(tx)), y2=alt.Y2Datum(px_to_y(ty)))
                 )
@@ -1382,18 +1380,17 @@ def labels(
             rk, xsh, ysh = _text_bg_props(text, fs, align, "middle", 0, 0, *bg)
             rk.update(width=w, height=h)
             layers.append(
-                alt.Chart(sidecar)
+                alt.Chart(label_data)
                 .mark_rect(description=item_marker, **rk)
                 .encode(**datum_xy(text_x, ly), xOffset=alt.value(xsh), yOffset=alt.value(ysh))
             )
         layers.append(
-            alt.Chart(sidecar)
+            alt.Chart(label_data)
             .mark_text(align=align, **text_kwargs)
             .encode(**datum_xy(text_x, ly), text=alt.value(text))
         )
-    # One datum-positioned probe per row maps the original anchor through the merged scales without
-    # introducing private fields into domains or axis-title resolution. Its data carries the full
-    # serializable row intent; no process-global registry is needed after ds.load().
+    # A datum-positioned anchor maps through merged scales without affecting domains or axis titles.
+    # Its data stores the label settings needed after ds.load().
     for row in intent_rows:
         intent_data = _internal_data([{**row, _LABEL_GROUP_COL: token}])
         layers.append(

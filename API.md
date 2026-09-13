@@ -255,13 +255,12 @@ not part of the public contract.
   include conservative safety padding, while connectors attach to tighter estimated text bounds or
   the actual chip edge. Forced connectors reserve full clearances and visible stroke rather than
   shrinking gaps; geometrically impossible connectors are omitted. `ds.save()` and `ds.show()`
-  automatically reevaluate the complete composed panel and avoid supported visible sibling symbols,
-  straight lines/rules, rectangles, and fixed text regardless of layer order. The serialized intent
-  survives `ds.load()` and reruns after resizing or recomposition. Unsupported curves, areas, images,
-  and arbitrary paths are not treated as exact obstacles; an overfull panel cannot guarantee a
-  collision-free layout. Bare Altair display retains the construction-time fallback.
-  An omitted `connectorGap` expands to the rendered anchor symbol footprint plus daylight during
-  automatic resolution; explicit zero and numeric gaps remain exact overrides.
+  place labels again against supported visible sibling symbols, straight lines/rules, rectangles,
+  and fixed text regardless of layer order. Saved point coordinates and label settings are reused
+  after `ds.load()`, and placement runs again after resizing or recomposition. Curves, areas, images,
+  and arbitrary paths are not exact obstacles, and an overfull panel may still contain overlaps. Bare
+  Altair display retains the initial placement. An omitted `connectorGap` increases when needed to
+  clear the rendered symbol plus whitespace; explicit zero and numeric gaps remain exact.
 - Volcano uses the same labels/content-column and subset/selection vocabulary. Its log2fc and
   pvalue inputs name columns containing log2 fold changes and raw p-values; do not imply arbitrary
   effect-size support. Label content may identify any measured feature, not only genes/proteins.

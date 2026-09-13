@@ -46,12 +46,12 @@ class TestLabels:
         assert isinstance(labels(df, "x", "y", "g"), alt.LayerChart)
 
     def test_layer_count_with_leaders(self, df):
-        # Connector + text + one serializable datum anchor probe per label.
+        # One connector, text mark, and anchor record per label.
         chart = labels(df, "x", "y", "g", alwaysShowConnectors=True)
         assert len(chart.to_dict()["layer"]) == 3 * 3
 
     def test_no_connector(self, df):
-        # One text and one serializable datum anchor probe per label.
+        # One text mark and anchor record per label.
         assert len(labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 6
 
     @pytest.mark.parametrize("coordinate", ["x", "y"])

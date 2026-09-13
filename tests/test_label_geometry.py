@@ -19,8 +19,8 @@ def _marks(chart: Any) -> dict[str, list[dict[str, Any]]]:
         if isinstance(node, dict):
             kind = node.get("marktype")
             if kind in found and node.get("role") == "mark":
-                # Deferred labels persist zero-size, zero-opacity symbol probes for renderer-time
-                # anchor mapping. They are serialization infrastructure, not painted point marks.
+                # Labels keep zero-size, zero-opacity anchors for export-time mapping; they are not
+                # painted point marks.
                 found[kind].extend(item for item in node.get("items", []) if float(item.get("opacity", 1)) > 0)
             for value in node.values():
                 visit(value)
