@@ -10,11 +10,6 @@
   "hint": null
  },
  {
-  "key": "boxplotOutliers",
-  "default": "false",
-  "hint": null
- },
- {
   "key": "chartFill",
   "default": null,
   "hint": "auto: white / black by darkmode"

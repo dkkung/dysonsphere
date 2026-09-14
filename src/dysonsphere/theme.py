@@ -31,7 +31,6 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
 _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisOffset": False,
     "axisWidth": 0.25,
-    "boxplotOutliers": False,
     "chartFill": None,
     "closed": None,
     "cornerRadius": False,
@@ -287,7 +286,7 @@ def _validate_options(p: dict[str, Any]) -> None:
         if p[key] > 1:
             raise ValueError(f"{key} must be at most 1; got {p[key]!r}")
     number("outerPadding", nonnegative=True)
-    for key in ("cornerRadius", "boxplotOutliers", "viewPadding"):
+    for key in ("cornerRadius", "viewPadding"):
         if not isinstance(p[key], bool):
             number(key, nonnegative=True)
 
@@ -343,7 +342,6 @@ def theme(
     *,
     axisOffset: int | float | bool = _UNSET,
     axisWidth: int | float = _UNSET,
-    boxplotOutliers: int | float | bool = _UNSET,
     chartFill: str | None = _UNSET,
     closed: bool | None = _UNSET,
     cornerRadius: int | float | bool = _UNSET,
@@ -438,8 +436,7 @@ def theme(
     interactive HTML and bare Altair rendering do not receive this SVG typography correction.
 
     Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
-    ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True``, ``cornerRadius=True``,
-    and ``boxplotOutliers=True`` derive
+    ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True`` and ``cornerRadius=True`` derive
     size-dependent values; False disables them and a nonnegative number is explicit. Inner band
     paddings are dimensionless values in [0, 1]; ``outerPadding`` is any nonnegative value. Opacities
     are in [0, 1], and dash sequences contain finite nonnegative pixel lengths, including empty and
@@ -506,8 +503,6 @@ def _compute_derived(p: dict[str, Any]) -> None:
         p["markStrokeWidth"] = p["axisWidth"]
     if p["cornerRadius"] is True:
         p["cornerRadius"] = min(p["width"], p["height"]) / 100
-    if p["boxplotOutliers"] is True:  # if True: show at markSize/10. A number is an explicit size. If False: hidden
-        p["boxplotOutliers"] = p["markSize"] / 10
     if p["viewPadding"] is True:  # continuous-scale data inset scaled to chart dimensions
         p["viewPadding"] = min(p["width"], p["height"]) * 0.05
     if p["axisOffset"] is None:
@@ -730,7 +725,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                     "color": "white" if opts["darkmode"] else "black",
                     "fill": "white" if opts["darkmode"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
-                    "size": opts["boxplotOutliers"] or 0,  # False → 0 (hidden); a number → that size
+                    "size": 0,
                     "stroke": opts["markStroke"],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],

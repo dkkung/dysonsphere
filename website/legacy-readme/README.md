@@ -117,7 +117,6 @@ ds.theme(   # custom configuration
 | `chartWidth` | `100` | Default chart width in pixels |
 | `closed` | auto | Draw a border around the plot area. Auto-enabled when `viewFill` is set or `inwardTicks=True` |
 | `inwardTicks` | `False` | Point axis ticks *into* the plot (physics/astronomy style), including log/power minor ticks; also defaults `closed=True`. Applied by `ds.save()` |
-| `boxplotOutliers` | `False` | Show boxplot outlier points. `False` = hidden (`size 0`); `True` = shown at `markSize / 10`; explicit `float` = that point size. Per-chart `mark_boxplot(outliers={"size": n})` still overrides |
 | `cornerRadius` | `False` | Corner rounding for rect, bar, boxplot box, and arc marks. `False` = none; `True` = `min(chartWidth, chartHeight) / 100` (1 px at default 100×100); explicit `float` = pixels. Bars use `cornerRadiusEnd` (tip only); all others use `cornerRadius` (all corners) |
 | `darkmode` | `False` | Invert text and axis colors for dark backgrounds |
 | `dashedGrid` | `False` | Render axis grid lines dashed (uses `dashedWidth` pattern); off by default so grids are solid |
