@@ -842,7 +842,7 @@ class TestCorrectionMetadata:
         assert section["nComparisons"] == (family_size or len(pairs))
         groups = {group: tri_df.filter(pl.col("g") == group)["v"].to_numpy() for group in MULTI}
         expected_raw = [float(mannwhitneyu(groups[a], groups[b], alternative="two-sided").pvalue) for a, b in pairs]
-        assert [pair["unadjusted_pvalue"] for pair in section["pairs"]] == pytest.approx(expected_raw)
+        assert [pair["unadjustedPvalue"] for pair in section["pairs"]] == pytest.approx(expected_raw)
         assert [pair["pvalue"] for pair in section["pairs"]] == pytest.approx(
             _st._adjust(expected_raw, correction, family_size or len(pairs))
         )
@@ -855,7 +855,7 @@ class TestCorrectionMetadata:
         comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI)
         section = next(iter(_st._REPORTS.values()))["comparisons"]
         assert section["nComparisons"] is None
-        assert section["pairs"][0]["unadjusted_pvalue"] == section["pairs"][0]["pvalue"]
+        assert section["pairs"][0]["unadjustedPvalue"] == section["pairs"][0]["pvalue"]
 
     def test_grouped_family_spans_categories(self):
         from dysonsphere import _statistics as _st
@@ -871,7 +871,7 @@ class TestCorrectionMetadata:
         comparisons(df, "category", "value", xOffset="level", correction="bonferroni", nComparisons=5)
         section = next(iter(_st._REPORTS.values()))["comparisons"]
         assert section["nComparisons"] == 5 and len(section["pairs"]) == 2
-        assert all(pair["pvalue"] == min(pair["unadjusted_pvalue"] * 5, 1.0) for pair in section["pairs"])
+        assert all(pair["pvalue"] == min(pair["unadjustedPvalue"] * 5, 1.0) for pair in section["pairs"])
 
         _st._REPORTS.clear()
         comparisons(df, "category", "value", xOffset="level", correction="bonferroni")
@@ -884,7 +884,7 @@ class TestCorrectionMetadata:
         supplied_section = next(iter(_st._REPORTS.values()))["comparisons"]
         assert supplied_section["pvalueOrigin"] == "supplied"
         assert supplied_section["correction"] is supplied_section["nComparisons"] is None
-        assert all(pair["unadjusted_pvalue"] is None for pair in supplied_section["pairs"])
+        assert all(pair["unadjustedPvalue"] is None for pair in supplied_section["pairs"])
 
     def test_final_caps_at_one_without_capping_raw(self, tri_df):
         from dysonsphere import _statistics as _st
@@ -892,7 +892,7 @@ class TestCorrectionMetadata:
         _st._REPORTS.clear()
         comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI, correction="bonferroni", nComparisons=1000)
         pair = next(iter(_st._REPORTS.values()))["comparisons"]["pairs"][0]
-        assert 0 < pair["unadjusted_pvalue"] < 1 and pair["pvalue"] == 1.0
+        assert 0 < pair["unadjustedPvalue"] < 1 and pair["pvalue"] == 1.0
 
     def test_omnibus_subset_drawn_records_whole_posthoc_family(self, tri_df):
         from dysonsphere import _statistics as _st
@@ -920,7 +920,7 @@ class TestCorrectionMetadata:
         assert rec["comparisons"]["correction"] is None  # tukey carries its own correction
         assert rec["comparisons"]["pvalueOrigin"] == "intrinsically-adjusted"
         assert rec["comparisons"]["nComparisons"] is None
-        assert all(pair["unadjusted_pvalue"] is None for pair in rec["comparisons"]["pairs"])
+        assert all(pair["unadjustedPvalue"] is None for pair in rec["comparisons"]["pairs"])
 
     @pytest.mark.parametrize(("test", "post_hoc"), [("alexandergovern", "games_howell"), ("friedman", "nemenyi")])
     @pytest.mark.parametrize("correction", [None, "bonferroni"])
@@ -942,7 +942,7 @@ class TestCorrectionMetadata:
         section = next(iter(_st._REPORTS.values()))["comparisons"]
         assert section["pvalueOrigin"] == "intrinsically-adjusted"
         assert section["nComparisons"] == (5 if correction else None)
-        assert all(pair["unadjusted_pvalue"] is None for pair in section["pairs"])
+        assert all(pair["unadjustedPvalue"] is None for pair in section["pairs"])
         builder = _st._games_howell_matrix if post_hoc == "games_howell" else _st._nemenyi_matrix
         matrix = builder([tri_df.filter(pl.col("g") == group)["v"].to_numpy() for group in MULTI])
         base = [float(matrix[i, j]) for i in range(3) for j in range(i + 1, 3)]
@@ -982,7 +982,7 @@ class TestCorrectionMetadata:
         section = next(iter(_st._REPORTS.values()))["comparisons"]
         assert section["pvalueOrigin"] == "supplied"
         assert section["test"] is section["correction"] is section["nComparisons"] is None
-        assert section["pairs"][0]["unadjusted_pvalue"] is None
+        assert section["pairs"][0]["unadjustedPvalue"] is None
 
         _st._REPORTS.clear()
         comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI, test="anova", pvalues=[0.2])
@@ -1256,7 +1256,7 @@ class TestReportPValues:
             pvalues_provided=False,
         )
         assert rec["comparisons"]["pairs"][0]["pvalue"] == sys.float_info.min  # never 0.0
-        assert rec["comparisons"]["pairs"][0]["unadjusted_pvalue"] == sys.float_info.min
+        assert rec["comparisons"]["pairs"][0]["unadjustedPvalue"] == sys.float_info.min
 
     def test_full_pipeline_zero_pvalue(self):
         import sys

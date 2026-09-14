@@ -1563,7 +1563,7 @@ def comparisons(
     A descriptive + effect-size report is generated on every call and queued for
     the export metadata written by ``ds.save()`` (see ``report``/``saveReport``).
     Its comparison records retain the reported ``pvalue`` (adjusted when a correction applies)
-    and ``unadjusted_pvalue`` for ordinary computed values, including when no correction is requested.
+    and ``unadjustedPvalue`` for ordinary computed values, including when no correction is requested.
     ``pvalueOrigin`` distinguishes computed, supplied, and intrinsically adjusted values;
     ``nComparisons`` is the effective generic correction-family size or null when none applies.
     Supplied values and Tukey HSD have null unadjusted values and family sizes. Games-Howell and

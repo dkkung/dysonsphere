@@ -118,7 +118,7 @@ class TestSaveUsermeta:
             "group1",
             "group2",
             "pvalue",
-            "unadjusted_pvalue",
+            "unadjustedPvalue",
             "effect",
         }
 

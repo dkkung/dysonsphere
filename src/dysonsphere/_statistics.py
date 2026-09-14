@@ -759,11 +759,11 @@ def _make_record(
     ``usermeta.dysonsphere.statistics``.  ``comparisons`` is the internal list of
     dicts with keys ``g1``/``g2``/``pvalue`` and optionally ``unadjusted_pvalue`` and
     ``effectName``/``effect``. The exported ``pvalue`` is the reported value, adjusted when a
-    correction applies. ``unadjusted_pvalue`` is the calculated unadjusted value, or ``None``
-    for supplied values and intrinsically adjusted methods. ``pvalueOrigin`` distinguishes those
-    cases. ``nComparisons`` is the effective generic correction-family size; it is ``None`` when
-    no generic correction was applied. ``correctionInputPvalue`` is present only when a generic
-    correction is applied to an intrinsically adjusted result.
+    correction applies. The internal ``unadjusted_pvalue`` is exported as ``unadjustedPvalue``:
+    the calculated unadjusted value, or ``None`` for supplied values and intrinsically adjusted methods.
+    ``pvalueOrigin`` distinguishes those cases. ``nComparisons`` is the effective generic correction-family
+    size; it is ``None`` when no generic correction was applied. ``correctionInputPvalue`` is present only
+    when a generic correction is applied to an intrinsically adjusted result.
 
     ``data_checksum`` is the order-independent fingerprint of the source dataframe
     (``metadata.frame_checksum``), so records from distinct dataframes are distinguishable; it also
@@ -813,7 +813,7 @@ def _make_record(
                 "group1": c["g1"],
                 "group2": c["g2"],
                 "pvalue": _clamp_p(_validate_pvalue(c["pvalue"], "comparison p-value")),
-                "unadjusted_pvalue": (
+                "unadjustedPvalue": (
                     _clamp_p(_validate_pvalue(c["unadjusted_pvalue"], "unadjusted comparison p-value"))
                     if c.get("unadjusted_pvalue") is not None
                     else None

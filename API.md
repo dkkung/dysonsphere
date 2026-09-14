@@ -301,11 +301,11 @@ not part of the public contract.
   and notation. Structured numerical records retain calculation values rather than display-rounded
   values; report p-values do not inherit the plot's display floor.
 - Pairwise metadata keeps `pvalue` as the reported value (adjusted when applicable) and adds
-  `unadjusted_pvalue` for the calculated unadjusted value. The comparison section records `pvalueOrigin` as
+  `unadjustedPvalue` for the calculated unadjusted value. The comparison section records `pvalueOrigin` as
   `computed`, `supplied`, or `intrinsically-adjusted`, and `nComparisons` as the effective correction
-  family size. `unadjusted_pvalue` and `nComparisons` are null when not applicable: supplied values are final
+  family size. `unadjustedPvalue` and `nComparisons` are null when not applicable: supplied values are final
   and carry no invented calculation provenance. Tukey HSD, Games-Howell, and Nemenyi are intrinsically
-  adjusted and therefore have null `unadjusted_pvalue`. Tukey ignores generic correction and has a null family
+  adjusted and therefore have null `unadjustedPvalue`. Tukey ignores generic correction and has a null family
   size. Existing Games-Howell and Nemenyi behavior permits a further generic correction; in that case
   `correctionInputPvalue` records the already-adjusted input supplied to that correction and
   `nComparisons` records its effective family. The conditional field is absent otherwise. With no
@@ -341,6 +341,7 @@ not part of the public contract.
   `stats.clear_stats()` clears pending live calculations without detaching records restored with a
   loaded chart. Saving with metadata disabled removes the internal ownership identities as well.
 - Source renames do not automatically rename stored metadata keys or checksum formats.
+  New Dysonsphere-owned multiword metadata fields use camelCase, independent of private Python naming.
 
 ## Growth and Maintenance
 
