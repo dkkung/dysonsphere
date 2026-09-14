@@ -869,7 +869,7 @@ def add_multilabel(
         # Sample sizes only — no groups needed
         ds.add_multilabel(chart, categories=CATEGORIES, showSampleSize=True, data=data, x="group")
     """
-    xCol = x
+    x_col = x
     import copy
 
     if groups is None:
@@ -878,7 +878,7 @@ def add_multilabel(
         categories = []
 
     if showSampleSize:
-        if data is None or xCol is None:
+        if data is None or x_col is None:
             raise ValueError("showSampleSize=True requires both 'data' and 'x'.")
         # The injected row shares the groups dict, so a same-named row of the caller's would
         # be silently replaced - by the counts, or by their own values, depending on `order`.
@@ -888,7 +888,7 @@ def add_multilabel(
                 f"showSampleSize=True adds. Rename that row, or pass sampleSizeLabel= to use "
                 f"a different label for the sample size row."
             )
-        counts = _count_n(data, xCol, categories)
+        counts = _count_n(data, x_col, categories)
         # Pin each list to its row labels before the n-row joins groups, or the entries
         # shift by one. The basis is the display order, matching how _multilabel_layer
         # zips a list, and the length is checked here because that check sees a dict.

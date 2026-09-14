@@ -176,6 +176,8 @@
 
 ### Internal
 
+- Normalized private statistical result fields and Python column aliases to snake_case without changing public or
+  serialized names.
 - Standardized intermediate statistical metadata keys to match their camelCase exported fields without changing
   calculations or exported values.
 - Renamed the private `_placement.py` module to `_label_placement.py` to make its label-specific scope explicit.

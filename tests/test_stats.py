@@ -1052,24 +1052,24 @@ class TestPostHocReference:
 class TestOmnibusRunners:
     def test_anova(self):
         r = st._run_omnibus("anova", _GROUPS, MULTI)
-        assert r.statSymbol == "F" and r.df == (2, 12)
+        assert r.stat_symbol == "F" and r.df == (2, 12)
         assert r.stat == pytest.approx(12.666667, abs=1e-5)
         assert r.pvalue == pytest.approx(0.001103, abs=1e-5)
-        assert r.effectName == "η²" and r.effectSize == pytest.approx(0.678571, abs=1e-5)
+        assert r.effect_name == "η²" and r.effect_size == pytest.approx(0.678571, abs=1e-5)
 
     def test_kruskal(self):
         r = st._run_omnibus("kruskal", _GROUPS, MULTI)
-        assert r.statSymbol == "H" and r.df == (2,)
-        assert r.effectName == "ε²" and r.effectSize == pytest.approx(0.688649, abs=1e-5)
+        assert r.stat_symbol == "H" and r.df == (2,)
+        assert r.effect_name == "ε²" and r.effect_size == pytest.approx(0.688649, abs=1e-5)
 
     def test_friedman(self):
         r = st._run_omnibus("friedman", _GROUPS, MULTI)
-        assert r.statSymbol == "χ²" and r.effectName == "W"
-        assert 0 <= r.effectSize <= 1
+        assert r.stat_symbol == "χ²" and r.effect_name == "W"
+        assert 0 <= r.effect_size <= 1
 
     def test_alexandergovern(self):
         r = st._run_omnibus("alexandergovern", _GROUPS, MULTI)
-        assert r.statSymbol == "A" and r.effectName == "η²"
+        assert r.stat_symbol == "A" and r.effect_name == "η²"
 
     def test_unknown(self):
         with pytest.raises(ValueError, match="Unknown omnibus"):

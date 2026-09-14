@@ -320,12 +320,12 @@ def _quasirandom_offsets(
 
 def _grouped_offsets(
     df: pl.DataFrame,
-    yCol: str,
+    y_col: str,
     groupBy: list[str],
     outCol: str,
     offset_fn: "Callable[[np.ndarray, Any], np.ndarray]",
 ) -> pl.DataFrame:
-    """Apply a per-group offset function over ``yCol`` and attach the result as ``outCol``.
+    """Apply a per-group offset function over ``y_col`` and attach the result as ``outCol``.
 
     Shared ``with_row_index`` / ``group_by`` / ``map_groups`` / ``sort`` / ``drop`` operations for
     :func:`beeswarm` and :func:`quasirandom` (both compute one x-offset per row, per group).
@@ -338,7 +338,7 @@ def _grouped_offsets(
                 pl.Series(
                     outCol,
                     offset_fn(
-                        g[yCol].to_numpy(),
+                        g[y_col].to_numpy(),
                         g[groupBy[0]][0] if len(groupBy) == 1 else tuple(g[name][0] for name in groupBy),
                     ),
                 )
