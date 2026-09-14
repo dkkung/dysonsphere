@@ -1,0 +1,52 @@
+---
+title: "README.md"
+description: "Use the Dysonsphere guidance bundle with Claude Code, Codex, or OpenCode."
+---
+
+The bundle contains one skill, `dysonsphere`, and three focused references. Together they help coding
+agents create, refine, and troubleshoot scientific figures with Dysonsphere and Altair. The [skill
+overview](dysonsphere/) explains the workflow; use the reference pages when a task needs plotting,
+statistics, or export guidance.
+
+## Install
+
+The bundle is distributed in this repository under `skills/dysonsphere/`. From the analysis project's
+directory, install it with the [skills CLI](https://github.com/vercel-labs/skills):
+
+```sh
+npx skills add "/path/to/dysonsphere/skills/dysonsphere" --skill dysonsphere \
+  --agent claude-code codex opencode --copy
+```
+
+Use the path to a checkout containing `skills/dysonsphere/`. The `--agent` option can select Claude
+Code, Codex, and OpenCode; `--copy` copies the skill files into the selected locations.
+
+Manual installation copies the entire `skills/dysonsphere/` directory, including `references/`, to
+the selected agent's destination:
+
+| Agent | Project destination |
+| --- | --- |
+| Claude Code | `.claude/skills/dysonsphere/` |
+| Codex | `.agents/skills/dysonsphere/` |
+| OpenCode | `.opencode/skills/dysonsphere/` |
+
+## Invoke the skill
+
+After installation, restart the harness if it does not discover the skill. Invoke it as follows:
+
+| Harness | Invocation |
+| --- | --- |
+| Claude Code | `/dysonsphere` |
+| Codex | `$dysonsphere` |
+| OpenCode | Ask OpenCode to load `dysonsphere`. |
+
+Give the agent the data, analytical context, and figure task. For example:
+
+```text
+Use the dysonsphere skill to make a figure from data/results.csv. Preserve the observations and
+analytical meaning, ask about unclear statistical comparisons, render with ds.save(), and report
+the source, export paths, assumptions, and checks.
+```
+
+The bundle also includes [behavioral evaluation instructions](https://github.com/dkkung/dysonsphere/blob/main/skills/EVALUATION.md)
+for comparing runs with and without the skill.

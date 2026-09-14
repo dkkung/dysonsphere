@@ -1,0 +1,26 @@
+---
+title: "plotting.md"
+description: "Choose, style, annotate, and compose Dysonsphere and Altair charts."
+---
+
+import { Code } from '@astrojs/starlight/components';
+import source from '../../../../../../skills/dysonsphere/references/plotting.md?raw';
+
+Use this reference when choosing a chart representation, applying a theme or palette, adding labels,
+or assembling panels.
+
+It covers:
+
+- choosing native Altair marks for relationships, time courses, distributions, counts, matrices, and
+  tables;
+- validating the columns and observations used by a plot without silently changing the data;
+- theme dimensions, palette roles, category order, and color domains;
+- composite marks such as strips and violins, annotation layers, label selection, and scale limits;
+- matching quantitative scales across composed panels and rebuilding size-dependent panels when needed.
+
+Read it before changing a figure's representation or geometry. It also includes standalone examples
+for a minimal scatterplot and a two-panel figure with matched domains.
+
+## Markdown source
+
+<Code code={source} lang="markdown" title="plotting.md" />

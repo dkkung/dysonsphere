@@ -1,0 +1,26 @@
+---
+title: "statistics.md"
+description: "Plan and verify Dysonsphere comparison and correlation annotations."
+---
+
+import { Code } from '@astrojs/starlight/components';
+import source from '../../../../../../skills/dysonsphere/references/statistics.md?raw';
+
+Use this reference before adding or changing inferential results. It describes chart annotations, not
+a general numerical-analysis API.
+
+It covers:
+
+- establishing observational units, grouping, pairing, comparisons, and the multiple-testing family;
+- pairwise and omnibus `ds.stats.comparisons()` modes, supported test choices, category order, and
+  supplied p-values;
+- `ds.stats.correlation()` methods, fit lines, confidence or prediction bands, and grouped fits;
+- statistical records selected during saving, readable reports, and inspection through
+  `ds.metadata.read()`.
+
+Use the examples as syntax for an already justified analysis plan. The reference also explains how
+to compare the stored method, groups, counts, and correction with the intended analysis.
+
+## Markdown source
+
+<Code code={source} lang="markdown" title="statistics.md" />

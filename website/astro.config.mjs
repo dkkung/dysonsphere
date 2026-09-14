@@ -188,6 +188,26 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Agent skills',
+					items: [
+						{ label: 'README.md', slug: 'agent-skills' },
+						{
+							label: 'dysonsphere/',
+							items: [
+								{ label: 'SKILL.md', slug: 'agent-skills/dysonsphere' },
+								{
+									label: 'references/',
+									items: [
+										{ label: 'plotting.md', slug: 'agent-skills/references/plotting' },
+										{ label: 'statistics.md', slug: 'agent-skills/references/statistics' },
+										{ label: 'export.md', slug: 'agent-skills/references/export' },
+									],
+								},
+							],
+						},
+					],
+				},
+				{
 					label: 'Documentation',
 					items: [{ autogenerate: { directory: 'reference' } }],
 				},
