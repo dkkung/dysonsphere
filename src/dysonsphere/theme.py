@@ -12,8 +12,8 @@ from .palettes import _DEFAULT_QUALITATIVE_PALETTE, _PALETTE_ALIASES, colors
 # Public names re-exported by dysonsphere.
 __all__ = ["theme", "create_config"]
 
-# Restore the imported palette catalogue on each theme() call so config palettes do not
-# accumulate across theme resets.
+# Restore the imported palette catalogue on each theme() call
+# so config palettes do not accumulate across theme resets.
 _ORIGINAL_COLORS: dict[str, list[str]] = dict(colors)
 _DEFAULT_MARK_FILL_LIGHT = "#DBDBDB"
 _DEFAULT_MARK_FILL_DARK = "#9D9D9D"
@@ -28,7 +28,6 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
     },
 }
 
-# Keys are alphabetical (case-insensitive), with the exception of padding and palette configs.
 _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisOffset": False,
     "axisWidth": 0.25,
@@ -419,7 +418,7 @@ def theme(
     Runtime introspection displays ``<omitted>`` for omitted styling defaults; generated source
     signatures may show the private ``_UNSET`` marker. Neither is a value callers pass.
 
-    By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=6`` is a positive, fractional nominal
+    By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=6`` is a nominal
     publication point size; SVG markup exposes the same number as a renderer user-unit value, and raster
     export scales from 72 intrinsic units per inch. Axis, tick, legend, radius, and linear composite
     dimensions are pixels. ``legendGradientLength=None`` allocates half the panel height to a
@@ -478,16 +477,13 @@ def theme(
         p["markFill"] = _DEFAULT_MARK_FILL_DARK if p["darkmode"] else _DEFAULT_MARK_FILL_LIGHT
     _validate_options(p)
     _compute_derived(p)
-    _validate_options(p)  # derived multiplication can overflow even when each source value is finite
+    _validate_options(p)
 
-    # Resolve every palette-valued key: a name in `colors` (built-in or custom)
-    # becomes its hex list; anything else (a raw list, or a Vega scheme name) is
-    # passed through unchanged.
+    # Resolve every palette-valued key
     for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
         val = p[key]
         p[key] = custom_palettes.get(val, _ORIGINAL_COLORS.get(val, val)) if isinstance(val, str) else val
 
-    # Commit only after validation and derivation complete.
     colors.clear()
     colors.update(_ORIGINAL_COLORS)
     colors.update(custom_palettes)
@@ -510,15 +506,10 @@ def _compute_derived(p: dict[str, Any]) -> None:
         p["markStrokeWidth"] = p["axisWidth"]
     if p["cornerRadius"] is True:
         p["cornerRadius"] = min(p["width"], p["height"]) / 100
-    if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
+    if p["boxplotOutliers"] is True:  # if True: show at markSize/10. A number is an explicit size. If False: hidden
         p["boxplotOutliers"] = p["markSize"] / 10
-    if p["viewPadding"] is True:  # continuous-scale data inset, chart-scaled like markSize
+    if p["viewPadding"] is True:  # continuous-scale data inset scaled to chart dimensions
         p["viewPadding"] = min(p["width"], p["height"]) * 0.05
-    # Resolve chartFill when the config is built so it follows darkmode during save().
-    # Axes are flush by default; viewPadding supplies the gap between axes and data.
-    # True restores the Prism-style detached axis at 1.5x tick length - a marker rather than a
-    # literal 4.5 so it keeps tracking tickSize. Resolved once here so the axis config and
-    # save()'s grid-span fix read one consistent value.
     if p["axisOffset"] is None:
         raise ValueError("axisOffset=None is not supported; use False, True, or a numeric offset.")
     if p["axisOffset"] is True:
@@ -530,8 +521,6 @@ def _compute_derived(p: dict[str, Any]) -> None:
 
 
 _FALLBACK_OPTIONS: dict[str, Any] | None = None
-# the args of the last theme() call - a scoped override rebuilds from these, since the
-# resolved options would freeze markSize and friends instead of re-deriving them
 _ACTIVE_ARGS: dict[str, Any] = {}
 
 
@@ -556,8 +545,6 @@ def _temporary_theme(overrides: dict[str, Any]):
     previous_options = dict(alt.theme.options)
     previous_args = dict(_ACTIVE_ARGS)
     previous_colors = dict(colors)
-    # save() changes these resolved options directly. Carry that render mode into the
-    # rebuilt theme while size-dependent values are derived from the original arguments.
     render_mode = {key: previous_options.get(key, _opt(key)) for key in ("darkmode", "transparent")}
     rebuild_args: dict[str, Any] = {**previous_args, **render_mode, **overrides}
     mark_fill_auto = previous_options.get("_markFillAuto", True) and "markFill" not in overrides
@@ -577,16 +564,7 @@ def _temporary_theme(overrides: dict[str, Any]):
 
 
 def _opt(key: str) -> Any:
-    """Read a theme option, falling back to the (derived) built-in default.
-
-    The single accessor for theme options outside theme.py — replaces scattered
-    ``alt.theme.options.get(key, hardcoded)`` calls, whose per-site hardcoded fallbacks
-    could silently drift from ``_BUILTIN_DEFAULTS``. After ``ds.theme()`` every option is
-    present in ``alt.theme.options``, so the fallback only matters when a chart helper is
-    called before any ``theme()``; it then sees the fully derived built-in defaults
-    (``markSize`` 10.0, ``axisOffset`` 0, …), computed once and cached. Unknown keys
-    raise ``KeyError``.
-    """
+    """Read a theme option, falling back to the build-in and/or derived default."""
     if key == "markFill" and alt.theme.options.get("_markFillAuto", True):
         return _DEFAULT_MARK_FILL_DARK if alt.theme.options.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
     try:
@@ -607,7 +585,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
         opts["markFill"] = _DEFAULT_MARK_FILL_DARK if opts.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
 
     def _scheme(type_key: str, default: Any) -> Any:
-        # Precedence: global `palette` (master override) → per-type `<type>Palette` → default.
+        # Precedence: global `palette` (master override) -> per-type `<type>Palette` -> default.
         if opts.get("palette") is not None:
             return opts["palette"]
         if opts.get(type_key) is not None:
@@ -615,9 +593,6 @@ def _dysonsphere_theme() -> dict[str, Any]:
         return default
 
     # config.range.category must be an array so a nominal scale maps positionally
-    # (category i -> color i), which the tier-major `categorical` palette relies on. The
-    # {"scheme": [...]} form is invalid for nominal and silently drops the range. A Vega
-    # scheme *name* (a str, e.g. "tableau10") still needs the {"scheme": ...} wrapper.
     _cat = _scheme("categoryPalette", colors[_DEFAULT_QUALITATIVE_PALETTE])
     category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
@@ -666,11 +641,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
                 "tickColor": "white" if opts["darkmode"] else "black",
-                # Vega rounds tick/grid positions to integers for on-screen crispness, which
-                # drifts them off the (fractional) mark positions at high DPI. tickRound=False
-                # keeps ticks on the exact scale positions - the same family of fix as the
-                # hardcoded "translate": 0 below (Vega's 0.5px crisp-pixel offset).
-                "tickRound": False,
+                "tickRound": False,  # Vega rounds tick positions to integers, throwing off SVG post-alignment
                 "tickSize": opts["tickSize"],
                 "tickWidth": opts["axisWidth"],
                 "titleColor": "white" if opts["darkmode"] else "black",
@@ -711,11 +682,8 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ticks": opts["xAxis"] and opts["xTicks"] and opts["ticks"],
                 "translate": 0,
             },
-            # Band-scale axes place ticks 0.5px off the band centre by default (Vega's
-            # tickOffset, resolved via the scale-type-specific axisBand config, not
-            # config.axis). Zeroing it puts ticks exactly on band centres.
             "axisBand": {
-                "tickOffset": 0,
+                "tickOffset": 0,  # band-scale axes default to placing ticks 0.5 px off the band center
             },
             "bar": {
                 "fill": opts["markFill"],
@@ -730,9 +698,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ticks": {
                     "cornerRadius": opts["markStrokeWidth"],
                     "fill": "white" if opts["darkmode"] else "black",
-                    # opacity 1 so config.tick's opacity (markFillOpacity) can't leak in
-                    # through the composite lowering and double-dim with fillOpacity
-                    "opacity": 1,
+                    "opacity": 1,  # opacity 1 so config.tick's opacity (markFillOpacity) can't leak in
                     "size": opts["markSize"] * 0.45,  # half the box width (markSize * 0.9)
                     "thickness": opts["markStrokeWidth"],
                 },
@@ -744,15 +710,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
                     **({"cornerRadius": opts["cornerRadius"]} if opts["cornerRadius"] else {}),
                 },
                 "median": {
-                    # square ends, flush with the box edges (config.tick's round caps
-                    # would otherwise inherit through the composite lowering)
                     "cornerRadius": 0,
                     "fill": opts["markMedianFill"],
                     "fillOpacity": opts["markFillOpacity"],
-                    # opacity 1: see the ticks block (fillOpacity alone governs the fade)
                     "opacity": 1,
                     "size": opts["markSize"] * 0.9,  # spans the box
-                    # a single stroke of markStrokeWidth thickness (no competing outline stroke)
                     "thickness": opts["markStrokeWidth"],
                 },
                 "rule": {
@@ -780,10 +742,6 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 # Small default: mark_circle is primarily used to layer raw points over
                 # boxplots/violins/strips, where small dots read best.
                 "size": opts["markSize"] / 8,
-                # No outline: at this dot size a stroke swamps the fill. Explicit None
-                # (not omitted) so nothing is inherited from other mark configs. The
-                # opacity/width stay configured so a re-enabled stroke (per chart or a
-                # future config) renders with the house style.
                 "stroke": None,
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
@@ -841,14 +799,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "disable": not opts["legend"],
                 "offset": opts["legendOffset"],
                 # Legend text spacing mirrors the axis defaults: label gap 2, title gap 4.
-                # titlePadding = title->content (default 5); labelOffset = symbol->label (default
-                # 4); gradientLabelOffset = gradient-bar->label (labelOffset does not reach
-                # gradient labels). Applies to every legend (symbol + gradient).
                 "titlePadding": 4,
                 "labelOffset": 2,
                 "gradientLabelOffset": 2,
-                # Entry spacing. Vega's own defaults are lopsided - 10 across, 2 down - which
-                # reads loose on a horizontal legend next to this theme's 2/4px gaps.
                 "columnPadding": opts["legendColumnPadding"],
                 "rowPadding": opts["legendRowPadding"],
                 # save/show replace this non-executable marker with panel geometry. Bare Altair
@@ -907,10 +860,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "strokeWidth": opts["axisWidth"],
             },
             "scale": {
-                # Band padding is set per mark type, never via the global bandPaddingInner -
-                # that key overrides all three mark-specific defaults at once, which is what
-                # used to band heatmap cells with the bar spacing. Outer has no mark-specific
-                # counterpart in Vega-Lite, so one key covers every band scale.
+                # Band padding is set per mark type
                 "barBandPaddingInner": opts["barPadding"],
                 "rectBandPaddingInner": opts["rectPadding"],
                 "tickBandPaddingInner": opts["tickPadding"],
@@ -919,8 +869,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "bandWithNestedOffsetPaddingOuter": opts["groupPadding"],
                 "offsetBandPaddingInner": opts["subgroupPadding"],
                 "offsetBandPaddingOuter": opts["subgroupPadding"],
-                # The data inset that keeps marks off the axes. utils._suppress_nice drops `nice`
-                # wherever this is emitted, so the inset lands at exactly this many pixels.
+                # Data inset that keeps marks off the axes.
                 **({"continuousPadding": opts["viewPadding"]} if opts["viewPadding"] else {}),
                 "round": False,
             },
@@ -971,8 +920,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "trail": {
                 "color": "white" if opts["darkmode"] else "black",
                 "opacity": 1,
-                # default width when there is no size encoding - matches config.line's
-                # strokeWidth so an unsized trail renders exactly like a line
+                # Matches config.line's strokeWidth so an unsized trail renders exactly like a line
                 "size": opts["axisWidth"] * 2,
             },
             "view": {
