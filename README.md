@@ -4,13 +4,13 @@
 
 # dysonsphere
 
-`dysonsphere` is an [`altair`](https://altair-viz.github.io/) utility library for scientific figures in Python. It provides:
+`dysonsphere` is an [`altair`](https://altair-viz.github.io/) library for plotting scientific figures in Python. It provides:
 - A consistent default configuration enabled with `ds.theme()`.
 - Perceptually uniform palettes, including those from popular data visualization libraries.
-- Shareable styles through a `dysonsphere.toml` config file.
+- Global styles through a `dysonsphere.toml` config file.
 
-It also provides utilities for `altair` charts:
-- Layer annotations such as reference lines, shades, text, and data labels onto `altair` charts.
+`dysonsphere` also provides several utilities for `altair` charts:
+- Layer annotations such as reference lines, shades, text, and data labels onto charts.
 - Statistical inference with `scipy` through `ds.stats.comparisons()` and `ds.stats.correlation()`,
   layered onto `alt.Chart` and exported as metadata:
   - Omnibus tests with effect sizes.
@@ -18,12 +18,10 @@ It also provides utilities for `altair` charts:
   - Correlations with fit lines.
 - Multilabels for categorical labels, such as multi-condition axes and sample sizes.
 - Self-documenting exports for reproducible figures:
-  - `ds.save()` writes corrected SVG, PNG, interactive HTML, and/or Vega-Lite JSON, and embeds
-    provenance. Environment versions and SHA-256 checksums identify the Vega-Lite spec and data.
-  - `ds.metadata.read()` recovers the statistics report, metadata, and original data from a saved figure.
-  - `ds.load()` rebuilds the chart from its JSON.
+  - `ds.save()` writes SVG, PNG, interactive HTML, and/or Vega-Lite JSON, and embeds figure provenance, allowing the metadata to identify the Vega-Lite spec and original data.
+  - `ds.load()` rebuilds the chart from its JSON, allowing for further editing.
 
-Separate packages can add field-specific plotting toolkits (such as molecular biology or astronomy) that use the core theme, palettes, and export behavior.
+Separate authorable extensions can add field-specific plotting tools (such as for molecular biology or astronomy) that use the core theme, palettes, and export behavior.
 
 ## Installation
 
@@ -68,16 +66,9 @@ chart = (
     )
 )
 
-ds.save(chart, "myplot") # writes myplot.svg + myplot.json
+ds.save(chart, "my_plot") # writes my_plot.svg + my_plot.json
 ```
 
 ## Documentation
 
-Documentation, examples, palettes, and an interactive chart studio at **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**
-
-## Agent skill
-
-The core [Dysonsphere skill](skills/README.md) provides plotting, statistical-annotation, and export
-guidance for Claude Code, Codex, and OpenCode. It is installed separately from the Python library
-and targets Dysonsphere 4.0.0. See its installation instructions and compatibility notes before
-using it with a different release.
+Documentation, examples, palettes, agent skills, and an interactive chart studio can be found at **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**.
