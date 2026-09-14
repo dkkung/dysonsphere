@@ -8,7 +8,7 @@ import pytest
 import vl_convert as vlc
 
 import dysonsphere as ds
-from dysonsphere import _placement
+from dysonsphere import _label_placement
 from dysonsphere.utils import _apply_spec_fixes
 
 
@@ -52,15 +52,15 @@ def _segment_box(line: dict[str, Any], box: tuple[float, float, float, float]) -
     ("text", "width"), [("W", 5.556), ("iiii", 5.328), ("111", 10.008), ("oldsmobile cutlass ciera (diesel)", 85.116)]
 )
 def test_default_attachment_uses_reference_font_advances(text, width):
-    attachment = _placement._estimate_attachment_size(text, 6)
-    collision = _placement._estimate_text_size(text, 6)
+    attachment = _label_placement._estimate_attachment_size(text, 6)
+    collision = _label_placement._estimate_text_size(text, 6)
     assert attachment[0] == pytest.approx(width)
     assert collision[0] == pytest.approx(width + 2.1)
     assert collision[1] > attachment[1]
 
 
 def test_short_segment_is_omitted_instead_of_compressing_gaps():
-    assert _placement._shortened_segment((0, 0), (5, 0), (4, 4), 2, 0.5) is None
+    assert _label_placement._shortened_segment((0, 0), (5, 0), (4, 4), 2, 0.5) is None
 
 
 def test_disabled_connectors_do_not_reserve_extra_room():
@@ -93,14 +93,14 @@ def test_pixel_model_matches_native_linear_scales(monkeypatch, reverse, explicit
         )
     )
     captured = {}
-    original = _placement._repel_labels
+    original = _label_placement._repel_labels
 
     def capture(anchors, sizes, **options):
         positions = original(anchors, sizes, **options)
         captured.update(anchors=anchors, positions=positions)
         return positions
 
-    monkeypatch.setattr(_placement, "_repel_labels", capture)
+    monkeypatch.setattr(_label_placement, "_repel_labels", capture)
     chart = base + ds.labels(data, "x", "y", "label", **kwargs)
     before, after = _marks(base), _marks(chart)
     assert [(p["x"], p["y"]) for p in before["symbol"]] == [(p["x"], p["y"]) for p in after["symbol"]]
@@ -111,7 +111,7 @@ def test_pixel_model_matches_native_linear_scales(monkeypatch, reverse, explicit
 
 def test_route_never_enters_its_own_label():
     # A point blocking the nearest endpoint must not send the line to the hidden far side.
-    line = _placement._shortened_segment(
+    line = _label_placement._shortened_segment(
         (0.0, 0.0),
         (10.0, 0.0),
         (8.0, 8.0),

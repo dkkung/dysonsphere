@@ -258,11 +258,11 @@ class TestLabels:
         # to the chart pixel size so data units == px and distances survive the datum conversion.
         import math
 
-        from dysonsphere import _placement
+        from dysonsphere import _label_placement
 
         theme(width=100, height=100, viewPadding=False)
         monkeypatch.setattr(
-            _placement, "_repel_labels", lambda anchors, sizes, **kwargs: [(x + 20, y) for x, y in anchors]
+            _label_placement, "_repel_labels", lambda anchors, sizes, **kwargs: [(x + 20, y) for x, y in anchors]
         )
         df = pl.DataFrame({"x": [10.0, 40.0, 70.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
         gap = 1.0
@@ -278,7 +278,7 @@ class TestLabels:
         assert all(min(math.dist(st, a) for a in anchors) == pytest.approx(gap) for st in starts)
         # The text datum is the box center now; verify the exact text-end clearance against the
         # nearest rectangle boundary using the shared geometry helper.
-        from dysonsphere._placement import _estimate_attachment_size
+        from dysonsphere._label_placement import _estimate_attachment_size
 
         daylight = 2.0 * alt.theme.options["axisWidth"]
         pending, checked = {}, 0
@@ -296,12 +296,12 @@ class TestLabels:
         assert checked
 
     def test_default_marker_gap_uses_shared_automatic_formula(self, monkeypatch):
-        from dysonsphere import _placement
+        from dysonsphere import _label_placement
         from dysonsphere.annotations import _automatic_marker_gap
 
         theme(width=100, height=100, viewPadding=False)
         monkeypatch.setattr(
-            _placement, "_repel_labels", lambda anchors, sizes, **kwargs: [(x + 20, y) for x, y in anchors]
+            _label_placement, "_repel_labels", lambda anchors, sizes, **kwargs: [(x + 20, y) for x, y in anchors]
         )
         df = pl.DataFrame({"x": [10.0, 40.0, 70.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
         spec = labels(

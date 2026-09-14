@@ -1,10 +1,10 @@
-"""Tests for dysonsphere._placement - the pure pixel-space label placement engine."""
+"""Tests for dysonsphere._label_placement - the pure pixel-space label placement engine."""
 
 import math
 
 import pytest
 
-from dysonsphere._placement import (
+from dysonsphere._label_placement import (
     _CircleObstacle,
     _estimate_text_size,
     _repel_labels,

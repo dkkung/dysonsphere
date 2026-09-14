@@ -8,7 +8,7 @@ import re
 from copy import deepcopy
 from typing import Any
 
-from . import _placement
+from . import _label_placement
 
 _LABEL_GROUP_COL = "__dysonsphere_label_group"
 _LABEL_INTENT_PREFIX = "__dslabelintent_"
@@ -124,7 +124,7 @@ def _symbol_obstacle(item: dict[str, Any]):
     root = math.sqrt(size)
     shape = item.get("shape", "circle")
     if shape == "circle":
-        circle = _placement._CircleObstacle(center, root / 2 + stroke)
+        circle = _label_placement._CircleObstacle(center, root / 2 + stroke)
         return circle, circle
     if shape == "square":
         half = (root / 2 + stroke, root / 2 + stroke)
@@ -137,12 +137,12 @@ def _symbol_obstacle(item: dict[str, Any]):
         half = (root / 2 + 2 * stroke, root * math.sqrt(3) / 4 + 2 * stroke)
     else:
         return None
-    return _placement._BoxObstacle(center, half), _placement._CircleObstacle(center, math.hypot(*half))
+    return _label_placement._BoxObstacle(center, half), _label_placement._CircleObstacle(center, math.hypot(*half))
 
 
 def _panel_obstacles(marks: list[dict[str, Any]], width: float, height: float):
-    obstacles: list[_placement._GeometryObstacle] = []
-    circles: list[_placement._CircleObstacle] = []
+    obstacles: list[_label_placement._GeometryObstacle] = []
+    circles: list[_label_placement._CircleObstacle] = []
     for mark in marks:
         name = str(mark.get("name", ""))
         if "__dsshade_" in name:
@@ -170,7 +170,7 @@ def _panel_obstacles(marks: list[dict[str, Any]], width: float, height: float):
                         _clip_stroked_segment(start, end, width, height, radius) if mark.get("clip") else (start, end)
                     )
                     if clipped is not None:
-                        obstacles.append(_placement._SegmentObstacle(clipped[0], clipped[1], radius))
+                        obstacles.append(_label_placement._SegmentObstacle(clipped[0], clipped[1], radius))
         elif kind == "line":
             if {str(item.get("interpolate", "linear")) for item in items} != {"linear"}:
                 continue
@@ -183,7 +183,7 @@ def _panel_obstacles(marks: list[dict[str, Any]], width: float, height: float):
                         _clip_stroked_segment(start, end, width, height, radius) if mark.get("clip") else (start, end)
                     )
                     if clipped is not None:
-                        obstacles.append(_placement._SegmentObstacle(clipped[0], clipped[1], radius))
+                        obstacles.append(_label_placement._SegmentObstacle(clipped[0], clipped[1], radius))
         elif kind == "rect":
             for item in items:
                 fill_visible, stroke_visible = _visible(item, "fill"), _visible(item, "stroke")
@@ -197,7 +197,7 @@ def _panel_obstacles(marks: list[dict[str, Any]], width: float, height: float):
                         fx0, fx1, fy0, fy1 = max(0, fx0), min(width, fx1), max(0, fy0), min(height, fy1)
                     if fx1 >= fx0 and fy1 >= fy0:
                         obstacles.append(
-                            _placement._BoxObstacle(
+                            _label_placement._BoxObstacle(
                                 ((fx0 + fx1) / 2, (fy0 + fy1) / 2), ((fx1 - fx0) / 2, (fy1 - fy0) / 2)
                             )
                         )
@@ -210,13 +210,13 @@ def _panel_obstacles(marks: list[dict[str, Any]], width: float, height: float):
                             else (start, end)
                         )
                         if clipped is not None:
-                            obstacles.append(_placement._SegmentObstacle(clipped[0], clipped[1], stroke))
+                            obstacles.append(_label_placement._SegmentObstacle(clipped[0], clipped[1], stroke))
         elif kind == "text":
             for item in items:
                 text = str(item.get("text", ""))
                 if not text or not _visible(item, "fill"):
                     continue
-                size = _placement._estimate_text_size(
+                size = _label_placement._estimate_text_size(
                     text,
                     float(item.get("fontSize", 11)),
                     font_family=item.get("font"),
@@ -252,7 +252,7 @@ def _panel_obstacles(marks: list[dict[str, Any]], width: float, height: float):
                     or center[1] + extent[1] < 0
                     or center[1] - extent[1] > height
                 ):
-                    obstacles.append(_placement._BoxObstacle(center, (size[0] / 2, size[1] / 2), angle))
+                    obstacles.append(_label_placement._BoxObstacle(center, (size[0] / 2, size[1] / 2), angle))
     return obstacles, circles
 
 
@@ -378,7 +378,7 @@ def _generated_layers(entries: list[dict[str, Any]], positions, circles, marker_
         data = _internal_data([{_LABEL_GROUP_COL: token, "__dslabel_row": row}]).to_dict()
         attachment = entry["attachment"]
         if config["connector"]:
-            segment = _placement._shortened_segment(
+            segment = _label_placement._shortened_segment(
                 entry["anchor"],
                 center,
                 attachment,
@@ -494,7 +494,7 @@ def _resolve_labels(spec: dict[str, Any]) -> dict[str, Any]:
             for item, row in zip(mark.get("items", []), rows, strict=True):
                 config = json.loads(row["__dslabel_config"])
                 text = str(row["__dslabel_text"])
-                size = _placement._estimate_text_size(
+                size = _label_placement._estimate_text_size(
                     text,
                     config["fontSize"],
                     chip=config["fill"] is not None,
@@ -502,7 +502,7 @@ def _resolve_labels(spec: dict[str, Any]) -> dict[str, Any]:
                     font_weight=config["fontWeight"],
                     font_style=config["fontStyle"],
                 )
-                attachment = _placement._estimate_attachment_size(
+                attachment = _label_placement._estimate_attachment_size(
                     text,
                     config["fontSize"],
                     chip=config["fill"] is not None,
@@ -530,7 +530,7 @@ def _resolve_labels(spec: dict[str, Any]) -> dict[str, Any]:
                 own = [circle.radius for circle in circles if math.dist(circle.center, entry["anchor"]) < 1e-7]
                 configured = max(configured, max(own, default=0) + entry["config"]["textGap"])
             marker_gaps.append(configured)
-        positions = _placement._repel_labels(
+        positions = _label_placement._repel_labels(
             [entry["anchor"] for entry in entries],
             [entry["size"] for entry in entries],
             width=float(frame["width"]),

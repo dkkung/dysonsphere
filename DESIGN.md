@@ -150,13 +150,13 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   Side attachments prefer the middle of the text edge, with limited obstacle-driven sliding;
   top/bottom attachments stay inset. Facing corners remain eligible for genuinely diagonal routes,
   not nearly edge-parallel approaches that resemble detached underlines.
-  References: `annotations.py::labels`; `_label_resolution.py`; `_placement.py::_shortened_segment`.
+  References: `annotations.py::labels`; `_label_resolution.py`; `_label_placement.py::_shortened_segment`.
 
 - **Forced label connectors preserve clearance.** `alwaysShowConnectors=True` moves among bounded
   seats to reserve the full marker gap, text gap, and visible stroke; it never shrinks those gaps.
   A connector whose requested gap cannot fit is omitted rather than drawn through a mark. Connectors attach to a
   tighter portable text estimate (or the actual chip), while padded boxes remain collision safety.
-  References: `_placement.py::_estimate_attachment_size`, `_shortened_segment`.
+  References: `_label_placement.py::_estimate_attachment_size`, `_shortened_segment`.
 
 - **Extensions have their own distributions.** Keep optional dependencies and release schedules
   outside core. Extras would couple releases; namespace-package restructuring would disrupt the

@@ -12,7 +12,7 @@ Composable chart annotations - reference lines, text, shading, and auto-placed p
 Every constructor returns an Altair chart/layer to compose onto a base chart with ``+``:
 ``rule`` (reference lines), ``text`` (positioned text), ``shade`` (background
 shading), and ``labels`` (auto-placed point labels with connectors; the pixel placement
-engine lives in ``_placement.py``). Statistical annotations (``comparisons``,
+engine lives in ``_label_placement.py``). Statistical annotations (``comparisons``,
 ``correlation``) live in ``stats.py``.
 
 ## `rule`

@@ -3,7 +3,7 @@
 Every constructor returns an Altair chart/layer to compose onto a base chart with ``+``:
 ``rule`` (reference lines), ``text`` (positioned text), ``shade`` (background
 shading), and ``labels`` (auto-placed point labels with connectors; the pixel placement
-engine lives in ``_placement.py``). Statistical annotations (``comparisons``,
+engine lives in ``_label_placement.py``). Statistical annotations (``comparisons``,
 ``correlation``) live in ``stats.py``.
 """
 
@@ -1167,7 +1167,7 @@ def labels(
     if connectorCap not in (None, "arrow"):
         raise ValueError(f"connectorCap must be 'arrow' or None, got {connectorCap!r}")
     df, xCol, yCol = data, x, y
-    from ._placement import (
+    from ._label_placement import (
         _estimate_attachment_size,
         _estimate_text_size,
         _repel_labels,
