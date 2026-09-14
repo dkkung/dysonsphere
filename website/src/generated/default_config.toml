@@ -13,6 +13,11 @@
 
 # Built-in styles - edit values or remove sections you don't need.
 
+[small]
+width = 70
+height = 70
+fontSize = 5
+
 [notebook]
 width = 900
 height = 900

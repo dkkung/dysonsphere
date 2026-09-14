@@ -4,6 +4,7 @@
 
 ### New features
 
+- Added a built-in `small` theme style with a 70 x 70 pixel canvas and `fontSize=5`.
 - Added a static ten-color accent-derived default `cat1`, reusing `greys` alongside independent,
   perceptually uniform `cat1_blues`, `cat1_greens`, `cat1_purples`, and `cat1_teals` ramps.
 - Added the purple-to-teal default `div1` and a pink-to-blue `div3` companion for `cat3`.

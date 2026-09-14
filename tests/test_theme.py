@@ -631,8 +631,8 @@ class TestThemeRegistration:
 
     def test_style_remains_positional(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        theme("notebook")
-        assert alt.theme.options["width"] == 900
+        theme("small")
+        assert alt.theme.options["width"] == 70
 
 
 class TestThemeValidation:
@@ -809,9 +809,17 @@ class TestStyleLoading:
 
     def test_builtin_style_no_config_file(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
+        theme("small")
+        assert alt.theme.options["width"] == 70
+        assert alt.theme.options["height"] == 70
+        assert alt.theme.options["fontSize"] == 5
+        assert alt.theme.options["markSize"] == 7
+        assert alt.theme.options["viewPadding"] == pytest.approx(3.5)
+
+    def test_notebook_builtin_is_unchanged(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
         overrides = _load_style_overrides("notebook")
-        assert overrides["fontSize"] == 18
-        assert overrides["width"] == 900
+        assert overrides == {"width": 900, "height": 900, "darkmode": True, "fontSize": 18, "transparent": True}
 
     def test_config_overrides_builtin_style(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -819,6 +827,14 @@ class TestStyleLoading:
         overrides = _load_style_overrides("notebook")
         assert overrides["fontSize"] == 9
         assert overrides["width"] == 900  # from built-in preset
+
+    def test_small_preserves_style_and_explicit_precedence(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text("[default]\nfontSize = 9\n[small]\nheight = 80\n", encoding="utf-8")
+        theme("small", width=75)
+        assert alt.theme.options["width"] == 75
+        assert alt.theme.options["height"] == 80
+        assert alt.theme.options["fontSize"] == 5
 
 
 class TestCreateConfig:
@@ -830,9 +846,24 @@ class TestCreateConfig:
         create_config(tmp_path)
         content = (tmp_path / "dysonsphere.toml").read_text()
         assert "[nih]" not in content
+        assert "[small]" in content
         assert "[notebook]" in content
+        assert content.index("[default]") < content.index("[small]") < content.index("[notebook]")
         assert "[presentation]" not in content  # removed as a built-in preset in v3.0
         assert "[my_style]" in content
+
+    def test_small_values_roundtrip(self, tmp_path, monkeypatch):
+        import tomllib
+
+        create_config(tmp_path)
+        path = tmp_path / "dysonsphere.toml"
+        with open(path, "rb") as file:
+            config = tomllib.load(file)
+        assert config["small"] == {"width": 70, "height": 70, "fontSize": 5}
+
+        monkeypatch.chdir(tmp_path)
+        theme("small")
+        assert {key: alt.theme.options[key] for key in config["small"]} == config["small"]
 
     def test_does_not_overwrite(self, tmp_path):
         existing = tmp_path / "dysonsphere.toml"

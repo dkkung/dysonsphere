@@ -19,6 +19,11 @@ _DEFAULT_MARK_FILL_LIGHT = "#DBDBDB"
 _DEFAULT_MARK_FILL_DARK = "#9D9D9D"
 
 _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
+    "small": {
+        "width": 70,
+        "height": 70,
+        "fontSize": 5,
+    },
     "notebook": {
         "width": 900,
         "height": 900,

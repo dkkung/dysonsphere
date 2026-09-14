@@ -27,6 +27,9 @@ not part of the public contract.
   `chartHeight` names are not aliases and are invalid as keywords or configuration keys.
   Boxplot outliers remain hidden by default through the theme's fixed boxplot configuration; they are
   not a theme option. Use Altair's per-chart `mark_boxplot(outliers={...})` override to show or style them.
+  Built-in styles are `small` (70 x 70 pixels with `fontSize=5`) and `notebook` (900 x 900 pixels,
+  dark and transparent with `fontSize=18`). Named-style configuration and explicit arguments retain
+  their existing precedence over built-in style values.
 - Keep `ds.palette()` as the common selector; categorical construction, the color registry, and
   swatch export belong under `ds.palettes`. Palette selection returns colors without changing
   the active theme.
