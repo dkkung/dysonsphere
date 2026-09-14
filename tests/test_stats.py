@@ -827,6 +827,90 @@ class TestCorrectionMetadata:
         rec = next(iter(_st._REPORTS.values()))
         assert rec["comparisons"]["correction"] == "holm"
 
+    @pytest.mark.parametrize("correction", ["bonferroni", "holm", "fdr_bh", "fdr_by"])
+    @pytest.mark.parametrize("family_size", [None, 7])
+    def test_raw_final_and_effective_family_are_recorded(self, tri_df, correction, family_size):
+        from scipy.stats import mannwhitneyu
+
+        from dysonsphere import _statistics as _st
+
+        _st._REPORTS.clear()
+        pairs = [("A", "B"), ("A", "C")]
+        comparisons(tri_df, "g", "v", pairs, categories=MULTI, correction=correction, nComparisons=family_size)
+        section = next(iter(_st._REPORTS.values()))["comparisons"]
+        assert section["pvalueOrigin"] == "computed"
+        assert section["nComparisons"] == (family_size or len(pairs))
+        groups = {group: tri_df.filter(pl.col("g") == group)["v"].to_numpy() for group in MULTI}
+        expected_raw = [float(mannwhitneyu(groups[a], groups[b], alternative="two-sided").pvalue) for a, b in pairs]
+        assert [pair["unadjustedPvalue"] for pair in section["pairs"]] == pytest.approx(expected_raw)
+        assert [pair["pvalue"] for pair in section["pairs"]] == pytest.approx(
+            _st._adjust(expected_raw, correction, family_size or len(pairs))
+        )
+        assert f"{correction}, m={family_size or len(pairs)}" in _st._render_report(next(iter(_st._REPORTS.values())))
+
+    def test_no_correction_records_raw_but_no_family(self, tri_df):
+        from dysonsphere import _statistics as _st
+
+        _st._REPORTS.clear()
+        comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI)
+        section = next(iter(_st._REPORTS.values()))["comparisons"]
+        assert section["nComparisons"] is None
+        assert section["pairs"][0]["unadjustedPvalue"] == section["pairs"][0]["pvalue"]
+
+    def test_grouped_family_spans_categories(self):
+        from dysonsphere import _statistics as _st
+
+        df = pl.DataFrame(
+            {
+                "category": [c for c in ("one", "two") for _ in range(8)],
+                "level": [level for _ in ("one", "two") for level in ("A", "A", "A", "A", "B", "B", "B", "B")],
+                "value": list(range(16)),
+            }
+        )
+        _st._REPORTS.clear()
+        comparisons(df, "category", "value", xOffset="level", correction="bonferroni", nComparisons=5)
+        section = next(iter(_st._REPORTS.values()))["comparisons"]
+        assert section["nComparisons"] == 5 and len(section["pairs"]) == 2
+        assert all(pair["pvalue"] == min(pair["unadjustedPvalue"] * 5, 1.0) for pair in section["pairs"])
+
+        _st._REPORTS.clear()
+        comparisons(df, "category", "value", xOffset="level", correction="bonferroni")
+        default = next(iter(_st._REPORTS.values()))["comparisons"]
+        assert default["nComparisons"] == len(default["pairs"]) == 2
+
+        _st._REPORTS.clear()
+        supplied = {("one", ("A", "B")): 0.1, ("two", ("A", "B")): 0.2}
+        comparisons(df, "category", "value", xOffset="level", pvalues=supplied, correction="holm", nComparisons=9)
+        supplied_section = next(iter(_st._REPORTS.values()))["comparisons"]
+        assert supplied_section["pvalueOrigin"] == "supplied"
+        assert supplied_section["correction"] is supplied_section["nComparisons"] is None
+        assert all(pair["unadjustedPvalue"] is None for pair in supplied_section["pairs"])
+
+    def test_final_caps_at_one_without_capping_raw(self, tri_df):
+        from dysonsphere import _statistics as _st
+
+        _st._REPORTS.clear()
+        comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI, correction="bonferroni", nComparisons=1000)
+        pair = next(iter(_st._REPORTS.values()))["comparisons"]["pairs"][0]
+        assert 0 < pair["unadjustedPvalue"] < 1 and pair["pvalue"] == 1.0
+
+    def test_omnibus_subset_drawn_records_whole_posthoc_family(self, tri_df):
+        from dysonsphere import _statistics as _st
+
+        _st._REPORTS.clear()
+        comparisons(
+            tri_df,
+            "g",
+            "v",
+            [("A", "B")],
+            categories=MULTI,
+            test="kruskal",
+            postHoc="dunn",
+            correction="holm",
+        )
+        section = next(iter(_st._REPORTS.values()))["comparisons"]
+        assert section["nComparisons"] == 3 and len(section["pairs"]) == 3
+
     def test_tukey_correction_stored_none(self, tri_df):
         from dysonsphere import _statistics as _st
 
@@ -834,6 +918,91 @@ class TestCorrectionMetadata:
         comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI, test="anova", correction="bonferroni")
         rec = next(iter(_st._REPORTS.values()))
         assert rec["comparisons"]["correction"] is None  # tukey carries its own correction
+        assert rec["comparisons"]["pvalueOrigin"] == "intrinsically-adjusted"
+        assert rec["comparisons"]["nComparisons"] is None
+        assert all(pair["unadjustedPvalue"] is None for pair in rec["comparisons"]["pairs"])
+
+    @pytest.mark.parametrize(("test", "post_hoc"), [("alexandergovern", "games_howell"), ("friedman", "nemenyi")])
+    @pytest.mark.parametrize("correction", [None, "bonferroni"])
+    def test_intrinsic_posthoc_provenance(self, tri_df, test, post_hoc, correction):
+        from dysonsphere import _statistics as _st
+
+        _st._REPORTS.clear()
+        comparisons(
+            tri_df,
+            "g",
+            "v",
+            [("C", "A")],
+            categories=MULTI,
+            test=test,
+            postHoc=post_hoc,
+            correction=correction,
+            nComparisons=5 if correction else None,
+        )
+        section = next(iter(_st._REPORTS.values()))["comparisons"]
+        assert section["pvalueOrigin"] == "intrinsically-adjusted"
+        assert section["nComparisons"] == (5 if correction else None)
+        assert all(pair["unadjustedPvalue"] is None for pair in section["pairs"])
+        builder = _st._games_howell_matrix if post_hoc == "games_howell" else _st._nemenyi_matrix
+        matrix = builder([tri_df.filter(pl.col("g") == group)["v"].to_numpy() for group in MULTI])
+        base = [float(matrix[i, j]) for i in range(3) for j in range(i + 1, 3)]
+        if correction:
+            inputs = [pair["correctionInputPvalue"] for pair in section["pairs"]]
+            assert inputs == pytest.approx(base)
+            assert [pair["pvalue"] for pair in section["pairs"]] == pytest.approx(_st._adjust(inputs, correction, 5))
+        else:
+            assert all("correctionInputPvalue" not in pair for pair in section["pairs"])
+            assert [pair["pvalue"] for pair in section["pairs"]] == pytest.approx(base)
+
+    def test_matrix_values_align_with_reversed_requested_pairs(self):
+        from dysonsphere.stats import _bracket_pvalues
+
+        pairs = [("C", "A"), ("B", "A")]
+        final, raw, correction_inputs = _bracket_pvalues("dunn", _GROUPS, MULTI, pairs, None, None)
+        matrix = st._dunn_matrix(_GROUPS)
+        expected = [float(matrix[2, 0]), float(matrix[1, 0])]
+        assert final == pytest.approx(expected)
+        assert raw == pytest.approx(expected)
+        assert correction_inputs is None
+
+    def test_supplied_values_have_no_invented_provenance(self, tri_df):
+        from dysonsphere import _statistics as _st
+
+        _st._REPORTS.clear()
+        comparisons(
+            tri_df,
+            "g",
+            "v",
+            [("A", "B")],
+            categories=MULTI,
+            pvalues=[0.0],
+            correction="holm",
+            nComparisons=9,
+        )
+        section = next(iter(_st._REPORTS.values()))["comparisons"]
+        assert section["pvalueOrigin"] == "supplied"
+        assert section["test"] is section["correction"] is section["nComparisons"] is None
+        assert section["pairs"][0]["unadjustedPvalue"] is None
+
+        _st._REPORTS.clear()
+        comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI, test="anova", pvalues=[0.2])
+        record = next(iter(_st._REPORTS.values()))
+        assert record["comparisons"]["pvalueOrigin"] == "supplied"
+        assert "Post-hoc (supplied p-values):" in _st._render_report(record)
+
+    def test_matrix_posthoc_is_not_recomputed_for_raw_values(self, monkeypatch):
+        calls = 0
+        original = st._dunn_matrix
+
+        def counted(groups):
+            nonlocal calls
+            calls += 1
+            return original(groups)
+
+        monkeypatch.setattr(st, "_dunn_matrix", counted)
+        inputs: list[float] = []
+        st._post_hoc_matrix("dunn", _GROUPS, "holm", correction_input_values=inputs)
+        assert calls == 1 and len(inputs) == 3
 
     def test_fdr_correction_recorded(self, tri_df):
         from dysonsphere import _statistics as _st
@@ -1079,12 +1248,15 @@ class TestReportPValues:
             is_omnibus=False,
             omnibus=None,
             descriptives=st._describe_all(_GROUPS, MULTI),
-            comparisons=[{"g1": "A", "g2": "B", "pvalue": 0.0, "effectName": "r", "effect": 0.5}],
+            comparisons=[
+                {"g1": "A", "g2": "B", "pvalue": 0.0, "unadjustedPvalue": 0.0, "effectName": "r", "effect": 0.5}
+            ],
             comparison_test="mannwhitneyu",
             correction=None,
             pvalues_provided=False,
         )
         assert rec["comparisons"]["pairs"][0]["pvalue"] == sys.float_info.min  # never 0.0
+        assert rec["comparisons"]["pairs"][0]["unadjustedPvalue"] == sys.float_info.min
 
     def test_full_pipeline_zero_pvalue(self):
         import sys

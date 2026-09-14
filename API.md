@@ -300,6 +300,16 @@ not part of the public contract.
 - Statistical prose reports use a fixed three significant figures, independent of plot `sigFigs`
   and notation. Structured numerical records retain calculation values rather than display-rounded
   values; report p-values do not inherit the plot's display floor.
+- Pairwise metadata keeps `pvalue` as the reported value (adjusted when applicable) and adds
+  `unadjustedPvalue` for the calculated unadjusted value. The comparison section records `pvalueOrigin` as
+  `computed`, `supplied`, or `intrinsically-adjusted`, and `nComparisons` as the effective correction
+  family size. `unadjustedPvalue` and `nComparisons` are null when not applicable: supplied values are final
+  and carry no invented calculation provenance. Tukey HSD, Games-Howell, and Nemenyi are intrinsically
+  adjusted and therefore have null `unadjustedPvalue`. Tukey ignores generic correction and has a null family
+  size. Existing Games-Howell and Nemenyi behavior permits a further generic correction; in that case
+  `correctionInputPvalue` records the already-adjusted input supplied to that correction and
+  `nComparisons` records its effective family. The conditional field is absent otherwise. With no
+  correction, ordinary computed unadjusted and reported values are equal.
 - `description` is the user's text only, without appended reports or provenance. Report sections
   are separate from the description and appear once per export format when embedded.
 - `SOURCE_DATE_EPOCH` pins export time to integer UTC seconds and makes `exportIdentifier`
@@ -331,6 +341,8 @@ not part of the public contract.
   `stats.clear_stats()` clears pending live calculations without detaching records restored with a
   loaded chart. Saving with metadata disabled removes the internal ownership identities as well.
 - Source renames do not automatically rename stored metadata keys or checksum formats.
+  New Dysonsphere-owned multiword metadata fields use camelCase, independent of private Python naming.
+  Keep those field spellings in intermediate record dictionaries; private helper parameters and locals use snake_case.
 
 ## Growth and Maintenance
 

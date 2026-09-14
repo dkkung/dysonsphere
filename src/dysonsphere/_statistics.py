@@ -69,6 +69,8 @@ _TEST_DISPLAY = {
     "games_howell": "Games-Howell",
 }
 
+_INTRINSICALLY_ADJUSTED = {"tukey_hsd", "games_howell", "nemenyi"}
+
 
 # Shared numerical validation
 def _validate_pvalue(value: Any, context: str = "p-value") -> float:
@@ -645,10 +647,14 @@ def _post_hoc_matrix(
     n_comparisons: int | None = None,
     *,
     labels: list[str] | None = None,
+    correction_input_values: list[float] | None = None,
 ) -> np.ndarray:
     """Return a k×k matrix of post-hoc p-values, corrected over all unique pairs.
 
     ``tukey_hsd`` ignores ``correction`` (its correction is built in).
+    When provided, ``correction_input_values`` is mutated by appending upper-triangle values in
+    category-pair order before generic correction. These inputs are not necessarily raw p-values:
+    Games-Howell and Nemenyi are intrinsically adjusted. Tukey HSD leaves this list untouched.
     """
     builders = {
         "tukey_hsd": _tukey_matrix,
@@ -674,10 +680,16 @@ def _post_hoc_matrix(
                 pair = f" for {labels[i]!r} vs {labels[j]!r}"
             _validate_pvalue(mat[i, j], f"{name} computed p-value{pair}")
     if name == "tukey_hsd" or correction is None:
+        if correction_input_values is not None and name != "tukey_hsd":
+            correction_input_values.extend(
+                float(mat[i, j]) for i in range(mat.shape[0]) for j in range(i + 1, mat.shape[1])
+            )
         return mat
 
     k = mat.shape[0]
     pairs = [(i, j) for i in range(k) for j in range(i + 1, k)]
+    if correction_input_values is not None:
+        correction_input_values.extend(float(mat[i, j]) for i, j in pairs)
     family_size = (
         len(pairs) if n_comparisons is None else _validate_family_size(n_comparisons, len(pairs), correction=correction)
     )
@@ -736,6 +748,8 @@ def _make_record(
     comparison_test: str | None,
     correction: str | None,
     pvalues_provided: bool,
+    n_comparisons: int | None = None,
+    intrinsically_adjusted: bool = False,
     data_checksum: str | None = None,
 ) -> dict[str, Any]:
     """Build the structured report record.
@@ -743,7 +757,13 @@ def _make_record(
     This dict supplies the report data: ``_render_report`` turns it into the
     plain-text report, and ``export.save`` embeds it verbatim under
     ``usermeta.dysonsphere.statistics``.  ``comparisons`` is the internal list of
-    dicts with keys ``g1``/``g2``/``pvalue`` and optionally ``effectName``/``effect``.
+    dicts with keys ``g1``/``g2``/``pvalue`` and optionally ``unadjustedPvalue`` and
+    ``effectName``/``effect``. The exported ``pvalue`` is the reported value, adjusted when a
+    correction applies. ``unadjustedPvalue`` keeps the same key in intermediate and exported records:
+    the calculated unadjusted value, or ``None`` for supplied values and intrinsically adjusted methods.
+    ``pvalueOrigin`` distinguishes those cases. ``nComparisons`` is the effective generic correction-family
+    size; it is ``None`` when no generic correction was applied. ``correctionInputPvalue`` is present only
+    when a generic correction is applied to an intrinsically adjusted result.
 
     ``data_checksum`` is the order-independent fingerprint of the source dataframe
     (``metadata.frame_checksum``), so records from distinct dataframes are distinguishable; it also
@@ -784,11 +804,29 @@ def _make_record(
     record["comparisons"] = {
         "test": comparison_test,
         "correction": correction,
+        "pvalueOrigin": (
+            "supplied" if pvalues_provided else ("intrinsically-adjusted" if intrinsically_adjusted else "computed")
+        ),
+        "nComparisons": n_comparisons,
         "pairs": [
             {
                 "group1": c["g1"],
                 "group2": c["g2"],
                 "pvalue": _clamp_p(_validate_pvalue(c["pvalue"], "comparison p-value")),
+                "unadjustedPvalue": (
+                    _clamp_p(_validate_pvalue(c["unadjustedPvalue"], "unadjusted comparison p-value"))
+                    if c.get("unadjustedPvalue") is not None
+                    else None
+                ),
+                **(
+                    {
+                        "correctionInputPvalue": _clamp_p(
+                            _validate_pvalue(c["correctionInputPvalue"], "correction input p-value")
+                        )
+                    }
+                    if c.get("correctionInputPvalue") is not None
+                    else {}
+                ),
                 "effect": _effect(c.get("effectName"), c.get("effect")),
             }
             for c in comparisons
@@ -875,8 +913,11 @@ def _render_report(record: dict[str, Any]) -> str:
     if pairs:
         name = record["comparisons"]["test"]
         corr = record["comparisons"].get("correction")
+        family_size = record["comparisons"].get("nComparisons")
         label = "Post-hoc" if record["kind"] == "omnibus" else "Comparisons"
-        suffix = ", ".join(x for x in (name, corr) if x)
+        correction_label = f"{corr}, m={family_size}" if corr and family_size is not None else corr
+        origin_label = "supplied p-values" if record["comparisons"].get("pvalueOrigin") == "supplied" else None
+        suffix = ", ".join(x for x in (name, correction_label, origin_label) if x)
         lines.append("")
         lines.append(f"{label}{f' ({suffix})' if suffix else ''}:")
         pair_width = max(len(f"{p['group1']} vs {p['group2']}") for p in pairs)

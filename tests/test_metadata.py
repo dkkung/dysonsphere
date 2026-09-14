@@ -99,6 +99,35 @@ class TestSaveUsermeta:
         assert isinstance(rec["omnibus"]["pvalue"], float)  # real number, not text
         assert len(rec["comparisons"]["pairs"]) == 3
 
+    def test_correction_provenance_survives_formats_load_and_reexport(self, tmp_path):
+        import dysonsphere as ds
+
+        df = pl.DataFrame({"g": ["A"] * 5 + ["B"] * 5, "v": [1, 2, 3, 4, 5, 4, 5, 6, 7, 8]})
+        chart = alt.Chart(df).mark_point().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
+            df, "g", "v", [("A", "B")], correction="bonferroni", nComparisons=4
+        )
+        ds.save(chart, tmp_path / "provenance", background="light")
+        records = [
+            ds.metadata.read(tmp_path / f"provenance.{suffix}", what="statistics")[0]
+            for suffix in ("json", "svg", "png")
+        ]
+        assert records[1]["comparisons"] == records[0]["comparisons"]
+        assert records[2]["comparisons"] == records[0]["comparisons"]
+        assert records[0]["comparisons"]["nComparisons"] == 4
+        assert set(records[0]["comparisons"]["pairs"][0]) == {
+            "group1",
+            "group2",
+            "pvalue",
+            "unadjustedPvalue",
+            "effect",
+        }
+
+        loaded = ds.load(tmp_path / "provenance.json")
+        assert not isinstance(loaded, dict)
+        ds.save(loaded, tmp_path / "reexport", format="json", background="light")
+        reexported = self._usermeta(tmp_path, "reexport")["dysonsphere"]["statistics"][0]
+        assert reexported["comparisons"] == records[0]["comparisons"]
+
     def test_correlation_record_embedded(self, tmp_path):
         import numpy as np
 

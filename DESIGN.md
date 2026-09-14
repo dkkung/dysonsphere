@@ -205,6 +205,15 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   References: `_statistics.py::_REPORT_SIGFIGS`, `_fmt_p`;
   `test_stats.py::TestSigFigs.test_report_independent_of_theme_sigfigs`, `TestReportPValues`.
 
+- **Correction provenance describes the calculation actually run.** Pair records preserve both unadjusted
+  calculated and reported p-values, and correction records store the effective family size passed to
+  the generic adjustment. Supplied final values and intrinsically adjusted tests keep inapplicable
+  fields null rather than inventing an unadjusted result. Tukey HSD ignores generic correction; Games-Howell
+  and Nemenyi retain their existing optional further correction and record its already-adjusted input
+  separately. Unadjusted, correction-input, and reported values use calculation precision and the shared
+  zero-underflow clamp, never the plot display floor.
+  References: `_statistics.py::_make_record`; `test_stats.py::TestCorrectionMetadata`.
+
 - **Reproducibility includes identifiers.** Pinning only time still leaves random identifier
   churn. Include spec identity, not just timestamp and data, to distinguish two plots of the same
   frame. Derive from the first variant and reuse across variants; separate identical saves may
