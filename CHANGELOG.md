@@ -24,6 +24,9 @@
 
 ### Changes
 
+- Statistical comparison metadata now preserves `unadjusted_pvalue` alongside the reported `pvalue`,
+  their computed, supplied, or intrinsically adjusted origin, and the effective generic correction-family size.
+  Further generic correction of intrinsically adjusted Games-Howell or Nemenyi results records its actual input.
 - Simplified documentation, docstrings, and inline comments; replaced unnecessary engineering jargon.
 - **Breaking:** Removed `boxplotOutliers` from `theme()` and configuration files. Boxplot outliers remain
   hidden by default; native per-chart Altair outlier overrides remain available.

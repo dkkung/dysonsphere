@@ -92,6 +92,14 @@ bracket (see ``reference``).
 
 A descriptive + effect-size report is generated on every call and queued for
 the export metadata written by ``ds.save()`` (see ``report``/``saveReport``).
+Its comparison records retain the reported ``pvalue`` (adjusted when a correction applies)
+and ``unadjusted_pvalue`` for ordinary computed values, including when no correction is requested.
+``pvalueOrigin`` distinguishes computed, supplied, and intrinsically adjusted values;
+``nComparisons`` is the effective generic correction-family size or null when none applies.
+Supplied values and Tukey HSD have null unadjusted values and family sizes. Games-Howell and
+Nemenyi also have null unadjusted values because their base results are intrinsically adjusted;
+if additionally corrected, each pair includes ``correctionInputPvalue`` and the section records
+the generic correction and family size.
 
 **Placement.** By default each annotation anchors at the data maximum of the pair it
 compares and is lifted a fixed number of pixels, so it stays with its own groups rather

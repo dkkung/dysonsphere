@@ -765,16 +765,35 @@ def _bracket_pvalues(
     pairs: list[tuple[str, str]],
     correction: str | None,
     nComparisons: int | None,
-) -> list[float]:
-    """Resolve bracket p-values for ``pairs`` via a matrix post-hoc or a pairwise test."""
+) -> tuple[list[float], list[float] | None, list[float] | None]:
+    """Return final, raw, and intrinsic correction-input p-values in requested pair order.
+
+    The last list is present only for a further generic correction of intrinsically adjusted
+    results. Unavailable lists are ``None``; each underlying test is calculated once.
+    """
     from scipy import stats as _stats
 
-    from ._statistics import _PAIRWISE_TESTS, _adjust, _post_hoc_matrix
+    from ._statistics import _INTRINSICALLY_ADJUSTED, _PAIRWISE_TESTS, _adjust, _post_hoc_matrix
 
     idx = {c: i for i, c in enumerate(categories)}
     if method in _MATRIX_POSTHOCS:
-        mat = _post_hoc_matrix(method, groups, correction, nComparisons, labels=categories)
-        return [float(mat[idx[g1]][idx[g2]]) for g1, g2 in pairs]
+        matrix_inputs: list[float] = []
+        mat = _post_hoc_matrix(
+            method,
+            groups,
+            correction,
+            nComparisons,
+            labels=categories,
+            correction_input_values=matrix_inputs,
+        )
+        final = [float(mat[idx[g1]][idx[g2]]) for g1, g2 in pairs]
+        if method == "tukey_hsd":
+            return final, None, None
+        input_lookup = {frozenset(pair): value for pair, value in zip(_all_pairs(categories), matrix_inputs)}
+        inputs = [input_lookup[frozenset((g1, g2))] for g1, g2 in pairs]
+        if method in _INTRINSICALLY_ADJUSTED:
+            return final, None, inputs if correction is not None else None
+        return final, inputs, None
     if method in _PAIRWISE_TESTS:
         funcs = {
             "mannwhitneyu": lambda a, b: _stats.mannwhitneyu(a, b, alternative="two-sided").pvalue,
@@ -794,8 +813,8 @@ def _bracket_pvalues(
                 if nComparisons is None
                 else _validate_family_size(nComparisons, len(pairs), correction=correction)
             )
-            raw = _adjust(raw, correction, m)
-        return raw
+            return _adjust(raw, correction, m), raw, None
+        return raw, raw, None
     raise ValueError(f"Unknown test/postHoc {method!r}. Choose from: {sorted(_MATRIX_POSTHOCS | _PAIRWISE_TESTS)}")
 
 
@@ -1455,7 +1474,14 @@ def _add_grouped_comparisons(
                     )
                 )
             comparisons.append(
-                {"g1": f"{cat} ({l1})", "g2": f"{cat} ({l2})", "pvalue": p, "effectName": en, "effect": ev}
+                {
+                    "g1": f"{cat} ({l1})",
+                    "g2": f"{cat} ({l2})",
+                    "pvalue": p,
+                    "unadjusted_pvalue": None if pval_map is not None else raw[k - 1],
+                    "effectName": en,
+                    "effect": ev,
+                }
             )
 
     record = _make_record(
@@ -1467,6 +1493,7 @@ def _add_grouped_comparisons(
         comparison_test=None if pval_map is not None else test,
         correction=effective_correction,
         pvalues_provided=pval_map is not None,
+        n_comparisons=m if effective_correction is not None else None,
         data_checksum=_frame_checksum(df),
     )
     marker = _emit_report(record, report, save)
@@ -1535,6 +1562,14 @@ def comparisons(
 
     A descriptive + effect-size report is generated on every call and queued for
     the export metadata written by ``ds.save()`` (see ``report``/``saveReport``).
+    Its comparison records retain the reported ``pvalue`` (adjusted when a correction applies)
+    and ``unadjusted_pvalue`` for ordinary computed values, including when no correction is requested.
+    ``pvalueOrigin`` distinguishes computed, supplied, and intrinsically adjusted values;
+    ``nComparisons`` is the effective generic correction-family size or null when none applies.
+    Supplied values and Tukey HSD have null unadjusted values and family sizes. Games-Howell and
+    Nemenyi also have null unadjusted values because their base results are intrinsically adjusted;
+    if additionally corrected, each pair includes ``correctionInputPvalue`` and the section records
+    the generic correction and family size.
 
     **Placement.** By default each annotation anchors at the data maximum of the pair it
     compares and is lifted a fixed number of pixels, so it stays with its own groups rather
@@ -1868,6 +1903,7 @@ def comparisons(
     """
     yCol = y
     from ._statistics import (
+        _INTRINSICALLY_ADJUSTED,
         _OMNIBUS_TESTS,
         _PARAMETRIC_POSTHOC,
         _TEST_DISPLAY,
@@ -2095,19 +2131,33 @@ def comparisons(
 
     pval_lookup: dict[frozenset[str], Any] = {}
     if method is not None and report_pairs:
-        report_pvals = _bracket_pvalues(method, groups, categories, report_pairs, correction, nComparisons)
+        report_pvals, report_raw_pvals, report_correction_inputs = _bracket_pvalues(
+            method, groups, categories, report_pairs, correction, nComparisons
+        )
         pval_lookup = {frozenset(p): v for p, v in zip(report_pairs, report_pvals)}
         parametric = method in _PARAMETRIC_POSTHOC
         paired = method == "ttest_rel"
-        for g1, g2 in report_pairs:
+        for pair_index, (g1, g2) in enumerate(report_pairs):
             en, ev = _pair_effect(groups[idx[g1]], groups[idx[g2]], parametric=parametric, paired=paired)
             comparisons.append(
-                {"g1": g1, "g2": g2, "pvalue": pval_lookup[frozenset((g1, g2))], "effectName": en, "effect": ev}
+                {
+                    "g1": g1,
+                    "g2": g2,
+                    "pvalue": pval_lookup[frozenset((g1, g2))],
+                    "unadjusted_pvalue": None if report_raw_pvals is None else report_raw_pvals[pair_index],
+                    "correctionInputPvalue": (
+                        None if report_correction_inputs is None else report_correction_inputs[pair_index]
+                    ),
+                    "effectName": en,
+                    "effect": ev,
+                }
             )
     elif is_reference and isinstance(pvalues, dict):
         # User p-values for reference mode: use them directly (test + correction skipped).
         pval_lookup = {frozenset((reference, g)): pvalues[g] for _, g in (pairs or [])}
-        comparisons = [{"g1": reference, "g2": g, "pvalue": pvalues[g]} for _, g in (pairs or [])]
+        comparisons = [
+            {"g1": reference, "g2": g, "pvalue": pvalues[g], "unadjusted_pvalue": None} for _, g in (pairs or [])
+        ]
 
     # Reference labels
     if is_reference and pairs:
@@ -2155,7 +2205,9 @@ def comparisons(
             if len(pvalues) != len(pairs):
                 raise ValueError(f"pvalues length ({len(pvalues)}) does not match pairs length ({len(pairs)})")
             computed_pvalues = list(pvalues)
-            comparisons = [{"g1": g1, "g2": g2, "pvalue": p} for (g1, g2), p in zip(pairs, pvalues)]
+            comparisons = [
+                {"g1": g1, "g2": g2, "pvalue": p, "unadjusted_pvalue": None} for (g1, g2), p in zip(pairs, pvalues)
+            ]
         else:
             computed_pvalues = [pval_lookup[frozenset((g1, g2))] for g1, g2 in pairs]
 
@@ -2402,6 +2454,10 @@ def comparisons(
         comparison_test=method,
         correction=effective_correction,
         pvalues_provided=pvalues is not None,
+        n_comparisons=(nComparisons if nComparisons is not None else len(report_pairs))
+        if effective_correction is not None
+        else None,
+        intrinsically_adjusted=method in _INTRINSICALLY_ADJUSTED,
         data_checksum=_frame_checksum(data),
     )
     marker = _emit_report(record, report, saveReport)
