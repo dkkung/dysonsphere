@@ -24,6 +24,8 @@
 ### Changes
 
 - Simplified documentation, docstrings, and inline comments; replaced unnecessary engineering jargon.
+- **Breaking:** Removed `boxplotOutliers` from `theme()` and configuration files. Boxplot outliers remain
+  hidden by default; native per-chart Altair outlier overrides remain available.
 - Renumbered the prior `cat1`/`div1` family to `cat2`/`div2` and the prior `cat2`/`div2` family
   to `cat4`/`div4`, including their categorical hue ramps, without aliases. `cat3` retains its colors.
 - The omitted, unconfigured `markFill` default now uses `#DBDBDB` in light mode and `#9D9D9D` in

@@ -1124,7 +1124,7 @@ class TestIdentityScalesPinPadding:
 
 class TestViewPadding:
     # theme(viewPadding=...) -> config.scale.continuousPadding on every plot.
-    # float | bool like cornerRadius/boxplotOutliers: True (default) -> 5% of the smaller
+    # float | bool like cornerRadius: True (default) -> 5% of the smaller
     # chart dimension, False -> flush, a float -> that many pixels. Vega-Lite nice-rounds
     # the padded domain, so the request only lands exactly where the domain is explicit.
 
@@ -1301,15 +1301,37 @@ class TestBoxplotOutliers:
     def test_false_default_hides_outliers(self):
         theme()
         assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == 0
+        assert "boxplotOutliers" not in alt.theme.options
 
-    def test_true_resolves_to_mark_size_over_10(self):
-        theme(markSize=12, boxplotOutliers=True)
-        assert alt.theme.options["boxplotOutliers"] == pytest.approx(1.2)
-        assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == pytest.approx(1.2)
+    def test_removed_keyword_is_rejected_atomically(self):
+        theme(width=123)
+        before = dict(alt.theme.options)
+        with pytest.raises(TypeError, match="boxplotOutliers"):
+            cast(Any, theme)(boxplotOutliers=True)
+        assert alt.theme.options == before
 
-    def test_explicit_size_used_as_is(self):
-        theme(boxplotOutliers=5)
-        assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == 5
+    @pytest.mark.parametrize("section", ["default", "my_style"])
+    def test_removed_config_key_is_rejected(self, section, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(f"[{section}]\nboxplotOutliers = true\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="boxplotOutliers"):
+            theme(None if section == "default" else "my_style")
+
+    def test_native_per_chart_override_remains_available(self):
+        import re
+
+        from dysonsphere import show
+
+        theme()
+        data = {"values": [{"g": "a", "v": value} for value in [1, 2, 2, 3, 20]]}
+        default = alt.Chart(data).mark_boxplot().encode(x="g:N", y="v:Q")
+        custom = alt.Chart(data).mark_boxplot(outliers={"size": 49}).encode(x="g:N", y="v:Q")
+
+        pattern = r'<path aria-label="g: a; v: 20"[^>]* d="([^"]*)"'
+        default_outlier = re.search(pattern, cast(str, show(default).data), re.S)
+        custom_outlier = re.search(pattern, cast(str, show(custom).data), re.S)
+        assert default_outlier is not None and default_outlier.group(1) == "M0,0"
+        assert custom_outlier is not None and custom_outlier.group(1) != "M0,0"
 
 
 # ── _opt() theme-option accessor ─────────────────────────────────────────────

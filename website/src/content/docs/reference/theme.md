@@ -15,7 +15,6 @@ def theme(
     *,
     axisOffset: int | float | bool = _UNSET,
     axisWidth: int | float = _UNSET,
-    boxplotOutliers: int | float | bool = _UNSET,
     chartFill: str | None = _UNSET,
     closed: bool | None = _UNSET,
     cornerRadius: int | float | bool = _UNSET,
@@ -91,7 +90,7 @@ documented meaning for auto-derived fills, frame state, offsets, and mark dimens
 Runtime introspection displays ``<omitted>`` for omitted styling defaults; generated source
 signatures may show the private ``_UNSET`` marker. Neither is a value callers pass.
 
-By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=6`` is a positive, fractional nominal
+By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=6`` is a nominal
 publication point size; SVG markup exposes the same number as a renderer user-unit value, and raster
 export scales from 72 intrinsic units per inch. Axis, tick, legend, radius, and linear composite
 dimensions are pixels. ``legendGradientLength=None`` allocates half the panel height to a
@@ -111,8 +110,7 @@ disable switching, or provide another nonblank font family name. Fonts are refer
 interactive HTML and bare Altair rendering do not receive this SVG typography correction.
 
 Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
-``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True``, ``cornerRadius=True``,
-and ``boxplotOutliers=True`` derive
+``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True`` and ``cornerRadius=True`` derive
 size-dependent values; False disables them and a nonnegative number is explicit. Inner band
 paddings are dimensionless values in [0, 1]; ``outerPadding`` is any nonnegative value. Opacities
 are in [0, 1], and dash sequences contain finite nonnegative pixel lengths, including empty and

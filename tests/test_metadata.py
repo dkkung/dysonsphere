@@ -253,6 +253,7 @@ class TestSaveUsermeta:
         theme = self._usermeta(tmp_path)["dysonsphere"]["theme"]
         assert theme["width"] == 180 and theme["sigFigs"] == 2
         assert "tickWidth" not in theme  # only _BUILTIN_DEFAULTS keys (valid ds.theme() kwargs)
+        assert "boxplotOutliers" not in theme
 
     @pytest.mark.parametrize("initial_darkmode", [False, True])
     def test_automatic_mark_fill_metadata_matches_each_render_mode(self, simple_chart, tmp_path, initial_darkmode):

@@ -65,7 +65,8 @@ dark mode.
 ## Boxplot
 
 Plain Altair marks inherit the theme too. `mark_boxplot()` gets grey boxes, a single-stroke median,
-and rounded whisker caps out of the box; `boxplotOutliers=False` hides outlier points.
+and rounded whisker caps out of the box; outlier points are hidden by default. Use Altair's native
+`mark_boxplot(outliers={"size": 5})` override to show or style them per chart.
 
 <Example name="boxplot" alt="Boxplot of miles per gallon by car origin" />
 
