@@ -95,7 +95,8 @@ not part of the public contract.
   Parent .encode() can customize axis values and color legend title/orientation on strip and
   violin charts while preserving their internal fields. Do not require internal layer traversal
   for those cases or add redundant axis/legend wrapper parameters without a demonstrated need.
-- Public parameters use camelCase; internal helpers use snake_case.
+- Python operations and computation identifiers normally use snake_case. Preserve established public keywords and
+  Altair/Vega-style declaration spellings, including when private helpers forward them.
 - Primary inputs may be positional; optional styling and controls should be keyword-only. Keep
   explicit signatures rather than hiding long parameter lists in arbitrary options dictionaries.
 - Document every public function's return type, including mode-dependent returns and side effects.
@@ -342,7 +343,7 @@ not part of the public contract.
   loaded chart. Saving with metadata disabled removes the internal ownership identities as well.
 - Source renames do not automatically rename stored metadata keys or checksum formats.
   New Dysonsphere-owned multiword metadata fields use camelCase, independent of private Python naming.
-  Keep those field spellings in intermediate record dictionaries; private helper parameters and locals use snake_case.
+  Record and schema field spellings stay the same in intermediate dictionaries.
 
 ## Growth and Maintenance
 

@@ -753,8 +753,8 @@ def _omnibus_label(result, *, verbose: bool, notation: str | None, sigFigs: int)
     if not verbose:
         return f"{result.name} {p_str}"
     df_str = ", ".join(str(d) for d in result.df)
-    stat = f"{result.statSymbol}({df_str}) = {result.stat:.2f}"
-    eff = f"{result.effectName} = {result.effectSize:.2f}"
+    stat = f"{result.stat_symbol}({df_str}) = {result.stat:.2f}"
+    eff = f"{result.effect_name} = {result.effect_size:.2f}"
     return f"{result.name} {stat}, {p_str}, {eff}"
 
 
@@ -1901,7 +1901,7 @@ def comparisons(
             test="ttest_ind", correction="holm", labelStyle="asterisks",
         )
     """
-    yCol = y
+    y_col = y
     from ._statistics import (
         _INTRINSICALLY_ADJUSTED,
         _OMNIBUS_TESTS,
@@ -1929,9 +1929,9 @@ def comparisons(
     if nComparisons is not None:
         _validate_family_size(nComparisons, 0, correction=None)
     if xOffset is not None:
-        _validate_statistical_data(data, x, yCol, x, xOffset)
+        _validate_statistical_data(data, x, y_col, x, xOffset)
     else:
-        _validate_statistical_data(data, x, yCol, x)
+        _validate_statistical_data(data, x, y_col, x)
 
     # Grouped mode: compare xOffset subgroups within each x-category (a two-factor design, e.g. a
     # qPCR gene x condition panel). A fully separate path so the single-factor logic below is
@@ -1940,7 +1940,7 @@ def comparisons(
         return _add_grouped_comparisons(
             data,
             x,
-            yCol,
+            y_col,
             xOffset,
             pairs,
             reference=reference,
@@ -2004,11 +2004,11 @@ def comparisons(
     pairs = _resolve_pairs(pairs, categories, f"{x!r} categories")
 
     is_omnibus = test in _OMNIBUS_TESTS
-    groups = [data.filter(pl.col(x) == cat)[yCol].to_numpy() for cat in categories]
+    groups = [data.filter(pl.col(x) == cat)[y_col].to_numpy() for cat in categories]
     for category, group in zip(categories, groups):
         if group.size == 0:
             raise ValueError(f"grouping column {x!r} has no observations for group {category!r}.")
-        _validate_observations(group.tolist(), yCol, category)
+        _validate_observations(group.tolist(), y_col, category)
 
     # Remember which spacing args the caller passed: any one of them opts out of the pixel
     # placement below, since an explicit number is data units on the user's own scale.
@@ -2163,7 +2163,7 @@ def comparisons(
     if is_reference and pairs:
         # A p-value above each non-reference mark, at that group's own data max (per-group,
         # so groups of different magnitude each get a label sitting directly above their data).
-        y_all = data[yCol].cast(pl.Float64)
+        y_all = data[y_col].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
         ref_pad, _, _ = _resolve_y_spacing(False, y_range, _opt("height"), yPad, None, None)
         cw = chartWidth if chartWidth is not None else _opt("width")
@@ -2181,7 +2181,7 @@ def comparisons(
             elif isinstance(yPositions, dict) and g in yPositions:
                 label_y = float(yPositions[g])
             else:
-                g_max = cast(float, data.filter(pl.col(x) == g)[yCol].cast(pl.Float64).max() or 0.0)
+                g_max = cast(float, data.filter(pl.col(x) == g)[y_col].cast(pl.Float64).max() or 0.0)
                 # Auto: anchor at the group's own maximum and lift in pixels, so the gap is the
                 # same on every chart. An explicit yPad keeps its data-unit meaning.
                 label_y, ref_offset_px = (g_max, 6.0) if _y_pad_arg is None else (g_max + ref_pad, 0.0)
@@ -2219,7 +2219,7 @@ def comparisons(
         # group (e.g. a saturating positive control) blows up the domain; the full extent
         # tracks the domain, so the gap stays stable. (yStart still sits above the compared
         # groups - see below.)
-        y_all = data[yCol].cast(pl.Float64)
+        y_all = data[y_col].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
         # End legs have a pixel length by definition ("matching the axis ticks"), so an auto
         # tickHeight rides in y2Offset whatever the placement mode. Converting it to data units
@@ -2254,7 +2254,7 @@ def comparisons(
         def _solve_drop(bars_px: list[float], to_px_fn: Any) -> list[tuple[float, float]]:
             """Per-end drop lengths for bars already resolved to pixels."""
             any_rev = any(rev_flags)
-            cols = [data.filter(pl.col(x) == c)[yCol].cast(pl.Float64) for c in categories]
+            cols = [data.filter(pl.col(x) == c)[y_col].cast(pl.Float64) for c in categories]
             hi_px = [to_px_fn(cast(float, s.max() or 0.0)) for s in cols]
             lo_px = [to_px_fn(cast(float, s.min() or 0.0)) for s in cols] if any_rev else hi_px
             centers = list(_band_geometry(len(categories), chartWidth).centers)
@@ -2278,7 +2278,7 @@ def comparisons(
             pair_levels = _stack_levels([(categories.index(g1), categories.index(g2)) for g1, g2 in pairs])
             anchor = cast(
                 float,
-                data.filter(pl.col(x).is_in(annotated_groups_for_pad))[yCol].cast(pl.Float64).max() or 0.0,
+                data.filter(pl.col(x).is_in(annotated_groups_for_pad))[y_col].cast(pl.Float64).max() or 0.0,
             )
             if pixel_mode:
                 # Each bracket anchors above its own pair's data and lifts a constant number of
@@ -2301,17 +2301,17 @@ def comparisons(
                     cast(
                         float,
                         (
-                            data.filter(pl.col(x).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).min()
+                            data.filter(pl.col(x).is_in(categories[lo : hi + 1]))[y_col].cast(pl.Float64).min()
                             if rev
-                            else data.filter(pl.col(x).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).max()
+                            else data.filter(pl.col(x).is_in(categories[lo : hi + 1]))[y_col].cast(pl.Float64).max()
                         )
                         or 0.0,
                     )
                     for (lo, hi), rev in zip(idx_span, rev_flags)
                 ]
                 _ylo, _yhi = _nice_domain(
-                    min(0.0, cast(float, data[yCol].cast(pl.Float64).min() or 0.0)),
-                    cast(float, data[yCol].cast(pl.Float64).max() or 0.0),
+                    min(0.0, cast(float, data[y_col].cast(pl.Float64).min() or 0.0)),
+                    cast(float, data[y_col].cast(pl.Float64).max() or 0.0),
                 )
                 _ch = float(_opt("height"))
 
@@ -2858,7 +2858,7 @@ def correlation(
             color="#c0392b", lineStyle={"strokeDash": [4, 2]},
         )
     """
-    xCol, yCol = x, y
+    x_col, y_col = x, y
     from ._statistics import _make_correlation_record, _ols_band, _run_correlation
     from .utils import _ensure_polars, _frame_checksum
 
@@ -2884,9 +2884,9 @@ def correlation(
 
     data = _ensure_polars(data)
     if groupBy is not None:
-        _validate_statistical_data(data, xCol, yCol, groupBy, numeric_x=True)
+        _validate_statistical_data(data, x_col, y_col, groupBy, numeric_x=True)
     else:
-        _validate_statistical_data(data, xCol, yCol, numeric_x=True)
+        _validate_statistical_data(data, x_col, y_col, numeric_x=True)
 
     # Grouped mode: a fit + coefficient PER group of `groupBy` (e.g. one line per cell line), each
     # coloured to match the scatter's colour scale. A separate path so the single-series body below
@@ -2894,8 +2894,8 @@ def correlation(
     if groupBy is not None:
         return _add_grouped_correlation(
             data,
-            xCol,
-            yCol,
+            x_col,
+            y_col,
             groupBy,
             method=method,
             line=line,
@@ -2922,12 +2922,12 @@ def correlation(
             save=saveReport,
         )
 
-    x_values = data[xCol].cast(pl.Float64).to_numpy()
-    y_values = data[yCol].cast(pl.Float64).to_numpy()
+    x_values = data[x_col].cast(pl.Float64).to_numpy()
+    y_values = data[y_col].cast(pl.Float64).to_numpy()
     try:
         result = _run_correlation(method, x_values, y_values)
     except ValueError as exc:
-        raise ValueError(f"correlation {xCol!r} vs {yCol!r}: {exc}") from exc
+        raise ValueError(f"correlation {x_col!r} vs {y_col!r}: {exc}") from exc
 
     layers: list[Any] = []
 
@@ -2946,10 +2946,10 @@ def correlation(
         try:
             lo, hi = _ols_band(x_values, y_values, xs, level=level, kind=interval)
         except ValueError as exc:
-            raise ValueError(f"correlation {xCol!r} vs {yCol!r}: {exc}") from exc
-        # Lower bound rides on the yCol-named field so its derived axis title dedupes with the
+            raise ValueError(f"correlation {x_col!r} vs {y_col!r}: {exc}") from exc
+        # Lower bound rides on the y_col-named field so its derived axis title dedupes with the
         # base chart (same trick as the fit line); the upper bound goes in y2 (carries no title).
-        band_df = pl.DataFrame({xCol: xs, yCol: lo, "__ci_hi": hi})
+        band_df = pl.DataFrame({x_col: xs, y_col: lo, "__ci_hi": hi})
         # Match the fit line's colour (black/white, darkmode-aware at build → callable needed
         # for save() across backgrounds, like shade); pin the stroke off so config.area's
         # grey fill / stroke can't leak through.
@@ -2967,8 +2967,8 @@ def correlation(
             alt.Chart(_internal_data(band_df))
             .mark_area(fill=band_fill, fillOpacity=ciOpacity, stroke=None, strokeWidth=0)
             .encode(
-                x=alt.X(field=xCol, type="quantitative"),
-                y=alt.Y(field=yCol, type="quantitative"),
+                x=alt.X(field=x_col, type="quantitative"),
+                y=alt.Y(field=y_col, type="quantitative"),
                 y2=alt.Y2(field="__ci_hi"),
             )
         )
@@ -2980,7 +2980,7 @@ def correlation(
         # Use the original column names because Vega-Lite combines derived axis titles from
         # layers. Private names such as "_x" would appear in the base title; matching names avoid
         # duplicate title text.
-        fit_df = pl.DataFrame({xCol: [x0, x1], yCol: [slope * x0 + intercept, slope * x1 + intercept]})
+        fit_df = pl.DataFrame({x_col: [x0, x1], y_col: [slope * x0 + intercept, slope * x1 + intercept]})
         # By default the line inherits the theme's mark_line config (no overrides).
         # Curated params override only what's passed; lineStyle overrides everything.
         mark_kwargs: dict[str, Any] = {}
@@ -3001,7 +3001,7 @@ def correlation(
         layers.append(
             alt.Chart(_internal_data(fit_df))
             .mark_line(**mark_kwargs)
-            .encode(x=alt.X(field=xCol, type="quantitative"), y=alt.Y(field=yCol, type="quantitative"))
+            .encode(x=alt.X(field=x_col, type="quantitative"), y=alt.Y(field=y_col, type="quantitative"))
         )
 
     # Corner readout.
@@ -3029,7 +3029,7 @@ def correlation(
         )
 
     # Structured record → export metadata; printed/written on request.
-    record = _make_correlation_record(result, xCol, yCol, data_checksum=_frame_checksum(data))
+    record = _make_correlation_record(result, x_col, y_col, data_checksum=_frame_checksum(data))
     marker = _emit_report(record, report, saveReport)
 
     if not layers:

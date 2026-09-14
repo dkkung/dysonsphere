@@ -258,10 +258,10 @@ class _OmnibusResult:
     name: str  # display, e.g. "ANOVA"
     stat: float
     pvalue: float
-    statSymbol: str  # "F", "H", "χ²", "A"
+    stat_symbol: str  # "F", "H", "χ²", "A"
     df: tuple[int, ...]  # (df1, df2) for F; (df,) otherwise
-    effectName: str  # "η²", "ε²", "W"
-    effectSize: float
+    effect_name: str  # "η²", "ε²", "W"
+    effect_size: float
     descriptives: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -469,7 +469,7 @@ def _ols_band(
 
 
 def _make_correlation_record(
-    result: dict[str, Any], xCol: str, yCol: str, data_checksum: str | None = None, group: Any = None
+    result: dict[str, Any], x_col: str, y_col: str, data_checksum: str | None = None, group: Any = None
 ) -> dict[str, Any]:
     """Structured record for a correlation, used to build usermeta.
 
@@ -501,8 +501,8 @@ def _make_correlation_record(
         "kind": "correlation",
         "dataChecksum": data_checksum,
         "method": result["method"],
-        "x": xCol,
-        "y": yCol,
+        "x": x_col,
+        "y": y_col,
         "n": result["n"],
         "coefficient": {"name": result["machine"], "symbol": result["symbol"], "value": coefficient},
         "rSquared": r_squared,
@@ -784,7 +784,7 @@ def _make_record(
     effect_size = None
     if omnibus is not None:
         statistic = _validate_finite_result(omnibus.stat, "statistic", omnibus.name)
-        effect_size = _validate_finite_result(omnibus.effectSize, "effect size", omnibus.name)
+        effect_size = _validate_finite_result(omnibus.effect_size, "effect size", omnibus.name)
         omnibus_pvalue = _validate_pvalue(omnibus.pvalue, f"{omnibus.name} p-value")
     record: dict[str, Any] = {
         "kind": "omnibus" if is_omnibus else "pairwise",
@@ -797,9 +797,9 @@ def _make_record(
     if omnibus is not None:
         record["omnibus"] = {
             "name": omnibus.name,
-            "statistic": {"symbol": omnibus.statSymbol, "value": statistic, "df": list(omnibus.df)},
+            "statistic": {"symbol": omnibus.stat_symbol, "value": statistic, "df": list(omnibus.df)},
             "pvalue": _clamp_p(omnibus_pvalue),
-            "effect": _effect(omnibus.effectName, effect_size),
+            "effect": _effect(omnibus.effect_name, effect_size),
         }
     record["comparisons"] = {
         "test": comparison_test,

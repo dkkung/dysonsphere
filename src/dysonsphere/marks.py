@@ -38,8 +38,8 @@ class _MarkScaffold:
     """
 
     df: "pl.DataFrame | pd.DataFrame"
-    xCol: str
-    yCol: str
+    x_col: str
+    y_col: str
     categories: list[Any]
     palette: str | list[str] | None = None
     fill: str | None = None
@@ -51,10 +51,10 @@ class _MarkScaffold:
 
     def __post_init__(self) -> None:
         self.df = _ensure_polars(self.df)
-        for column in (self.xCol, self.yCol):
+        for column in (self.x_col, self.y_col):
             if column not in self.df.columns:
                 raise ValueError(f"mark data column {column!r} is not present in the data.")
-        self.categories = _validate_category_order(self.df, self.xCol, self.categories)
+        self.categories = _validate_category_order(self.df, self.x_col, self.categories)
         if self.fill is not None and (not isinstance(self.fill, str) or not self.fill.strip()):
             raise ValueError("fill must be a non-empty color string or None")
         if self.fill is not None and self.palette is not None:
@@ -72,8 +72,8 @@ class _MarkScaffold:
             raise ValueError("palette must be a palette name, a list of color strings, or None")
         if self.xLabelAngle is None:
             self.xLabelAngle = _opt("xLabelAngle")
-        self.x_title: str | list[str] | None = self.xCol if isinstance(self.xTitle, _UnsetType) else self.xTitle
-        self.y_title: str | list[str] | None = self.yCol if isinstance(self.yTitle, _UnsetType) else self.yTitle
+        self.x_title: str | list[str] | None = self.x_col if isinstance(self.xTitle, _UnsetType) else self.xTitle
+        self.y_title: str | list[str] | None = self.y_col if isinstance(self.yTitle, _UnsetType) else self.yTitle
 
     def x_axis(self) -> alt.Axis:
         """The x-axis: label rotation (align derived from the angle's sign) + label mapping."""
@@ -94,7 +94,7 @@ class _MarkScaffold:
             **({"paddingOuter": padding_outer} if padding_outer is not None else {}),
         }
         return alt.X(
-            f"{self.xCol}:N",
+            f"{self.x_col}:N",
             sort=self.categories,
             scale=alt.Scale(domain=self.categories, **scale_kwargs),
             title=self.x_title,
@@ -102,7 +102,7 @@ class _MarkScaffold:
         )
 
     def y(self, field: str | None = None) -> alt.Y:
-        return alt.Y(field if field is not None else f"{self.yCol}:Q", title=self.y_title)
+        return alt.Y(field if field is not None else f"{self.y_col}:Q", title=self.y_title)
 
     def color(
         self,
@@ -116,14 +116,14 @@ class _MarkScaffold:
         legend is shown; ``symbolType`` picks the legend symbol.
         """
         if isinstance(title, _UnsetType):
-            title = self.xCol if self.legend else None
+            title = self.x_col if self.legend else None
         legend_kwargs: dict[str, Any] = {"symbolType": symbolType} if symbolType else {}
         pal = self.palette
         # Pin the domain so category-to-color mapping survives shared-scale merges.
         range_kwargs: dict[str, Any] = {} if pal is None else {"range": pal}
         scale = alt.Scale(domain=self.categories, **range_kwargs)
         return alt.Color(
-            field if field is not None else f"{self.xCol}:N",
+            field if field is not None else f"{self.x_col}:N",
             sort=self.categories,
             title=title,
             legend=alt.Legend(**legend_kwargs) if self.legend else None,
@@ -276,14 +276,14 @@ def mark_violin(
             fill="#AAAAAA",
         )
     """
-    yCol = y
+    y_col = y
     if inner not in ("box", "quartiles", "median", None):
         raise ValueError(f"inner must be 'box', 'quartiles', 'median', or None, got {inner!r}")
 
     s = _MarkScaffold(
         data,
         x,
-        yCol,
+        y_col,
         categories,
         palette=palette,
         fill=fill,
@@ -298,12 +298,12 @@ def mark_violin(
     for group in categories:
         group_data = data.filter(pl.col(x) == group)
         if group_data.is_empty():
-            raise ValueError(f"violin KDE column {yCol!r} has no observations in group {group!r}.")
-        values = _validate_observations(group_data[yCol].to_list(), yCol, group, kind="violin KDE column")
+            raise ValueError(f"violin KDE column {y_col!r} has no observations in group {group!r}.")
+        values = _validate_observations(group_data[y_col].to_list(), y_col, group, kind="violin KDE column")
         if values.size < 2 or np.all(values == values[0]):
-            raise ValueError(f"violin KDE column {yCol!r} has an unusable group {group!r}.")
+            raise ValueError(f"violin KDE column {y_col!r} has an unusable group {group!r}.")
         if not math.isfinite(float(values.max()) - float(values.min())):
-            raise ValueError(f"violin KDE column {yCol!r} has an unrepresentable range in group {group!r}.")
+            raise ValueError(f"violin KDE column {y_col!r} has an unrepresentable range in group {group!r}.")
         group_values.append((group, values))
     if fillOpacity is None:
         fillOpacity = _opt("markFillOpacity")
@@ -338,7 +338,7 @@ def mark_violin(
         kde, bw = _fit_kde(
             vals,
             bandwidth=bandwidth,
-            column=yCol,
+            column=y_col,
             group=group,
             kind="violin KDE column",
         )
@@ -352,11 +352,11 @@ def mark_violin(
             y_max = float(vals.max()) + 2 * bw
         y_grid = np.linspace(y_min, y_max, steps)
         if not np.all(np.isfinite(y_grid)):
-            raise ValueError(f"violin KDE column {yCol!r} produced a non-finite grid in group {group!r}.")
+            raise ValueError(f"violin KDE column {y_col!r} produced a non-finite grid in group {group!r}.")
         density_norm = _normalised_kde_density(
             kde,
             y_grid,
-            column=yCol,
+            column=y_col,
             group=group,
             kind="violin KDE column",
         )
@@ -625,10 +625,10 @@ def mark_strip(
         # beeswarm variant
         chart = ds.mark_strip(data, "group", "value", CATEGORIES, scatter="beeswarm")
     """
-    xCol = x
+    x_col = x
     s = _MarkScaffold(
         data,
-        xCol,
+        x_col,
         y,
         categories,
         palette=palette,
@@ -649,7 +649,7 @@ def mark_strip(
         data = jitter(data, spread=spread)
         offset_col = "jitter_x"
     elif scatter == "beeswarm":
-        data = beeswarm(data, column=y, groupBy=[xCol], spread=spread)
+        data = beeswarm(data, column=y, groupBy=[x_col], spread=spread)
         offset_col = "beeswarm_x"
     else:
         raise ValueError(f"scatter must be 'jitter' or 'beeswarm', got {scatter!r}")
@@ -720,7 +720,7 @@ def mark_strip(
     # maintain_order: group_by is otherwise order-nondeterministic, which changed the
     # inlined summary dataset (and so the spec checksum + mark z-order) run to run.
     summary = _internal_data(
-        data.group_by(xCol, maintain_order=True).agg([pl.col(y).mean().alias("__mean"), error_expr])
+        data.group_by(x_col, maintain_order=True).agg([pl.col(y).mean().alias("__mean"), error_expr])
     )
 
     errorbar_layer = (

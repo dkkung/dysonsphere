@@ -1166,7 +1166,7 @@ def labels(
     """
     if connectorCap not in (None, "arrow"):
         raise ValueError(f"connectorCap must be 'arrow' or None, got {connectorCap!r}")
-    df, xCol, yCol = data, x, y
+    df, x_col, y_col = data, x, y
     from ._label_placement import (
         _estimate_attachment_size,
         _estimate_text_size,
@@ -1177,14 +1177,14 @@ def labels(
     from .utils import _ensure_polars, _nice_domain
 
     data = _ensure_polars(df)
-    missing = [column for column in (xCol, yCol, labels) if column not in data.columns]
+    missing = [column for column in (x_col, y_col, labels) if column not in data.columns]
     if missing:
         raise ValueError(f"labels data column(s) not found: {missing}.")
     # Use all data for domains and obstacles; only selected rows receive labels. Integer selection is
     # spatially even, while boolean masks select rows by position.
     if data.height:
-        all_x = _validate_observations(data[xCol].to_list(), xCol, kind="label coordinate").tolist()
-        all_y = _validate_observations(data[yCol].to_list(), yCol, kind="label coordinate").tolist()
+        all_x = _validate_observations(data[x_col].to_list(), x_col, kind="label coordinate").tolist()
+        all_y = _validate_observations(data[y_col].to_list(), y_col, kind="label coordinate").tolist()
     else:
         all_x, all_y = [], []
     if isinstance(subset, bool):  # bool is an int subclass - reject before the int branch
@@ -1197,8 +1197,8 @@ def labels(
             data = data.filter(pl.Series(mask))
         else:
             data = data.filter(pl.col(labels).is_in(subset))
-    xs = [float(v) for v in data[xCol].to_list()]
-    ys = [float(v) for v in data[yCol].to_list()]
+    xs = [float(v) for v in data[x_col].to_list()]
+    ys = [float(v) for v in data[y_col].to_list()]
     label_texts = [str(v) for v in data[labels].to_list()]
     n = len(label_texts)
 

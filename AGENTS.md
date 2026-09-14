@@ -66,8 +66,8 @@ examples during iteration and regenerate affected references after updating sour
 
 ## Code Conventions
 
-- Public parameters use camelCase; private helpers use snake_case. Follow `API.md` for naming,
-  defaults, units, and return contracts. Keep public signatures explicit.
+- Python operations and computation identifiers normally use snake_case. Preserve established public keywords and
+  Altair/Vega-style declaration spellings, including in private helpers that forward them. Keep public signatures explicit.
 - Python lines are limited to 120 characters, including comments/docstrings. Parametrize generics:
   `list[str]`, `dict[str, Any]`, etc.; bare generics fail the configured type checker.
 - Use ASCII `-` rather than em dashes in comments and generated prose. Comments explain non-obvious

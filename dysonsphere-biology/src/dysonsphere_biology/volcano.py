@@ -205,7 +205,7 @@ def volcano(
     return cast(alt.LayerChart, ext.tag_extension(chart, "biology"))
 
 
-def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: str, geneCol: str | None):
+def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fc_col: str, gene_col: str | None):
     """Select which genes to label (significance-aware) and delegate placement to ``ds.labels``.
 
     The volcano picks the rows itself - top-N by combined score, all significant, or an explicit
@@ -214,7 +214,7 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
     duplicate display labels cannot expand the selection. The FULL frame still goes to ``labels``,
     so force-repel placement, obstacles, connectors, and scale self-pinning all come for free.
     """
-    if geneCol is None:
+    if gene_col is None:
         raise ValueError("volcano(subset=...) requires labels to name the label column")
 
     if isinstance(label, bool):  # bool is an int subclass - reject before the int branch
@@ -224,7 +224,7 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
         row_index = "__dysonsphere_volcano_row"
         while row_index in data.columns:
             row_index += "_"
-        score = (pl.col(log2fcCol).abs() * pl.col(_NEGLOG_COL)).alias("_score")
+        score = (pl.col(log2fc_col).abs() * pl.col(_NEGLOG_COL)).alias("_score")
         chosen_rows = set(
             data.with_row_index(row_index)
             .filter(pl.col(_SIG_COL) != _NONDIFF)
@@ -240,7 +240,7 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
         selected = (data[_SIG_COL] != _NONDIFF).to_list()
     else:
         # Lists retain ds.labels' value-matching semantics.
-        selected = [str(v) for v in data.filter(pl.col(geneCol).is_in(label))[geneCol].to_list()]
+        selected = [str(v) for v in data.filter(pl.col(gene_col).is_in(label))[gene_col].to_list()]
 
     # ds.labels derives connectorGap from the theme's point radius.
-    return ds.labels(data, log2fcCol, _NEGLOG_COL, geneCol, subset=selected)
+    return ds.labels(data, log2fc_col, _NEGLOG_COL, gene_col, subset=selected)
