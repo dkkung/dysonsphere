@@ -36,7 +36,7 @@ uv pip install dysonsphere
 uv add dysonsphere
 ```
 
-Requires Python 3.11+. Every function that takes a `DataFrame` accepts `polars` or `pandas`.
+Requires Python 3.11+. Every function that takes a `DataFrame` accepts either `polars` or `pandas`.
 
 Dependencies:
 - `altair`>=6.0.0
@@ -71,4 +71,4 @@ ds.save(chart, "my_plot") # writes my_plot.svg + my_plot.json
 
 ## Documentation
 
-Documentation, examples, palettes, agent skills, and an interactive chart studio can be found at **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**.
+Documentation, examples, palettes, and an interactive chart studio can be found at **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**.
