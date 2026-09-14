@@ -171,6 +171,7 @@
 ### Internal
 
 - Renamed the private `_placement.py` module to `_label_placement.py` to make its label-specific scope explicit.
+- Aligned display-label, label-placement, and statistical chart test filenames with their implementation modules.
 - Consolidated optional-extension discovery, provenance markers, and the extension-author API in
   `dysonsphere.ext`, removing the separate internal discovery module while preserving public paths.
 - Removed redundant full-example point-label rendering tests, retaining focused geometry and export regressions.
