@@ -19,6 +19,11 @@ _DEFAULT_MARK_FILL_LIGHT = "#DBDBDB"
 _DEFAULT_MARK_FILL_DARK = "#9D9D9D"
 
 _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
+    "small": {
+        "width": 70,
+        "height": 70,
+        "fontSize": 5,
+    },
     "notebook": {
         "width": 900,
         "height": 900,
@@ -961,19 +966,15 @@ def create_config(directory: str | Path | None = None, *, persist: bool = False)
 
     lines = [
         "# dysonsphere.toml",
-        "# Theme configuration for dysonsphere.",
         '# Load a style with ds.theme(style="name").',
         "",
-        "# Only the keys present in a section are applied - everything else uses",
-        "# dysonsphere's built-in defaults. Unknown keys raise a ValueError immediately.",
-        "",
         "# [default] applies to every ds.theme() call regardless of style.",
-        "# Leave it empty or omit to use dysonsphere's built-in defaults unchanged,",
-        "# or add keys to override the defaults, such as default palettes for range types.",
+        "# Leave it empty or omit to use dysonsphere's built-in defaults unchanged.",
+        "# Add keys to override the library defaults.",
         "",
         "[default]",
         "",
-        "# Built-in styles - edit values or remove sections you don't need.",
+        "# Built-in styles (edit values or remove sections you don't need).",
     ]
 
     for name, params in _BUILTIN_STYLES.items():
@@ -984,13 +985,12 @@ def create_config(directory: str | Path | None = None, *, persist: bool = False)
 
     lines += [
         "",
-        "# Custom styles - add your own style sections below",
+        "# Custom styles (add your own style sections below).",
         "",
         "[my_style]  # Rename to your desired style name",
         "",
-        '# Custom palettes - lists of hex strings, available via ds.palette("name")',
-        '# or ds.theme(palette="name"). dysonsphere palettes are typically 12 stops',
-        "# for sequential palettes, and 13 stops for diverging palettes.",
+        "# Custom palettes as lists of hex strings.",
+        '# Usable with ds.palette("name") or ds.theme(palette="name").',
         "",
         "[palettes]",
         '# my_palette = ["#DFE9F7", "#C6D9F1", "#ADC8EC", "#94B8E6", "#7AA8E0", "#6097DA", "#4D87CA", "#4177B1", "#386898", "#2F597F", "#264A69", "#1D3A58"]',  # noqa: E501

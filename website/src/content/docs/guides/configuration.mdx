@@ -33,6 +33,11 @@ The scaffold looks like this:
 
 [default]
 
+[small]
+width = 70
+height = 70
+fontSize = 5
+
 [notebook]
 width = 900
 height = 900
@@ -65,7 +70,7 @@ Values are merged in ascending priority - later sources override earlier ones, *
 
 1. dysonsphere's built-in defaults
 2. `[default]` from the config file(s)
-3. the built-in preset named by `style=` (e.g. `notebook`)
+3. the built-in preset named by `style=` (e.g. `small` or `notebook`)
 4. the `[style]` section of the same name from the config file(s)
 5. explicit `ds.theme(...)` keyword arguments
 
@@ -110,9 +115,9 @@ fontSize = 12
 markSize = 25
 ```
 
-The built-in `"notebook"` preset works with no config file at all; a `[notebook]` section in your
-config customises it (your keys override the preset's, per the merge order). Asking for a style
-that is neither built-in nor in any config file raises a `ValueError` naming it.
+The built-in `"small"` and `"notebook"` presets work with no config file at all; matching sections
+in your config customise them (your keys override the preset's, per the merge order). Asking for a
+style that is neither built-in nor in any config file raises a `ValueError` naming it.
 
 ## Custom palettes
 

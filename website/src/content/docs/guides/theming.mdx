@@ -72,11 +72,12 @@ the continuous heatmap is restyled:
 
 ## Style presets
 
-Named presets are selected with `style=`. One ships built in - `"notebook"`, a big-screen
-exploration look (900 x 900 px, 18 pt type, dark, transparent) for working inline in a notebook
-before you produce the print-scale figure:
+Named presets are selected with `style=`. Two ship built in: `"small"` is a compact 70 x 70 px look
+with 5 pt type, while `"notebook"` is a big-screen exploration look (900 x 900 px, 18 pt type, dark,
+transparent) for working inline in a notebook before you produce the print-scale figure:
 
 ```python
+ds.theme(style="small")              # compact figure
 ds.theme(style="notebook")           # explore at screen scale
 ds.theme()                           # back to publication defaults
 ```
