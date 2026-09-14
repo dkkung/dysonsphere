@@ -1478,7 +1478,7 @@ def _add_grouped_comparisons(
                     "g1": f"{cat} ({l1})",
                     "g2": f"{cat} ({l2})",
                     "pvalue": p,
-                    "unadjusted_pvalue": None if pval_map is not None else raw[k - 1],
+                    "unadjustedPvalue": None if pval_map is not None else raw[k - 1],
                     "effectName": en,
                     "effect": ev,
                 }
@@ -2144,7 +2144,7 @@ def comparisons(
                     "g1": g1,
                     "g2": g2,
                     "pvalue": pval_lookup[frozenset((g1, g2))],
-                    "unadjusted_pvalue": None if report_raw_pvals is None else report_raw_pvals[pair_index],
+                    "unadjustedPvalue": None if report_raw_pvals is None else report_raw_pvals[pair_index],
                     "correctionInputPvalue": (
                         None if report_correction_inputs is None else report_correction_inputs[pair_index]
                     ),
@@ -2156,7 +2156,7 @@ def comparisons(
         # User p-values for reference mode: use them directly (test + correction skipped).
         pval_lookup = {frozenset((reference, g)): pvalues[g] for _, g in (pairs or [])}
         comparisons = [
-            {"g1": reference, "g2": g, "pvalue": pvalues[g], "unadjusted_pvalue": None} for _, g in (pairs or [])
+            {"g1": reference, "g2": g, "pvalue": pvalues[g], "unadjustedPvalue": None} for _, g in (pairs or [])
         ]
 
     # Reference labels
@@ -2206,7 +2206,7 @@ def comparisons(
                 raise ValueError(f"pvalues length ({len(pvalues)}) does not match pairs length ({len(pairs)})")
             computed_pvalues = list(pvalues)
             comparisons = [
-                {"g1": g1, "g2": g2, "pvalue": p, "unadjusted_pvalue": None} for (g1, g2), p in zip(pairs, pvalues)
+                {"g1": g1, "g2": g2, "pvalue": p, "unadjustedPvalue": None} for (g1, g2), p in zip(pairs, pvalues)
             ]
         else:
             computed_pvalues = [pval_lookup[frozenset((g1, g2))] for g1, g2 in pairs]

@@ -1249,7 +1249,7 @@ class TestReportPValues:
             omnibus=None,
             descriptives=st._describe_all(_GROUPS, MULTI),
             comparisons=[
-                {"g1": "A", "g2": "B", "pvalue": 0.0, "unadjusted_pvalue": 0.0, "effectName": "r", "effect": 0.5}
+                {"g1": "A", "g2": "B", "pvalue": 0.0, "unadjustedPvalue": 0.0, "effectName": "r", "effect": 0.5}
             ],
             comparison_test="mannwhitneyu",
             correction=None,

@@ -757,9 +757,9 @@ def _make_record(
     This dict supplies the report data: ``_render_report`` turns it into the
     plain-text report, and ``export.save`` embeds it verbatim under
     ``usermeta.dysonsphere.statistics``.  ``comparisons`` is the internal list of
-    dicts with keys ``g1``/``g2``/``pvalue`` and optionally ``unadjusted_pvalue`` and
+    dicts with keys ``g1``/``g2``/``pvalue`` and optionally ``unadjustedPvalue`` and
     ``effectName``/``effect``. The exported ``pvalue`` is the reported value, adjusted when a
-    correction applies. The internal ``unadjusted_pvalue`` is exported as ``unadjustedPvalue``:
+    correction applies. ``unadjustedPvalue`` keeps the same key in intermediate and exported records:
     the calculated unadjusted value, or ``None`` for supplied values and intrinsically adjusted methods.
     ``pvalueOrigin`` distinguishes those cases. ``nComparisons`` is the effective generic correction-family
     size; it is ``None`` when no generic correction was applied. ``correctionInputPvalue`` is present only
@@ -814,8 +814,8 @@ def _make_record(
                 "group2": c["g2"],
                 "pvalue": _clamp_p(_validate_pvalue(c["pvalue"], "comparison p-value")),
                 "unadjustedPvalue": (
-                    _clamp_p(_validate_pvalue(c["unadjusted_pvalue"], "unadjusted comparison p-value"))
-                    if c.get("unadjusted_pvalue") is not None
+                    _clamp_p(_validate_pvalue(c["unadjustedPvalue"], "unadjusted comparison p-value"))
+                    if c.get("unadjustedPvalue") is not None
                     else None
                 ),
                 **(

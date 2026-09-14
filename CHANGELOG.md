@@ -176,6 +176,8 @@
 
 ### Internal
 
+- Standardized intermediate statistical metadata keys to match their camelCase exported fields without changing
+  calculations or exported values.
 - Renamed the private `_placement.py` module to `_label_placement.py` to make its label-specific scope explicit.
 - Aligned display-label, label-placement, and statistical chart test filenames with their implementation modules.
 - Consolidated optional-extension discovery, provenance markers, and the extension-author API in

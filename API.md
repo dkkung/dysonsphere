@@ -342,6 +342,7 @@ not part of the public contract.
   loaded chart. Saving with metadata disabled removes the internal ownership identities as well.
 - Source renames do not automatically rename stored metadata keys or checksum formats.
   New Dysonsphere-owned multiword metadata fields use camelCase, independent of private Python naming.
+  Keep those field spellings in intermediate record dictionaries; private helper parameters and locals use snake_case.
 
 ## Growth and Maintenance
 
