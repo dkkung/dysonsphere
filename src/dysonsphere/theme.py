@@ -970,11 +970,11 @@ def create_config(directory: str | Path | None = None, *, persist: bool = False)
         "",
         "# [default] applies to every ds.theme() call regardless of style.",
         "# Leave it empty or omit to use dysonsphere's built-in defaults unchanged.",
-        "# Add keys to override the defaults.",
+        "# Add keys to override the library defaults.",
         "",
         "[default]",
         "",
-        "# Built-in styles - edit values or remove sections you don't need.",
+        "# Built-in styles (edit values or remove sections you don't need).",
     ]
 
     for name, params in _BUILTIN_STYLES.items():
@@ -985,7 +985,7 @@ def create_config(directory: str | Path | None = None, *, persist: bool = False)
 
     lines += [
         "",
-        "# Custom styles - add your own style sections below.",
+        "# Custom styles (add your own style sections below).",
         "",
         "[my_style]  # Rename to your desired style name",
         "",

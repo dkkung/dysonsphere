@@ -3,11 +3,11 @@
 
 # [default] applies to every ds.theme() call regardless of style.
 # Leave it empty or omit to use dysonsphere's built-in defaults unchanged.
-# Add keys to override the defaults.
+# Add keys to override the library defaults.
 
 [default]
 
-# Built-in styles - edit values or remove sections you don't need.
+# Built-in styles (edit values or remove sections you don't need).
 
 [small]
 width = 70
@@ -21,7 +21,7 @@ darkmode = true
 fontSize = 18
 transparent = true
 
-# Custom styles - add your own style sections below.
+# Custom styles (add your own style sections below).
 
 [my_style]  # Rename to your desired style name
 
