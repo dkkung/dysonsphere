@@ -150,13 +150,13 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   Side attachments prefer the middle of the text edge, with limited obstacle-driven sliding;
   top/bottom attachments stay inset. Facing corners remain eligible for genuinely diagonal routes,
   not nearly edge-parallel approaches that resemble detached underlines.
-  References: `annotations.py::labels`; `_label_resolution.py`; `_placement.py::_shortened_segment`.
+  References: `annotations.py::labels`; `_label_resolution.py`; `_label_placement.py::_shortened_segment`.
 
 - **Forced label connectors preserve clearance.** `alwaysShowConnectors=True` moves among bounded
   seats to reserve the full marker gap, text gap, and visible stroke; it never shrinks those gaps.
   A connector whose requested gap cannot fit is omitted rather than drawn through a mark. Connectors attach to a
   tighter portable text estimate (or the actual chip), while padded boxes remain collision safety.
-  References: `_placement.py::_estimate_attachment_size`, `_shortened_segment`.
+  References: `_label_placement.py::_estimate_attachment_size`, `_shortened_segment`.
 
 - **Extensions have their own distributions.** Keep optional dependencies and release schedules
   outside core. Extras would couple releases; namespace-package restructuring would disrupt the
@@ -178,13 +178,13 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   independently resolved violin axis cannot strand a nominal bracket scale. Suppressing that
   scale's axis instead would suppress a shared strip/boxplot axis. Grouped brackets retain the
   real offset encoding and its order; generic band pixels do not describe those positions.
-  References: `stats.py::_pvalue_layer`; `test_statistics.py::TestBracketNoPhantomAxis`.
+  References: `stats.py::_pvalue_layer`; `test_stats.py::TestBracketNoPhantomAxis`.
 
 - **Bracket order favors readable nesting without added height.** Prioritize fewer levels, then
   less distance above the data, preferring comparisons grouped by their left endpoint on ties.
   The default pixel layout also considers data demand; an unconditional nested fan can float far
   above unordered groups. Keep layout scoring in source, not a second algorithm in guidance.
-  References: `stats.py::_bracket_offsets`, `_stack_levels`; `test_statistics.py::TestBracketOrder`.
+  References: `stats.py::_bracket_offsets`, `_stack_levels`; `test_stats.py::TestBracketOrder`.
 
 - **Rotation belongs to values, including symbols.** Text-only rotation would make
   `rowValueAngle` misleading. A circle's invisible rotation is an accepted consequence. Per-cell
@@ -203,7 +203,7 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   structured values are not rounded for plot presentation. A display floor is not evidence that
   the calculated p-value equals that floor.
   References: `_statistics.py::_REPORT_SIGFIGS`, `_fmt_p`;
-  `test_statistics.py::TestSigFigs.test_report_independent_of_theme_sigfigs`, `TestReportPValues`.
+  `test_stats.py::TestSigFigs.test_report_independent_of_theme_sigfigs`, `TestReportPValues`.
 
 - **Reproducibility includes identifiers.** Pinning only time still leaves random identifier
   churn. Include spec identity, not just timestamp and data, to distinguish two plots of the same

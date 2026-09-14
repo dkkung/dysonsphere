@@ -9,7 +9,7 @@ import pytest
 import vl_convert as vlc
 
 import dysonsphere as ds
-from dysonsphere import _placement
+from dysonsphere import _label_placement
 from dysonsphere._label_resolution import _panel_obstacles
 
 
@@ -23,11 +23,11 @@ def _marks(node: Any) -> list[dict[str, Any]]:
 
 
 def _hits(center, half, obstacle):
-    if isinstance(obstacle, _placement._CircleObstacle):
+    if isinstance(obstacle, _label_placement._CircleObstacle):
         dx = max(abs(center[0] - obstacle.center[0]) - half[0], 0)
         dy = max(abs(center[1] - obstacle.center[1]) - half[1], 0)
         return math.hypot(dx, dy) < obstacle.radius
-    if isinstance(obstacle, _placement._SegmentObstacle):
+    if isinstance(obstacle, _label_placement._SegmentObstacle):
         enter, leave = 0.0, 1.0
         for start, end, coordinate, radius in (
             (obstacle.start[0], obstacle.end[0], center[0], half[0] + obstacle.radius),
@@ -59,18 +59,18 @@ def _hits(center, half, obstacle):
 @pytest.mark.parametrize(
     "obstacle",
     [
-        _placement._CircleObstacle((50, 50), 9),
-        _placement._SegmentObstacle((20, 50), (80, 50), 4),
-        _placement._SegmentObstacle((30, 30), (70, 70), 3),
-        _placement._BoxObstacle((50, 50), (14, 8)),
-        _placement._BoxObstacle((50, 50), (14, 8), 32),
-        _placement._SegmentObstacle((50, 50), (50, 50), 3),
-        _placement._BoxObstacle((50, 50), (0, 0)),
+        _label_placement._CircleObstacle((50, 50), 9),
+        _label_placement._SegmentObstacle((20, 50), (80, 50), 4),
+        _label_placement._SegmentObstacle((30, 30), (70, 70), 3),
+        _label_placement._BoxObstacle((50, 50), (14, 8)),
+        _label_placement._BoxObstacle((50, 50), (14, 8), 32),
+        _label_placement._SegmentObstacle((50, 50), (50, 50), 3),
+        _label_placement._BoxObstacle((50, 50), (0, 0)),
     ],
 )
 def test_typed_geometry_and_degenerates_move_to_a_deterministic_clear_seat(obstacle):
     def place():
-        return _placement._repel_labels(
+        return _label_placement._repel_labels(
             [(50, 50)],
             [(24, 10)],
             width=100,
@@ -87,7 +87,7 @@ def test_typed_geometry_and_degenerates_move_to_a_deterministic_clear_seat(obsta
 
 
 def test_plain_solver_approved_checkpoint_centers():
-    assert _placement._repel_labels(
+    assert _label_placement._repel_labels(
         [(20.0, 30.0), (55.0, 45.0), (80.0, 75.0)],
         [(18.0, 8.0), (22.0, 9.0), (16.0, 7.0)],
         width=100,
@@ -107,7 +107,7 @@ def test_symbol_footprint_contains_renderer_path(shape, half):
     )
     scene = vlc.vegalite_to_scenegraph(chart.to_dict())["scenegraph"]
     obstacle = _panel_obstacles(_marks(scene), 100, 100)[0][0]
-    assert isinstance(obstacle, _placement._BoxObstacle)
+    assert isinstance(obstacle, _label_placement._BoxObstacle)
     assert obstacle.half_size == pytest.approx(half)
     svg = vlc.vegalite_to_svg(chart.to_dict())
     path = re.search(r'transform="translate\(50,50\)" d="([^"]+)"', svg)
@@ -140,8 +140,8 @@ def test_fixed_text_alignment_baseline_offsets_and_rotation():
         }
     ]
     obstacle = _panel_obstacles(marks, 100, 80)[0][0]
-    assert isinstance(obstacle, _placement._BoxObstacle)
-    size = _placement._estimate_text_size("Hello", 12, font_family="Helvetica Neue")
+    assert isinstance(obstacle, _label_placement._BoxObstacle)
+    size = _label_placement._estimate_text_size("Hello", 12, font_family="Helvetica Neue")
     local_x, local_y = 7 + size[0] / 2, -3 - 0.3 * size[1]
     assert obstacle.center == pytest.approx((50 - local_y, 40 + local_x))
     assert obstacle.half_size == pytest.approx((size[0] / 2, size[1] / 2))
@@ -188,8 +188,8 @@ def test_curves_visibility_clipping_outlines_and_shade_policy():
         },
     ]
     obstacles, _ = _panel_obstacles(marks, 100, 80)
-    segments = [item for item in obstacles if isinstance(item, _placement._SegmentObstacle)]
-    boxes = [item for item in obstacles if isinstance(item, _placement._BoxObstacle)]
+    segments = [item for item in obstacles if isinstance(item, _label_placement._SegmentObstacle)]
+    boxes = [item for item in obstacles if isinstance(item, _label_placement._BoxObstacle)]
     assert len(segments) == 5  # clipped rule plus four outline edges; curves are unsupported
     assert len(boxes) == 1  # translucent foreground bar; zero-alpha and shade are excluded
     assert not any(_hits((50, 40), (2, 2), edge) for edge in segments[1:])
