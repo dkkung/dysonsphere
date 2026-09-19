@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from contextlib import ExitStack
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, cast, overload
 
 import altair as alt
 
@@ -450,39 +450,62 @@ def show(
     return HTML(svg[svg.index("<svg") :])
 
 
-def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict[str, Any]":
-    """Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).
+@overload
+def load(path: str | Path, *, output: Literal["chart"] = "chart", applyTheme: bool = True) -> "_AltairChart": ...
 
-    JSON only — the PNG/SVG carry the metadata block but not the full spec. Statistical records
-    saved by the current version are restored with their owning chart components, so composition,
-    panel extraction, and a later :func:`save` preserve only the records still represented. The
-    numerical results and their source-data checksums are preserved, not recomputed. Loaded records
-    retain a guard over their saved analytical panel; changing data, mappings, transforms, parameters,
-    or annotation values makes a later save fail closed and requires rebuilding the annotation from
-    source data. Presentation edits and intact panel composition remain valid. Files from earlier
+
+@overload
+def load(path: str | Path, *, output: Literal["spec"], applyTheme: bool = True) -> dict[str, Any]: ...
+
+
+def load(
+    path: str | Path, *, output: Literal["chart", "spec"] = "chart", applyTheme: bool = True
+) -> "_AltairChart | dict[str, Any]":
+    """Load a dysonsphere-exported Vega-Lite JSON as a chart or specification.
+
+    Use the default ``output="chart"`` to rebuild an editable, composable Altair object. Current-version
+    statistical records are restored with their owning chart components, so composition, panel extraction,
+    and a later :func:`save` preserve only the records still represented. Their numerical results and
+    source-data checksums are preserved, not recomputed. Loaded records retain a guard over their saved
+    analytical panel; changing data, mappings, transforms, parameters, or annotation values makes a later
+    save fail closed and requires rebuilding the annotation from source data. Presentation edits and intact
+    panel composition remain valid.
+
+    Use ``output="spec"`` only when the untouched Vega-Lite dictionary is needed for inspection or external
+    tooling. This mode is equivalent to parsing the JSON directly: it does not reconstruct an Altair object,
+    restore chart-owned statistical records, or apply the saved theme. Rendering the dictionary directly also
+    omits Dysonsphere's static SVG processing.
+
+    JSON only - the PNG/SVG carry the metadata block but not the full specification. Files from earlier
     versions receive no adapter. Lookup transforms, runtime parameters/selections, external data, and
-    expressions beyond deterministic operations on ``datum`` cannot be preserved.
+    expressions beyond deterministic operations on ``datum`` cannot be preserved when rebuilding a chart.
 
     Parameters
     ----------
-    raw:
-        ``False`` (default) returns a composable Altair object (of the right type). Its
-        theme ``config`` is stripped (Altair's schema rejects a few of dysonsphere's
-        config values), so it comes back unstyled — see ``applyTheme``. ``True`` returns
-        the raw Vega-Lite spec ``dict`` instead, ``config`` intact, which re-renders
-        pixel-identically (e.g. via ``vl_convert``) but is not a composable Altair object. Raw mode
-        does not restore chart-owned statistical records into runtime state.
+    output:
+        ``"chart"`` (default) returns a composable Altair object of the appropriate type. Its saved theme
+        ``config`` is stripped because Altair's schema rejects some Dysonsphere config values; see
+        ``applyTheme``. ``"spec"`` returns the untouched Vega-Lite dictionary, including its ``config``,
+        datasets, metadata, and other export properties.
     applyTheme:
-        For ``raw=False``: ``True`` (default) re-applies the theme baked into the file via
-        ``ds.theme(**saved_args)`` so the object renders exactly as saved. Like any
-        ``ds.theme()`` call this **replaces the active theme globally**. ``False`` leaves
-        the current theme untouched (the object is styled by whatever theme is active).
+        For ``output="chart"``, ``True`` (default) re-applies the theme baked into the file via
+        ``ds.theme(**saved_args)`` so the object renders as saved. Like any ``ds.theme()`` call, this replaces
+        the active theme globally. ``False`` leaves the current theme untouched, so the object uses whatever
+        theme is active. This parameter has no effect for ``output="spec"``.
+
+    Returns
+    -------
+    _AltairChart | dict[str, Any]
+        A composable Altair chart for ``output="chart"`` or the untouched specification dictionary for
+        ``output="spec"``.
     """
+    if output not in ("chart", "spec"):
+        raise ValueError(f"output must be 'chart' or 'spec', got {output!r}")
     p = Path(path)
     if p.suffix.lower() != ".json":
         raise ValueError(f"load() needs the Vega-Lite JSON (the .json spec), got {p.suffix!r}")
     spec = json.loads(p.read_text(encoding="utf-8"))
-    if raw:
+    if output == "spec":
         return spec
     spec, imported_records = metadata._restore_statistics_owners(spec)
     ds_metadata = (spec.get("usermeta") or {}).get("dysonsphere") or {}

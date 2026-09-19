@@ -533,13 +533,20 @@ class TestReadLoad:
         ds.load(str(saved / "t.json"), applyTheme=False)
         assert alt.theme.options["width"] == 999  # untouched
 
-    def test_load_raw_returns_spec_dict(self, saved):
+    def test_load_spec_output_returns_untouched_dict(self, saved):
         import dysonsphere as ds
 
         ds.theme(width=999)
-        spec = ds.load(str(saved / "t.json"), raw=True)
-        assert isinstance(spec, dict) and "config" in spec  # raw spec, theme config intact
-        assert alt.theme.options["width"] == 999  # globals untouched
+        spec = ds.load(str(saved / "t.json"), output="spec")
+        expected = json.loads((saved / "t.json").read_text(encoding="utf-8"))
+        assert spec == expected and "config" in spec
+        assert alt.theme.options["width"] == 999
+
+    def test_load_rejects_unknown_output(self, saved):
+        import dysonsphere as ds
+
+        with pytest.raises(ValueError, match="output must be 'chart' or 'spec'"):
+            ds.load(str(saved / "t.json"), output="records")  # ty: ignore[no-matching-overload]
 
     def test_load_requires_json(self, saved):
         import dysonsphere as ds
@@ -1141,7 +1148,7 @@ class TestReadLoad:
     def test_load_rejects_removed_theme_key(self, tmp_path):
         # v2.x files bake the old `transparentBackground` key into their theme block. The v3.0
         # alias removal means applyTheme replays it into theme(), which now raises a clear
-        # TypeError - a documented break; raw=True (or re-export) is the workaround.
+        # TypeError - a documented break; output="spec" (or re-export) is the workaround.
         import dysonsphere as ds
 
         df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0]})
@@ -1153,8 +1160,8 @@ class TestReadLoad:
         (tmp_path / "old.json").write_text(json.dumps(spec), encoding="utf-8")
         with pytest.raises(TypeError, match="transparentBackground"):
             ds.load(str(tmp_path / "old.json"))
-        # raw=True touches no globals and applies no theme, so the old file still loads.
-        assert ds.load(str(tmp_path / "old.json"), raw=True) is not None
+        # Specification output touches no globals and applies no theme, so the old file still loads.
+        assert ds.load(str(tmp_path / "old.json"), output="spec") is not None
 
 
 # ── PNG metadata helpers ──────────────────────────────────────────────────────

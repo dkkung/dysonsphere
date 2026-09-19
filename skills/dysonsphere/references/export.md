@@ -122,8 +122,10 @@ Use only the capability the format supports:
   With several user datasets, request `dataset="all"` or the appropriate dataset name. The recovered
   frame may contain transform-derived columns; do not call it a byte-identical source file.
 - `ds.load("figure.json")` reconstructs a chart and by default applies the saved theme. It can
-  change active theme state. Current-version JSON restores statistical ownership; `raw=True`
-  instead returns the untouched spec without that restoration. Pre-4.0.0 exports have no compatibility guarantee.
+  change active theme state. Current-version JSON restores statistical ownership. Use
+  `output="spec"` only to return the untouched Vega-Lite dictionary for inspection or external
+  tooling; it does not reconstruct a chart, apply the theme, restore statistical ownership, or
+  reproduce Dysonsphere's static SVG processing. Pre-4.0.0 exports have no compatibility guarantee.
 - `ds.metadata.verify(path, data=data)` checks internal consistency where possible and compares
   recorded data identity to the supplied dataframe. `specValid` and `dataMatches` can be `None`
   when a check cannot run. Inspect them individually; `.ok` does not mean every check was possible.

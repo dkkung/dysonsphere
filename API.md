@@ -335,8 +335,9 @@ not part of the public contract.
   closed if source rows, mappings, transforms, parameters, or annotation values changed; rebuild the
   annotation from its source data instead. Presentation-only edits and intact panel composition or
   extraction remain valid. Lookup transforms, nonempty parameters/selections, external data, and
-  expressions beyond deterministic operations on `datum` cannot be preserved. `load(raw=True)` only
-  returns the untouched specification and does not restore runtime ownership.
+  expressions beyond deterministic operations on `datum` cannot be preserved. `load(output="spec")`
+  returns the untouched specification for inspection or external tooling and does not reconstruct an
+  Altair object, apply the saved theme, restore runtime ownership, or reproduce static SVG processing.
   Resolved theme metadata records automatic fields separately so loading an omitted `markFill`
   restores its live light/dark default, while an explicit or configured fill remains pinned.
   `stats.clear_stats()` clears pending live calculations without detaching records restored with a
