@@ -28,7 +28,7 @@ def volcano(
     thresholdLines: bool = True,
     palette: str | list[str] | tuple[str, str] | None = None,
     nonDifferentialColor: str | None = None,
-    markOpacity: float = 0.85,
+    markOpacity: float | None = None,
     legend: bool = True,
     xTitle: str | list[str] | None = _UNSET,
     yTitle: str | list[str] | None = _UNSET,
@@ -59,7 +59,7 @@ The neutral remains a separate darkmode-aware grey, so build inside a
 - **`thresholdLines`** (`bool`) - Draw the fold-change / p-value guide lines (default ``True``).
 - **`palette`** (`str | list[str] | tuple[str, str] | None`) - A registered palette name, an explicit low-to-high color list, or the existing ``(gained, lost)`` endpoint tuple. Omission inherits the active theme's diverging range.
 - **`nonDifferentialColor`** (`str | None`) - Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
-- **`markOpacity`** (`float`) - Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes from the active theme's ``mark_point`` config.
+- **`markOpacity`** (`float | None`) - Point opacity. Inherits ``markFillOpacity`` from the active theme when ``None``.
 - **`legend`** (`bool`) - Show the significance color legend (default ``True``).
 - **`xTitle`** (`str | list[str] | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.
 - **`yTitle`** (`str | list[str] | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.

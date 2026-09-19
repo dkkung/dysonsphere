@@ -50,7 +50,7 @@ def volcano(
     thresholdLines: bool = True,
     palette: str | list[str] | tuple[str, str] | None = None,
     nonDifferentialColor: str | None = None,
-    markOpacity: float = 0.85,
+    markOpacity: float | None = None,
     legend: bool = True,
     xTitle: str | list[str] | None = _UNSET,
     yTitle: str | list[str] | None = _UNSET,
@@ -92,8 +92,7 @@ def volcano(
     nonDifferentialColor:
         Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
     markOpacity:
-        Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes
-        from the active theme's ``mark_point`` config.
+        Point opacity. Inherits ``markFillOpacity`` from the active theme when ``None``.
     legend:
         Show the significance color legend (default ``True``).
     xTitle, yTitle:
@@ -145,14 +144,13 @@ def volcano(
     x_title = "log2 fold change" if xTitle is _UNSET else xTitle
     y_title = "-log10 P" if yTitle is _UNSET else yTitle
 
-    # Plain mark_point() inherits the theme's config.point (filled, size, subtle stroke); only
-    # opacity is overridden.
+    point_opacity = alt.Undefined if markOpacity is None else markOpacity
     points = (
         alt.Chart(data)
         .transform_calculate(
             **{score_col: f"datum.{_SIG_COL} === '{_GAINED}' ? 1 : datum.{_SIG_COL} === '{_LOST}' ? -1 : 0"}
         )
-        .mark_point(opacity=markOpacity)
+        .mark_point(opacity=point_opacity)
         .encode(
             x=alt.X(f"{log2fc}:Q", title=x_title),
             y=alt.Y(f"{_NEGLOG_COL}:Q", title=y_title),

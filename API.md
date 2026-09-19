@@ -278,8 +278,9 @@ not part of the public contract.
   effect-size support. Label content may identify any measured feature, not only genes/proteins.
   Volcano subset=None disables labels; an integer selects top differential features by its
   significance score, "significant" selects all differential features, and a list selects label
-  values. These domain-specific defaults/ranking differ intentionally from ds.labels. The
-  constructor stays under ds.biology and returns `alt.LayerChart`.
+  values. These domain-specific defaults/ranking differ intentionally from ds.labels. Point opacity
+  inherits the theme's `markFillOpacity` unless `markOpacity` is passed explicitly. The constructor
+  stays under ds.biology and returns `alt.LayerChart`.
 
 ## Rendering and State
 

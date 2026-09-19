@@ -29,6 +29,8 @@
 
 ### Changes
 
+- Volcano plots now inherit point opacity from the active theme unless `markOpacity` is passed,
+  instead of applying a fixed `0.85` opacity.
 - Statistical comparison metadata now preserves `unadjustedPvalue` alongside the reported `pvalue`,
   their computed, supplied, or intrinsically adjusted origin, and the effective generic correction-family size.
   Further generic correction of intrinsically adjusted Games-Howell or Nemenyi results records its actual input.
