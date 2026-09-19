@@ -66,6 +66,8 @@
   horizontal, vertical, bounded, and diagonal segments. Equation rules accept `slope`, an optional
   `intercept`, and a required numeric `span`; the former positional `value` and `axis` API is removed.
 
+- **Breaking:** `load(raw=True)` is replaced by `load(output="spec")`. The explicit output name
+  distinguishes untouched Vega-Lite dictionary access from the default editable Altair chart reconstruction.
 - Current-version JSON exports now preserve statistical records with their owning chart components
   across `load()` and re-export, while regenerating report prose, provenance, and export identity.
   Re-export now fails closed if a loaded record's saved analytical panel context changed; presentation

@@ -26,6 +26,7 @@ _RENAMES = {
     "metadata.frame_checksum": {"df": "data"},
     "metadata.verify": {"df": "data"},
     "metadata.read": {"save": "saveReport"},
+    "load": {"raw": "output"},
     "add_log_ticks": {"df": "data"},
     "add_pow_ticks": {"df": "data"},
     "biology.volcano": {

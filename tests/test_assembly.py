@@ -322,7 +322,7 @@ class TestProvenance:
         ds.save(figure, str(tmp_path / "fig"), format="json", background="light")
         spec = json.loads((tmp_path / "fig.json").read_text())
         assert "__dsfigure_label_" in json.dumps(spec)
-        reloaded = ds.load(str(tmp_path / "fig.json"), raw=True)
+        reloaded = ds.load(str(tmp_path / "fig.json"), output="spec")
         assert "__dsfigure_label_" in json.dumps(reloaded)
 
 
