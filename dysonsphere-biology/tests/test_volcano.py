@@ -156,6 +156,16 @@ def test_named_and_list_palette_override_locally(palette):
     assert scale["range"] == (ds.palettes.colors[palette] if isinstance(palette, str) else palette)
 
 
+def test_mark_opacity_inherits_theme_by_default_and_allows_override():
+    ds.theme(markFillOpacity=0.4)
+    default = ds.biology.volcano(_df()).to_dict()
+    assert "opacity" not in default["layer"][0]["mark"]
+    assert default["config"]["point"]["fillOpacity"] == 0.4
+
+    overridden = ds.biology.volcano(_df(), markOpacity=0.6).to_dict()
+    assert overridden["layer"][0]["mark"]["opacity"] == 0.6
+
+
 def test_default_palette_natively_inherits_diverging_range():
     ds.theme(divergingPalette="redblue")
     spec = ds.biology.volcano(_df()).to_dict()
