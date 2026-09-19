@@ -152,6 +152,21 @@ class TestAddComparisons:
         result = comparisons(group_df, "group", "value", [("A", "B")])
         assert isinstance(result, alt.LayerChart)
 
+    def test_width_controls_bracket_x_positions(self, group_df):
+        spec = comparisons(
+            group_df,
+            "group",
+            "value",
+            [("A", "B")],
+            pvalues=[0.01],
+            categories=CATEGORIES,
+            width=240,
+        ).to_dict()
+        bar = spec["layer"][0]["layer"][0]
+        geometry = _band_geometry(len(CATEGORIES), 240)
+        assert bar["encoding"]["x"]["value"] == pytest.approx(geometry.centers[0])
+        assert bar["encoding"]["x2"]["value"] == pytest.approx(geometry.centers[1])
+
     def test_multiple_pairs(self, group_df):
         df = pl.DataFrame(
             {

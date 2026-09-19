@@ -553,7 +553,7 @@ def _pvalue_layer(
     bracket_style: str = "bracket",
     label_style: str = "p",
     categories: list[Any] | None = None,
-    chartWidth: float | None = None,
+    width: float | None = None,
     strokeWidth: float | None = None,
     fontSize: float | None = None,
     reverse: bool = False,
@@ -613,8 +613,8 @@ def _pvalue_layer(
         )
 
     # Theme-linked defaults
-    if chartWidth is None:
-        chartWidth = _opt("width")
+    if width is None:
+        width = _opt("width")
     if strokeWidth is None:
         strokeWidth = _opt("axisWidth")
     if fontSize is None:
@@ -669,7 +669,7 @@ def _pvalue_layer(
     _y_enc = alt.Y("y:Q") if domain_max is None else alt.Y("y:Q", scale=alt.Scale(domainMax=domain_max))
     # Pixels, not x:N - an encoding contributes a scale that cannot merge when the base
     # resolves x independently (mark_violin), stranding it as its own axis.
-    geo = _band_geometry(len(categories), chartWidth)
+    geo = _band_geometry(len(categories), width)
     x1_px, x2_px = geo.centers[g1_idx], geo.centers[g2_idx]
     x_mid_px = (x1_px + x2_px) / 2
     bar = (
@@ -723,7 +723,7 @@ def _reference_label_layer(
     label: str,
     *,
     categories: list[Any],
-    chartWidth: float,
+    width: float,
     fontSize: float,
     offset_px: float = 0.0,
 ) -> alt.Chart:
@@ -731,7 +731,7 @@ def _reference_label_layer(
     lifted ``offset_px`` pixels - the reference-mode annotation (no bracket; the comparison to the
     reference is implicit). A lone label has nothing to collide with, so a constant pixel offset is
     already exact - no scale expression needed, unlike the stacked brackets."""
-    x_px = _band_geometry(len(categories), chartWidth).centers[categories.index(group)]
+    x_px = _band_geometry(len(categories), width).centers[categories.index(group)]
     return (
         alt.Chart(_internal_data([{"y": y, "label": label}]))
         .mark_text(align="center", baseline="bottom", fontSize=fontSize, dy=-4 - offset_px)
@@ -834,7 +834,7 @@ def _grouped_bracket_layer(
     level_order: list[str],
     strokeWidth: float,
     fontSize: float,
-    chartWidth: float,
+    width: float,
     offset_px: float = 0.0,
     tick_px: float | tuple[float, float] | None = None,
     tick_data: tuple[float, float] | None = None,
@@ -873,7 +873,7 @@ def _grouped_bracket_layer(
     # encoding (a subset domain there reorders the bars), and the band centre it used through
     # 3.10.1 drifts a whole sub-bar away from an asymmetric pair - far enough to sit over a
     # group the comparison does not involve.
-    _sub = _nested_band_centers(len(categories), len(level_order), chartWidth)[categories.index(category)]
+    _sub = _nested_band_centers(len(categories), len(level_order), width)[categories.index(category)]
     _mid_px = (_sub[level_order.index(level1)] + _sub[level_order.index(level2)]) / 2
     text = (
         alt.Chart(_internal_data([{"__y": y, "__label": label}]))
@@ -999,7 +999,7 @@ def _add_grouped_comparisons(
     yPad: float | None,
     yStep: float | None,
     categories: list[Any] | None,
-    chartWidth: float | None,
+    width: float | None,
     report: bool,
     save: bool | str | Path,
 ) -> alt.LayerChart:
@@ -1086,7 +1086,7 @@ def _add_grouped_comparisons(
     if yStart is not None and (isinstance(yStart, bool) or not isinstance(yStart, (numbers.Real, dict))):
         raise ValueError("grouped yStart accepts a number or a category mapping, not this value.")
 
-    chartWidth = chartWidth if chartWidth is not None else _opt("width")
+    width = width if width is not None else _opt("width")
     chart_height = _opt("height")
     fontSize = fontSize if fontSize is not None else _opt("fontSize")
     strokeWidth = strokeWidth if strokeWidth is not None else _opt("axisWidth")
@@ -1464,7 +1464,7 @@ def _add_grouped_comparisons(
                         level_order=level_order,
                         strokeWidth=strokeWidth,
                         fontSize=fontSize,
-                        chartWidth=chartWidth,
+                        width=width,
                         reverse=rev_flags[pi],
                         offset_px=(cat_offsets[pi] if grp_pixel_mode else 0.0),
                         tick_px=(
@@ -1522,7 +1522,7 @@ def comparisons(
     yStep: float | None = None,
     yPad: float | None = None,
     categories: list[Any] | None = None,
-    chartWidth: float | None = None,
+    width: float | None = None,
     bracketStyle: str | dict[tuple[str, str], Any] = "bracket",
     labelStyle: str = "p",
     tickHeight: float | None = None,
@@ -1726,9 +1726,9 @@ def comparisons(
         match observed values exactly once; tuple/list order and numeric values are preserved.
         Inferred from ``data`` (sorted alphabetically) when not provided. Standalone reference
         annotations without data do not receive observed-coverage validation.
-    chartWidth:
-        Width of the chart in pixels, used to compute text x positions.
-        Auto-detected from ``ds.theme()`` when not set.
+    width:
+        Width of the chart in pixels, used to compute annotation x positions.
+        Inherits ``width`` from ``ds.theme()`` when not set.
     bracketStyle:
         ``'bracket'`` (default; bar + end ticks), ``'line'`` (horizontal bar only)
         or ``'drop'`` (end ticks reaching down toward each group's own data)
@@ -1968,7 +1968,7 @@ def comparisons(
             yPad=yPad,
             yStep=yStep,
             categories=categories,
-            chartWidth=chartWidth,
+            width=width,
             report=report,
             save=saveReport,
         )
@@ -2166,7 +2166,7 @@ def comparisons(
         y_all = data[y_col].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
         ref_pad, _, _ = _resolve_y_spacing(False, y_range, _opt("height"), yPad, None, None)
-        cw = chartWidth if chartWidth is not None else _opt("width")
+        resolved_width = width if width is not None else _opt("width")
         fs = fontSize if fontSize is not None else _opt("fontSize")
         # yPositions: a number → flat row (every label at that y); a dict keyed by group → per-label
         # (unlisted → auto); None → each above its own mark.
@@ -2188,7 +2188,13 @@ def comparisons(
             label = _format_label(pval, labelStyle, effective_sigfigs, pair_notations[i])
             annotation_layers.append(
                 _reference_label_layer(
-                    g, label_y, label, categories=categories, chartWidth=cw, fontSize=fs, offset_px=ref_offset_px
+                    g,
+                    label_y,
+                    label,
+                    categories=categories,
+                    width=resolved_width,
+                    fontSize=fs,
+                    offset_px=ref_offset_px,
                 )
             )
 
@@ -2257,7 +2263,7 @@ def comparisons(
             cols = [data.filter(pl.col(x) == c)[y_col].cast(pl.Float64) for c in categories]
             hi_px = [to_px_fn(cast(float, s.max() or 0.0)) for s in cols]
             lo_px = [to_px_fn(cast(float, s.min() or 0.0)) for s in cols] if any_rev else hi_px
-            centers = list(_band_geometry(len(categories), chartWidth).centers)
+            centers = list(_band_geometry(len(categories), width).centers)
             fs = float(fontSize or _opt("fontSize"))
             edges: list[tuple[float, float, float]] = []
             for i, (lo, hi) in enumerate(idx_span):
@@ -2428,7 +2434,7 @@ def comparisons(
                     bracket_style=pair_styles[i],
                     label_style=labelStyle,
                     categories=categories,
-                    chartWidth=chartWidth,
+                    width=width,
                     strokeWidth=strokeWidth,
                     fontSize=fontSize,
                     reverse=(g1, g2) in reverse if reverse is not None else False,

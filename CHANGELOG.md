@@ -35,8 +35,11 @@
 - The omitted, unconfigured `markFill` default now uses `#DBDBDB` in light mode and `#9D9D9D` in
   dark mode. Explicit and configured fills remain fixed, and circle defaults remain black/white.
 
-- **Breaking:** `theme(chartWidth=..., chartHeight=...)` and the matching configuration keys are
-  replaced by `theme(width=..., height=...)` without aliases.
+- **Breaking:** Plot dimensions now use `width` and `height` throughout the public API.
+  `theme(chartWidth=..., chartHeight=...)`, the matching configuration keys,
+  `add_multilabel(chartWidth=...)`, and `stats.comparisons(chartWidth=...)` are replaced by
+  `theme(width=..., height=...)`, `add_multilabel(width=...)`, and `stats.comparisons(width=...)`
+  without aliases.
 - Continuous color legends now track their owning panel dimensions by default. The new
   `theme(legendGradientLength=None)` default uses half-height vertical and full-width horizontal
   allocation; a positive numeric value scales either full panel span. Meanwhile,

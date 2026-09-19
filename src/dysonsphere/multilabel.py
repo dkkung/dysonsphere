@@ -29,7 +29,7 @@ def _multilabel_layer(
     strokeWidth: float | None = None,
     connectingLine: bool = True,
     orientation: str = "vertical",
-    chartWidth: float | None = None,
+    width: float | None = None,
     fontSize: float | None = None,
     rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
     rowValueAngle: int | float | dict[str, Any] | list[Any] | None = None,
@@ -84,7 +84,7 @@ def _multilabel_layer(
         )
 
     **hconcat label overflow.** Row label marks are positioned outside the declared
-    ``width`` (at ``x < 0`` or ``x > chartWidth``). Vega-Lite does not clip them by
+    ``width`` (at ``x < 0`` or ``x > width``). Vega-Lite does not clip them by
     default and does not reserve space for them in auto-layout. In an ``hconcat``,
     labels from one panel can bleed into adjacent panels; add explicit ``spacing``
     or outer padding to compensate.
@@ -162,8 +162,8 @@ def _multilabel_layer(
     text_rows = [r for r in row_order if row_styles[r] == "text"]
     symbol_rows = [r for r in row_order if row_styles[r] == "symbol"]
 
-    if chartWidth is None:
-        chartWidth = _opt("width")
+    if width is None:
+        width = _opt("width")
     if fontSize is None:
         fontSize = _opt("fontSize")
 
@@ -311,7 +311,7 @@ def _multilabel_layer(
     angle_enc = alt.Angle("__angle:Q", scale=None)
 
     if labelAlign == "right":
-        label_x = alt.value(chartWidth + labelPadding)
+        label_x = alt.value(width + labelPadding)
     else:
         label_x = alt.value(-labelPadding)
     label_text_align = "left" if labelAlign == "right" else "right"
@@ -526,7 +526,7 @@ def _multilabel_layer(
         if spanTickHeight is None:
             spanTickHeight = _opt("tickSize")
 
-        geo = _band_geometry(len(categories), chartWidth)
+        geo = _band_geometry(len(categories), width)
         axisWidth_val = _opt("axisWidth")
         darkmode_val = _opt("darkmode")
         span_color = "white" if darkmode_val else "black"
@@ -632,7 +632,7 @@ def _multilabel_layer(
 
     return cast(
         alt.LayerChart,
-        alt.layer(*layers).properties(width=chartWidth, height=chart_h, view={"fill": None, "stroke": None}),
+        alt.layer(*layers).properties(width=width, height=chart_h, view={"fill": None, "stroke": None}),
     )
 
 
@@ -658,7 +658,7 @@ def add_multilabel(
     strokeWidth: float | None = None,
     connectingLine: bool = True,
     lineOrientation: str = "vertical",
-    chartWidth: float | None = None,
+    width: float | None = None,
     fontSize: float | None = None,
     rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
     rowValueAngle: int | float | dict[str, Any] | list[Any] | None = None,
@@ -772,7 +772,7 @@ def add_multilabel(
         Direction of the connecting rule. ``"vertical"`` (default) draws a rule
         down each column spanning consecutive ``True`` rows. ``"horizontal"``
         draws a rule across each row spanning consecutive ``True`` columns.
-    chartWidth:
+    width:
         Width of the annotation chart in pixels. Inherits ``width`` from
         ``ds.theme()`` when not set.
     fontSize:
@@ -958,7 +958,7 @@ def add_multilabel(
         strokeWidth=strokeWidth,
         connectingLine=connectingLine,
         orientation=lineOrientation,
-        chartWidth=chartWidth,
+        width=width,
         fontSize=fontSize,
         rowHeight=rowHeight,
         rowValueAngle=rowValueAngle,
