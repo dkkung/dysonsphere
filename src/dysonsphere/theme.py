@@ -473,8 +473,9 @@ def theme(
     Palette options accept a nonblank registered name, renderer scheme name, nonempty color-string
     list, or None. The five ``*PaletteDarkmode`` options are used only in dark mode when non-None;
     otherwise their regular per-type palette is used in both modes. With neither category option set,
-    the categorical range defaults to ``cat1`` in light mode and ``cat2`` in dark mode. The other
-    built-in ranges remain ``div1``, ``viridis``, ``greys``, and ``viridis`` in both modes. The master
+    the categorical range defaults to ``cat1`` in light mode and ``cat2`` in dark mode. Diverging,
+    heatmap, ordinal, and ramp default to ``div1``, ``viridis``, ``greys``, and ``viridis`` in light
+    mode and ``div2``, ``australis``, ``greys``, and ``australis`` in dark mode. The master
     ``palette`` remains None by default and overrides every per-type palette, including dark-mode
     overrides, after source precedence is resolved. ``saveFormat`` accepts svg/png/json/html and
     ``saveBackground`` accepts light/dark as a string or nonempty sequence. See the [configuration
@@ -895,10 +896,18 @@ def _dysonsphere_theme() -> dict[str, Any]:
             },
             "range": {
                 "category": category_range,
-                "diverging": {"scheme": _scheme("divergingPalette", "divergingPaletteDarkmode", colors["div1"])},
-                "heatmap": {"scheme": _scheme("heatmapPalette", "heatmapPaletteDarkmode", colors["viridis"])},
+                "diverging": {
+                    "scheme": _scheme("divergingPalette", "divergingPaletteDarkmode", colors["div1"], colors["div2"])
+                },
+                "heatmap": {
+                    "scheme": _scheme(
+                        "heatmapPalette", "heatmapPaletteDarkmode", colors["viridis"], colors["australis"]
+                    )
+                },
                 "ordinal": {"scheme": _scheme("ordinalPalette", "ordinalPaletteDarkmode", colors["greys"])},
-                "ramp": {"scheme": _scheme("rampPalette", "rampPaletteDarkmode", colors["viridis"])},
+                "ramp": {
+                    "scheme": _scheme("rampPalette", "rampPaletteDarkmode", colors["viridis"], colors["australis"])
+                },
             },
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",

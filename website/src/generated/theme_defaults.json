@@ -207,7 +207,7 @@
  {
   "key": "divergingPalette",
   "default": null,
-  "hint": "auto: built-in default"
+  "hint": "auto: div1 light / div2 dark"
  },
  {
   "key": "divergingPaletteDarkmode",
@@ -217,7 +217,7 @@
  {
   "key": "heatmapPalette",
   "default": null,
-  "hint": "auto: built-in default"
+  "hint": "auto: viridis light / australis dark"
  },
  {
   "key": "heatmapPaletteDarkmode",
@@ -227,7 +227,7 @@
  {
   "key": "ordinalPalette",
   "default": null,
-  "hint": "auto: greys"
+  "hint": "auto: greys in both modes"
  },
  {
   "key": "ordinalPaletteDarkmode",
@@ -237,7 +237,7 @@
  {
   "key": "rampPalette",
   "default": null,
-  "hint": "auto: built-in default"
+  "hint": "auto: viridis light / australis dark"
  },
  {
   "key": "rampPaletteDarkmode",

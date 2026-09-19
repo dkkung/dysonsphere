@@ -248,13 +248,13 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | `palette` | `None` | Master palette: name or list; overrides every per-type key in both modes |
 | `categoryPalette` | `cat1` light / `cat2` dark | Categorical (nominal) scale range |
 | `categoryPaletteDarkmode` | `None` | Dark-mode categorical override; otherwise the regular range applies |
-| `divergingPalette` | `div1` | Diverging scale scheme |
+| `divergingPalette` | `div1` light / `div2` dark | Diverging scale scheme |
 | `divergingPaletteDarkmode` | `None` | Dark-mode diverging override; otherwise the regular range applies |
-| `heatmapPalette` | `viridis` | Heatmap scale scheme |
+| `heatmapPalette` | `viridis` light / `australis` dark | Heatmap scale scheme |
 | `heatmapPaletteDarkmode` | `None` | Dark-mode heatmap override; otherwise the regular range applies |
-| `ordinalPalette` | `greys` | Ordinal scale scheme |
+| `ordinalPalette` | `greys` in both modes | Ordinal scale scheme |
 | `ordinalPaletteDarkmode` | `None` | Dark-mode ordinal override; otherwise the regular range applies |
-| `rampPalette` | `viridis` | Sequential ramp scheme |
+| `rampPalette` | `viridis` light / `australis` dark | Sequential ramp scheme |
 | `rampPaletteDarkmode` | `None` | Dark-mode ramp override; otherwise the regular range applies |
 
 In dark mode, a non-`None` `*PaletteDarkmode` value wins over its matching regular value. In
