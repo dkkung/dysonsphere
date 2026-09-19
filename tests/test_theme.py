@@ -233,6 +233,16 @@ class TestThemeDefaults:
         assert alt.theme.options == before_options
         assert _active_args() == before_args
 
+    def test_temporary_theme_preserves_dark_palette_overrides(self):
+        from dysonsphere.theme import _temporary_theme
+
+        theme(darkmode=False, categoryPalette=["light"], categoryPaletteDarkmode=["dark"])
+        before_options = dict(alt.theme.options)
+        with _temporary_theme({"darkmode": True, "width": 240}):
+            assert _dysonsphere_theme()["config"]["range"]["category"] == ["dark"]
+        assert alt.theme.options == before_options
+        assert _dysonsphere_theme()["config"]["range"]["category"] == ["light"]
+
     def test_mark_size_uses_min_dimension(self):
         theme(width=50, height=200)
         assert alt.theme.options["markSize"] == pytest.approx(5.0)
@@ -421,12 +431,25 @@ class TestRangePalettes:
         assert self._scheme("heatmap") == colors["viridis"]
         assert self._scheme("ramp") == colors["viridis"]
 
-    @pytest.mark.parametrize("darkmode", [False, True])
-    def test_complete_default_range_baseline(self, darkmode):
+        theme(darkmode=True)
+        assert self._range("category") == colors["cat2"]
+        assert self._scheme("ordinal") == colors["greys"]
+        assert self._scheme("diverging") == colors["div1"]
+        assert self._scheme("heatmap") == colors["viridis"]
+        assert self._scheme("ramp") == colors["viridis"]
+
+    @pytest.mark.parametrize(
+        ("darkmode", "digest"),
+        [
+            (False, "9207afe1535ef2daca42434d28cdb5267e148af8c343d05628ba19c902cae1be"),
+            (True, "6a744401e203a81dbbff2b2abfd6945ca3d790a22500deda442d6063770ee1e5"),
+        ],
+    )
+    def test_complete_default_range_baseline(self, darkmode, digest):
         theme(darkmode=darkmode)
         ranges = _dysonsphere_theme()["config"]["range"]
-        digest = hashlib.sha256(json.dumps(ranges, separators=(",", ":")).encode()).hexdigest()
-        assert digest == "9207afe1535ef2daca42434d28cdb5267e148af8c343d05628ba19c902cae1be"
+        actual = hashlib.sha256(json.dumps(ranges, separators=(",", ":")).encode()).hexdigest()
+        assert actual == digest
 
     def test_category_is_bare_array(self):
         # nominal scales map positionally, so category must NOT be {"scheme": ...}
@@ -457,11 +480,84 @@ class TestRangePalettes:
         theme(categoryPalette="tableau10")
         assert self._range("category") == {"scheme": "tableau10"}
 
-    def test_global_palette_wins_over_per_type(self):
+    @pytest.mark.parametrize(
+        ("kind", "regular", "darkmode"),
+        [
+            ("category", "categoryPalette", "categoryPaletteDarkmode"),
+            ("diverging", "divergingPalette", "divergingPaletteDarkmode"),
+            ("heatmap", "heatmapPalette", "heatmapPaletteDarkmode"),
+            ("ordinal", "ordinalPalette", "ordinalPaletteDarkmode"),
+            ("ramp", "rampPalette", "rampPaletteDarkmode"),
+        ],
+    )
+    def test_darkmode_palette_override(self, kind, regular, darkmode):
+        kwargs: dict[str, Any] = {regular: ["light"], darkmode: ["dark"]}
+        theme(darkmode=False, **kwargs)
+        light = self._range(kind)
+        theme(darkmode=True, **kwargs)
+        dark = self._range(kind)
+        light_value = light if kind == "category" else light["scheme"]
+        dark_value = dark if kind == "category" else dark["scheme"]
+        assert light_value == ["light"]
+        assert dark_value == ["dark"]
+
+    @pytest.mark.parametrize(
+        ("kind", "regular", "darkmode"),
+        [
+            ("category", "categoryPalette", "categoryPaletteDarkmode"),
+            ("diverging", "divergingPalette", "divergingPaletteDarkmode"),
+            ("heatmap", "heatmapPalette", "heatmapPaletteDarkmode"),
+            ("ordinal", "ordinalPalette", "ordinalPaletteDarkmode"),
+            ("ramp", "rampPalette", "rampPaletteDarkmode"),
+        ],
+    )
+    def test_regular_palette_is_shared_when_darkmode_override_is_none(self, kind, regular, darkmode):
+        kwargs: dict[str, Any] = {regular: ["light"], darkmode: None}
+        theme(darkmode=False, **kwargs)
+        light = self._range(kind)
+        theme(darkmode=True, **kwargs)
+        dark = self._range(kind)
+        assert light == dark
+
+    @pytest.mark.parametrize(
+        ("kind", "darkmode"),
+        [
+            ("category", "categoryPaletteDarkmode"),
+            ("diverging", "divergingPaletteDarkmode"),
+            ("heatmap", "heatmapPaletteDarkmode"),
+            ("ordinal", "ordinalPaletteDarkmode"),
+            ("ramp", "rampPaletteDarkmode"),
+        ],
+    )
+    def test_darkmode_palette_is_ignored_in_light_mode(self, kind, darkmode):
+        cast(Any, theme)(darkmode=False, **{darkmode: ["dark"]})
+        light = self._range(kind)
+        cast(Any, theme)(darkmode=True, **{darkmode: ["dark"]})
+        dark = self._range(kind)
+        expected_light = {
+            "category": colors["cat1"],
+            "diverging": colors["div1"],
+            "heatmap": colors["viridis"],
+            "ordinal": colors["greys"],
+            "ramp": colors["viridis"],
+        }[kind]
+        assert light == expected_light if kind == "category" else light["scheme"] == expected_light
+        assert dark == ["dark"] if kind == "category" else dark["scheme"] == ["dark"]
+
+    @pytest.mark.parametrize("darkmode", [False, True])
+    def test_global_palette_wins_over_per_type_and_dark_override(self, darkmode):
         from dysonsphere.palettes import colors
 
-        theme(palette="greens", categoryPalette="reds")
+        theme(
+            darkmode=darkmode,
+            palette="greens",
+            categoryPalette="reds",
+            categoryPaletteDarkmode="blues",
+            divergingPaletteDarkmode="pinks",
+        )
         assert self._range("category") == colors["greens"]
+        for kind in ("diverging", "heatmap", "ordinal", "ramp"):
+            assert self._scheme(kind) == colors["greens"]
 
     def test_global_palette_still_fills_all(self):
         from dysonsphere.palettes import colors
@@ -550,6 +646,38 @@ class TestRangePalettes:
         theme()
         assert self._scheme("diverging") == colors["greensblues"]
 
+    def test_darkmode_per_type_via_toml(self, tmp_path, monkeypatch):
+        from dysonsphere.palettes import colors
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            """[default]
+categoryPalette = "reds"
+categoryPaletteDarkmode = "blues"
+divergingPalette = "greensblues"
+divergingPaletteDarkmode = "pinksblues"
+heatmapPalette = "ember"
+heatmapPaletteDarkmode = "cosmos"
+ordinalPalette = "greys"
+ordinalPaletteDarkmode = "blues"
+rampPalette = "viridis"
+rampPaletteDarkmode = "magma"
+""",
+            encoding="utf-8",
+        )
+        theme(darkmode=False)
+        assert self._range("category") == colors["reds"]
+        assert self._scheme("diverging") == colors["greensblues"]
+        assert self._scheme("heatmap") == colors["ember"]
+        assert self._scheme("ordinal") == colors["greys"]
+        assert self._scheme("ramp") == colors["viridis"]
+        theme(darkmode=True)
+        assert self._range("category") == colors["blues"]
+        assert self._scheme("diverging") == colors["pinksblues"]
+        assert self._scheme("heatmap") == colors["cosmos"]
+        assert self._scheme("ordinal") == colors["blues"]
+        assert self._scheme("ramp") == colors["magma"]
+
 
 class TestInwardTicks:
     def test_off_by_default(self):
@@ -622,7 +750,19 @@ class TestThemeRegistration:
         keys = list(_BUILTIN_DEFAULTS)
         assert list(inspect.signature(theme).parameters) == ["style", *keys]
         padding = ["barPadding", "groupPadding", "outerPadding", "rectPadding", "subgroupPadding", "tickPadding"]
-        palettes = ["palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"]
+        palettes = [
+            "palette",
+            "categoryPalette",
+            "categoryPaletteDarkmode",
+            "divergingPalette",
+            "divergingPaletteDarkmode",
+            "heatmapPalette",
+            "heatmapPaletteDarkmode",
+            "ordinalPalette",
+            "ordinalPaletteDarkmode",
+            "rampPalette",
+            "rampPaletteDarkmode",
+        ]
         for group in (padding, palettes):
             start = keys.index(group[0])
             assert keys[start : start + len(group)] == group

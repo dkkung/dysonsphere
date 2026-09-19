@@ -53,10 +53,15 @@ def theme(
     tickPadding: int | float = _UNSET,
     palette: str | list[str] | None = _UNSET,
     categoryPalette: str | list[str] | None = _UNSET,
+    categoryPaletteDarkmode: str | list[str] | None = _UNSET,
     divergingPalette: str | list[str] | None = _UNSET,
+    divergingPaletteDarkmode: str | list[str] | None = _UNSET,
     heatmapPalette: str | list[str] | None = _UNSET,
+    heatmapPaletteDarkmode: str | list[str] | None = _UNSET,
     ordinalPalette: str | list[str] | None = _UNSET,
+    ordinalPaletteDarkmode: str | list[str] | None = _UNSET,
     rampPalette: str | list[str] | None = _UNSET,
+    rampPaletteDarkmode: str | list[str] | None = _UNSET,
     saveBackground: str | Sequence[str] = _UNSET,
     saveFormat: str | Sequence[str] = _UNSET,
     sigFigs: int = _UNSET,
@@ -117,10 +122,14 @@ are in [0, 1], and dash sequences contain finite nonnegative pixel lengths, incl
 odd-length sequences.
 
 Palette options accept a nonblank registered name, renderer scheme name, nonempty color-string
-list, or None. The master ``palette`` overrides every per-type palette after source precedence is
-resolved. ``saveFormat`` accepts svg/png/json/html and ``saveBackground`` accepts light/dark as a
-string or nonempty sequence. See the [configuration guide](/guides/configuration/) for the complete
-per-option defaults and scopes.
+list, or None. The five ``*PaletteDarkmode`` options are used only in dark mode when non-None;
+otherwise their regular per-type palette is used in both modes. With neither category option set,
+the categorical range defaults to ``cat1`` in light mode and ``cat2`` in dark mode. The other
+built-in ranges remain ``div1``, ``viridis``, ``greys``, and ``viridis`` in both modes. The master
+``palette`` remains None by default and overrides every per-type palette, including dark-mode
+overrides, after source precedence is resolved. ``saveFormat`` accepts svg/png/json/html and
+``saveBackground`` accepts light/dark as a string or nonempty sequence. See the [configuration
+guide](/guides/configuration/) for the complete per-option defaults and scopes.
 
 A TOML config file can provide persistent per-project or per-user
 overrides. See the README for the config file format and search path.

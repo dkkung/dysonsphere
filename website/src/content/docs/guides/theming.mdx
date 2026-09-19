@@ -64,9 +64,13 @@ them all in the [Palettes](/guides/palettes/) gallery):
 
 ### Per-type palettes
 
-`palette` sets the master categorical scheme. To recolor just one channel, use the per-type keys:
-`categoryPalette`, `divergingPalette`, `heatmapPalette`, `ordinalPalette`, `rampPalette`. Here only
-the continuous heatmap is restyled:
+`palette` sets the master scheme for every range. To recolor just one channel, use the regular per-type
+keys: `categoryPalette`, `divergingPalette`, `heatmapPalette`, `ordinalPalette`, and `rampPalette`.
+The matching `categoryPaletteDarkmode`, `divergingPaletteDarkmode`, `heatmapPaletteDarkmode`,
+`ordinalPaletteDarkmode`, and `rampPaletteDarkmode` keys optionally replace those ranges only in
+dark mode. In light mode they are ignored; when a dark-mode key is `None`, its regular value applies
+in both modes. The built-in category default is `cat1` in light mode and `cat2` in dark mode, while
+the other defaults stay `div1`, `viridis`, `greys`, and `viridis`.
 
 <Example name="heatmap_palette" alt="2D histogram heatmap with the cosmos palette" />
 

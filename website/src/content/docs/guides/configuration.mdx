@@ -124,7 +124,7 @@ style that is neither built-in nor in any config file raises a `ValueError` nami
 The `[palettes]` table registers custom palettes alongside the built-in catalogue - each value a
 non-empty list of hex strings. They become available everywhere a palette name works:
 `ds.palette("brand")`, `ds.theme(palette="brand")`, or any per-type key
-(`heatmapPalette = "brand"`).
+(`heatmapPalette = "brand"` or `heatmapPaletteDarkmode = "brand"`).
 
 ```toml
 [palettes]
@@ -245,12 +245,22 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `palette` | categorical | Master palette: name or list; overrides every per-type key |
-| `categoryPalette` | derived | Categorical (nominal) scale range |
-| `divergingPalette` | built-in | Diverging scale scheme |
-| `heatmapPalette` | built-in | Heatmap scale scheme |
+| `palette` | `None` | Master palette: name or list; overrides every per-type key in both modes |
+| `categoryPalette` | `cat1` light / `cat2` dark | Categorical (nominal) scale range |
+| `categoryPaletteDarkmode` | `None` | Dark-mode categorical override; otherwise the regular range applies |
+| `divergingPalette` | `div1` | Diverging scale scheme |
+| `divergingPaletteDarkmode` | `None` | Dark-mode diverging override; otherwise the regular range applies |
+| `heatmapPalette` | `viridis` | Heatmap scale scheme |
+| `heatmapPaletteDarkmode` | `None` | Dark-mode heatmap override; otherwise the regular range applies |
 | `ordinalPalette` | `greys` | Ordinal scale scheme |
-| `rampPalette` | built-in | Sequential ramp scheme |
+| `ordinalPaletteDarkmode` | `None` | Dark-mode ordinal override; otherwise the regular range applies |
+| `rampPalette` | `viridis` | Sequential ramp scheme |
+| `rampPaletteDarkmode` | `None` | Dark-mode ramp override; otherwise the regular range applies |
+
+In dark mode, a non-`None` `*PaletteDarkmode` value wins over its matching regular value. In
+light mode, dark-mode keys are ignored. A regular per-type value therefore applies in both modes
+when its dark-mode key is `None`. The master `palette` is `None` by default and wins over every
+per-type value in both modes, including dark-mode overrides.
 
 ### Statistics & saving
 

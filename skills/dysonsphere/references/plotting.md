@@ -67,8 +67,12 @@ extra columns to make a strict schema check pass. Select columns separately when
   arbitrary selection; use shape or direct labels when color alone would be ambiguous.
 - For a native categorical encoding, set an explicit `alt.Scale(domain=categories, range=colors)`
   when consistent category-to-color correspondence matters. Sorting an axis alone does not pin color.
-- The theme's master `palette` overrides its per-type palettes. Use `categoryPalette`, `rampPalette`,
-  or an explicit native encoding range when only that use should change.
+- The theme's master `palette` overrides its per-type palettes in both modes. Use `categoryPalette`,
+  `rampPalette`, or an explicit native encoding range when only that use should change. The matching
+  `categoryPaletteDarkmode`, `divergingPaletteDarkmode`, `heatmapPaletteDarkmode`,
+  `ordinalPaletteDarkmode`, and `rampPaletteDarkmode` options apply only in dark mode; a regular
+  per-type palette remains active in both modes when its dark-mode option is `None`. With neither
+  category option set, the theme uses `cat1` in light mode and `cat2` in dark mode.
 - `ds.palettes.accents["blue"]` is a single emphasis color, not a palette. It resolves the current
   light/dark mode at lookup time. Rebuild the lookup inside a callable for multi-background exports.
 

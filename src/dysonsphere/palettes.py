@@ -249,7 +249,8 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
           adjacent categories differ in hue. Canonical families cycle light, mid, then dark
           and return ``3 * len(hues)`` colors. ``cat2`` uses a curated 10-color sequence;
           ``cat1`` instead places five dark accent anchors before five lighter companions.
-          The default ``cat1`` flat form is what ``config.range.category`` uses.
+          The default ``cat1`` flat form is what ``config.range.category`` uses in light mode;
+          the dark-mode default is ``cat2``.
         - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered
           **hue-major** - each consecutive block of ``members`` categories is one hue
           climbing through ``members`` lightness levels. Returns ``len(hues) * members``
@@ -268,7 +269,8 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
     palette:
         Which qualitative palette to build. ``"cat1"`` (default) is the static two-tier accent
         set - grey, blue, green, purple, and teal - with five light-theme accents followed by
-        lighter companions (also stored as ``colors["cat1"]`` and wired to ``config.range.category``).
+        lighter companions (also stored as ``colors["cat1"]`` and used by the light-mode
+        ``config.range.category`` default).
         ``"cat2"`` is the saturated cool set, ``"cat3"`` is the legacy four-hue pastel set,
         and ``"cat4"`` is the muted australis-harmonious set.
 

@@ -192,12 +192,17 @@
  {
   "key": "palette",
   "default": null,
-  "hint": "auto: per-type defaults"
+  "hint": "auto: per-type defaults; master override"
  },
  {
   "key": "categoryPalette",
   "default": null,
-  "hint": "auto: categorical"
+  "hint": "auto: cat1 light / cat2 dark"
+ },
+ {
+  "key": "categoryPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "divergingPalette",
@@ -205,9 +210,19 @@
   "hint": "auto: built-in default"
  },
  {
+  "key": "divergingPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
+ },
+ {
   "key": "heatmapPalette",
   "default": null,
   "hint": "auto: built-in default"
+ },
+ {
+  "key": "heatmapPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "ordinalPalette",
@@ -215,9 +230,19 @@
   "hint": "auto: greys"
  },
  {
+  "key": "ordinalPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
+ },
+ {
   "key": "rampPalette",
   "default": null,
   "hint": "auto: built-in default"
+ },
+ {
+  "key": "rampPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "saveBackground",
