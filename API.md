@@ -45,6 +45,8 @@ not part of the public contract.
   grey/blue/green/purple/teal accents first, followed by lighter companions. Grey reuses `greys`;
   the four colors come from independent 12-stop `cat1_*` ramps. Grouped construction uses zero-based
   stops 1-10 and supports at most ten members per hue; flat stops are selected independently per ramp.
+  The theme uses `cat1` by default in light mode and `cat2` by default in dark mode when neither
+  categorical range option is set.
 - The categorical families and companions are paired by number: `cat1`/`div1` are accent-derived
   grey-blue-green-purple-teal and purple/teal defaults; `cat2`/`div2` are the prior saturated cool
   family; `cat3`/`div3` are the legacy blue-pink-yellow-green family and a pink-negative/blue-positive
@@ -164,9 +166,13 @@ not part of the public contract.
   styling. A documented override must have the same scope and precedence in grouped modes.
 - Palette options select color sequences or named palettes, not individual literal colors. State
   which options additionally accept renderer scheme names or fixed endpoint pairs.
-- In `theme()`, a non-None master `palette` overrides every per-type palette, including an explicit
-  per-type argument. Otherwise each per-type palette overrides its built-in range default.
-  Configuration source precedence is applied per key before this master override.
+- In `theme()`, a non-None master `palette` overrides every per-type palette, including explicit
+  regular and dark-mode per-type arguments, in both render modes. Otherwise a non-None
+  `<type>PaletteDarkmode` overrides its regular `<type>Palette` only in dark mode; the regular value
+  applies in both modes when its dark-mode counterpart is None. Configuration source precedence is
+  applied per key before these palette precedence rules. With no overrides, light/dark defaults are
+  `cat1`/`cat2` for category, `div1`/`div2` for diverging, `viridis`/`australis` for heatmap,
+  `greys`/`greys` for ordinal, and `viridis`/`australis` for ramp.
 - Custom strip and violin marks expose separate palette and fill arguments. Palette selects
   category colors; fill is a fixed literal color for points or the violin silhouette, not their
   summary/inner statistics. Palette omission/None leaves the encoding range to the active theme.

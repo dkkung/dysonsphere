@@ -324,6 +324,69 @@ class TestSaveUsermeta:
         assert reexported["theme"]["markFill"] == "#DBDBDB"
         assert reexported["themeAutomatic"] == ["markFill"]
 
+    def test_dark_palette_overrides_survive_multibackground_save_and_load(self, simple_chart, tmp_path):
+        import dysonsphere as ds
+        from dysonsphere.theme import _dysonsphere_theme
+
+        kwargs: dict[str, Any] = {
+            "categoryPalette": ["light-category"],
+            "categoryPaletteDarkmode": ["dark-category"],
+            "divergingPalette": ["light-diverging"],
+            "divergingPaletteDarkmode": ["dark-diverging"],
+            "heatmapPalette": ["light-heatmap"],
+            "heatmapPaletteDarkmode": ["dark-heatmap"],
+            "ordinalPalette": ["light-ordinal"],
+            "ordinalPaletteDarkmode": ["dark-ordinal"],
+            "rampPalette": ["light-ramp"],
+            "rampPaletteDarkmode": ["dark-ramp"],
+        }
+        ds.theme(darkmode=False, **kwargs)
+        ds.save(simple_chart, tmp_path / "modes", format="json", background=["light", "dark"])
+
+        expected = {
+            "light": {
+                "category": ["light-category"],
+                "diverging": ["light-diverging"],
+                "heatmap": ["light-heatmap"],
+                "ordinal": ["light-ordinal"],
+                "ramp": ["light-ramp"],
+            },
+            "dark": {
+                "category": ["dark-category"],
+                "diverging": ["dark-diverging"],
+                "heatmap": ["dark-heatmap"],
+                "ordinal": ["dark-ordinal"],
+                "ramp": ["dark-ramp"],
+            },
+        }
+        for mode, ranges in expected.items():
+            spec = json.loads((tmp_path / f"modes_{mode}.json").read_text())
+            saved_ranges = spec["config"]["range"]
+            block = spec["usermeta"]["dysonsphere"]
+            for kind, value in ranges.items():
+                actual = saved_ranges[kind] if kind == "category" else saved_ranges[kind]["scheme"]
+                assert actual == value
+                assert block["theme"][f"{kind}Palette"] == kwargs[f"{kind}Palette"]
+                assert block["theme"][f"{kind}PaletteDarkmode"] == kwargs[f"{kind}PaletteDarkmode"]
+
+        assert alt.theme.options["darkmode"] is False
+        ds.theme(width=999)
+        loaded = ds.load(tmp_path / "modes_dark.json")
+        assert not isinstance(loaded, dict)
+        assert alt.theme.options["darkmode"] is True
+        for kind, value in expected["dark"].items():
+            ranges = _dysonsphere_theme()["config"]["range"]
+            actual = ranges[kind] if kind == "category" else ranges[kind]["scheme"]
+            assert actual == value
+
+        ds.save(loaded, tmp_path / "reloaded", format="json", background=["light", "dark"])
+        for mode, ranges in expected.items():
+            spec = json.loads((tmp_path / f"reloaded_{mode}.json").read_text())
+            saved_ranges = spec["config"]["range"]
+            for kind, value in ranges.items():
+                actual = saved_ranges[kind] if kind == "category" else saved_ranges[kind]["scheme"]
+                assert actual == value
+
     def test_load_automatic_fill_ignores_current_toml_and_survives_rebuild(self, simple_chart, tmp_path, monkeypatch):
         import dysonsphere as ds
         from dysonsphere.theme import _opt, _temporary_theme

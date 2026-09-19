@@ -192,32 +192,57 @@
  {
   "key": "palette",
   "default": null,
-  "hint": "auto: per-type defaults"
+  "hint": "auto: per-type defaults; master override"
  },
  {
   "key": "categoryPalette",
   "default": null,
-  "hint": "auto: categorical"
+  "hint": "auto: cat1 light / cat2 dark"
+ },
+ {
+  "key": "categoryPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "divergingPalette",
   "default": null,
-  "hint": "auto: built-in default"
+  "hint": "auto: div1 light / div2 dark"
+ },
+ {
+  "key": "divergingPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "heatmapPalette",
   "default": null,
-  "hint": "auto: built-in default"
+  "hint": "auto: viridis light / australis dark"
+ },
+ {
+  "key": "heatmapPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "ordinalPalette",
   "default": null,
-  "hint": "auto: greys"
+  "hint": "auto: greys in both modes"
+ },
+ {
+  "key": "ordinalPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "rampPalette",
   "default": null,
-  "hint": "auto: built-in default"
+  "hint": "auto: viridis light / australis dark"
+ },
+ {
+  "key": "rampPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "saveBackground",

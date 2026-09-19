@@ -52,7 +52,9 @@ For signed or reference-centered data use a 13-stop diverging palette (`pinksblu
 `redsblues`, ...) and center the scale domain so the white pivot lands on the reference value.
 
 Set the defaults for every chart with `theme(heatmapPalette=..., rampPalette=...)` (see the
-[theming guide](/guides/theming/)), or restyle one chart via
+[theming guide](/guides/theming/)). Add `heatmapPaletteDarkmode=` or `rampPaletteDarkmode=`
+for dark-only ranges; these keys are ignored in light mode. The master `palette=` still overrides
+every theme range. To restyle one chart without changing the theme, use
 `scale=alt.Scale(range=ds.palette(...))`.
 
 ## Qualitative categories

@@ -4,6 +4,11 @@
 
 ### New features
 
+- Added `categoryPaletteDarkmode`, `divergingPaletteDarkmode`, `heatmapPaletteDarkmode`,
+  `ordinalPaletteDarkmode`, and `rampPaletteDarkmode` theme controls. Non-None dark-mode ranges
+  override their regular per-type palettes only in dark mode. Light/dark defaults are `cat1`/`cat2`
+  for category, `div1`/`div2` for diverging, `viridis`/`australis` for heatmap and ramp, and
+  `greys`/`greys` for ordinal.
 - Added a built-in `small` theme style with a 70 x 70 pixel canvas and `fontSize=5`.
 - Added a static ten-color accent-derived default `cat1`, reusing `greys` alongside independent,
   perceptually uniform `cat1_blues`, `cat1_greens`, `cat1_purples`, and `cat1_teals` ramps.

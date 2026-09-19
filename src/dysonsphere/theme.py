@@ -74,10 +74,15 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "tickPadding": 0.1,
     "palette": None,
     "categoryPalette": None,
+    "categoryPaletteDarkmode": None,
     "divergingPalette": None,
+    "divergingPaletteDarkmode": None,
     "heatmapPalette": None,
+    "heatmapPaletteDarkmode": None,
     "ordinalPalette": None,
+    "ordinalPaletteDarkmode": None,
     "rampPalette": None,
+    "rampPaletteDarkmode": None,
     "saveBackground": "light",
     "saveFormat": ["svg", "json"],
     "sigFigs": 3,
@@ -331,7 +336,20 @@ def _validate_options(p: dict[str, Any]) -> None:
         if not math.isfinite(value) or value < 0:
             raise ValueError(f"dashedWidth values must be finite and nonnegative; got {dash!r}")
     p["dashedWidth"] = list(dash)
-    for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
+    palette_keys = (
+        "palette",
+        "categoryPalette",
+        "categoryPaletteDarkmode",
+        "divergingPalette",
+        "divergingPaletteDarkmode",
+        "heatmapPalette",
+        "heatmapPaletteDarkmode",
+        "ordinalPalette",
+        "ordinalPaletteDarkmode",
+        "rampPalette",
+        "rampPaletteDarkmode",
+    )
+    for key in palette_keys:
         value = p[key]
         if isinstance(value, str) and not value.strip():
             raise ValueError(f"{key} must not be blank")
@@ -385,10 +403,15 @@ def theme(
     tickPadding: int | float = _UNSET,
     palette: str | list[str] | None = _UNSET,
     categoryPalette: str | list[str] | None = _UNSET,
+    categoryPaletteDarkmode: str | list[str] | None = _UNSET,
     divergingPalette: str | list[str] | None = _UNSET,
+    divergingPaletteDarkmode: str | list[str] | None = _UNSET,
     heatmapPalette: str | list[str] | None = _UNSET,
+    heatmapPaletteDarkmode: str | list[str] | None = _UNSET,
     ordinalPalette: str | list[str] | None = _UNSET,
+    ordinalPaletteDarkmode: str | list[str] | None = _UNSET,
     rampPalette: str | list[str] | None = _UNSET,
+    rampPaletteDarkmode: str | list[str] | None = _UNSET,
     saveBackground: str | Sequence[str] = _UNSET,
     saveFormat: str | Sequence[str] = _UNSET,
     sigFigs: int = _UNSET,
@@ -448,10 +471,15 @@ def theme(
     odd-length sequences.
 
     Palette options accept a nonblank registered name, renderer scheme name, nonempty color-string
-    list, or None. The master ``palette`` overrides every per-type palette after source precedence is
-    resolved. ``saveFormat`` accepts svg/png/json/html and ``saveBackground`` accepts light/dark as a
-    string or nonempty sequence. See the [configuration guide](/guides/configuration/) for the complete
-    per-option defaults and scopes.
+    list, or None. The five ``*PaletteDarkmode`` options are used only in dark mode when non-None;
+    otherwise their regular per-type palette is used in both modes. With neither category option set,
+    the categorical range defaults to ``cat1`` in light mode and ``cat2`` in dark mode. Diverging,
+    heatmap, ordinal, and ramp default to ``div1``, ``viridis``, ``greys``, and ``viridis`` in light
+    mode and ``div2``, ``australis``, ``greys``, and ``australis`` in dark mode. The master
+    ``palette`` remains None by default and overrides every per-type palette, including dark-mode
+    overrides, after source precedence is resolved. ``saveFormat`` accepts svg/png/json/html and
+    ``saveBackground`` accepts light/dark as a string or nonempty sequence. See the [configuration
+    guide](/guides/configuration/) for the complete per-option defaults and scopes.
 
     A TOML config file can provide persistent per-project or per-user
     overrides. See the README for the config file format and search path.
@@ -482,7 +510,20 @@ def theme(
     _validate_options(p)
 
     # Resolve every palette-valued key
-    for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
+    palette_keys = (
+        "palette",
+        "categoryPalette",
+        "categoryPaletteDarkmode",
+        "divergingPalette",
+        "divergingPaletteDarkmode",
+        "heatmapPalette",
+        "heatmapPaletteDarkmode",
+        "ordinalPalette",
+        "ordinalPaletteDarkmode",
+        "rampPalette",
+        "rampPaletteDarkmode",
+    )
+    for key in palette_keys:
         val = p[key]
         p[key] = custom_palettes.get(val, _ORIGINAL_COLORS.get(val, val)) if isinstance(val, str) else val
 
@@ -584,16 +625,25 @@ def _dysonsphere_theme() -> dict[str, Any]:
     if opts.get("_markFillAuto", True):
         opts["markFill"] = _DEFAULT_MARK_FILL_DARK if opts.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
 
-    def _scheme(type_key: str, default: Any) -> Any:
-        # Precedence: global `palette` (master override) -> per-type `<type>Palette` -> default.
+    def _scheme(type_key: str, darkmode_key: str, default: Any, darkmode_default: Any | None = None) -> Any:
+        # Precedence: global `palette` -> dark-mode per-type override -> regular per-type palette -> default.
         if opts.get("palette") is not None:
             return opts["palette"]
+        if opts.get("darkmode") and opts.get(darkmode_key) is not None:
+            return opts[darkmode_key]
         if opts.get(type_key) is not None:
             return opts[type_key]
+        if opts.get("darkmode") and darkmode_default is not None:
+            return darkmode_default
         return default
 
     # config.range.category must be an array so a nominal scale maps positionally
-    _cat = _scheme("categoryPalette", colors[_DEFAULT_QUALITATIVE_PALETTE])
+    _cat = _scheme(
+        "categoryPalette",
+        "categoryPaletteDarkmode",
+        colors[_DEFAULT_QUALITATIVE_PALETTE],
+        colors["cat2"],
+    )
     category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
     return {
@@ -846,10 +896,18 @@ def _dysonsphere_theme() -> dict[str, Any]:
             },
             "range": {
                 "category": category_range,
-                "diverging": {"scheme": _scheme("divergingPalette", colors["div1"])},
-                "heatmap": {"scheme": _scheme("heatmapPalette", colors["viridis"])},
-                "ordinal": {"scheme": _scheme("ordinalPalette", colors["greys"])},
-                "ramp": {"scheme": _scheme("rampPalette", colors["viridis"])},
+                "diverging": {
+                    "scheme": _scheme("divergingPalette", "divergingPaletteDarkmode", colors["div1"], colors["div2"])
+                },
+                "heatmap": {
+                    "scheme": _scheme(
+                        "heatmapPalette", "heatmapPaletteDarkmode", colors["viridis"], colors["australis"]
+                    )
+                },
+                "ordinal": {"scheme": _scheme("ordinalPalette", "ordinalPaletteDarkmode", colors["greys"])},
+                "ramp": {
+                    "scheme": _scheme("rampPalette", "rampPaletteDarkmode", colors["viridis"], colors["australis"])
+                },
             },
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",
