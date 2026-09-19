@@ -111,7 +111,7 @@ def log_label_expr(base: int = 10, notation: str = "power") -> str:
 
 
 def _minor_tick_layer(
-    df,
+    data,
     field: str,
     axis: str,
     minor_values: list[float],
@@ -125,7 +125,7 @@ def _minor_tick_layer(
     the data extent, dropping partial edge intervals. The caller layers it over the main chart with
     ``resolve_axis(...="independent")``.
 
-    **The layer renders NO marks.** It shares the user's ``df`` (so ``read(what="data")`` /
+    **The layer renders NO marks.** It shares the user's data (so ``read(what="data")`` /
     provenance still see exactly one frame - the layer dedupes to the main chart's dataset) but is
     filtered to zero rows, so it hosts the minor-tick axis (which is driven by the forced ``scale``
     domain, not by data) while emitting nothing. This is why the axis-host marks do not litter the
@@ -142,14 +142,14 @@ def _minor_tick_layer(
         tickSize=minor_tick_size,
         orient="bottom" if axis == "x" else "left",
     )
-    layer = alt.Chart(df).transform_filter("false").mark_point(opacity=0)
+    layer = alt.Chart(data).transform_filter("false").mark_point(opacity=0)
     if axis == "y":
         return layer.encode(y=alt.Y(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
     return layer.encode(x=alt.X(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
 
 
 def _log_minor_layer(
-    df,
+    data,
     field: str,
     axis: str,
     exp_min: int,
@@ -164,7 +164,7 @@ def _log_minor_layer(
         n_divs = nMinor + 1
         minor_values = [base ** (e + k / n_divs) for e in range(exp_min, exp_max) for k in range(1, n_divs)]
     scale = alt.Scale(type="log", base=base, domain=[base**exp_min, base**exp_max])
-    return _minor_tick_layer(df, field, axis, minor_values, scale, minor_tick_size)
+    return _minor_tick_layer(data, field, axis, minor_values, scale, minor_tick_size)
 
 
 def _derive_exp(df, field: str, base: int = 10) -> tuple[int, int]:
@@ -338,7 +338,7 @@ def add_log_ticks(
 
 
 def _pow_minor_layer(
-    df,
+    data,
     field: str,
     axis: str,
     major_values: list[float],
@@ -361,7 +361,7 @@ def _pow_minor_layer(
         exponent=exponent,
         domain=[float(min(major_values)), float(max(major_values))],
     )
-    return _minor_tick_layer(df, field, axis, minor_values, scale, minor_tick_size)
+    return _minor_tick_layer(data, field, axis, minor_values, scale, minor_tick_size)
 
 
 def add_pow_ticks(
