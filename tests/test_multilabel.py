@@ -170,6 +170,12 @@ class TestAddMultilabel:
         result = add_multilabel(base, ML_GROUPS, categories=ML_CATS)
         assert isinstance(result, alt.VConcatChart)
 
+    def test_width_sets_annotation_width(self):
+        df = pl.DataFrame({"g": ML_CATS * 5, "v": range(15)})
+        base = alt.Chart(df).mark_boxplot().encode(x=alt.X("g:N", sort=ML_CATS), y=alt.Y("v:Q"))
+        spec = add_multilabel(base, ML_GROUPS, categories=ML_CATS, width=240).to_dict()
+        assert spec["vconcat"][1]["width"] == 240
+
     def test_accepts_layer_chart(self):
         theme(width=100)
         rng = np.random.default_rng(0)

@@ -51,7 +51,7 @@ def comparisons(
     yStep: float | None = None,
     yPad: float | None = None,
     categories: list[Any] | None = None,
-    chartWidth: float | None = None,
+    width: float | None = None,
     bracketStyle: str | dict[tuple[str, str], Any] = 'bracket',
     labelStyle: str = 'p',
     tickHeight: float | None = None,
@@ -147,7 +147,7 @@ Combine with your chart using ``+``:  ``chart + ds.stats.comparisons(...)``.
 - **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels, when placement is in data units. Setting it opts out of automatic pixel placement.
 - **`yPad`** (`float | None`) - Padding (data units) above the data maximum, when placement is in data units. Setting it opts out of the automatic pixel placement described above.
 - **`categories`** (`list[Any] | None`) - Ordered list of all x-axis categories. For data-backed comparisons, supplied values must match observed values exactly once; tuple/list order and numeric values are preserved. Inferred from ``data`` (sorted alphabetically) when not provided. Standalone reference annotations without data do not receive observed-coverage validation.
-- **`chartWidth`** (`float | None`) - Width of the chart in pixels, used to compute text x positions. Auto-detected from ``ds.theme()`` when not set.
+- **`width`** (`float | None`) - Width of the chart in pixels, used to compute annotation x positions. Inherits ``width`` from ``ds.theme()`` when not set.
 - **`bracketStyle`** (`str | dict[tuple[str, str], Any]`) - ``'bracket'`` (default; bar + end ticks), ``'line'`` (horizontal bar only) or ``'drop'`` (end ticks reaching down toward each group's own data) applied to every bracket. Or a ``dict`` mapping a pair to its style for per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` — keys match either pair order; pairs absent from the dict fall back to ``'bracket'``.
 - **`labelStyle`** (`str`) - ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'`` renders ``*`` / ``**`` / ``***`` / ``ns``. ``'value'`` renders the bare value to save room - the same as ``'p'`` but without the ``P`` symbol and the redundant ``= `` (``0.012``), keeping a meaningful operator (``< 0.001`` when floored, ``≈ 10⁻⁵`` for ``notation='power'``). ``notation`` still applies.
 - **`tickHeight`** (`float | None`) - Height of bracket end ticks in data units, used when placement is in data units. Under automatic placement the ticks are a fixed 2 **pixels** on any y range. Always positive, so it works with reverse (negative-``yStep``) brackets without an explicit override. Only used when ``bracketStyle='bracket'``; raises with ``bracketStyle='drop'``, which computes a length per end.

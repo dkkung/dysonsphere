@@ -23,8 +23,8 @@ not part of the public contract.
 - `ds.theme()` keeps `style` positional and exposes every styling option as an explicit typed keyword-only parameter.
   An internal marker for omitted arguments preserves configuration/style precedence; explicit `None` is meaningful
   only for options that advertise it. `fontSize` is the sole theme font-size control and accepts positive finite
-  fractional values. Plot dimensions use `width` and `height`; the removed `chartWidth` and
-  `chartHeight` names are not aliases and are invalid as keywords or configuration keys.
+  fractional values. Plot dimensions use `width` and `height` throughout the public API; the removed
+  `chartWidth` and `chartHeight` names are not aliases and are invalid as keywords or configuration keys.
   Boxplot outliers remain hidden by default through the theme's fixed boxplot configuration; they are
   not a theme option. Use Altair's per-chart `mark_boxplot(outliers={...})` override to show or style them.
   Built-in styles are `small` (70 x 70 pixels with `fontSize=5`) and `notebook` (900 x 900 pixels,
