@@ -7,7 +7,7 @@
 - Added `categoryPaletteDarkmode`, `divergingPaletteDarkmode`, `heatmapPaletteDarkmode`,
   `ordinalPaletteDarkmode`, and `rampPaletteDarkmode` theme controls. Non-None dark-mode ranges
   override their regular per-type palettes only in dark mode. Light/dark defaults are `cat1`/`cat2`
-  for category, `div1`/`div2` for diverging, `viridis`/`australis` for heatmap and ramp, and
+  for category, `div1`/`div2` for diverging, `viridis`/`viridis` for heatmap and ramp, and
   `greys`/`greys` for ordinal.
 - Added a built-in `small` theme style with a 70 x 70 pixel canvas and `fontSize=5`.
 - Added a static ten-color accent-derived default `cat1`, reusing `greys` alongside independent,
@@ -38,6 +38,8 @@
 - **Breaking:** Theme dash controls now use Altair-style names: `gridStrokeDash`, `lineStrokeDash`,
   `ruleStrokeDash`, and the shared `strokeDash` pattern replace `dashedGrid`, `dashedLine`,
   `dashedRule`, and `dashedWidth` without aliases. Defaults and rendered behavior are unchanged.
+- Dark-mode heatmap and ramp ranges now default to `viridis`, matching light mode so background
+  variants retain the same continuous color mapping. `australis` remains available explicitly.
 - **Breaking:** `ds.save()` and `ds.show()` now allow any number of rows by default with
   `maxRows=None`; set an integer to apply an explicit per-dataframe cap. Removed the redundant
   `overrideMaxRows` parameter; omit it or pass `maxRows=None` for unlimited processing.

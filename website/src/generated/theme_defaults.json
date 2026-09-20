@@ -207,7 +207,7 @@
  {
   "key": "heatmapPalette",
   "default": null,
-  "hint": "auto: viridis light / australis dark"
+  "hint": "auto: viridis"
  },
  {
   "key": "heatmapPaletteDarkmode",
@@ -227,7 +227,7 @@
  {
   "key": "rampPalette",
   "default": null,
-  "hint": "auto: viridis light / australis dark"
+  "hint": "auto: viridis"
  },
  {
   "key": "rampPaletteDarkmode",

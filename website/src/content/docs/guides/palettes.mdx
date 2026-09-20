@@ -30,8 +30,11 @@ Every sequential ramp is monotonic in Oklab lightness with near-uniform perceptu
 value ordering survives greyscale conversion and simulated deuteranopia/protanopia. Which one to
 reach for:
 
-- **`australis`** - the built-in continuous default (`config.range.heatmap` and `.ramp`). Hue
-  335°→148° (~190° rotation) over L 0.13-0.87; adjacent-step ΔE ratio 1.03 (viridis: 1.05).
+- **`viridis`** - the default heatmap and ramp palette in both light and dark modes. Its familiar
+  purple-to-yellow path keeps continuous color mappings stable when only the background changes.
+- **`australis`** - a distinctive built-in alternative spanning magenta, blue, cyan, and green. Hue
+  335°→148° (~190° rotation) over L 0.22-0.87; adjacent-step ΔE ratio 1.08 (viridis: 1.05).
+  It has comparable native perceptual range and more even steps under simulated protanopia.
 - **`borealis`** - hue 297°→143° over L 0.15-0.86 (australis without the magenta segment). The
   closest viridis analogue; larger minimum adjacent ΔE under protanopia than viridis.
 - **`cosmos`** - L 0.13-0.80, near-black floor to a chroma-0.13 pink top; the widest dynamic
