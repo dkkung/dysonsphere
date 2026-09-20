@@ -196,6 +196,8 @@
 
 ### Internal
 
+- Removed root project contracts and agent guidance from version control, and ignored new root-level Markdown files
+  except `README.md` and `CHANGELOG.md`.
 - Normalized private statistical result fields and Python column aliases to snake_case without changing public or
   serialized names.
 - Standardized intermediate statistical metadata keys to match their camelCase exported fields without changing

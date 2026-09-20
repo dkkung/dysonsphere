@@ -54,6 +54,7 @@ pipenv
 # Root contracts and agent guidance are maintained locally.
 /*.md
 !/README.md
+!/CHANGELOG.md
 
 demo_output/
 *.png
