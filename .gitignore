@@ -51,6 +51,10 @@ pipenv
 *.nd2
 
 # Project-specific #
+# Root contracts and agent guidance are maintained locally.
+/*.md
+!/README.md
+
 demo_output/
 *.png
 *.svg
