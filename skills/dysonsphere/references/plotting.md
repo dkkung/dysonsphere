@@ -73,8 +73,8 @@ extra columns to make a strict schema check pass. Select columns separately when
   `ordinalPaletteDarkmode`, and `rampPaletteDarkmode` options apply only in dark mode; a regular
   per-type palette remains active in both modes when its dark-mode option is `None`. With neither
   per-type option set, light/dark defaults are `cat1`/`cat2` for categories, `div1`/`div2` for
-  diverging scales, `viridis`/`australis` for heatmap and ramp scales, and `greys` in both modes for
-  ordinal scales.
+  diverging scales, `viridis` in both modes for heatmap and ramp scales, and `greys` in both modes
+  for ordinal scales.
 - `ds.palettes.accents["blue"]` is a single emphasis color, not a palette. It resolves the current
   light/dark mode at lookup time. Rebuild the lookup inside a callable for multi-background exports.
 

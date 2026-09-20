@@ -14,6 +14,11 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   wrappers, so categories receive the palette's ordered colors rather than losing the range.
   References: `theme.py::_dysonsphere_theme`; `test_theme.py::TestRangePalettes.test_category_is_bare_array`.
 
+- **Continuous defaults are stable across backgrounds.** Heatmap and ramp ranges use `viridis` in
+  both light and dark modes so changing only the background does not remap data hues. Australis and
+  other mode-specific choices remain available through explicit regular or dark-mode palette options.
+  References: `theme.py::_dysonsphere_theme`; `test_theme.py::TestRangePalettes.test_defaults`.
+
 - **Automatic mark fill tracks render mode by provenance, not value.** Theme state records whether
   `markFill` was omitted from both configuration and the call. Only that state resolves the default
   grey live when save/show toggles `darkmode`; comparing hex values would incorrectly reinterpret an

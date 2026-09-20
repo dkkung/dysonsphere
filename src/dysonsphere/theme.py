@@ -476,7 +476,7 @@ def theme(
     otherwise their regular per-type palette is used in both modes. With neither category option set,
     the categorical range defaults to ``cat1`` in light mode and ``cat2`` in dark mode. Diverging,
     heatmap, ordinal, and ramp default to ``div1``, ``viridis``, ``greys``, and ``viridis`` in light
-    mode and ``div2``, ``australis``, ``greys``, and ``australis`` in dark mode. The master
+    mode and ``div2``, ``viridis``, ``greys``, and ``viridis`` in dark mode. The master
     ``palette`` remains None by default and overrides every per-type palette, including dark-mode
     overrides, after source precedence is resolved. ``saveFormat`` accepts svg/png/json/html and
     ``saveBackground`` accepts light/dark as a string or nonempty sequence. See the [configuration
@@ -900,15 +900,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "diverging": {
                     "scheme": _scheme("divergingPalette", "divergingPaletteDarkmode", colors["div1"], colors["div2"])
                 },
-                "heatmap": {
-                    "scheme": _scheme(
-                        "heatmapPalette", "heatmapPaletteDarkmode", colors["viridis"], colors["australis"]
-                    )
-                },
+                "heatmap": {"scheme": _scheme("heatmapPalette", "heatmapPaletteDarkmode", colors["viridis"])},
                 "ordinal": {"scheme": _scheme("ordinalPalette", "ordinalPaletteDarkmode", colors["greys"])},
-                "ramp": {
-                    "scheme": _scheme("rampPalette", "rampPaletteDarkmode", colors["viridis"], colors["australis"])
-                },
+                "ramp": {"scheme": _scheme("rampPalette", "rampPaletteDarkmode", colors["viridis"])},
             },
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",

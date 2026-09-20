@@ -94,7 +94,7 @@ line = (
         x=alt.X("t:Q", title="Time (ms)", scale=alt.Scale(domain=[0, 55], nice=False)),
         y=alt.Y("V:Q", title="Membrane potential (mV)", scale=alt.Scale(domain=[-90, 55], nice=False)),
         detail="seg:N",
-        color=alt.Color("mV:Q", title="mV"),  # default continuous colormap (australis)
+        color=alt.Color("mV:Q", title="mV"),  # default continuous colormap (viridis)
     )
 )
 

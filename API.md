@@ -173,8 +173,9 @@ not part of the public contract.
   `<type>PaletteDarkmode` overrides its regular `<type>Palette` only in dark mode; the regular value
   applies in both modes when its dark-mode counterpart is None. Configuration source precedence is
   applied per key before these palette precedence rules. With no overrides, light/dark defaults are
-  `cat1`/`cat2` for category, `div1`/`div2` for diverging, `viridis`/`australis` for heatmap,
-  `greys`/`greys` for ordinal, and `viridis`/`australis` for ramp.
+  `cat1`/`cat2` for category, `div1`/`div2` for diverging, `viridis`/`viridis` for heatmap,
+  `greys`/`greys` for ordinal, and `viridis`/`viridis` for ramp. Continuous color mappings remain
+  stable when only the rendering background changes.
 - Custom strip and violin marks expose separate palette and fill arguments. Palette selects
   category colors; fill is a fixed literal color for points or the violin silhouette, not their
   summary/inner statistics. Palette omission/None leaves the encoding range to the active theme.
