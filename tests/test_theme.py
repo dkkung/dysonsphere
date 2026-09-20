@@ -435,14 +435,14 @@ class TestRangePalettes:
         assert self._range("category") == colors["cat2"]
         assert self._scheme("ordinal") == colors["greys"]
         assert self._scheme("diverging") == colors["div2"]
-        assert self._scheme("heatmap") == colors["australis"]
-        assert self._scheme("ramp") == colors["australis"]
+        assert self._scheme("heatmap") == colors["viridis"]
+        assert self._scheme("ramp") == colors["viridis"]
 
     @pytest.mark.parametrize(
         ("darkmode", "digest"),
         [
             (False, "9207afe1535ef2daca42434d28cdb5267e148af8c343d05628ba19c902cae1be"),
-            (True, "001820580db5330350a3e3f7bb49267731b30cf8dd3ef338385acce6f93b6cc7"),
+            (True, "92f22343bbe5ac3adeda22b515b3b58bcde2ffb287b6e2458b14674754fc56a7"),
         ],
     )
     def test_complete_default_range_baseline(self, darkmode, digest):
