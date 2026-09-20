@@ -405,24 +405,24 @@ class TestSave:
         df = pl.DataFrame({"g": ["A", "B"] * (n // 2), "v": [float(i) for i in range(n)]})
         return alt.Chart(df).mark_point().encode(x="g:N", y="v:Q")
 
-    def test_max_rows_blocks_large_data(self, big_chart, tmp_path):
-        # every format hits the cap (rendering inlines the data), with a clear error
+    def test_default_allows_large_data(self, big_chart, tmp_path):
+        save(big_chart, str(tmp_path / "big"), format="json", background=["light"])
+        assert (tmp_path / "big.json").exists()
+
+    def test_explicit_max_rows_blocks_large_data(self, big_chart, tmp_path):
+        # Every format resolves through to_dict(), so an explicit cap applies to each one.
         for fmt in ("json", "png", "svg"):
-            with pytest.raises(ValueError, match="maxRows"):
-                save(big_chart, str(tmp_path / "big"), format=fmt, background=["light"])
+            with pytest.raises(ValueError, match="maxRows=5000"):
+                save(big_chart, str(tmp_path / "big"), format=fmt, background=["light"], maxRows=5000)
 
     def test_max_rows_raised_allows_large_data(self, big_chart, tmp_path):
         save(big_chart, str(tmp_path / "big"), format="json", maxRows=10000, background=["light"])
         assert (tmp_path / "big.json").exists()
 
-    def test_override_max_rows_allows_large_data(self, big_chart, tmp_path):
-        save(big_chart, str(tmp_path / "big"), format="json", overrideMaxRows=True, background=["light"])
-        assert (tmp_path / "big.json").exists()
-
     def test_max_rows_restores_transformer(self, big_chart, tmp_path):
         before = alt.data_transformers.active
         with pytest.raises(ValueError):
-            save(big_chart, str(tmp_path / "big"), format="json", background=["light"])  # errors mid-save
+            save(big_chart, str(tmp_path / "big"), format="json", background=["light"], maxRows=5000)
         assert alt.data_transformers.active == before  # transformer restored even on error
 
     def test_layer_chart(self, tmp_path):
@@ -674,12 +674,13 @@ class TestShow:
         with pytest.raises(ValueError, match="maxRows=5"):
             show(chart, maxRows=5)
 
-    def test_override_max_rows_allows_large_data(self):
+    def test_default_allows_large_data(self):
         from dysonsphere.export import show
 
-        df = pl.DataFrame({"x": [float(i) for i in range(20)], "y": [float(i) for i in range(20)]})
+        n = 5001
+        df = pl.DataFrame({"x": range(n), "y": range(n)})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
-        assert "<svg" in cast(str, show(chart, maxRows=5, overrideMaxRows=True).data)
+        assert "<svg" in cast(str, show(chart).data)
 
     def test_inherits_theme_transparent(self, simple_chart):
         # show() used to force transparent=True, so a darkmode theme previewed white-on-nothing

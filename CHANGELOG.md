@@ -35,6 +35,9 @@
   their computed, supplied, or intrinsically adjusted origin, and the effective generic correction-family size.
   Further generic correction of intrinsically adjusted Games-Howell or Nemenyi results records its actual input.
 - Simplified documentation, docstrings, and inline comments; replaced unnecessary engineering jargon.
+- **Breaking:** `ds.save()` and `ds.show()` now allow any number of rows by default with
+  `maxRows=None`; set an integer to apply an explicit per-dataframe cap. Removed the redundant
+  `overrideMaxRows` parameter; omit it or pass `maxRows=None` for unlimited processing.
 - **Breaking:** Removed `boxplotOutliers` from `theme()` and configuration files. Boxplot outliers remain
   hidden by default; native per-chart Altair outlier overrides remain available.
 - Renumbered the prior `cat1`/`div1` family to `cat2`/`div2` and the prior `cat2`/`div2` family

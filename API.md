@@ -287,6 +287,10 @@ not part of the public contract.
 - `ds.theme()` replaces active configuration; it does not incrementally update previous settings.
 - `ds.show()` returns corrected SVG wrapped in `IPython.display.HTML` for compatible interactive
   display. `ds.save()` writes figures. Bare Altair display does not apply all formatting fixes.
+- `ds.save()` and `ds.show()` allow any number of rows by default while pinning Altair's default
+  data transformer for Vega-Lite processing. `maxRows=None` means unlimited; an integer applies an
+  explicit per-dataframe cap. Do not expose a separate override flag or warn at Altair's arbitrary
+  5000-row default. Restore the previously active transformer after each call.
 - Preserve the distinction between static corrected output and browser-rendered interactive HTML.
   Save's SVG/PNG transparency override is separate from the theme's logical background.
 - Statistical constructors calculate annotations and register export records. Standalone numerical

@@ -199,6 +199,13 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   override separate from the logical background used in previews and browser-targeted specs.
   References: `export.py::save`; `test_export.py::TestSaveTransparency`, `TestShow`.
 
+- **Explicit export is unlimited by default.** Altair's 5000-row default is a safeguard for embedded
+  notebook specifications, but row count is a poor proxy for Dysonsphere's output size or rendering
+  work. `save()` and `show()` pin the default transformer with no cap unless the caller sets
+  `maxRows`; do not warn at the arbitrary Altair threshold. An explicit cap applies per dataframe,
+  and the previously active transformer is always restored.
+  References: `export.py::save`, `show`; `test_export.py::TestSave`, `TestShow`.
+
 - **Plot precision must not coarsen the record.** Reports have their own fixed precision, and
   structured values are not rounded for plot presentation. A display floor is not evidence that
   the calculated p-value equals that floor.
