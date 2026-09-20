@@ -377,9 +377,9 @@ def rule(
     strokeWidth:
         Line width in pixels. ``None`` inherits from the active theme.
     strokeDash:
-        ``None`` (default) inherits the theme's ``dashedRule`` setting.
+        ``None`` (default) inherits the theme's ``ruleStrokeDash`` setting.
         ``False`` forces a solid line. ``True`` uses the theme's
-        ``dashedWidth`` pattern. A list (e.g. ``[4, 2]``) uses that
+        ``strokeDash`` pattern. A list (e.g. ``[4, 2]``) uses that
         pattern directly.
     opacity:
         Line opacity. Defaults to ``1.0``.
@@ -1131,7 +1131,7 @@ def labels(
         faded leader - e.g. ``connectorOpacity=0.5`` to quiet the leaders relative to the labels -
         stays legible in both light and dark mode.
     connectorStrokeDash:
-        Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth``
+        Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``strokeDash``
         pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
     connectorGap:
         Pixel gap left at the MARKER end of the connector so it points at the dot rather than
@@ -1525,7 +1525,7 @@ def shade(
         ``stroke=True``. Has no effect when ``stroke=False``.
     strokeDash:
         Dash pattern for the rect border. ``None`` (default) → solid.
-        ``True`` → inherit ``dashedWidth`` from the active theme.
+        ``True`` → inherit ``strokeDash`` from the active theme.
         A list (e.g. ``[4, 2]``) → use that pattern directly.
     flush:
         Extend the outermost rects to the axis domain edge (band mode and

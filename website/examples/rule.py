@@ -16,5 +16,5 @@ df = pl.DataFrame(
 
 strip = ds.mark_strip(df, "batch", "impurity", batches, yTitle="Impurity (ppm)")
 
-# A labeled horizontal reference line; inherits the theme's dashed-rule style.
+# A labeled horizontal reference line; inherits the theme's ruleStrokeDash setting.
 chart = strip + ds.rule(y=22, label="release limit")

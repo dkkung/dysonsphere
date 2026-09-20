@@ -35,6 +35,9 @@
   their computed, supplied, or intrinsically adjusted origin, and the effective generic correction-family size.
   Further generic correction of intrinsically adjusted Games-Howell or Nemenyi results records its actual input.
 - Simplified documentation, docstrings, and inline comments; replaced unnecessary engineering jargon.
+- **Breaking:** Theme dash controls now use Altair-style names: `gridStrokeDash`, `lineStrokeDash`,
+  `ruleStrokeDash`, and the shared `strokeDash` pattern replace `dashedGrid`, `dashedLine`,
+  `dashedRule`, and `dashedWidth` without aliases. Defaults and rendered behavior are unchanged.
 - **Breaking:** `ds.save()` and `ds.show()` now allow any number of rows by default with
   `maxRows=None`; set an integer to apply an explicit per-dataframe cap. Removed the redundant
   `overrideMaxRows` parameter; omit it or pass `maxRows=None` for unlimited processing.

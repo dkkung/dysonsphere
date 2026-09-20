@@ -40,10 +40,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "closed": None,
     "cornerRadius": False,
     "darkmode": False,
-    "dashedGrid": False,
-    "dashedLine": False,
-    "dashedRule": True,
-    "dashedWidth": [2, 2],
     "font": "Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif",
     "fontGreek": "Symbol",
     "fontSize": 6,
@@ -51,6 +47,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "fontWeight": 400,
     "grid": False,
     "gridColor": colors["greys"][0],
+    "gridStrokeDash": False,
     "height": 100,
     "legend": True,
     "legendColumnPadding": 4,
@@ -59,6 +56,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "legendOffset": None,
     "legendRowPadding": 2,
     "legendStroke": False,
+    "lineStrokeDash": False,
     "markFill": colors["greys"][1],
     "markFillOpacity": 1.0,
     "markMedianFill": "black",
@@ -83,10 +81,12 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "ordinalPaletteDarkmode": None,
     "rampPalette": None,
     "rampPaletteDarkmode": None,
+    "ruleStrokeDash": True,
     "saveBackground": "light",
     "saveFormat": ["svg", "json"],
     "sigFigs": 3,
     "strokeCap": "round",
+    "strokeDash": [2, 2],
     "tickDirection": "out",
     "ticks": True,
     "tickSize": 3.0,
@@ -234,12 +234,12 @@ def _validate_options(p: dict[str, Any]) -> None:
     """Validate source values before deriving or committing theme state."""
     bool_keys = {
         "darkmode",
-        "dashedGrid",
-        "dashedLine",
-        "dashedRule",
         "grid",
+        "gridStrokeDash",
+        "lineStrokeDash",
         "legend",
         "legendStroke",
+        "ruleStrokeDash",
         "ticks",
         "transparent",
         "xAxis",
@@ -327,15 +327,15 @@ def _validate_options(p: dict[str, Any]) -> None:
     for key in ("chartFill", "viewFill"):
         if p[key] is not None and (not isinstance(p[key], str) or not p[key]):
             raise TypeError(f"{key} must be a non-empty color string or None; got {p[key]!r}")
-    dash = p["dashedWidth"]
+    dash = p["strokeDash"]
     if isinstance(dash, (str, bytes)) or not isinstance(dash, Sequence):
-        raise TypeError(f"dashedWidth must be a sequence of numbers; got {dash!r}")
+        raise TypeError(f"strokeDash must be a sequence of numbers; got {dash!r}")
     for value in dash:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise TypeError(f"dashedWidth must contain only numbers; got {dash!r}")
+            raise TypeError(f"strokeDash must contain only numbers; got {dash!r}")
         if not math.isfinite(value) or value < 0:
-            raise ValueError(f"dashedWidth values must be finite and nonnegative; got {dash!r}")
-    p["dashedWidth"] = list(dash)
+            raise ValueError(f"strokeDash values must be finite and nonnegative; got {dash!r}")
+    p["strokeDash"] = list(dash)
     palette_keys = (
         "palette",
         "categoryPalette",
@@ -369,10 +369,6 @@ def theme(
     closed: bool | None = _UNSET,
     cornerRadius: int | float | bool = _UNSET,
     darkmode: bool = _UNSET,
-    dashedGrid: bool = _UNSET,
-    dashedLine: bool = _UNSET,
-    dashedRule: bool = _UNSET,
-    dashedWidth: Sequence[int | float] = _UNSET,
     font: str = _UNSET,
     fontGreek: str | None = _UNSET,
     fontSize: int | float = _UNSET,
@@ -380,6 +376,7 @@ def theme(
     fontWeight: str | int | float = _UNSET,
     grid: bool = _UNSET,
     gridColor: str = _UNSET,
+    gridStrokeDash: bool = _UNSET,
     height: int | float = _UNSET,
     legend: bool = _UNSET,
     legendColumnPadding: int | float = _UNSET,
@@ -388,6 +385,7 @@ def theme(
     legendOffset: int | float | None = _UNSET,
     legendRowPadding: int | float = _UNSET,
     legendStroke: bool = _UNSET,
+    lineStrokeDash: bool = _UNSET,
     markFill: str = _UNSET,
     markFillOpacity: int | float = _UNSET,
     markMedianFill: str = _UNSET,
@@ -412,10 +410,12 @@ def theme(
     ordinalPaletteDarkmode: str | list[str] | None = _UNSET,
     rampPalette: str | list[str] | None = _UNSET,
     rampPaletteDarkmode: str | list[str] | None = _UNSET,
+    ruleStrokeDash: bool = _UNSET,
     saveBackground: str | Sequence[str] = _UNSET,
     saveFormat: str | Sequence[str] = _UNSET,
     sigFigs: int = _UNSET,
     strokeCap: str = _UNSET,
+    strokeDash: Sequence[int | float] = _UNSET,
     tickDirection: Literal["in", "out"] = _UNSET,
     ticks: bool = _UNSET,
     tickSize: int | float = _UNSET,
@@ -467,8 +467,9 @@ def theme(
     ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True`` and ``cornerRadius=True`` derive
     size-dependent values; False disables them and a nonnegative number is explicit. Inner band
     paddings are dimensionless values in [0, 1]; ``outerPadding`` is any nonnegative value. Opacities
-    are in [0, 1], and dash sequences contain finite nonnegative pixel lengths, including empty and
-    odd-length sequences.
+    are in [0, 1]. ``strokeDash`` is the shared sequence of finite nonnegative pixel lengths;
+    ``gridStrokeDash``, ``lineStrokeDash``, and ``ruleStrokeDash`` select it for those components.
+    Empty and odd-length sequences are valid.
 
     Palette options accept a nonblank registered name, renderer scheme name, nonempty color-string
     list, or None. The five ``*PaletteDarkmode`` options are used only in dark mode when non-None;
@@ -679,7 +680,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "grid": opts["grid"],
                 "gridCap": opts["strokeCap"],
                 "gridColor": (opts["gridColor"] if opts["darkmode"] else opts["gridColor"]),
-                "gridDash": opts["dashedWidth"] if opts["dashedGrid"] else [0, 0],
+                "gridDash": opts["strokeDash"] if opts["gridStrokeDash"] else [0, 0],
                 "gridOpacity": 1.00,
                 "gridWidth": opts["axisWidth"],
                 "labelColor": "white" if opts["darkmode"] else "black",
@@ -881,7 +882,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "color": "white" if opts["darkmode"] else "black",
                 "stroke": "white" if opts["darkmode"] else "black",
                 "strokeCap": "butt",
-                "strokeDash": opts["dashedWidth"] if opts["dashedLine"] else [0, 0],
+                "strokeDash": opts["strokeDash"] if opts["lineStrokeDash"] else [0, 0],
                 "strokeOpacity": 1,
                 "strokeWidth": opts["axisWidth"] * 2,
             },
@@ -913,7 +914,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "color": "white" if opts["darkmode"] else "black",
                 "stroke": "white" if opts["darkmode"] else "black",
                 "strokeCap": opts["strokeCap"],
-                "strokeDash": opts["dashedWidth"] if opts["dashedRule"] else [0, 0],
+                "strokeDash": opts["strokeDash"] if opts["ruleStrokeDash"] else [0, 0],
                 "strokeOpacity": 1,
                 "strokeWidth": opts["axisWidth"],
             },

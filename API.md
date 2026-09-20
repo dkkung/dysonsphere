@@ -29,7 +29,9 @@ not part of the public contract.
   not a theme option. Use Altair's per-chart `mark_boxplot(outliers={...})` override to show or style them.
   Built-in styles are `small` (70 x 70 pixels with `fontSize=5`) and `notebook` (900 x 900 pixels,
   dark and transparent with `fontSize=18`). Named-style configuration and explicit arguments retain
-  their existing precedence over built-in style values.
+  their existing precedence over built-in style values. Theme dashes use the shared `strokeDash`
+  pattern and the boolean `gridStrokeDash`, `lineStrokeDash`, and `ruleStrokeDash` switches. The
+  removed `dashedGrid`, `dashedLine`, `dashedRule`, and `dashedWidth` names are not aliases.
 - Keep `ds.palette()` as the common selector; categorical construction, the color registry, and
   swatch export belong under `ds.palettes`. Palette selection returns colors without changing
   the active theme.

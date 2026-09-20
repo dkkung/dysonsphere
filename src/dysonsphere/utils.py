@@ -409,12 +409,12 @@ def _empty_layer() -> "Any":
 def _resolve_dash(value: "bool | Sequence[int | float] | None") -> "list[int | float] | None":
     """Resolve the project-wide ``strokeDash`` convention to a concrete dash array.
 
-    ``True`` -> the theme's ``dashedWidth`` pattern; ``False`` -> ``[0, 0]`` (forced solid);
+    ``True`` -> the theme's ``strokeDash`` pattern; ``False`` -> ``[0, 0]`` (forced solid);
     a list -> passed through unchanged; ``None`` -> ``None`` (the caller decides what unset
     means - typically omitting the property so the theme config applies).
     """
     if value is True:
-        return _opt("dashedWidth")
+        return _opt("strokeDash")
     if value is False:
         return [0, 0]
     return list(value) if value is not None else None

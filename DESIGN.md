@@ -58,6 +58,11 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   band. Do not change the global cap default to achieve this; axes and rules have separate needs.
   References: `theme.py::_dysonsphere_theme`; `test_theme.py::TestLineCap`.
 
+- **Dash names follow the rendered property.** `strokeDash` stores the shared pattern, while
+  `gridStrokeDash`, `lineStrokeDash`, and `ruleStrokeDash` are boolean switches selecting it for
+  each component. Keep their defaults and rendered behavior independent of the public rename.
+  References: `theme.py::_dysonsphere_theme`; `utils.py::_resolve_dash`; `test_theme.py::TestThemeValidation`.
+
 ## Rendering and Text
 
 - **Corrected SVG uses one ordered pipeline.** `export.py::_render_fixed_svg` renders and parses once,

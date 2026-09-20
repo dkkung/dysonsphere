@@ -12,7 +12,7 @@ from dysonsphere.theme import theme
 
 @pytest.fixture(autouse=True)
 def default_theme():
-    theme(dashedWidth=[2, 2])
+    theme(strokeDash=[2, 2])
 
 
 CATS = ["A", "B", "C", "D"]
