@@ -188,7 +188,7 @@ class TestLabels:
         assert dashes and all(d == [0, 0] for d in dashes)
 
     def test_connector_stroke_dash_true_uses_theme(self, df):
-        # default_theme fixture sets dashedWidth=[2, 2]
+        # default_theme fixture sets strokeDash=[2, 2]
         dashes = self._connector_stroke_dashes(labels(df, "x", "y", "g", connectorStrokeDash=True))
         assert all(d == [2, 2] for d in dashes)
 
@@ -469,7 +469,7 @@ class TestLabels:
 
 @pytest.fixture(autouse=True)
 def default_theme():
-    theme(dashedWidth=[2, 2])
+    theme(strokeDash=[2, 2])
 
 
 class TestRuleMarkKwargs:

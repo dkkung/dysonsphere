@@ -455,10 +455,10 @@ class TestViolinInner:
         assert median["strokeWidth"] == 0
         quartiles = [lyr["mark"] for lyr in _rule_layers(spec)]
         assert len(quartiles) == 2 * len(CATEGORIES)
-        dash_len, gap_len = alt.theme.options["dashedWidth"][:2]
+        dash_len, gap_len = alt.theme.options["strokeDash"][:2]
         for quartile in quartiles:
             # The dash pattern is per-line scaled-to-fit, so only its proportions
-            # match the theme's dashedWidth.
+            # match the theme's strokeDash.
             a, b = quartile["strokeDash"]
             assert a / b == pytest.approx(dash_len / gap_len)
             # Butt caps: the theme's round rule caps would paint strokeWidth/2 of

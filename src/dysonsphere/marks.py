@@ -496,7 +496,7 @@ def mark_violin(
         # strokeDash is a mark property.
         pixel_x_scale = alt.Scale(domain=[0, chart_width], padding=0)
 
-        dash_len, gap_len = _opt("dashedWidth")[:2]
+        dash_len, gap_len = _opt("strokeDash")[:2]
         cycle = dash_len + gap_len
         for row in quartile_rows:
             length = row["__x2"] - row["__x"]

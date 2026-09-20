@@ -781,6 +781,18 @@ class TestThemeValidation:
         with pytest.raises(TypeError, match=removed):
             cast(Any, theme)(**{removed: 120})
 
+    @pytest.mark.parametrize("removed", ["dashedGrid", "dashedLine", "dashedRule", "dashedWidth"])
+    def test_removed_dash_kwargs_are_rejected(self, removed):
+        with pytest.raises(TypeError, match=removed):
+            cast(Any, theme)(**{removed: True})
+
+    @pytest.mark.parametrize("removed", ["dashedGrid", "dashedLine", "dashedRule", "dashedWidth"])
+    def test_removed_dash_toml_keys_are_rejected(self, removed, tmp_path, monkeypatch):
+        (tmp_path / "dysonsphere.toml").write_text(f"[default]\n{removed} = true\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(ValueError, match=removed):
+            theme()
+
     @pytest.mark.parametrize(
         ("key", "value", "error"),
         [
@@ -801,8 +813,8 @@ class TestThemeValidation:
             ("saveFormat", 1, TypeError),
             ("saveFormat", "pdf", ValueError),
             ("saveBackground", "sepia", ValueError),
-            ("dashedWidth", [2, float("inf")], ValueError),
-            ("dashedWidth", [True], TypeError),
+            ("strokeDash", [2, float("inf")], ValueError),
+            ("strokeDash", [True], TypeError),
             ("palette", [], TypeError),
             ("palette", "", ValueError),
             ("categoryPalette", "   ", ValueError),
@@ -828,8 +840,15 @@ class TestThemeValidation:
 
     @pytest.mark.parametrize("dash", [[], [0], [2], [2, 1, 3]])
     def test_dash_sequences_allow_solid_and_odd_forms(self, dash):
-        theme(dashedWidth=dash)
-        assert alt.theme.options["dashedWidth"] == dash
+        theme(strokeDash=dash)
+        assert alt.theme.options["strokeDash"] == dash
+
+    def test_dash_switches_apply_shared_pattern(self):
+        theme(gridStrokeDash=True, lineStrokeDash=True, ruleStrokeDash=False, strokeDash=[4, 2])
+        config = _dysonsphere_theme()["config"]
+        assert config["axis"]["gridDash"] == [4, 2]
+        assert config["line"]["strokeDash"] == [4, 2]
+        assert config["rule"]["strokeDash"] == [0, 0]
 
     def test_signed_offsets_and_angles_and_explicit_zero(self):
         theme(axisOffset=-2, legendOffset=-3, xLabelAngle=-45, yLabelAngle=30, viewPadding=0)

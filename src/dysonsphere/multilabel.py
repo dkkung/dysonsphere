@@ -480,7 +480,7 @@ def _multilabel_layer(
             if orientation == "horizontal":
                 lines = (
                     alt.Chart(_internal_data(lines_df))
-                    # strokeDash=[0, 0] overrides the theme's dashedRule=True default.
+                    # strokeDash=[0, 0] overrides the theme's ruleStrokeDash=True default.
                     .mark_rule(strokeWidth=strokeWidth, strokeDash=[0, 0])
                     .encode(
                         x=alt.X("__x_start:N", sort=categories),
