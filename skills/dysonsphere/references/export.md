@@ -85,9 +85,10 @@ match the requested mode.
 - **Unknown keyword or missing attribute:** check the executing environment's versions, installed
   signature, and docstring. These examples use Dysonsphere 4.0.0; do not import core private helpers or add
   compatibility code to make a guessed name work.
-- **Too many rows:** every save format resolves inlined data. Assess the output size and privacy
-  implications before increasing `maxRows` or using `overrideMaxRows=True`. Do not silently sample
-  rows, globally disable protections, or assume saving only PNG bypasses the cap.
+- **Large data:** `ds.save()` and `ds.show()` allow any number of rows by default, and every output
+  still resolves inlined data during processing. Assess memory, output-size, and privacy implications;
+  JSON and HTML retain the complete dataframe, including unplotted columns. Use `maxRows=` when the
+  user requests an explicit cap. Do not silently sample rows.
 - **Clipped labels/brackets:** check domains, panel size at construction, label density, and final
   rendered bounds. Rebuild size-dependent panels; do not change data or conclusions to make room.
 - **Wrong category colors/order:** align explicit category/subgroup domains across marks and

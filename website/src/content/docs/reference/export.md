@@ -21,8 +21,7 @@ def save(
     format: str | list[str] | None = None,
     background: str | list[str] | None = None,
     transparent: bool = True,
-    maxRows: int = 5000,
-    overrideMaxRows: bool = False,
+    maxRows: int | None = None,
 ) -> None: ...
 ```
 
@@ -60,8 +59,7 @@ Unicode super/subscript characters.
 - **`format`** (`str | list[str] | None`) - Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled in), as a single string or a list. ``None`` (default) uses the theme option ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises. ``"html"`` is the **interactive** tier: it renders live in the browser via Vega, so it is fully themed, carries the metadata block, and gets exact tick positions (that fix lives in the theme config), but it does NOT get dysonsphere's static SVG processing steps (superscript typesetting, Illustrator-friendly flattening). ``tickDirection="in"`` is deliberately **not** applied to HTML: the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label spacing), so it renders inconsistently and is left off. Use ``"svg"``/``"png"`` for the static figure with the SVG post-processing applied.
 - **`background`** (`str | list[str] | None`) - Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles ``darkmode``), as a single string or a list. ``None`` (default) uses the theme option ``saveBackground`` (``"light"``). An empty list or unknown value raises.
 - **`transparent`** (`bool`) - Whether the rendered SVG/PNG have a transparent background. ``True`` (default): exported figures composite onto any page or slide. ``False``: the background is filled with the theme's ``chartFill`` (white in light mode, black in dark mode, unless set explicitly) - for outputs viewed on their own, e.g. images embedded in a README. Applies to the SVG/PNG render only; the JSON and HTML keep the chart's logical background (the theme option ``transparent``).
-- **`maxRows`** (`int`) - Row cap for the data inlined into the output (default ``5000``, matching Altair). Every format renders via ``chart.to_dict()``, which inlines the data, and the JSON embeds it for :func:`read` — so data over this many rows would make the files huge and is **blocked with a clear error**. Raise it to allow larger data.
-- **`overrideMaxRows`** (`bool`) - If ``True``, removes the row cap entirely for this save (inlines all rows, however many). The deliberate opt-in for large data.
+- **`maxRows`** (`int | None`) - Optional row cap for each dataframe processed during export. ``None`` (default) removes Altair's standard 5000-row cap. Set an integer to reject larger data sources with a clear error. Every format resolves through ``chart.to_dict()``; JSON and HTML retain the inlined data, while static rendering still materializes it during export.
 - **`saveMetadata`** (`bool`) - If ``True`` (default), embeds a **structured JSON** metadata block — ``{"provenance": {...}, "statistics": [...]}`` — in every output format so each is self-contained and machine-readable: - ``provenance`` — generation facts as fields: ``user``, ``script``, ``chart`` (best-effort source text of the ``chart`` argument at this call site — the variable name or inline composition, e.g. ``"boxplot + points"``; omitted when the source is unavailable, e.g. in a plain REPL), ``timestamp`` (ISO-8601), ``environment`` (OS + toolchain versions), then the identity fields ``vegaliteChecksum``/``exportIdentifier``/``dataChecksum``. In Jupyter, ``script`` is ``"<jupyter-notebook>"``; ``user`` falls back to ``"unknown_user"``. - ``statistics`` — the structured records queued by ``stats.comparisons`` (groups, omnibus result, comparisons with exact p-values and effect sizes); omitted when there are none. It lands in the **Vega-Lite JSON** under ``usermeta.dysonsphere`` (merged into any ``usermeta`` already on the chart), the **SVG** ``<metadata id="dysonsphere">`` element (CDATA), and the **PNG** ``iTXt dysonsphere`` chunk. ``saveMetadata=False`` suppresses the structured block entirely; your ``description`` (if any) is still written. **Reproducible exports.** ``timestamp`` and ``exportIdentifier`` normally change on every call, so re-saving an unchanged figure rewrites its bytes. Setting the ``SOURCE_DATE_EPOCH`` environment variable (the reproducible-builds convention: an integer count of UTC seconds) pins the timestamp to that instant and derives the identifier from the figure's own content, making repeated saves byte-identical — useful when figures are committed alongside a manuscript. Distinct figures still get distinct identifiers, and the light/dark variants of one export still share one.
 - **`embedReport`** (`bool`) - If ``True`` (default) and ``saveMetadata`` is on, also embeds the human-readable **report table** (the descriptive + effect-size text from ``stats.comparisons`` / ``stats.correlation``) as a ``report`` member of ``usermeta.dysonsphere`` in the **JSON**, and as a dedicated readable channel (real newlines, not escaped JSON) in the **SVG** (``<metadata id="dysonsphere-report">``) and **PNG** (``iTXt dysonsphere-report``). It never touches ``description`` (your text only). Set ``False`` to keep just the structured block. (Also available standalone via ``stats.comparisons(report=True)``.)
 
@@ -89,8 +87,7 @@ Callable — rebuilt per variant so dark-mode colours are correct::
 def show(
     chart: _AltairChart | Callable[[], _AltairChart],
     *,
-    maxRows: int = 5000,
-    overrideMaxRows: bool = False,
+    maxRows: int | None = None,
 ) -> 'HTML': ...
 ```
 
@@ -113,12 +110,12 @@ the notebook's own background, exactly like a bare Altair chart. An ``image/svg+
 goes to the frontend's *image* renderer instead, which in VS Code composites onto a white
 canvas - so a transparent dark-mode figure came back as white ink on white.
 
-Like :func:`save`, the render is wrapped in the ``"default"`` data transformer capped at
-``maxRows`` (``overrideMaxRows=True`` lifts the cap), so ``ds.show()`` works regardless of
-whichever transformer is active in the session — in particular ``vegafusion``, which
-otherwise makes Altair's ``to_dict()`` raise (dysonsphere's SVG processing needs the
-vega-lite spec, and a scatter's points must all inline anyway, so vegafusion cannot help
-here). Over the cap Altair raises, re-raised as a clear :class:`ValueError`.
+Like :func:`save`, the render is wrapped in the ``"default"`` data transformer so
+``ds.show()`` works regardless of whichever transformer is active in the session - in
+particular ``vegafusion``, which otherwise makes Altair's ``to_dict()`` raise because
+dysonsphere's SVG processing needs the Vega-Lite specification. ``maxRows=None`` (default)
+allows any number of rows; set an integer to reject larger data sources with a clear
+:class:`ValueError`. Dense charts can produce large SVG output and require substantial memory.
 
 Accepts the same chart types as :func:`save`, including a zero-argument callable (called
 once). Requires IPython (present in any notebook); otherwise raises ``ImportError`` - use

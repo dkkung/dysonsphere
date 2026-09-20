@@ -104,8 +104,7 @@ def save(
     format: str | list[str] | None = None,
     background: str | list[str] | None = None,
     transparent: bool = True,
-    maxRows: int = 5000,
-    overrideMaxRows: bool = False,
+    maxRows: int | None = None,
 ) -> None:
     """
     Save a chart in one or more formats and background variants.
@@ -181,13 +180,10 @@ def save(
         a README. Applies to the SVG/PNG render only; the JSON and HTML keep the chart's
         logical background (the theme option ``transparent``).
     maxRows:
-        Row cap for the data inlined into the output (default ``5000``, matching Altair).
-        Every format renders via ``chart.to_dict()``, which inlines the data, and the JSON
-        embeds it for :func:`read` — so data over this many rows would make the files huge
-        and is **blocked with a clear error**. Raise it to allow larger data.
-    overrideMaxRows:
-        If ``True``, removes the row cap entirely for this save (inlines all rows, however
-        many). The deliberate opt-in for large data.
+        Optional row cap for each dataframe processed during export. ``None`` (default)
+        removes Altair's standard 5000-row cap. Set an integer to reject larger data sources
+        with a clear error. Every format resolves through ``chart.to_dict()``; JSON and HTML
+        retain the inlined data, while static rendering still materializes it during export.
     saveMetadata:
         If ``True`` (default), embeds a **structured JSON** metadata block —
         ``{"provenance": {...}, "statistics": [...]}`` — in every output format so each
@@ -278,11 +274,10 @@ def save(
     _want_render = "svg" in _formats or "png" in _formats
     original_darkmode = _opt("darkmode")
     original_transparent = _opt("transparent")
-    # Cap the rows inlined for this save (every format renders via to_dict(), which enforces
-    # it; overrideMaxRows lifts it) — restored on the way out via the ExitStack.  Over the cap,
-    # Altair raises MaxRowsError, which we catch and re-raise with a clearer message.
+    # Pin the default transformer because the export pipeline needs a Vega-Lite specification.
+    # An explicit maxRows is enforced per dataframe. The prior transformer is restored on exit.
     _cap_stack = ExitStack()
-    _row_cap = alt.data_transformers.enable("default", max_rows=None if overrideMaxRows else maxRows)
+    _row_cap = alt.data_transformers.enable("default", max_rows=maxRows)
     _cap_stack.enter_context(_row_cap)  # ty: ignore[invalid-argument-type]  (Altair PluginEnabler lacks CM stub)
     try:
         if _want_render or "html" in _formats:
@@ -374,10 +369,8 @@ def save(
                     Path(svg_path).unlink()  # transient — only rendered as the PNG source
     except alt.MaxRowsError as e:
         raise ValueError(
-            f"the chart's data has more than maxRows={maxRows} rows. Every output format inlines "
-            f"the data to render it (and the .json embeds it for read(what='data')), so large data "
-            f"is blocked to avoid huge files. Raise maxRows= to allow it, or pass overrideMaxRows=True "
-            f"to remove the cap."
+            f"the chart has a data source with more than maxRows={maxRows} rows. "
+            f"Raise maxRows= to allow it, or pass maxRows=None to remove the cap."
         ) from e
     finally:
         _cap_stack.close()
@@ -385,9 +378,7 @@ def save(
         alt.theme.options["transparent"] = original_transparent
 
 
-def show(
-    chart: _AltairChart | Callable[[], _AltairChart], *, maxRows: int = 5000, overrideMaxRows: bool = False
-) -> "HTML":
+def show(chart: _AltairChart | Callable[[], _AltairChart], *, maxRows: int | None = None) -> "HTML":
     """Render *chart* through the full ``ds.save()`` processing and return it for accurate
     inline display in a notebook.
 
@@ -407,12 +398,12 @@ def show(
     goes to the frontend's *image* renderer instead, which in VS Code composites onto a white
     canvas - so a transparent dark-mode figure came back as white ink on white.
 
-    Like :func:`save`, the render is wrapped in the ``"default"`` data transformer capped at
-    ``maxRows`` (``overrideMaxRows=True`` lifts the cap), so ``ds.show()`` works regardless of
-    whichever transformer is active in the session — in particular ``vegafusion``, which
-    otherwise makes Altair's ``to_dict()`` raise (dysonsphere's SVG processing needs the
-    vega-lite spec, and a scatter's points must all inline anyway, so vegafusion cannot help
-    here). Over the cap Altair raises, re-raised as a clear :class:`ValueError`.
+    Like :func:`save`, the render is wrapped in the ``"default"`` data transformer so
+    ``ds.show()`` works regardless of whichever transformer is active in the session - in
+    particular ``vegafusion``, which otherwise makes Altair's ``to_dict()`` raise because
+    dysonsphere's SVG processing needs the Vega-Lite specification. ``maxRows=None`` (default)
+    allows any number of rows; set an integer to reject larger data sources with a clear
+    :class:`ValueError`. Dense charts can produce large SVG output and require substantial memory.
 
     Accepts the same chart types as :func:`save`, including a zero-argument callable (called
     once). Requires IPython (present in any notebook); otherwise raises ``ImportError`` - use
@@ -431,18 +422,17 @@ def show(
         ) from e
 
     base_obj = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
-    # Cap the inlined rows and pin the "default" transformer for the render
+    # Pin the "default" transformer for the render and enforce an explicit cap when requested.
     _cap_stack = ExitStack()
-    _row_cap = alt.data_transformers.enable("default", max_rows=None if overrideMaxRows else maxRows)
+    _row_cap = alt.data_transformers.enable("default", max_rows=maxRows)
     _cap_stack.enter_context(_row_cap)  # ty: ignore[invalid-argument-type]  (Altair PluginEnabler lacks CM stub)
     try:
         with tempfile.TemporaryDirectory() as d:
             svg = _render_fixed_svg(base_obj, str(Path(d) / "preview.svg"))
     except alt.MaxRowsError as e:
         raise ValueError(
-            f"the chart's data has more than maxRows={maxRows} rows. ds.show() inlines the data to "
-            f"render it, so large data is blocked to avoid a huge SVG. Raise maxRows= to allow it, or "
-            f"pass overrideMaxRows=True to remove the cap."
+            f"the chart has a data source with more than maxRows={maxRows} rows. "
+            f"Raise maxRows= to allow it, or pass maxRows=None to remove the cap."
         ) from e
     finally:
         _cap_stack.close()
