@@ -18,7 +18,7 @@ uv pip install dysonsphere
 uv add dysonsphere
 ```
 
-Requires Python >= 3.11. The runtime dependencies install with it:
+Requires Python >= 3.11. The following runtime dependencies install with it:
 
 - [Altair](https://altair-viz.github.io/) >= 6.0 - the charting layer
 - [Polars](https://pola.rs/) >= 1.19 - the native `DataFrame` ([pandas](https://pandas.pydata.org/) input is accepted and converted)
@@ -26,31 +26,31 @@ Requires Python >= 3.11. The runtime dependencies install with it:
 - [SciPy](https://scipy.org/) >= 1.11 - the statistics behind `ds.stats.comparisons()` / `ds.stats.correlation()`
 - [vl-convert](https://github.com/vega/vl-convert) >= 1.9 - the SVG/PNG renderer behind `save()`
 
-`pandas` and `duckdb` are optional - only needed for `read(..., output="pandas"/"duckdb")`.
+`pandas` and `duckdb` are optional and are only needed for `read(..., output="pandas"/"duckdb")`.
 
-dysonsphere adds themes, marks, annotations, and export helpers to [Altair](https://altair-viz.github.io/). Its chart functions return Altair chart objects, and data can be a [polars](https://pola.rs) or [pandas](https://pandas.pydata.org/) `DataFrame`.
+`dysonsphere` adds themes, marks, annotations, and export helpers to [Altair](https://altair-viz.github.io/). Its chart functions return native Altair chart objects.
 
-## The shape of the library
+## The library
 
-Import the library through one namespace, conventionally named `ds`:
+Import the library through a single namespace, conventionally named `ds`:
 
-- **`ds.theme()`** - register a global theme. Charts built afterwards inherit its palettes and
+- **`ds.theme()`** - register and apply a global theme. Charts built afterward the invocation inherit `ds.theme()`'s palettes and
   styling. See [Theming](/guides/theming/).
 - **Marks** - `ds.mark_strip()`, `ds.mark_violin()` build composite plots. See [Marks](/guides/marks/).
 - **Annotations** - `ds.rule()`, `ds.text()`, `ds.shade()`, `ds.labels()` return
-  layers you add with `+`. See [Reference lines](/guides/reference-lines/),
+  layers that can be composed with `Chart` objects using `+`. See [Reference lines](/guides/reference-lines/),
   [Shading](/guides/shading/), and [Text & labels](/guides/text-labels/).
-- **Statistics** - `ds.stats.comparisons()` and `ds.stats.correlation()` draw significance tests and
-  fits that carry a report into the export. See [Comparisons](/guides/comparisons/) and
+- **Statistics** - `ds.stats.comparisons()` and `ds.stats.correlation()` perform statistical inference and render significance tests and
+  correlation fits. See [Comparisons](/guides/comparisons/) and
   [Correlation](/guides/correlation/).
-- **`ds.save()`** - write figures and their metadata. **`ds.metadata.read()`** reads metadata and, for JSON exports, captured data. **`ds.load()`** rebuilds a chart from a JSON export. See [Saving & reading](/guides/saving/).
+- **`ds.save()`** - write figures and their metadata to several possible fo rmats. **`ds.metadata.read()`** reads `Chart` metadata and, for JSON exports, captured data. **`ds.load()`** rebuilds a chart from a JSON export. See [Saving & reading](/guides/saving/).
 
 ## Your first chart
 
 <Example name="first_chart" alt="Bar chart of four groups, blues palette" />
 
 `ds.theme()` registers the theme; `palette="blues"` sets the categorical color scheme. Because the
-theme is global, plain `alt.Chart(...)` picks it up - dysonsphere only had to set the palette.
+theme is global, plain `alt.Chart(...)` inherits the theme.
 
 ## Saving
 
@@ -58,7 +58,7 @@ theme is global, plain `alt.Chart(...)` picks it up - dysonsphere only had to se
 ds.save(chart, "figure")   # writes figure.svg + figure.json by default
 ```
 
-`save()` writes provenance, the resolved theme, and any statistics to the export. `ds.metadata.read()` reads metadata from JSON, SVG, or PNG; captured data is available only from JSON. `ds.load()` rebuilds a chart only from JSON.
+`save()` writes provenance, the resolved theme, and any statistic analysis to the export.
 
 ## Try it live
 
