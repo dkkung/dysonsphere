@@ -10,12 +10,12 @@ import afterSource from '../../../../examples/theme_after.py?raw';
 import darkSource from '../../../../examples/darkmode_dark.py?raw';
 
 `ds.theme()` registers a global Altair theme. Charts built afterwards inherit its palettes and
-styling. Call it once; use ordinary Altair encodings for per-chart overrides. A later call replaces
-the theme.
+styling. Call it once to apply the theme to all further `Chart` objects. Calling it again re-applies the theme
+to all charts that follow the theme call.
 
 ## Before and after
 
-The same Altair code, with exactly one line added - `ds.theme()`:
+The same Altair code before and after calling `ds.theme()`:
 
 <Code code={afterSource.trimEnd()} lang="python" />
 
@@ -32,10 +32,10 @@ The same Altair code, with exactly one line added - `ds.theme()`:
 
 ## Dark mode
 
-Dark-background figures keep getting more common: notebooks render inline charts against the
-dark editor themes most IDEs default to, and dark or black slide backgrounds are increasingly
-the norm in scientific and industrial presentations alike. `ds.theme(darkmode=True)` inverts the
-axis, label, and text ink while keeping palette colors intact - one flag, same chart code:
+Dark-background figures are becoming increasingly popular in both scientific presentations and common development environments
+e.g., your text editor and/or IDE.
+
+`ds.theme(darkmode=True)` inverts the axis, label, and text colors while maintaining palettes:
 
 <Code code={darkSource.trimEnd()} lang="python" />
 
@@ -50,35 +50,40 @@ axis, label, and text ink while keeping palette colors intact - one flag, same c
 	</figure>
 </div>
 
-These two pin `transparent=False`, so each bakes its own contrasting `chartFill` background
-(auto: white, black in darkmode). Ordinarily dysonsphere draws transparent instead, letting the
-page or slide provide the ground - every chart on this site swaps ink with the site's light/dark
-toggle, which is this same `darkmode` flag at work.
+These two `Chart` objects also use `transparent=False`, so each renders its own contrasting `chartFill` background
+(white by default, black in darkmode).
+
+Ordinarily dysonsphere draws transparent backgrounds for all charts, letting the page or slide provide the background.
+Every chart on on this website renders with `ds.them(darkmode=True)` when the theme preference of
+the page is set to dark.
 
 ## Palettes
 
-Pass `palette=` to set the categorical color scheme - any palette name from `ds.palettes.colors` (browse
-them all in the [Palettes](/guides/palettes/) gallery):
+Pass `palette=` to set the default categorical color scheme. Hex codes for all palettes can be accessed
+through `ds.palettes.colors` (or browse them all in the [Palettes](/guides/palettes/) gallery):
 
 <Example name="bar" alt="Bar chart of mean barley yield by variety, blues palette" />
 
 ### Per-type palettes
 
-`palette` sets the master scheme for every range. To recolor just one channel, use the regular per-type
-keys: `categoryPalette`, `divergingPalette`, `heatmapPalette`, `ordinalPalette`, and `rampPalette`.
-The matching `categoryPaletteDarkmode`, `divergingPaletteDarkmode`, `heatmapPaletteDarkmode`,
-`ordinalPaletteDarkmode`, and `rampPaletteDarkmode` keys optionally replace those ranges only in
-dark mode. In light mode they are ignored; when a dark-mode key is `None`, its regular value applies
-in both modes. The built-in light/dark defaults are `cat1`/`cat2` for category, `div1`/`div2` for
-diverging, `viridis` in both modes for heatmap and ramp, and `greys` in both modes for ordinal.
+`palette` sets the master scheme for every range i.e., data types (nominal, ordinal, categorical, diverging, and ramps).
+
+To recolor just one channel, use the regular per-type
+keys: `categoryPalette`, `divergingPalette`, `heatmapPalette`, `ordinalPalette`, and `rampPalette`, which each have matching
+darkmode-specific overrides e.g., `categoryPaletteDarkmode` or `divergingPaletteDarkmode`.
+
+The built-in light/dark defaults are `cat1`/`cat2` for categorical data, `div1`/`div2` for divergent data, `viridis` in both
+modes for sequential data (heatmap and ramp), and `greys` in both modes for ordinal data.
 
 <Example name="heatmap_palette" alt="2D histogram heatmap with the cosmos palette" />
 
 ## Style presets
 
-Named presets are selected with `style=`. Two ship built in: `"small"` is a compact 70 x 70 px look
-with 5 pt type, while `"notebook"` is a big-screen exploration look (900 x 900 px, 18 pt type, dark,
-transparent) for working inline in a notebook before you produce the print-scale figure:
+Named presets that override several `ds.theme()` parameters are selected with `style=`.
+
+There are two built-in presets:
+- `"small"` is the default with a compact 70 x 70 px chart dimension and a 5 pt font size.
+- `"notebook"` carries large-scale features for viewing in IDEs (900 x 900 px, 18 pt type, dark, transparent).
 
 ```python
 ds.theme(style="small")              # compact figure
@@ -86,17 +91,23 @@ ds.theme(style="notebook")           # explore at screen scale
 ds.theme()                           # back to publication defaults
 ```
 
-A `dysonsphere.toml` config file can customise the preset or add your own named styles -
-`ds.theme(style="poster")` picks up a `[poster]` section from your config. See the
+A `dysonsphere.toml` config file can customise the existing presets or allow you to add your own named styles.
+
+For example,
+`ds.theme(style="poster")` picks up a custom `[poster]` section from your config. See the
 [configuration guide](/guides/configuration/) for the full file format, search paths, and merge
-order; `ds.create_config()` scaffolds a starter file.
+order.
+
+Use `ds.create_config()` to create the default `dysonsphere.toml` in either the current working directory or – with `persist=True`
+– in your user configuration directory e.g., $XDG_CONFIG_HOME/dysonsphere/.
 
 ## Frame and grid
 
-`closed=True` draws a full frame around the plot (all four spines). Open and closed plots inset
-the data from their axes or frame (`viewPadding`, on by default) so marks at the domain edge don't sit
-on the border. The default scales with the chart - 5% of the smaller dimension, 5px at the
-default 100x100 - or pass a pixel value, or `viewPadding=False` for a flush frame. On an
+`closed=True` draws a full frame around the plot (using all four spines). Open and closed plots inset
+the data from their axes or frame (`viewPadding`, on by default) so marks with values on domain edges don't
+overlap with the border. The default inset is 5% of the smaller dimension e.g., 5px on the default 100x100 chart.
+
+Pass a pixel value for a specific inset, or `viewPadding=False` for a flush frame. On an
 auto-domained scale Vega-Lite rounds the request up to the next nice tick step; it lands
 exactly where the domain is explicit:
 
@@ -110,38 +121,27 @@ exactly where the domain is explicit:
 ## Rounded marks
 
 `cornerRadius=True` rounds bar tips (and rects and arcs) by a size derived from the chart
-dimensions; pass a float for explicit pixels.
+dimensions. Pass a float for explicit rounding in pixels.
 
 <Example name="corner_radius" alt="Bar chart with rounded bar tips" />
 
 ## Label angles
 
-`xLabelAngle` / `yLabelAngle` rotate axis labels (in degrees); alignment is derived from the sign,
-so crowded categories stay legible.
+`xLabelAngle` / `yLabelAngle` rotate axis labels by set degrees.
 
 <Example name="label_angle" alt="Bar chart with angled x-axis labels" />
 
 ## Inward ticks
 
-`tickDirection="in"` points tick marks into the plot area (physics-journal style) and defaults the
-frame to closed:
+`tickDirection="in"` points tick marks into the plot area and defaults the frame to `closed=True`:
 
 <Example name="inward_ticks" alt="Scatter plot with inward-pointing tick marks" tickDirection="in" />
 
-## More knobs
+## Other settings
 
 The theme exposes dozens of parameters - `axisOffset`, `tickSize`, `tickDirection`, `fontSize`,
 `markSize`, `markStrokeWidth`, `barPadding`, `sigFigs`,
-and the axis-element toggles (`xAxis`, `xTicks`, `xLabels`, and their `y` counterparts). The
-[configuration guide's key reference](/guides/configuration/#key-reference) documents every one
-of them, with defaults - and each is equally valid as a `theme()` keyword or a `dysonsphere.toml`
-entry.
+and the axis-element toggles (`xAxis`, `xTicks`, `xLabels`, and their `y` counterparts).
 
-`fontSize` is the nominal point size at the figure's intrinsic publication size. SVG represents
-that same number in renderer user units (often shown as `px` in the markup), and PNG export scales
-from 72 intrinsic units per inch. Dysonsphere does not apply a 4/3 conversion. `markSize` is a shared
-sizing basis: native symbol marks consume area values, while composite widths and gaps derive linear
-pixel dimensions from it. The curated dark-mode ink colors for circles, lines, rules, and selected
-composite details are intentional; `markFill` and `markStroke` style the mark families that inherit them.
-When `markFill` is omitted and unconfigured, it defaults to `#DBDBDB` in light mode and `#9D9D9D`
-in dark mode. Setting it explicitly, including to either default literal, pins that color across modes.
+The [configuration guide's key reference](/guides/configuration/#key-reference) documents every parameter
+with their defaults.
