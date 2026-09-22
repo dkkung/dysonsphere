@@ -12,9 +12,8 @@ exact p-values, and effect sizes - that `save()` embeds in the export metadata. 
 
 Which annotation you get is decided by `test=`, which classifies into **pairwise** (`mannwhitneyu`,
 `ttest_ind`, `ttest_rel`, `wilcoxon`, `tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`,
-`alexandergovern`). Here an ANOVA with a corner label plus two post-hoc brackets - nothing is
-positioned by hand. The corner label sits at the top of the plot, so the annotation raises the top
-of the y axis enough for the brackets to fit beneath it:
+`alexandergovern`). This example uses an ANOVA corner label and two post-hoc brackets. The
+annotation reserves space at the top of the y axis for the brackets:
 
 <Example name="comparisons" alt="Fuel economy by origin with an ANOVA label and post-hoc brackets" />
 
@@ -52,18 +51,16 @@ reference (for example, with a darker fill) remains your choice. In grouped mode
 
 <Example name="comparisons_reference" alt="Dose-response bars compared to a control with asterisks over each bar" />
 
-Left alone, each label lands a fixed distance above the bar it belongs to, so the marks follow the
-data. Here three dose-response groups, each with the vehicle control a few shades darker,
-quasirandom points, error bars, and an asterisk over every dose compared against its control - the
-groups span roughly a tenfold range, and the gap is the same in all three:
+Labels are placed a fixed distance above their corresponding bars. This example has three
+dose-response groups, a darker vehicle control, quasirandom points, error bars, and an asterisk
+for each comparison with the control:
 
 <Example name="comparisons_grouped_reference" alt="Three dose-response groups with an asterisk above each dose bar compared to a darker vehicle control" />
 
 ## Omnibus tests
 
-An omnibus test asks a single question of all the groups at once: *is anything different anywhere?*
-It costs one test instead of many, so there is no multiplicity to correct, and it is the honest
-opening move when you have three or more groups and no specific pair in mind.
+An omnibus test evaluates all groups together. It produces one initial p-value; use it when you
+have three or more groups and no specific pair was defined in advance.
 
 Set `test=` to one of `anova`, `kruskal`, `friedman` or `alexandergovern` and the result goes in a
 corner label rather than on a bracket. Add `pairs` and the brackets are filled by the matching

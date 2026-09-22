@@ -1,13 +1,12 @@
 ---
 title: dysonsphere
-description: "An Altair theme and chart-utility library with perceptually uniform palettes, statistical annotations, and exports that preserve chart metadata."
+description: "Altair themes, chart utilities, palettes, statistical annotations, and metadata-aware exports."
 tableOfContents: false
 hero:
   image:
     file: ../../assets/dysonsphere_logo.svg
   tagline: >-
-    Altair charts, perceptually uniform palettes, and exports
-    that carry their own provenance.
+    Altair themes, palettes, statistical annotations, and chart exports.
   actions:
     # Relative links (resolved from the "/" or "/dysonsphere/" landing URL): frontmatter can't
     # go through the remark base-prefix plugin, and Starlight passes these hrefs through as-is.
@@ -51,31 +50,25 @@ pip install dysonsphere
 <section class="landing__features">
 <CardGrid>
 	<Card title="Consistent defaults" icon="approve-check">
-		Charts use print-scale typography, tick geometry, and mark styling. SVG output uses the same
-		settings.
+		Charts use consistent typography, tick geometry, and mark styling. SVG output uses the same settings.
 	</Card>
 	<Card title="Perceptually uniform palettes" icon="star">
-		300+ palettes built in Oklab and resampled by arc length. Sequential ramps step evenly and
-		diverging ramps balance. Export them as Illustrator swatches.
+		Dysonsphere's native palettes use Oklab interpolation and arc-length resampling. Imported palettes may use different construction rules. Export palettes as Illustrator swatches.
 	</Card>
 	<Card title="Statistical annotations" icon="magnifier">
-		Omnibus tests, post-hoc brackets, correlation readouts - computed with scipy, drawn as
-		layers you compose with <code>+</code>, reported with exact p-values and effect sizes.
+		Compute omnibus tests, post-hoc comparisons, and correlations with SciPy. Add the results as Altair layers with <code>+</code> and export exact statistics.
 	</Card>
 	<Card title="Composable marks & layers" icon="add-document">
-		Violins, strip plots, reference lines, text, shading, point labels, multilabels,
-		log/power minor ticks - all native Altair objects that layer onto your own charts.
+		Add violins, strip plots, reference lines, text, shading, point labels, multilabels, and log or power minor ticks as Altair layers.
 	</Card>
 	<Card title="Self-describing exports" icon="download">
-		<code>save()</code> embeds provenance, statistics, the theme, and your data into SVG, PNG,
-		and JSON. <code>read()</code> and <code>load()</code> retrieve them.
+		<code>save()</code> writes metadata to SVG, PNG, and JSON. JSON exports also contain captured chart data and can be loaded with <code>load()</code>; <code>read()</code> reads metadata from the supported formats.
 	</Card>
 	<Card title="Runs in your browser" icon="rocket">
 		{/* Relative hrefs (this page renders at the site root, "/" or "/dysonsphere/"): raw JSX
 		    anchors bypass the remark base-prefix plugin, so root-relative ones would 404 when
 		    deployed under a base path. */}
-		The <a href="studio/">Chart Studio</a> runs the real library via WebAssembly - upload your
-		own data or write Python against it, no install, same output as your notebook.
+		The <a href="studio/">Chart Studio</a> runs the library in WebAssembly. Upload data or edit Python in the browser without installing Python.
 	</Card>
 </CardGrid>
 </section>

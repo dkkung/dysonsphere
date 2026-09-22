@@ -2,8 +2,8 @@
 // Homepage-only typewriter for the hero title: a thin-bar caret types the first word,
 // pauses, then types the second inside a contrasting chip - then "rolls" backwards
 // (backspace deletion) to a blank slate and cycles through the word stops
-// (dysonsphere -> publication ready -> uniform palettes -> declarative plotting ->
-// plot provenance -> ...), forever. Progressive enhancement - the static h1 text stays
+// (dysonsphere -> statistical annotations -> uniform palettes -> declarative plotting ->
+// chart metadata -> ...), forever. Progressive enhancement - the static h1 text stays
 // for no-JS/SEO and screen readers read the plain product name via aria-label (the
 // animated spans are aria-hidden). Plays for everyone by explicit user decision (no
 // prefers-reduced-motion skip). Scoped to the homepage by construction: only the
@@ -101,10 +101,10 @@ const chipPairs = (palettes as { name: string; source: string; colors: string[] 
 	// [plain word, chipped word] stops - run together with no space, like dysonsphere.
 	const STOPS: Array<[string, string]> = [
 		['dyson', 'sphere'],
-		['publication', 'ready'],
+		['statistical', 'annotations'],
 		['uniform', 'palettes'],
 		['declarative', 'plotting'],
-		['plot', 'provenance'],
+		['chart', 'metadata'],
 	];
 
 	function run() {

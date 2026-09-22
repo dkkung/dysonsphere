@@ -1,14 +1,14 @@
 ---
 title: Palettes
-description: Browse all 300+ perceptually uniform dysonsphere palettes and use them in a chart.
+description: Browse Dysonsphere palettes and use them in a chart.
 ---
 
 import Example from '../../../components/Example.astro';
 
-Every dysonsphere palette is built in [Oklab](https://bottosson.github.io/posts/oklab/) and
-resampled by arc length, so sequential ramps step evenly in perceived lightness and diverging ramps
-balance around a neutral midpoint. Pass a palette name anywhere a `palette=` argument is accepted,
-or pull colors directly with `ds.palette(name, n)`.
+Dysonsphere's native palettes are built in [Oklab](https://bottosson.github.io/posts/oklab/) and
+resampled by arc length. This gives the native sequential and diverging ramps their documented
+lightness and spacing properties. Imported palettes may follow different rules. Pass a palette name
+where a `palette=` argument is accepted, or pull colors directly with `ds.palette(name, n)`.
 
 For one emphasized mark or annotation rather than a data scale, use the theme-aware named colors in
 the [Accents guide](/guides/accents/).
@@ -26,9 +26,9 @@ and remain unchanged.
 
 ## Choosing a colormap
 
-Every sequential ramp is monotonic in Oklab lightness with near-uniform perceptual step size, so
-value ordering survives greyscale conversion and simulated deuteranopia/protanopia. Which one to
-reach for:
+The native sequential ramps are monotonic in Oklab lightness with near-uniform perceptual step
+size. Their behavior under greyscale conversion and color-vision simulation differs by palette.
+Choose a ramp based on the data and viewing conditions:
 
 - **`viridis`** - the default heatmap and ramp palette in both light and dark modes. Its familiar
   purple-to-yellow path keeps continuous color mappings stable when only the background changes.
@@ -78,8 +78,8 @@ family:
 
 ## Browsing the catalogue
 
-The [Palette browser](/palettes/) shows all 300+ palettes as filterable swatch strips, with a
-live preview - click any swatch to copy its hex codes and see the charts restyled with it.
+The [Palette browser](/palettes/) shows the catalogue as filterable swatch strips with a live
+preview. Select a swatch to inspect its hex codes and preview the charts with that palette.
 
 ## Illustrator swatches
 

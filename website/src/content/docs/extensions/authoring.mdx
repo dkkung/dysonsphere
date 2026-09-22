@@ -5,10 +5,9 @@ sidebar:
   order: 2
 ---
 
-An extension is an ordinary Python distribution that registers one entry point. Do that, build
-your charts on the public **`dysonsphere.ext`** API, and they resolve under `ds.<name>` and
-behave like built-ins. This guide covers packaging, entry point registration, the `ext`
-primitives, and tagging generated data.
+An extension is a Python distribution that registers an entry point. Its chart functions can be
+accessed through `ds.<name>` when the package is installed. This guide covers packaging, entry
+point registration, the public **`dysonsphere.ext`** API, and generated-data tagging.
 
 ## Package layout
 
@@ -30,8 +29,7 @@ from .yourchart import yourchart
 __all__ = ["yourchart"]
 ```
 
-Cap the core dependency below the next major so a future breaking core release fails the
-resolver loudly rather than breaking your charts silently:
+Constrain the core dependency below the next major version so incompatible releases fail installation:
 
 ```toml
 # pyproject.toml
@@ -55,15 +53,13 @@ One table in `pyproject.toml` registers your package under the
 yourname = "dysonsphere_yourname"
 ```
 
-Now `pip install dysonsphere-yourname` makes `ds.yourname.yourchart(...)` work, and
-`ds.extensions()` lists `yourname` - with no change to core. That's the entire integration
-contract.
+After installation, `ds.yourname.yourchart(...)` resolves through the registered entry point,
+and `ds.extensions()` includes `yourname`. The core package does not require a change.
 
 ## The `dysonsphere.ext` API
 
 Return an Altair object and use `dysonsphere.ext` for theme settings and data tagging. Third-party
-extensions must not import private core helpers; coordinated first-party packages in this repository
-are the exception.
+extensions must not import private core helpers.
 
 ```python
 import altair as alt
@@ -91,7 +87,7 @@ def yourchart(data, *, x="x", y="y") -> ext.AltairChart:
     return band + points
 ```
 
-The following `ext` helpers cover chart types, theme settings, and generated data:
+Use these `ext` helpers for chart types, theme settings, and generated data:
 
 - **`ext.AltairChart`** - the chart-object union (`Chart | LayerChart | FacetChart |
   VConcatChart | HConcatChart | ConcatChart`). Use it as your return annotation, matching core's
@@ -102,8 +98,8 @@ The following `ext` helpers cover chart types, theme settings, and generated dat
   to read theme options outside core.
 - **`ext.internal_data(data)`** - tag generated annotation data (next section).
 
-Because colors resolve from the theme *at call time*, a chart exported for both light and dark
-must be built inside a `ds.save()` callable so it re-runs per variant:
+Colors resolve from the active theme when the chart is built. Build a chart inside a `ds.save()`
+callable when exporting both light and dark variants:
 
 ```python
 ds.save(lambda: ds.yourname.yourchart(df), "figure")
@@ -115,8 +111,7 @@ Composite charts often generate separate annotation datasets - reference bands, 
 label coordinates, fit lines. Altair inlines each as a separate dataset, so `ds.metadata.read(what="data")`
 needs to tell your generated data from the user's frame.
 
-**The rule:** route every dataset *you computed* through `ext.internal_data(...)`, and never tag
-the frame the caller handed you.
+Route every dataset you compute through `ext.internal_data(...)`. Do not tag the caller's input frame.
 
 ```python
 # generated data -> tag it, so read(what="data") filters it out
@@ -127,15 +122,12 @@ alt.Chart(pl.from_pandas(df) if not isinstance(df, pl.DataFrame) else df)
 ```
 
 `internal_data` accepts a `list[dict]` (→ `alt.Data`) or a polars/pandas DataFrame (→ a tagged
-polars frame). Miss an annotation dataset and it can appear as a user dataframe - a false multi-frame
-error from `read`, or the wrong frame returned. Tag the user's frame and you hide their real
-data. So: *data you computed → tag it; data the caller passed in → leave it.*
+polars frame). If generated data is not tagged, `read(what="data")` can return it as user data or report multiple frames. If the input frame is tagged, it is omitted from the result.
 
 ## Lazy imports for heavy dependencies
 
-Domain packages often need heavyweight, optional libraries (genome-file parsers, image stacks).
-Import them **inside the function**, not at module top level, with a clear error - so
-`import dysonsphere_yourname` stays cheap and only the charts that need the dependency require it:
+For heavyweight optional dependencies such as genome-file parsers or image stacks, import them
+**inside the chart function**, not at module level. Raise an error that names the missing package:
 
 ```python
 def yourchart(df, ...):
@@ -148,10 +140,8 @@ def yourchart(df, ...):
 
 ## Reference implementation
 
-[`dysonsphere-biology`](/extensions/biology/) is the worked example - its `volcano()` is built
-entirely on core + `ext`, tags its label/threshold layers through `internal_data`, resolves
-colors from the theme, and lives in-repo as a uv workspace member. Read its source alongside this
-guide.
+[`dysonsphere-biology`](/extensions/biology/) is an example. Its `volcano()` uses core and `ext`,
+tags generated label and threshold data with `internal_data`, and resolves colors from the theme.
 
 :::note
 If your extension needs another core helper, such as shared data for facets or band geometry,

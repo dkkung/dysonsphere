@@ -1,6 +1,6 @@
 ---
 title: Marks
-description: Composite marks - strip, violin, boxplot, and a publication-styled table.
+description: Composite marks for strip plots, violins, boxplots, and tables.
 ---
 
 import Example from '../../../components/Example.astro';
@@ -72,9 +72,9 @@ and rounded whisker caps out of the box; outlier points are hidden by default. U
 
 ## Table
 
-`mark_table()` renders a DataFrame as a publication-styled table - a composable Altair layer, not a
-picture. Columns are formatted per-column (reusing the same scientific / power / SI notations as the
-rest of the library, typeset with real superscripts); a numeric column can be shaded by value with
+`mark_table()` renders a DataFrame as a composable Altair table layer. Columns are formatted per
+column using the library's scientific, power, and SI notations, with superscripts typeset in the
+output. A numeric column can be shaded by value with
 `cellPalette`; and `strokes` picks which rules to draw (`"outer"`, `"header"`, `"rows"`, `"cols"`,
 `"grid"` for the interior, or `"all"` for every rule). Numeric columns are right-aligned by default
 so figures line up on the decimal; everything else is left. The source DataFrame is never mutated, so

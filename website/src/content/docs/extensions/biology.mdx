@@ -7,9 +7,7 @@ sidebar:
 
 import Example from '../../../components/Example.astro';
 
-**`dysonsphere-biology`** adds molecular-biology charts to dysonsphere - built entirely on the
-public core + `ext` APIs, so every chart it draws is themed, darkmode-aware, and handled by
-`ds.save()` / `ds.metadata.read()` like a built-in.
+**`dysonsphere-biology`** adds molecular-biology charts through the public core and `ext` APIs. Its charts use the active theme and work with `ds.save()` and `ds.metadata.read()`.
 
 ```sh
 pip install dysonsphere-biology
@@ -32,8 +30,7 @@ gene labels:
 
 <Example name="volcano" alt="Volcano plot of differential expression with labeled top genes" />
 
-The gene labels are auto-placed with core's [`ds.labels`](/guides/text-labels/#point-labels)
-force-repel engine (deterministic, connector-linked), and the point ranking is domain-specific:
+Gene labels use [`ds.labels`](/guides/text-labels/#point-labels). The placement is deterministic and connector-linked. The point ranking is domain-specific:
 `subset=8` selects the 8 most significant genes by the combined score `|log2fc| × −log10(p)`.
 
 ### Key parameters
@@ -64,7 +61,5 @@ ds.save(lambda: ds.biology.volcano(df, labels="gene", subset=8), "volcano")
 
 ## Coming next
 
-The biology package is early - manhattan / MA plots, deepTools-style profiles, and a genome
-browser track are on the roadmap. The library already ships `nucleotides` and `proteins`
-palettes for sequence-colored charts. Want to build one yourself? See
+The package currently provides the volcano plot. `nucleotides` and `proteins` palettes are available for sequence-colored charts. To build an extension, see
 [writing an extension](/extensions/authoring/).
