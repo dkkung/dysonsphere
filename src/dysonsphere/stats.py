@@ -1,10 +1,9 @@
-"""Statistical inference annotations - significance brackets, omnibus labels, correlation readouts.
+"""Statistical annotations: significance brackets, omnibus labels, and correlation readouts.
 
-The annotation wrappers for what ``_statistics.py`` computes: ``comparisons`` (pairwise
-brackets and omnibus test labels) and ``correlation`` (coefficient readout + OLS fit line).
-Pure computation stays in ``_statistics.py`` (no Altair there); this module builds the Vega-Lite
-layers that present it. Statistical results are registered in the ``_statistics._REPORTS``
-registry and embedded into exports by ``save()`` via layer-name markers.
+This module builds Vega-Lite layers for the results computed by ``_statistics.py``:
+``comparisons`` draws pairwise brackets and omnibus test labels, and ``correlation`` draws
+coefficient readouts and OLS fit lines. Statistical results are registered in the
+``_statistics._REPORTS`` registry and embedded in exports by ``save()`` using layer-name markers.
 """
 
 import math
@@ -130,7 +129,6 @@ def _validate_ci_syntax(ci: float | bool | None) -> None:
 
 
 # Comparison resolvers
-# Shared by single-factor and grouped paths. Error messages are pinned by `match=` tests.
 
 
 _VALID_NOTATIONS = {None, "scientific", "e", "power"}
@@ -316,17 +314,15 @@ def _check_coverage(
 
 
 def _stack_levels(spans: list[tuple[int, int]]) -> list[int]:
-    """Assign a stacking level to each ``(lo, hi)`` index span via greedy interval scheduling:
-    left endpoint first, ties by right endpoint, each placed on the lowest level whose occupants
-    it doesn't overlap. Returns the level per span, in input order.
+    """Assign each ``(lo, hi)`` index span a level using greedy interval scheduling.
 
-    Lexicographic order groups every comparison sharing a left group into one nested staircase
-    (all of 1v2, 1v3, 1v4, then 2v3, 2v4, ...), which reads far better than interleaved anchors.
-    It is also provably level-minimal: the overlap graph of intervals is perfect, so greedy
-    coloring in left-endpoint order uses exactly the maximum clique. (Ordering by span length
-    instead - narrow brackets lowest, through 3.10.1 - reads worse AND overflows by a level on
-    ~12% of pair subsets.) Brackets sharing an endpoint count as overlapping, since two on one
-    level would render as a single continuous line."""
+    Spans are processed by left endpoint, then right endpoint, and assigned to the lowest level
+    with no overlapping span. The returned levels follow input order. This ordering groups spans
+    with the same left endpoint. For interval graphs, greedy coloring in left-endpoint order uses
+    the maximum clique size and therefore the minimum number of levels. In a comparison of pair
+    subsets, ordering by span length instead used one extra level for about 12% of subsets.
+    Spans that share an endpoint overlap because their brackets would otherwise render as one
+    continuous line."""
     order = sorted(range(len(spans)), key=lambda i: (min(spans[i]), max(spans[i])))
     levels: list[list[tuple[int, int]]] = []
     result = [0] * len(spans)
@@ -372,30 +368,21 @@ def _bracket_offsets(
     to_px,
     downward: bool = False,
 ) -> list[tuple[float, float]]:
-    """Each bracket's ``(anchor, pixel offset)`` - the data value to hang it from, and how far.
+    """Return each bracket's data anchor and pixel offset.
 
-    Brackets are placed on a **ladder**: within a set of brackets that overlap, consecutive rungs
-    are exactly ``step_px`` apart and the whole ladder sits as low as every bracket's own data
-    allows. A ladder rather than per-bracket bumping so the stack reads as one deliberate rhythm
-    instead of leaving a short bracket stranded well below the rest.
+    Overlapping brackets form a ladder with rung spacing ``step_px``. Each connected component
+    of the span-overlap graph gets its own ladder, so disjoint comparisons are placed independently.
+    The anchor and offsets place the ladder as close to the data as the required ``gap_px`` allows.
 
-    Ladders are per **connected component** of the span-overlap graph, so brackets with nothing in
-    common are never tied to each other - two comparisons at opposite ends of a chart each hug
-    their own groups instead of the shorter one floating up to meet the taller.
+    For each component, two rung orders are considered: lexicographic span order and data-demand
+    order (brackets nearest the data first). Each is scored by rung count and total pixel distance
+    above the compared data; ties favor lexicographic order. This groups comparisons with a shared
+    left endpoint when that does not increase either score.
 
-    Rung ORDER within a component is chosen per component from two candidates, scored as
-    ``(rungs used, total pixels the brackets float above their own data)`` with ties going to the
-    first: **lexicographic** by span, which reads as a fan (every comparison sharing a left group
-    runs consecutively - 1v2, 1v3, 1v4, then 2v3, 2v4), and **by data demand**, which puts the
-    bracket nearest the data on the first rung and so keeps the ladder tight. On ordered groups
-    the two cost the same and the fan is free; on unordered groups the fan would drag brackets
-    far above the data they compare, and demand order wins.
-
-    The rungs are CONSTANT pixel offsets off a datum anchor, so they are exact at any y domain
-    without the scale being consulted - which is what makes this survive facets, concats and
-    ``add_multilabel``, where Vega renames the y scale. Only the ladder arithmetic needs pixel
-    positions, and for that ``to_px`` estimates the rendered domain; a mis-estimate shifts a
-    ladder slightly, it cannot change the gap between rungs."""
+    Rungs use constant pixel offsets from a shared data anchor. Their spacing therefore does not
+    depend on the y scale. ``to_px`` estimates the rendered domain only to position the ladder;
+    an estimate error can shift the ladder but does not change rung spacing. This also works when
+    facets, concatenation, or ``add_multilabel`` rename the y scale."""
     n = len(anchors)
     if not n:
         return []
@@ -406,7 +393,7 @@ def _bracket_offsets(
     def _overlap(i: int, j: int) -> bool:
         return not (spans[i][1] < spans[j][0] or spans[i][0] > spans[j][1])
 
-    # Connected components of the overlap graph (transitively - a chain shares one ladder).
+    # Connected components of the overlap graph; linked spans share one ladder.
     comp = list(range(n))
     for i in range(n):
         for j in range(i + 1, n):
@@ -430,9 +417,7 @@ def _bracket_offsets(
     placed_out: list[tuple[float, float]] = [(anchors[i], 0.0) for i in range(n)]
     for root in set(comp):
         members = [i for i in range(n) if comp[i] == root]
-        # Score lexicographic and data-demand rung orders by rung count and distance above the
-        # compared data. The tie-break keeps ordered groups readable without lifting unordered
-        # comparisons unnecessarily.
+        # Score both rung orders by rung count, then total distance above the compared data.
         candidates = (
             sorted(members, key=lambda i: (spans[i][0], spans[i][1])),
             sorted(members, key=lambda i: (_dir * required[i], i)),
@@ -448,8 +433,7 @@ def _bracket_offsets(
                 best = (score, level, base)
         assert best is not None
         _, level, base = best
-        # One anchor for the whole ladder - the member furthest into the margin, so the rungs are
-        # measured from a single data value and their spacing is pure arithmetic.
+        # Use one anchor for the ladder so rung spacing is measured from a single data value.
         shared = (min if downward else max)(anchors[i] for i in members)
         shared_px = to_px(shared)
         for i in members:
@@ -566,7 +550,6 @@ def _pvalue_layer(
 ) -> alt.LayerChart:
     from scipy import stats as _stats
 
-    # P-value
     if pvalue is None:
         if df is None or x_col is None or y_col is None:
             raise ValueError("df, x_col, and y_col are required when pvalue is not provided.")
@@ -594,13 +577,12 @@ def _pvalue_layer(
     else:
         pvalue = _validate_pvalue(pvalue, "p-value")
 
-    # bonferroni correction (skip for tukey_hsd — correction is built in)
+    # Bonferroni correction (skip for tukey_hsd – correction is built in)
     if correction == "bonferroni" and test != "tukey_hsd":
         pvalue = min(pvalue * n_comparisons, 1.0)
 
     label = _format_label(pvalue, label_style, sigFigs, notation)
 
-    # Y position
     if y is None:
         if df is None or x_col is None or y_col is None:
             raise ValueError("y is required when df, x_col, and y_col are not provided.")
@@ -612,7 +594,6 @@ def _pvalue_layer(
             + y_pad
         )
 
-    # Theme-linked defaults
     if width is None:
         width = _opt("width")
     if strokeWidth is None:
@@ -620,7 +601,6 @@ def _pvalue_layer(
     if fontSize is None:
         fontSize = _opt("fontSize")
 
-    # Categories and text position
     if categories is None:
         if df is None or x_col is None:
             raise ValueError("categories is required when df and x_col are not provided.")
@@ -630,8 +610,7 @@ def _pvalue_layer(
     g2_idx = categories.index(group2)
 
     stroke_cap = _opt("strokeCap")
-    # Lift brackets from their data anchor in pixels so the gap does not depend on the rendered
-    # domain. The anchor remains in data units; the offset does not extend the domain.
+    # Keep the anchor in data units and apply the lift as a pixel offset, outside the domain.
     _sign = 1 if reverse else -1
     _rule_kwargs = {
         "strokeWidth": strokeWidth,
@@ -642,33 +621,29 @@ def _pvalue_layer(
     if offset_px:
         _rule_kwargs["yOffset"] = _sign * offset_px
 
-    # dy offsets in SVG pixels. Asterisk glyphs sit close to the baseline so a small
-    # offset seats them flush; alphanumeric labels (including "ns") need more clearance.
-    # reverse=False keeps the inherited default baseline (its spacing already looks right).
-    # reverse=True sets baseline="top" so the text hangs *below* the bar instead of
-    # overlapping it — the inherited baseline left the below-bar text cramped.
+    # Asterisk labels need less baseline clearance than alphanumeric labels such as "ns".
+    # Reverse labels use the top baseline so the text extends below the bar.
     _dy_mag = 2 if label_style == "asterisks" and label != "ns" else 4
     text_dy = (_dy_mag if reverse else -_dy_mag) + _sign * offset_px
     text_baseline = "top" if reverse else None
-    # In pixel mode the end legs are a pixel offset off the same anchor; otherwise data units.
+    # Use pixel offsets for end legs in pixel mode and data coordinates otherwise.
     tick_y2 = y if tick_px is not None else (y + tick_height if reverse else y - tick_height)
-    # drop ticks differ per end, so each gets its own kwargs
+    # Each drop tick can have a different length, so its mark properties are set separately.
     _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
     _tick_kwargs_l, _tick_kwargs_r = dict(_rule_kwargs), dict(_rule_kwargs)
-    # A drop tick ends at a data position. The comparison layer cannot see the base y domain, so
-    # converting a pixel length using an estimated domain can place it through the data.
+    # Drop ticks end at data positions. This layer cannot read the base y domain, so converting
+    # pixel lengths using an estimated domain can place a tick through the data.
     tick_y2_l, tick_y2_r = tick_data if tick_data is not None else (tick_y2, tick_y2)
     if _lens is not None and tick_data is None:
         _tick_kwargs_l["y2Offset"] = _sign * offset_px - _sign * _lens[0]
         _tick_kwargs_r["y2Offset"] = _sign * offset_px - _sign * _lens[1]
 
-    # `domain_max` raises only the top of the shared y scale, leaving the lower bound, `zero`,
-    # nice-rounding, and other user settings intact. It is set on one bracket layer
-    # (an explicit bound wins the scale merge) to make room for a top-preset test label above the
-    # stack; without it the label would sit flush at the plot edge, on top of the brackets.
+    # Set domain_max on one bracket layer. Its explicit bound wins the scale merge and makes
+    # room for a top-preset test label. Only the upper bound changes; the lower bound, zero,
+    # nice-rounding, and other scale settings are preserved.
     _y_enc = alt.Y("y:Q") if domain_max is None else alt.Y("y:Q", scale=alt.Scale(domainMax=domain_max))
-    # Pixels, not x:N - an encoding contributes a scale that cannot merge when the base
-    # resolves x independently (mark_violin), stranding it as its own axis.
+    # Pixel positions avoid adding an x scale that cannot merge when the base resolves x
+    # independently, as in mark_violin.
     geo = _band_geometry(len(categories), width)
     x1_px, x2_px = geo.centers[g1_idx], geo.centers[g2_idx]
     x_mid_px = (x1_px + x2_px) / 2
@@ -727,10 +702,10 @@ def _reference_label_layer(
     fontSize: float,
     offset_px: float = 0.0,
 ) -> alt.Chart:
-    """A bare p-value label centred over one group's band, anchored at data-coordinate ``y`` and
-    lifted ``offset_px`` pixels - the reference-mode annotation (no bracket; the comparison to the
-    reference is implicit). A lone label has nothing to collide with, so a constant pixel offset is
-    already exact - no scale expression needed, unlike the stacked brackets."""
+    """Place a reference-mode p-value label over one group's band at data coordinate ``y``.
+
+    The comparison to the reference is implicit, so the label has no bracket. ``offset_px`` sets a
+    fixed pixel offset; this layer does not calculate label collisions."""
     x_px = _band_geometry(len(categories), width).centers[categories.index(group)]
     return (
         alt.Chart(_internal_data([{"y": y, "label": label}]))
@@ -743,11 +718,10 @@ _MATRIX_POSTHOCS = {"tukey_hsd", "dunn", "nemenyi", "games_howell"}
 
 
 def _omnibus_label(result, *, verbose: bool, notation: str | None, sigFigs: int) -> str:
-    """Build the terse or verbose corner-label string from an omnibus result.
+    """Build the terse or verbose corner label for an omnibus result.
 
-    Always uses the p-value format (never asterisks) — ``labelStyle="asterisks"``
-    only applies to the pairwise brackets; an omnibus *result* readout like
-    ``Kruskal-Wallis ***`` reads oddly.
+    Omnibus labels use p-value notation. ``labelStyle="asterisks"`` applies only to pairwise
+    brackets.
     """
     p_str = _format_pvalue(result.pvalue, sigFigs=sigFigs, notation=notation)
     if not verbose:
@@ -766,10 +740,10 @@ def _bracket_pvalues(
     correction: str | None,
     nComparisons: int | None,
 ) -> tuple[list[float], list[float] | None, list[float] | None]:
-    """Return final, raw, and intrinsic correction-input p-values in requested pair order.
+    """Return final, raw, and correction-input p-values in requested pair order.
 
-    The last list is present only for a further generic correction of intrinsically adjusted
-    results. Unavailable lists are ``None``; each underlying test is calculated once.
+    Correction inputs are returned only when intrinsically adjusted results receive an additional
+    generic correction. Unavailable lists are ``None``; each underlying test is calculated once.
     """
     from scipy import stats as _stats
 
@@ -840,17 +814,14 @@ def _grouped_bracket_layer(
     tick_data: tuple[float, float] | None = None,
     reverse: bool = False,
 ) -> alt.LayerChart:
-    """One within-category bracket for grouped comparisons.
+    """Build one bracket between two xOffset levels within a category.
 
-    The top bar spans the two xOffset sub-bars via the SHARED xOffset scale (``sort`` matched to the
-    bars so they keep their order), the optional end-ticks drop from it, and the label centres on the
-    bracket's own midpoint. The bar and ticks are encoded (no pixel math), so they track wherever
-    Vega lays the grouped bars out; only the label is positioned in pixels, since it has no sub-bar
-    of its own to ride. ``reverse`` hangs the bracket below its groups with the ticks pointing up.
+    The bar and optional end ticks use the shared xOffset scale, with a sort order matching the
+    bars. The label is positioned in pixels at the bracket midpoint. ``reverse`` places the
+    bracket below the groups with the ticks pointing up.
     """
     rk: dict[str, Any] = {"strokeWidth": strokeWidth, "strokeDash": [0, 0], "strokeCap": _opt("strokeCap")}
-    # Same placement contract as the single-factor path: anchor in data, lift in pixels via a
-    # render-time scale expression, so the gap does not follow the rendered y domain.
+    # Anchor in data coordinates and apply the pixel offset at render time, independent of the y domain.
     _sign = 1 if reverse else -1
     if offset_px:
         rk["yOffset"] = _sign * offset_px
@@ -866,13 +837,11 @@ def _grouped_bracket_layer(
         .mark_line(**rk)
         .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"))
     )
-    # Asterisk glyphs sit close to the baseline; alphanumeric labels ("ns", "P = …") need more.
+    # Alphanumeric labels need more baseline clearance than asterisk labels.
     _dym = 2 if label_style == "asterisks" and label != "ns" else 4
     dy = (_dym if reverse else -_dym) + _sign * offset_px
-    # Centre the label on the bracket midpoint in pixels. The label cannot use the xOffset
-    # encoding (a subset domain there reorders the bars), and the band centre it used through
-    # 3.10.1 drifts a whole sub-bar away from an asymmetric pair - far enough to sit over a
-    # group the comparison does not involve.
+    # The subset xOffset domain would reorder the bars. Use the bracket midpoint in pixels;
+    # the category band center is not the midpoint for an asymmetric pair.
     _sub = _nested_band_centers(len(categories), len(level_order), width)[categories.index(category)]
     _mid_px = (_sub[level_order.index(level1)] + _sub[level_order.index(level2)]) / 2
     text = (
@@ -881,8 +850,8 @@ def _grouped_bracket_layer(
         .encode(x=alt.value(_mid_px), y=alt.Y("__y:Q"), text="__label:N")
     )
     if bracket_style in ("bracket", "drop"):
-        # In pixel mode both ends sit at the anchor and the leg length rides in y2Offset. Drop
-        # ticks differ per end, and y2Offset is a mark property, so each end needs its own layer.
+        # In pixel mode, y2Offset sets each tick's length. Drop ticks can have different lengths,
+        # so each end uses a separate layer.
         _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
         legs = []
         _ends = tick_data if tick_data is not None else (None, None)
@@ -890,10 +859,8 @@ def _grouped_bracket_layer(
             tk = dict(rk)
             y2_val = y + tick_height if reverse else y - tick_height
             if tend is not None:
-                # A drop tick ends at a data position, not a pixel distance. Comparisons
-                # cannot see the base chart's y domain - an explicit scale=alt.Scale(domain=...)
-                # is invisible to it - so a pixel length measured against a guessed domain runs
-                # straight through the data it should stop above.
+                # Drop ticks end at data positions. This layer cannot read the base chart's y
+                # domain, so converting pixel lengths using an estimated domain can cross the data.
                 y2_val = tend
             elif tlen is not None:
                 tk["y2Offset"] = _sign * offset_px - _sign * tlen
@@ -921,10 +888,11 @@ def _grouped_reference_label_layer(
     fontSize: float,
     offset_px: float = 0.0,
 ) -> alt.Chart:
-    """A bare p-value label centred over one (category, level) sub-bar - the grouped reference-mode
-    annotation (no bracket). Rides the SHARED x + xOffset scales (sort matched to the bars) so it
-    lands on that sub-bar wherever Vega lays the grouped bars out. ``offset_px`` lifts it off its
-    anchor in pixels, so the gap does not vary with the rendered y domain."""
+    """Place a grouped reference-mode p-value label over one (category, level) sub-bar.
+
+    The label uses the chart's shared x and xOffset scales, with sort orders matching the bars.
+    ``offset_px`` sets its pixel distance from the data anchor, independent of the rendered y domain.
+    """
     dy = -(2 if label_style == "asterisks" and label != "ns" else 4) - offset_px
     return (
         alt.Chart(_internal_data([{x_col: category, xoffset_col: level, "__y": y, "__label": label}]))
@@ -939,9 +907,11 @@ def _grouped_reference_label_layer(
 
 
 def _grouped_key(cat: Any, l1: str, l2: str, is_reference: bool) -> Any:
-    """Internal lookup key for one grouped comparison. Reference mode keys by ``(category, level)``
-    (the non-reference level uniquely identifies it); bracket mode by ``(category, frozenset(pair))``
-    (order-insensitive, like single-factor pair matching)."""
+    """Return the lookup key for a grouped comparison.
+
+    Reference mode uses ``(category, level)``; bracket mode uses
+    ``(category, frozenset(pair))`` so pair order does not matter.
+    """
     return (cat, l2) if is_reference else (cat, frozenset((l1, l2)))
 
 
@@ -951,8 +921,8 @@ def _grouped_desc(cat: Any, l1: str, l2: str, is_reference: bool) -> str:
 
 
 def _normalize_grouped_map(mapping: Any, is_reference: bool, name: str) -> dict[Any, Any]:
-    """Normalise a user ``{(category, level|pair): value}`` dict to the internal ``_grouped_key``
-    scheme. Reference keys are ``(category, level)``; bracket keys ``(category, (l1, l2))``."""
+    """Normalize a user ``{(category, level|pair): value}`` dict to the internal ``_grouped_key``
+    scheme. Reference keys are ``(category, level)``; bracket keys are ``(category, (l1, l2))``."""
     if not isinstance(mapping, dict):
         shape = "(category, level)" if is_reference else "(category, (level1, level2))"
         raise ValueError(f"grouped {name} must be a dict keyed by {shape}, got {type(mapping).__name__}.")
@@ -1003,20 +973,18 @@ def _add_grouped_comparisons(
     report: bool,
     save: bool | str | Path,
 ) -> alt.LayerChart:
-    """Grouped (two-factor) comparisons: compare the xOffset levels within each x-category.
+    """Compare xOffset levels within each x-category.
 
-    One bracket per (category, pair), each placed above its OWN category's bars (per-category, so
-    groups of wildly different magnitude don't push short brackets sky-high), carrying a real
-    per-category p-value from ``test`` (corrected over the whole family by ``correction``). A single
-    record is registered, its comparisons labelled ``"<category> (<level>)"``.
+    Draw one bracket per category and pair. Each bracket is positioned using that category's data.
+    P-values are computed per category and adjusted over the full family when ``correction`` is set.
+    One report record is registered, with comparisons labeled ``"<category> (<level>)"``.
     """
     from scipy import stats as _stats
 
     from ._statistics import _TEST_DISPLAY, _adjust, _describe_all, _make_record, _pair_effect
     from .utils import _frame_checksum
 
-    # Validate that explicit categories and xOffsetSort cover the data; otherwise a shared scale
-    # can silently reorder bars.
+    # Require complete category and level orders so the shared scales match the chart's bar order.
     _check_coverage(
         df,
         x_col,
@@ -1038,13 +1006,12 @@ def _add_grouped_comparisons(
     level_order = (
         list(xOffsetSort) if xOffsetSort is not None else df[xoffset_col].unique(maintain_order=True).to_list()
     )
-    # Resolved before the reference block so `reference` + pairs="all" hits its don't-also-pass raise.
+    # Resolve first so reference mode can reject an explicitly supplied pairs value.
     pairs = _resolve_pairs(pairs, level_order, f"xOffset {xoffset_col!r} levels")
 
-    # Reference mode: compare every other level against `reference` within each category, drawing the
-    # p-value above each non-reference sub-bar (no bracket). Derives its own level-pairs.
-    # Remember which spacing args the caller passed: any one of them opts out of pixel
-    # placement below, since an explicit number is data units on the user's own scale.
+    # Record explicit spacing arguments; any one selects data-unit placement below.
+    # Reference mode compares each non-reference level with `reference` within each category,
+    # placing a p-value label above each compared sub-bar without a bracket.
     _y_step_arg, _y_pad_arg = yStep, yPad
     is_reference = reference is not None
     if is_reference:
@@ -1099,7 +1066,7 @@ def _add_grouped_comparisons(
             "tickHeight sets a fixed end-tick length, which bracketStyle='drop' computes per end. "
             "Pass one or the other."
         )
-    # See the single-factor path: an auto leg height is pixels, not data units.
+    # Automatic tick height is measured in pixels.
     _tick_arg = tickHeight
     yPad, tickHeight, yStep = _resolve_y_spacing(
         bracketStyle in ("bracket", "drop"), y_range, chart_height, yPad, tickHeight, yStep
@@ -1117,11 +1084,10 @@ def _add_grouped_comparisons(
         }
         return float(funcs[test]())
 
-    # All comparison keys, in the category-major then pair order the loops use.
+    # Comparison keys follow category order, then pair order.
     all_keys = [_grouped_key(cat, l1, l2, is_reference) for cat in categories for l1, l2 in pairs]
 
-    # Explicit p-values (a dict keyed by (category, level|pair)) skip the test and correction, like
-    # the single-factor `pvalues` list. Must cover every comparison exactly (no missing, no extra).
+    # Supplied p-values skip tests and correction and must cover every comparison exactly.
     pval_map = _normalize_grouped_map(pvalues, is_reference, "pvalues") if pvalues is not None else None
     if pval_map is not None:
         pval_map = {key: _validate_pvalue(value, f"pvalues entry {key!r}") for key, value in pval_map.items()}
@@ -1138,7 +1104,7 @@ def _add_grouped_comparisons(
         if extra:
             raise ValueError(f"pvalues has {len(extra)} entr(y/ies) not matching any comparison (check keys).")
 
-    # p-values + effects, iterated category-major then pair (the layer loop matches this order).
+    # Compute p-values and effects in the order used to build the layers.
     raw: list[float] = []
     effects: list[tuple[str | None, float | None]] = []
     for cat in categories:
@@ -1156,15 +1122,15 @@ def _add_grouped_comparisons(
     if nComparisons is not None:
         _validate_family_size(nComparisons, actual_family, correction=correction if pval_map is None else None)
     m = nComparisons if nComparisons is not None else actual_family
-    # User-provided p-values are not corrected by us (they're final); computed ones honour `correction`.
+    # Supplied p-values are final; apply correction only to computed p-values.
     effective_correction = None if pval_map is not None else correction
     adj = raw if pval_map is not None else (_adjust(raw, correction, m) if correction else raw)
 
-    # Stacking level per pair (identical for every category - same spans): shorter spans sit lower.
+    # Each pair uses the same stacking level in every category because the spans are identical.
     lvl_idx = {lv: i for i, lv in enumerate(level_order)}
     pair_level = _stack_levels([(lvl_idx[l1], lvl_idx[l2]) for l1, l2 in pairs])
 
-    # descriptives over every (category, level) subset
+    # Compute descriptives for every (category, level) subset.
     desc_groups: list[Any] = []
     desc_labels: list[str] = []
     for cat in categories:
@@ -1175,10 +1141,9 @@ def _add_grouped_comparisons(
             desc_labels.append(f"{cat} ({lv})")
     descriptives = _describe_all(desc_groups, desc_labels)
 
-    # Explicit y control: yStart sets a scalar or per-category bracket base. It does not apply to
-    # reference mode. yPositions accepts a global value, per-category values, or per-comparison
-    # values.
-    # Dict keys must be uniform. Precedence: flat > per-category > per-comparison > (yStart / auto).
+    # yStart sets a scalar or per-category bracket base; yPositions takes precedence and can be
+    # global, per-category, or per-comparison. Dict keys must use one form. Precedence is global,
+    # per-category, per-comparison, then yStart or automatic placement.
     ypos_flat = float(yPositions) if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool) else None
     ypos_cat: dict[Any, float] | None = None
     ypos_map: dict[Any, Any] | None = None
@@ -1243,9 +1208,8 @@ def _add_grouped_comparisons(
         cdf = df.filter(pl.col(x_col) == cat)
         cat_max = cast(float, cdf[y_col].cast(pl.Float64).max() or 0.0)
         bracket_base = _cat_base(cat, cat_max + yPad)  # brackets only; reference ignores yStart
-        # Pixel placement, matching the single-factor path: each bracket anchors at its own
-        # level-pair's maximum within this category, and overlapping pairs are pushed apart by a
-        # label's worth of pixels - all resolved by Vega against the real scale.
+        # In pixel mode, anchor each bracket at the maximum of the levels it spans in this
+        # category. Vega resolves the pixel offsets against the rendered y scale.
         grp_pixel_mode = (
             not is_reference and yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
         )
@@ -1258,9 +1222,8 @@ def _add_grouped_comparisons(
                 (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
                 for a, b in pairs
             ]
-            # Over every sub-bar the bracket spans, not only its endpoints - see the single-factor
-            # path: a taller level in the middle would otherwise sit above the bracket. A reverse
-            # bracket hangs below its groups, so it anchors on their minimum instead.
+            # Include every sub-bar spanned by the bracket; an intermediate level can exceed both
+            # endpoints. Reverse brackets anchor at the minimum.
             cat_pair_anchor = [
                 cast(
                     float,
@@ -1282,8 +1245,7 @@ def _add_grouped_comparisons(
             _cspan = (_chi - _clo) or 1.0
             _ch = float(_opt("height"))
             _cpx = lambda v, _lo=_clo, _sp=_cspan, _h=_ch: _h * (1.0 - (v - _lo) / _sp)  # noqa: E731
-            # Up and down brackets sit on opposite sides of the data and never collide, so each
-            # direction gets its own ladder (same as the single-factor path).
+            # Place upward and reverse brackets on separate ladders.
             cat_pair_anchor = list(cat_pair_anchor)
             cat_offsets = [0.0] * len(pairs)
             for _down in (False, True):
@@ -1303,9 +1265,8 @@ def _add_grouped_comparisons(
                 ):
                     cat_pair_anchor[_slot], cat_offsets[_slot] = _a, _o
             if bracketStyle == "drop":
-                # The y scale is shared across categories, so drop lengths - unlike the ladder
-                # offsets above, which are relative - must be measured against the whole frame's
-                # domain. A per-category domain sends the ticks straight through the data.
+                # The y scale is shared across categories. Measure drop lengths against the full
+                # frame's domain rather than a per-category domain.
                 _dlo, _dhi = _nice_domain(
                     min(0.0, cast(float, df[y_col].cast(pl.Float64).min() or 0.0)),
                     cast(float, df[y_col].cast(pl.Float64).max() or 0.0),
@@ -1322,9 +1283,8 @@ def _add_grouped_comparisons(
                 _lvl_col = [cdf.filter(pl.col(xoffset_col) == lv)[y_col].cast(pl.Float64) for lv in level_order]
                 _clevel_px = [_cat_px(cast(float, c.max() or 0.0)) for c in _lvl_col]
                 _clevel_lo = [_cat_px(cast(float, c.min() or 0.0)) for c in _lvl_col] if any(rev_flags) else _clevel_px
-                # Every label in a category centres on the same band, and the sub-bar pixel
-                # positions are Vega's, not _band_geometry's - so a label is treated as covering
-                # the whole category. Conservative: it can only shorten a tick, never overlap one.
+                # Vega positions the sub-bars, so treat each label as spanning the category band.
+                # This can shorten a tick but prevents it from crossing a label.
                 _cfs = float(fontSize or _opt("fontSize"))
                 _clabels = [
                     _format_label(adj[k + i], labelStyle, effective_sigfigs, notation_val) for i in range(len(pairs))
@@ -1356,8 +1316,7 @@ def _add_grouped_comparisons(
 
                 cat_drop_data = [(_cat_data(i, a), _cat_data(i, b)) for i, (a, b) in enumerate(cat_drop)]
         if not is_reference:
-            # Every bracket's y, resolved before emitting so drop ticks can be solved against it
-            # whichever placement mode is in use.
+            # Resolve every bracket's y position before calculating drop ticks.
             cat_y = []
             for pi, (l1, l2) in enumerate(pairs):
                 _key = _grouped_key(cat, l1, l2, is_reference)
@@ -1420,7 +1379,7 @@ def _add_grouped_comparisons(
             ref_offset_px = 0.0
             label = _format_label(p, labelStyle, effective_sigfigs, notation_val)
             if is_reference:
-                # yPositions flat > per-category > per-comparison > the sub-bar's own data max + yPad.
+                # Position precedence: global, per-category, per-comparison, then automatic.
                 if ypos_flat is not None:
                     y = ypos_flat
                 elif ypos_cat is not None and cat in ypos_cat:
@@ -1429,7 +1388,7 @@ def _add_grouped_comparisons(
                     y = float(ypos_map[key])
                 else:
                     sub_max = cast(float, cdf.filter(pl.col(xoffset_col) == l2)[y_col].cast(pl.Float64).max() or 0.0)
-                    # Auto: anchor at the sub-bar's own maximum, lift in pixels (see single-factor).
+                    # Automatic placement anchors at the sub-bar maximum and uses a pixel offset.
                     y, ref_offset_px = (sub_max, 6.0) if _y_pad_arg is None else (sub_max + yPad, 0.0)
                 layers.append(
                     _grouped_reference_label_layer(
@@ -1547,23 +1506,22 @@ def comparisons(
     Two modes, selected by ``test``:
 
     - **Pairwise** (``'mannwhitneyu'``, ``'ttest_ind'``, ``'ttest_rel'``,
-      ``'wilcoxon'``, ``'tukey_hsd'``) — draws a bracket per pair in ``pairs``,
-      stacked automatically so they don't overlap (shorter-span pairs sit lower;
-      overlapping spans are bumped up a level).
+      ``'wilcoxon'``, ``'tukey_hsd'``) computes the requested pairwise results and
+      draws one bracket per pair in ``pairs``. Overlapping brackets use separate
+      stacking levels.
     - **Omnibus** (``'anova'``, ``'kruskal'``, ``'friedman'``,
-      ``'alexandergovern'``) — runs one "are *any* groups different?" test and
-      places its result as a corner label via ``text`` (see
-      ``testLabelPosition``). If ``pairs`` is also given, a post-hoc test (see
-      ``postHoc``) fills the brackets.
+      ``'alexandergovern'``) computes one test and places its result in a corner
+      label (see ``testLabelPosition``). If ``pairs`` is also given, a post-hoc
+      test (see ``postHoc``) supplies the bracket results.
 
-    Setting ``reference`` overrides both with **reference mode**: compare every
-    other group against one reference and draw the p-value above each mark with no
-    bracket (see ``reference``).
+    Setting ``reference`` selects reference mode: each other group is compared
+    with the reference, and its p-value is shown above the mark without a bracket
+    (see ``reference``).
 
-    A descriptive + effect-size report is generated on every call and queued for
-    the export metadata written by ``ds.save()`` (see ``report``/``saveReport``).
-    Its comparison records retain the reported ``pvalue`` (adjusted when a correction applies)
-    and ``unadjustedPvalue`` for ordinary computed values, including when no correction is requested.
+    A descriptive and effect-size report is generated on every call and queued for
+    the export metadata written by ``ds.save()`` (see ``report`` and ``saveReport``).
+    Comparison records include ``pvalue`` (adjusted when a correction applies) and
+    ``unadjustedPvalue`` for ordinary computed values, including when no correction is requested.
     ``pvalueOrigin`` distinguishes computed, supplied, and intrinsically adjusted values;
     ``nComparisons`` is the effective generic correction-family size or null when none applies.
     Supplied values and Tukey HSD have null unadjusted values and family sizes. Games-Howell and
@@ -1571,30 +1529,22 @@ def comparisons(
     if additionally corrected, each pair includes ``correctionInputPvalue`` and the section records
     the generic correction and family size.
 
-    **Placement.** By default each annotation anchors at the data maximum of the pair it
-    compares and is lifted a fixed number of pixels, so it stays with its own groups rather
-    than riding the tallest annotated one, and the gap looks the same on every chart whatever
-    the y range. Brackets that overlap sit on an evenly spaced **ladder** - one step of a
-    label's height between rungs - placed as low as every bracket's own data allows, so a short
-    comparison joins the rhythm instead of being stranded below the rest. Brackets sharing no
-    category form separate ladders, so a comparison at one end of the chart is never dragged up
-    by a taller one elsewhere, and a ``reverse`` bracket hangs below its groups on a ladder of
-    its own - the two directions never push each other around.
+    **Placement.** In automatic pixel mode, each bracket anchors at the maximum of the
+    categories it spans and uses a pixel offset. Overlapping brackets are assigned separate
+    ladder levels spaced by the effective label font size plus 6 pixels; brackets in disjoint spans
+    independently. Reverse brackets
+    anchor at the minimum, hang below the data, and use a separate ladder. Pixel offsets are
+    applied through the rendered y scale, so their distance does not depend on the y domain.
 
-    On a log axis the rung spacing is exact, but the lowest bracket of a stack can start inside
-    its own data - deciding how low a stack may sit needs the data-to-pixel mapping, which is
-    estimated as linear. Pass ``yPositions`` to place them yourself there.
-    The lift is a Vega expression over the rendered y scale, so an explicit ``domain``,
-    ``zero=False`` and nice-rounding all work without being predicted in advance - and because
-    the offsets are not data values, the y axis ends at your data and the annotations sit in
-    the margin above it. Pass any of ``yStart``/``yStep``/``yPad``/``yPositions`` to place them
-    in data units on your own scale instead.
+    Ladder collision checks estimate the rendered domain as linear. On a log axis, this estimate
+    can place the lowest bracket inside its data; use ``yPositions`` to set explicit positions.
+    Passing any of ``yStart``, ``yStep``, ``yPad``, or ``yPositions`` selects data-unit placement
+    instead of automatic pixel placement.
 
-    The top of the y scale is raised (``domainMax``) far enough for the stack to fit inside the
-    plot in two cases: a test label at one of the ``top`` presets, which would otherwise sit on
-    the brackets, and a closed plot (``ds.theme(closed=True)``), whose border would leave them
-    outside the box. Only the upper bound moves - the lower bound, ``zero`` and nice-rounding are
-    untouched - and only when there are brackets to clear.
+    The upper y-scale bound (``domainMax``) is raised to make room for brackets when a test label
+    uses a ``top`` preset or when ``ds.theme(closed=True)`` draws a plot border. Only the upper
+    bound changes; the lower bound, ``zero``, and nice-rounding are left unchanged. This adjustment
+    is made only when brackets need the space.
 
     Combine with your chart using ``+``:  ``chart + ds.stats.comparisons(...)``.
 
@@ -1608,20 +1558,17 @@ def comparisons(
         Column name for the value variable (y-axis). Used to run tests and
         to auto-place the first bracket.
     pairs:
-        List of ``(group1, group2)`` tuples identifying the comparisons to
-        annotate with brackets. Required for pairwise ``test`` values. Optional
-        for omnibus tests — pass ``None`` for an omnibus-only corner label, or a
-        list to also draw post-hoc brackets.
+        List of ``(group1, group2)`` tuples identifying comparisons to annotate
+        with brackets. Required for pairwise ``test`` values. For omnibus tests,
+        pass ``None`` for a corner label only, or a list to also draw post-hoc
+        brackets.
 
         ``"all"`` expands to every unique pair, in ``categories`` order (in
-        grouped mode, every unique pair of ``xOffset`` levels). Besides being
-        shorter, it keeps ``correction`` honest: the family size defaults to
-        ``len(pairs)``, so hand-listing a subset of the comparisons you actually
-        ran under-corrects them. Note the bracket count grows as
-        ``n(n-1)/2`` — 6 brackets at 4 groups, 10 at 5, 15 at 6 — so beyond
-        4 or 5 groups prefer an omnibus ``test`` with ``pairs=None`` (which
-        already reports every post-hoc comparison) and bracket only the few
-        pairs worth showing.
+        grouped mode, every unique pair of ``xOffset`` levels). The bracket count
+        is ``n(n-1)/2``: 6 pairs at 4 groups, 10 at 5, and 15 at 6. A correction
+        normally covers only the comparisons computed for the call; use
+        ``nComparisons`` to include other tests in the family. With an omnibus test,
+        ``pairs=None`` reports every post-hoc comparison without drawing brackets.
     test:
         Statistical test. **Pairwise:** ``'mannwhitneyu'`` (default),
         ``'ttest_ind'``, ``'ttest_rel'``, ``'wilcoxon'`` (run per pair), or
@@ -1641,7 +1588,7 @@ def comparisons(
         ``test``. Grouped ``xOffset`` mode does not accept ``postHoc``; use one
         of its supported pairwise tests directly.
     pvalues:
-        Pre-computed final p-values skip pairwise calculation and correction. **Pairwise:**
+        Precomputed final p-values skip pairwise calculation and correction. **Pairwise:**
         a list, one per pair in the same order. **Reference mode:** a **dict** keyed by the
         non-reference **group** (single-factor) or ``(category, level)`` (grouped). **Grouped
         brackets:** a dict keyed by ``(category, (level1, level2))`` (order-insensitive). The
@@ -1652,69 +1599,65 @@ def comparisons(
         Multiple comparison correction: ``'bonferroni'``, ``'holm'``,
         ``'fdr_bh'`` (Benjamini-Hochberg), ``'fdr_by'`` (Benjamini-Yekutieli),
         or ``None``. The two ``fdr_*`` methods control the false discovery rate
-        (BH assumes independence / positive dependence; BY is valid under
-        arbitrary dependence but more conservative). For pairwise/post-hoc
-        bracket p-values; ignored for ``tukey_hsd`` (correction is built in) and
-        when ``pvalues`` is provided.
+        (BH assumes independence or positive dependence; BY is valid under
+        arbitrary dependence but is more conservative). Applies to pairwise or
+        post-hoc bracket p-values. Ignored for ``'tukey_hsd'`` (correction is built
+        in) and when ``pvalues`` is provided.
     nComparisons:
-        Total family size for the correction (the denominator ``m``). Defaults
-        to ``len(pairs)`` when a ``correction`` is set and not given explicitly.
-        In grouped mode it is the total computed matrix family (``len(categories) * len(pairs)``),
-        even when only a subset is drawn. It must be a positive, non-bool integer and, when
-        correction applies, at least that family size. Larger values are allowed. Supplied final
-        p-values and Tukey HSD are not readjusted.
+        Total family size for the correction (the denominator ``m``). For pairwise tests, it
+        defaults to the number of requested pairs when ``correction`` is set. For an omnibus test
+        with post-hoc comparisons, it defaults to the number of all unique pairs, even if only some
+        are drawn. In grouped mode, it defaults to ``len(categories) * len(pairs)``. It must be a
+        positive, non-bool integer and, when correction applies, at least the computed family size.
+        Larger values are allowed. Supplied final p-values and Tukey HSD are not readjusted.
     reference:
-        **Reference mode (compare-against-one).** A single group to compare every
-        other group against, drawing the p-value **above each non-reference mark
-        with no bracket** (the comparison is implicit - a control/many-vs-one
-        design). Derives its own comparisons, so ``pairs`` must be left ``None``.
-        Only the pairwise tests are supported (not omnibus); ``correction`` adjusts
-        over the whole family of ``len(categories) - 1`` comparisons. Labels sit at
-        each group's OWN data max, so overlay your points (they clear the data).
-        Distinguishing the reference visually (e.g. a darker fill) is left to your
-        chart - nothing is injected. Without ``xOffset``, ``reference`` is a
-        category of ``x``; with ``xOffset`` (grouped mode) it is an xOffset
-        **level**, compared within each x-category (one label per non-reference
-        sub-bar). ``bracketStyle``/``reverse``/``tickHeight`` are inert here (no
-        bracket); ``yStart`` does not apply (no stack) and raises if set. ``pvalues``
-        (a group-keyed dict) supplies precomputed p-values, and ``yPositions`` places
-        labels - a single number for a flat row, or a group-keyed dict per label (see
-        those params).
+        **Reference mode (compare against one).** A single group compared with
+        every other group. The function derives the comparisons, so ``pairs`` must
+        be ``None``. Only pairwise tests are supported. Correction applies to all
+        comparisons: ``len(categories) - 1`` in single-factor mode, and the number
+        of categories times the number of non-reference levels in grouped mode.
+        Each label is placed at its non-reference group's data maximum. Without
+        ``xOffset``, ``reference`` is
+        a category of ``x``; with ``xOffset``, it is an xOffset **level** compared
+        within each x-category, with one label per non-reference sub-bar.
+        ``bracketStyle``, ``reverse``, and ``tickHeight`` do not affect reference
+        labels. ``yStart`` is unsupported and raises an error. ``pvalues`` is a
+        group-keyed dict of supplied values. ``yPositions`` accepts one number for
+        a flat row or a group-keyed dict for per-label positions.
     xOffset:
         **Grouped mode.** Column encoded as the chart's ``xOffset`` (the subgroup
         that splits each x-category into side-by-side bars, e.g. ``"condition"``
         in a qPCR gene × condition panel). When set, ``pairs`` names subgroup
-        **levels** (not x-categories) and one bracket is drawn per x-category,
-        each above its own bars. With exactly two levels ``pairs`` defaults to
-        comparing them. Only the pairwise tests are supported here
+        **levels** (not x-categories) and one bracket is drawn per x-category.
+        With exactly two levels, ``pairs`` defaults to comparing them. Only the
+        pairwise tests are supported here
         (``'mannwhitneyu'``/``'ttest_ind'``/``'ttest_rel'``/``'wilcoxon'``);
-        ``correction`` adjusts over the whole family (``categories × pairs``). The
-        bracket label centres on the band - exact for two levels / symmetric
-        pairs, slightly off the midpoint only for an asymmetric 3+-level pair.
+        ``correction`` adjusts over the whole family (``categories × pairs``).
+        Labels are centered between the compared sub-bars.
     xOffsetSort:
-        Grouped mode - the subgroup level order. Must match the ``sort`` on your
+        Grouped mode – the subgroup level order. Must match the ``sort`` on your
         chart's ``xOffset`` encoding (and ``categories`` must match the ``x`` sort), or the shared
         scale reorders the bars. Explicit values must match observed levels exactly once; tuple/
         list order and numeric category values are preserved. ``None`` (default) reads the data's
         first-appearance order.
     yPositions:
         Explicit y positions (data units) for the annotations. **A single number** puts
-        *every* annotation at that y - one global flat row. **Pairwise:** a list, one per
+        *every* annotation at that y, one global flat row. **Pairwise:** a list, one per
         pair in order (overrides auto-stacking). **Reference mode:** a **dict** keyed by the
         non-reference **group** (single-factor) or ``(category, level)`` (grouped) for a
         per-label height. **Grouped** accepts a number or supported dict, not a list. It additionally
-        accepts a dict keyed by **category** -
-        a flat row per category, each at its own height (handy when categories span very
-        different magnitudes); and grouped brackets take ``(category, (level1, level2))``
+        accepts a dict keyed by **category** for a separate flat row per category; grouped
+        brackets also accept ``(category, (level1, level2))``
         keys (order-insensitive). Dicts are partial (unlisted → auto) and their keys must be
-        uniform (all category names, or all tuples). Beats ``yStart``; unknown keys raise.
+        uniform (all category names or all tuples). Takes precedence over ``yStart``; unknown
+        keys raise.
     yStart:
-        The exact y (data units) of the lowest bracket - the stack base (levels rise from it
+        The exact y (data units) of the lowest bracket, the stack base (levels rise from it
         by ``yStep``). **Setting it opts the whole stack into data-unit placement** (see the
         note below). **Grouped (`xOffset`) brackets** additionally accept a **dict** keyed by
-        category for a per-category base (partial - unlisted categories use the auto base).
-        **Does not apply to reference mode** (there is no stack - each label sits above its own
-        mark); passing it there raises. Use ``yPositions`` for exact per-label heights.
+        category for a per-category base (partial; unlisted categories use the auto base).
+        **Does not apply to reference mode**; passing it there raises. Use ``yPositions``
+        for exact per-label heights.
     yStep:
         Vertical distance (data units) between stacking levels, when placement is in data
         units. Setting it opts out of automatic pixel placement.
@@ -1722,33 +1665,31 @@ def comparisons(
         Padding (data units) above the data maximum, when placement is in data units. Setting
         it opts out of the automatic pixel placement described above.
     categories:
-        Ordered list of all x-axis categories. For data-backed comparisons, supplied values must
-        match observed values exactly once; tuple/list order and numeric values are preserved.
-        Inferred from ``data`` (sorted alphabetically) when not provided. Standalone reference
-        annotations without data do not receive observed-coverage validation.
+        Ordered list of all x-axis categories. Supplied values must match observed values exactly
+        once; tuple/list order and numeric values are preserved. Inferred from ``data`` (sorted
+        alphabetically) when not provided.
     width:
         Width of the chart in pixels, used to compute annotation x positions.
         Inherits ``width`` from ``ds.theme()`` when not set.
     bracketStyle:
         ``'bracket'`` (default; bar + end ticks), ``'line'`` (horizontal bar only)
-        or ``'drop'`` (end ticks reaching down toward each group's own data)
+        or ``'drop'`` (end ticks extending toward each endpoint group's data)
         applied to every bracket. Or a ``dict`` mapping a pair to its style for
-        per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` —
+        per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` –
         keys match either pair order; pairs absent from the dict fall back to
         ``'bracket'``.
     labelStyle:
         ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'``
         renders ``*`` / ``**`` / ``***`` / ``ns``. ``'value'`` renders the bare
-        value to save room - the same as ``'p'`` but without the ``P`` symbol and
-        the redundant ``= `` (``0.012``), keeping a meaningful operator (``< 0.001``
-        when floored, ``≈ 10⁻⁵`` for ``notation='power'``). ``notation`` still applies.
+        value without the ``P`` symbol or redundant ``= `` (for example, ``0.012``).
+        It retains comparison operators such as ``< 0.001`` and ``≈ 10⁻⁵`` with
+        ``notation='power'``. ``notation`` still applies.
     tickHeight:
-        Height of bracket end ticks in data units, used when placement is in data units.
-        Under automatic placement the ticks are a fixed 2 **pixels** on any y range. Always
-        positive, so it works with reverse
-        (negative-``yStep``) brackets without an explicit override. Only used when
-        ``bracketStyle='bracket'``; raises with ``bracketStyle='drop'``, which computes a
-        length per end.
+        Height of bracket end ticks in data units when set. If unset, automatic pixel placement
+        uses 2-pixel ticks; data-unit placement resolves a default height from the chart size and
+        y range. The value must be positive, including for reverse brackets. Only used with
+        ``bracketStyle='bracket'``; raises with ``bracketStyle='drop'``, which computes a length
+        for each end.
     strokeWidth:
         Stroke width of bracket lines. Inherits ``axisWidth`` from
         ``ds.theme()`` when not set.
@@ -1756,14 +1697,14 @@ def comparisons(
         Font size of the p-value / corner labels. Defaults to the theme's primary
         ``fontSize`` (``6`` under the built-in defaults), matching the axis font.
     reverse:
-        List of ``(group1, group2)`` tuples identifying brackets to flip —
-        text moves below the bar and ticks point upward, and the bracket hangs
-        below its groups rather than above them. In grouped mode (``xOffset``)
-        the tuples name ``xOffset`` levels, like ``pairs``, and apply in every
-        category.
+        List of ``(group1, group2)`` tuples identifying brackets to flip: text moves
+        below the bar, ticks point upward, and brackets hang below their groups.
+        In single-factor mode, tuple order must match ``pairs``. In grouped mode
+        (``xOffset``), tuples name ``xOffset`` levels, like ``pairs``, and apply in
+        every category regardless of tuple order.
     sigFigs:
-        Significant figures for p-value labels (and the correlation readout). Gives
-        consistent visual precision across magnitudes — e.g. ``sigFigs=2`` renders both
+        Significant figures for p-value labels. Gives
+        consistent precision across magnitudes – e.g. ``sigFigs=2`` renders both
         ``P = 4.3×10⁻¹⁴`` and ``P = 0.68`` at two figures. Trailing zeros are stripped.
         ``None`` (default) reads the theme's ``sigFigs`` (default ``3``). Plain notation
         floors at a fixed ``P < 0.001``; ``'power'`` is unaffected (integer exponent).
@@ -1773,11 +1714,11 @@ def comparisons(
         Format style for p-value labels when ``labelStyle='p'``. ``None``
         (default) uses ``P = 0.012`` / ``P < 0.001`` style. ``'scientific'``
         uses ``P = 1.23×10⁻²``. ``'e'`` uses ``P = 1.23e-02``. ``'power'``
-        rounds to the nearest power of 10 giving ``P ≈ 10⁻²`` — note that
-        values within the same decade (e.g. 0.04 and 0.06) map to the same
-        label; best for p-values spanning multiple orders of magnitude.
+        rounds to the nearest power of 10, producing ``P ≈ 10⁻²``. Values
+        within the same decade (e.g. 0.04 and 0.06) map to the same label. This
+        notation is useful when p-values span multiple orders of magnitude.
         A single value applies to every label; or pass a ``dict`` for per-pair
-        notation, e.g. ``{("A", "B"): "scientific", "test": "power"}`` — tuple
+        notation, e.g. ``{("A", "B"): "scientific", "test": "power"}``; tuple
         keys are pairs (matched either order, unlisted → plain), and the special
         ``"test"`` key sets the omnibus label's notation.
     testLabelPosition:
@@ -1805,8 +1746,8 @@ def comparisons(
         ``True`` prints the full descriptive + effect-size report (per-group
         n/mean/sd/median/IQR/range, the omnibus result, and the post-hoc
         comparisons) to stdout. Default ``False``. Without supplied ``pvalues``, an omnibus
-        ``test`` lists **all** pairwise post-hoc comparisons - the full table, not just the pairs
-        you bracket (and even when ``pairs=None``). With supplied values, it lists only the
+        ``test`` lists all pairwise post-hoc comparisons, including pairs without brackets
+        and when ``pairs=None``. With supplied values, it lists only the
         requested pairs and retains the omnibus result; supplied pairs have no test, correction,
         or effect size. A pairwise ``test`` lists exactly the requested ``pairs``. The report is
         queued for the export metadata regardless of this flag (when
@@ -1828,7 +1769,7 @@ def comparisons(
             categories=CATEGORIES,
         )
 
-    Multiple comparisons — brackets stacked automatically::
+    Multiple comparisons – brackets stacked automatically::
 
         chart + ds.stats.comparisons(
             data, "group", "value",
@@ -1874,7 +1815,7 @@ def comparisons(
             categories=CATEGORIES,
         )
 
-    Grouped (two-factor) - compare vehicle vs LPS *within* each gene of a grouped
+    Grouped (two-factor) – compare vehicle vs LPS *within* each gene of a grouped
     bar chart (``xOffset="condition"``); one bracket per gene, a real per-gene test::
 
         GENES = ["GAPDH", "IL6", "TNF"]
@@ -1890,7 +1831,7 @@ def comparisons(
             test="ttest_ind", labelStyle="asterisks",
         )
 
-    Reference mode - compare every dose against the control, a bare mark above each
+    Reference mode – compare every dose against the control, a bare mark above each
     (no bracket); overlay your points so the marks clear the data::
 
         CATS = ["Ctrl", "Low", "Mid", "High"]
@@ -1933,9 +1874,6 @@ def comparisons(
     else:
         _validate_statistical_data(data, x, y_col, x)
 
-    # Grouped mode: compare xOffset subgroups within each x-category (a two-factor design, e.g. a
-    # qPCR gene x condition panel). A fully separate path so the single-factor logic below is
-    # untouched; see the grouped-comparisons design point.
     if xOffset is not None:
         return _add_grouped_comparisons(
             data,
@@ -1973,9 +1911,7 @@ def comparisons(
             save=saveReport,
         )
 
-    # Dict pvalues/yPositions/yStart are the grouped (xOffset) form; single-factor takes scalars/lists.
-    # Reference mode is exempt: it uses a group-keyed dict (pvalues/yPositions) or a scalar (flat row),
-    # validated in the reference block below - so only guard these outside reference mode.
+    # Outside reference mode, dict forms of these arguments are valid only for grouped comparisons.
     if reference is None:
         if isinstance(pvalues, dict):
             raise ValueError("a dict pvalues is for grouped mode (xOffset) or reference mode; pairwise takes a list.")
@@ -1986,10 +1922,8 @@ def comparisons(
     if isinstance(yStart, dict) and reference is None:
         raise ValueError("a dict yStart is for grouped mode (xOffset); single-factor takes a number.")
 
-    # Validate categories: brackets use their order and count, so an
-    # explicit list that doesn't cover the data's x-values (a typo or omission) mis-sizes the band
-    # geometry and silently shifts every bracket. Raise instead (mirrors the grouped path). The
-    # order-vs-chart mismatch stays undetectable without the chart (documented).
+    # Bracket positions use the category order and count. Require complete coverage to prevent
+    # incorrect band geometry. Matching this order to the chart's sort cannot be checked here.
     _check_coverage(
         data,
         x,
@@ -2000,7 +1934,7 @@ def comparisons(
     )
     if categories is None:
         categories = sorted(data[x].unique().to_list())
-    # Resolved before the reference block so `reference` + pairs="all" hits its don't-also-pass raise.
+    # Resolve first so reference mode can reject an explicitly supplied pairs value.
     pairs = _resolve_pairs(pairs, categories, f"{x!r} categories")
 
     is_omnibus = test in _OMNIBUS_TESTS
@@ -2010,13 +1944,10 @@ def comparisons(
             raise ValueError(f"grouping column {x!r} has no observations for group {category!r}.")
         _validate_observations(group.tolist(), y_col, category)
 
-    # Remember which spacing args the caller passed: any one of them opts out of the pixel
-    # placement below, since an explicit number is data units on the user's own scale.
+    # Record explicit spacing arguments; any one selects data-unit placement below.
     _y_step_arg, _y_pad_arg = yStep, yPad
 
-    # Reference mode: compare every other category against `reference`, drawing the p-value above
-    # each mark with NO bracket (the comparison is implicit - a many-vs-one/control design). It
-    # derives `pairs` and switches the rendering to bare labels; it is a pairwise-only modifier.
+    # Reference mode derives one pair for every non-reference category and applies only to pairwise tests.
     is_reference = reference is not None
     if is_reference:
         if is_omnibus:
@@ -2034,8 +1965,7 @@ def comparisons(
             raise ValueError(f"reference {reference!r} is not a category of {x!r}: {categories}.")
         pairs = [(reference, c) for c in categories if c != reference]
         non_ref = [c for c in categories if c != reference]
-        # Explicit p-values: a dict keyed by the non-reference group (the single-factor analogue of
-        # grouped reference's (category, level) dict). Must cover every non-reference group exactly.
+        # Explicit p-values are keyed by each non-reference group and must cover them all.
         if pvalues is not None:
             if not isinstance(pvalues, dict):
                 raise ValueError("reference pvalues must be a dict keyed by group (the non-reference category).")
@@ -2045,8 +1975,8 @@ def comparisons(
             extra = [k for k in pvalues if k not in non_ref]
             if extra:
                 raise ValueError(f"pvalues has entr(y/ies) not matching any group: {sorted(extra)}.")
-        # Explicit y: a single number → flat row (all labels at that y); a dict keyed by group →
-        # per-label (partial, unlisted → auto). A list is the bracket form and is rejected here.
+        # A number sets one y position for all labels; a group-keyed dict sets per-label positions.
+        # Lists are reserved for bracket positions.
         if isinstance(yPositions, dict):
             ypos_extra = [k for k in yPositions if k not in non_ref]
             if ypos_extra:
@@ -2080,20 +2010,17 @@ def comparisons(
     if is_omnibus:
         omnibus_result = _run_omnibus(test, groups, categories)
 
-    # Resolve the comparison method
     idx = {c: i for i, c in enumerate(categories)}
     method = _resolve_method(test, postHoc, pvalues, is_omnibus)
-    # tukey_hsd carries its own correction; explicit p-values aren't corrected by us.
+    # Tukey HSD includes its correction; supplied p-values are final.
     effective_correction = None if (method is None or method == "tukey_hsd") else correction
-    # sigFigs: per-call overrides the theme default (3); governs on-plot label precision.
+    # Use the per-call significant-figure setting or the theme default.
     effective_sigfigs = sigFigs if sigFigs is not None else _opt("sigFigs")
 
-    # Notation: a scalar applies everywhere; a dict is per-pair for the brackets plus an optional
-    # "test" key for the omnibus/test label. Pair notations are read below in the bracket loop.
+    # Resolve one notation for all labels or per-pair notation and an optional test-label notation.
     test_notation, pair_notations = _resolve_notation(notation, pairs)
 
-    # Unified test label
-    # Position "auto" (default) → shown for omnibus (topLeft), hidden for pairwise.
+    # By default, show the omnibus label at topLeft and hide the pairwise test label.
     resolved_pos = ("topLeft" if is_omnibus else None) if testLabelPosition == "auto" else testLabelPosition
     if resolved_pos is not None or testLabelX is not None or testLabelY is not None:
         if testLabel is not None:
@@ -2116,9 +2043,7 @@ def comparisons(
             )
         )
 
-    # Report comparisons
-    # Omnibus reports all pairwise post-hoc comparisons, even when few or no brackets are drawn.
-    # Pairwise reports exactly the requested pairs.
+    # Omnibus reports include all post-hoc pairs; pairwise reports include the requested pairs.
     if is_omnibus and method is not None:
         report_pairs = _all_pairs(categories)
     else:
@@ -2153,23 +2078,21 @@ def comparisons(
                 }
             )
     elif is_reference and isinstance(pvalues, dict):
-        # User p-values for reference mode: use them directly (test + correction skipped).
+        # Supplied reference-mode p-values bypass testing and correction.
         pval_lookup = {frozenset((reference, g)): pvalues[g] for _, g in (pairs or [])}
         comparisons = [
             {"g1": reference, "g2": g, "pvalue": pvalues[g], "unadjustedPvalue": None} for _, g in (pairs or [])
         ]
 
-    # Reference labels
     if is_reference and pairs:
-        # A p-value above each non-reference mark, at that group's own data max (per-group,
-        # so groups of different magnitude each get a label sitting directly above their data).
+        # Place one p-value above each non-reference group's data maximum.
         y_all = data[y_col].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
         ref_pad, _, _ = _resolve_y_spacing(False, y_range, _opt("height"), yPad, None, None)
         resolved_width = width if width is not None else _opt("width")
         fs = fontSize if fontSize is not None else _opt("fontSize")
-        # yPositions: a number → flat row (every label at that y); a dict keyed by group → per-label
-        # (unlisted → auto); None → each above its own mark.
+        # A number sets one y position for all labels; a group-keyed dict sets per-label positions.
+        # Unlisted groups use automatic positions.
         ypos_flat = (
             float(yPositions) if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool) else None
         )
@@ -2182,8 +2105,8 @@ def comparisons(
                 label_y = float(yPositions[g])
             else:
                 g_max = cast(float, data.filter(pl.col(x) == g)[y_col].cast(pl.Float64).max() or 0.0)
-                # Auto: anchor at the group's own maximum and lift in pixels, so the gap is the
-                # same on every chart. An explicit yPad keeps its data-unit meaning.
+                # Automatic placement uses a pixel offset from each group's maximum. An explicit yPad
+                # retains its data-unit meaning.
                 label_y, ref_offset_px = (g_max, 6.0) if _y_pad_arg is None else (g_max + ref_pad, 0.0)
             label = _format_label(pval, labelStyle, effective_sigfigs, pair_notations[i])
             annotation_layers.append(
@@ -2198,7 +2121,6 @@ def comparisons(
                 )
             )
 
-    # Brackets
     elif pairs:
         pair_styles = _resolve_bracket_styles(bracketStyle, pairs)
         if tickHeight is not None and "drop" in pair_styles:
@@ -2217,22 +2139,16 @@ def comparisons(
         else:
             computed_pvalues = [pval_lookup[frozenset((g1, g2))] for g1, g2 in pairs]
 
-        # Y positioning
         annotated_groups_for_pad = list({g for pair in pairs for g in pair})
-        # Base the gap on the full data extent, not only the compared groups: Vega fits the
-        # rendered domain to every group, and the visual gap is yStep * panel height / domain.
-        # Using only the annotated groups' range collapses the brackets when an un-annotated
-        # group (e.g. a saturating positive control) blows up the domain; the full extent
-        # tracks the domain, so the gap stays stable. (yStart still sits above the compared
-        # groups - see below.)
+        # The rendered domain includes all groups. Use the full data extent to resolve spacing;
+        # using only compared groups would make the pixel gap inaccurate when another group expands
+        # the domain. yStart remains based on the compared groups.
         y_all = data[y_col].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
-        # End legs have a pixel length by definition ("matching the axis ticks"), so an auto
-        # tickHeight rides in y2Offset whatever the placement mode. Converting it to data units
-        # assumes a linear axis - on a log axis the legs collapse to a fraction of a pixel.
+        # End legs use pixel lengths through y2Offset. Converting an automatic tickHeight to data
+        # units would assume a linear axis and make the ticks too short on a log axis.
         _tick_arg = tickHeight
-        # Data-unit fallbacks for that opted-out path. Tick height is the fixed cap length;
-        # always positive so it survives a negative yStep (reverse).
+        # In data-unit mode, tickHeight is a positive fixed length, including for reverse brackets.
         yPad, tickHeight, yStep = _resolve_y_spacing(
             any(s in ("bracket", "drop") for s in pair_styles),
             y_range,
@@ -2242,8 +2158,7 @@ def comparisons(
             yStep,
         )
 
-        # Automatic placement uses pixel offsets from the data so gaps are independent of the
-        # rendered domain. Any explicit position or spacing argument uses data units instead.
+        # Automatic placement uses pixel offsets; explicit positions and spacing use data units.
         pixel_mode = yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
         offsets_px = [0.0] * len(pairs)
         tick_px = _BRACKET_TICK_PX if _tick_arg is None else None
@@ -2280,29 +2195,23 @@ def comparisons(
         elif isinstance(yPositions, list):
             final_y = [float(v) for v in yPositions]
         else:
-            # Assign stacking levels via greedy interval scheduling (shorter spans sit lower).
+            # Assign stacking levels by span order using greedy interval scheduling.
             pair_levels = _stack_levels([(categories.index(g1), categories.index(g2)) for g1, g2 in pairs])
             anchor = cast(
                 float,
                 data.filter(pl.col(x).is_in(annotated_groups_for_pad))[y_col].cast(pl.Float64).max() or 0.0,
             )
             if pixel_mode:
-                # Each bracket anchors above its own pair's data and lifts a constant number of
-                # pixels, so it stays with the groups it compares instead of riding the tallest
-                # annotated group, and the gap is exact at any y domain. Only the collision test
-                # between overlapping brackets needs pixel positions, and for that the rendered
-                # domain is estimated - a mis-estimate moves a bump slightly, never the gaps.
+                # Each bracket anchors to the maximum of the categories it spans and uses a pixel
+                # offset. Overlap checks use estimated pixel positions; errors can shift ladder
+                # placement but do not change rung spacing.
                 gap_px = 6.0 if any(s in ("bracket", "drop") for s in pair_styles) else 5.0
-                # A bracket occupies its bar plus the label above it - `fontSize` of glyph and the
-                # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
+                # Include label height and its 4 px offset in the minimum rung spacing to keep
+                # the label clear of the next bracket.
                 min_step_px = float(fontSize or _opt("fontSize")) + 6.0
-                # Anchor over every category the bracket spans, not only its two endpoints: a
-                # bracket from a to c passes over b, so a taller b would sit above the bar - on a
-                # bar chart the bracket would cross straight through it. (statannotations does the
-                # same; ggsignif sidesteps it by anchoring everything at the global maximum.)
-                # A `reverse` bracket hangs below its groups, so it anchors on their minimum and
-                # its ladder descends. The two directions never collide with each other (opposite
-                # sides of the data), so each gets its own placement pass.
+                # Anchor across every category spanned by the bracket. An intermediate category
+                # may have a taller bar than either endpoint. Reverse brackets anchor at the
+                # minimum and descend; they are placed separately from upward brackets.
                 pair_anchor = [
                     cast(
                         float,
@@ -2321,16 +2230,15 @@ def comparisons(
                 )
                 _ch = float(_opt("height"))
 
-                # Decide the domain lift BEFORE placing the ladder. Raising the top compresses the
-                # whole plot, which moves the anchors closer together - so a ladder computed against
-                # the unlifted domain renders with its rungs too close (measured: 6 px where 13 was
-                # asked for). The lift is bounded by every bracket colliding into one chain, which
-                # needs no offsets, so there is no circularity here.
+                # Resolve the domain lift before ladder placement because raising the upper bound
+                # changes the pixel distance between anchors. In one measured case, calculating
+                # the ladder before the lift rendered a requested 13 px step as 6 px. The lift
+                # allows space for the stack, including the case where all brackets overlap.
                 _label_on_top = isinstance(resolved_pos, str) and resolved_pos.startswith("top")
                 if _label_on_top or _opt("closed"):
                     stack_px = gap_px + len(pairs) * min_step_px
                     _lifted = _yhi + stack_px * ((_yhi - _ylo) or 1.0) / _ch
-                    # Round it the way Vega will, and pin that rounded value - otherwise Vega
+                    # Round it the way Vega will, and pin that value – otherwise Vega
                     # nice-rounds past it and compresses the plot further than we allowed for.
                     _ylo, _yhi = _nice_domain(_ylo, _lifted)
                     bracket_domain_max = _yhi
@@ -2344,7 +2252,7 @@ def comparisons(
                     return _lo + (1.0 - px / _h) * _sp
 
                 # Each ladder returns the shared anchor its rungs hang from, so `final_y` is that
-                # anchor rather than the bracket's own - the rung spacing is then pure pixels.
+                # anchor rather than the bracket's own; this makes rung spacing use pixels only.
                 final_y = list(pair_anchor)
                 offsets_px = [0.0] * len(pairs)
                 for _down in (False, True):
@@ -2365,8 +2273,7 @@ def comparisons(
                         final_y[slot], offsets_px[slot] = anch, off
 
                 if "drop" in pair_styles:
-                    # Solved after the ladder, which fixes every bar. A reverse bracket's offset
-                    # lifts it DOWN the screen (_pvalue_layer's _sign).
+                    # Resolve drop ticks after the ladder determines bracket positions.
                     drop_px = _solve_drop(
                         [
                             _to_px(final_y[i]) + (offsets_px[i] if rev_flags[i] else -offsets_px[i])
@@ -2385,16 +2292,13 @@ def comparisons(
                     drop_data = [(_from_px(i, a), _from_px(i, b)) for i, (a, b) in enumerate(drop_px)]
 
             else:
-                # Data-unit path: the stack base is the caller's yStart, else the annotated
-                # groups' maximum plus yPad (the pre-pixel-mode behaviour, unchanged).
+                # In data-unit mode, start at yStart or at the compared groups' maximum plus yPad.
                 base = cast(float, yStart) if yStart is not None else anchor + yPad
                 final_y = [base + pair_levels[i] * yStep for i in range(len(pairs))]
 
         if "drop" in pair_styles and drop_px is None:
-            # Explicit y positions opt out of pixel placement, so the bars are plain data values
-            # with no offset. The domain estimate has to include them: a caller can pin a bracket
-            # far above the data, and a domain taken from the data alone would send ticks through
-            # it. Reverse brackets need the low end for the same reason.
+            # Include explicit y positions in the domain estimate so drop ticks clear brackets
+            # pinned outside the data range. Reverse brackets also require the lower bound.
             _dlo, _dhi = _nice_domain(
                 min(0.0, cast(float, y_all.min() or 0.0), min(final_y)),
                 max(cast(float, y_all.max() or 0.0), max(final_y)),
@@ -2441,16 +2345,14 @@ def comparisons(
                     sigFigs=effective_sigfigs,
                     notation=pair_notations[i],
                     offset_px=offsets_px[i],
-                    # Solved lengths come back in COLUMN order (the span's low end first), but
-                    # the legs are drawn for group1/group2 - which a pair written against the
-                    # category order reverses.
+                    # Tick lengths follow column order, so reverse them when the pair order differs.
                     tick_px=(_pair_order(drop_px[i], g1, i) if drop_px is not None else tick_px),
                     tick_data=(_pair_order(drop_data[i], g1, i) if drop_data is not None else None),
                     domain_max=bracket_domain_max if i == 0 else None,
                 )
             )
 
-    # Queue a structured report for export metadata; render it when requested.
+    # Queue the report for export metadata and render it when requested.
     record = _make_record(
         test=test,
         is_omnibus=is_omnibus,
@@ -2469,10 +2371,9 @@ def comparisons(
     marker = _emit_report(record, report, saveReport)
 
     if not annotation_layers:
-        # no label and no brackets → report-only; return an invisible layer.
+        # With no label or brackets, return an invisible layer for report-only use.
         annotation_layers.append(_empty_layer())
-    # Tag the layer with the record's marker name so save() can match this record back to
-    # the chart it annotates (the name survives ``+``; it's stripped from the written JSON).
+    # The marker links this layer to its report during save(); it is stripped from written JSON.
     return cast(alt.LayerChart, alt.layer(*annotation_layers).properties(name=marker))
 
 
@@ -2488,7 +2389,7 @@ def _correlation_label(
     sigFigs: int,
     notation: str | None,
 ) -> str:
-    """Build the corner-readout string from a correlation result, one part at a time."""
+    """Build a corner-readout string from a correlation result."""
     g = f".{sigFigs}g"  # significant figures, no trailing zeros
     is_pearson = result["rSquared"] is not None  # only Pearson has r²/slope
     parts: list[str] = []
@@ -2538,13 +2439,12 @@ def _add_grouped_correlation(
     report: bool,
     save: bool | str | Path,
 ) -> alt.LayerChart:
-    """A fit + coefficient readout PER group of ``group_col`` (e.g. one line per cell line).
+    """Build a fit and coefficient readout for each value of ``group_col``.
 
-    Every fit line, CI band, and readout is coloured by ``group_col`` on the SAME colour channel the
-    scatter uses, so they share one colour scale and match automatically. Colour is a lookup, not a
-    position, so there's no reorder hazard like the grouped brackets - no sort param is needed. One
-    record is registered per group (tagged onto that group's first layer so ``save()`` finds them
-    all); the readouts stack in the ``position`` corner, each in its group's colour.
+    Fit lines, confidence bands, and readouts use the ``group_col`` color encoding, allowing them
+    to share the scatter's color scale. Color is looked up by value, so no sort parameter is needed.
+    One report record is registered per group and attached to that group's first layer. Readouts
+    stack in the ``position`` corner with a swatch in each group's color.
     """
     import numpy as np
 
@@ -2556,8 +2456,7 @@ def _add_grouped_correlation(
     effective_sigfigs = sigFigs if sigFigs is not None else _opt("sigFigs")
     groups = df[group_col].unique(maintain_order=True).to_list()
 
-    # Curated line-style overrides, shared across groups; colour stays per-group via the encoding,
-    # unless a fixed `color` is given (which then overrides every group's line).
+    # Share style overrides across groups; the color encoding assigns group colors unless color is fixed.
     line_kwargs: dict[str, Any] = {}
     if strokeWidth is not None:
         line_kwargs["strokeWidth"] = strokeWidth
@@ -2590,11 +2489,10 @@ def _add_grouped_correlation(
         base_x = preset["x_frac"] * cw + (pad if preset["x_frac"] == 0 else -pad if preset["x_frac"] == 1 else 0)
         base_y = preset["y_frac"] * chh + (pad if preset["y_frac"] == 0 else -pad if preset["y_frac"] == 1 else 0)
         line_h = fontSize * 1.5
-        # top anchor -> stack down; bottom -> stack up; middle -> centred on the anchor.
+        # Stack down from top anchors, up from bottom anchors, and around middle anchors.
         anchor = 0.0 if preset["y_frac"] == 0 else (n - 1) if preset["y_frac"] == 1 else (n - 1) / 2
 
-    # Compute and validate every group before emitting any report record. A later degenerate group
-    # must not leave earlier grouped records in the global registry.
+    # Validate and compute every group before registering any report records.
     prepared: list[tuple[Any, Any, Any, dict[str, Any], np.ndarray | None, np.ndarray | None]] = []
     for g in groups:
         gdf = df.filter(pl.col(group_col) == g)
@@ -2618,7 +2516,7 @@ def _add_grouped_correlation(
     for i, (g, gdf, x, result, band_lo, band_hi) in enumerate(prepared):
         g_layers: list[Any] = []
 
-        # CI band (Pearson only), drawn first so it sits under the line; filled by the group colour.
+        # Draw the Pearson confidence band before the fit line, using the group's color.
         if band_lo is not None and band_hi is not None:
             xs = np.linspace(float(x.min()), float(x.max()), 64)
             band_df = pl.DataFrame({x_col: xs, y_col: band_lo, "__ci_hi": band_hi, group_col: [g] * len(xs)})
@@ -2636,7 +2534,7 @@ def _add_grouped_correlation(
                 area_enc["color"] = line_color
             g_layers.append(area.encode(**area_enc))
 
-        # Fit line (Pearson only - slope is None for the rank methods).
+        # Rank-correlation results have no slope; only Pearson results produce a fit line.
         if line and result["slope"] is not None:
             x0, x1 = float(x.min()), float(x.max())
             slope, intercept = result["slope"], result["intercept"]
@@ -2653,10 +2551,8 @@ def _add_grouped_correlation(
                 )
             )
 
-        # Stacked corner readout for this group: a colour SWATCH in the series colour + the readout
-        # in the theme's neutral (darkmode-aware) ink. The swatch carries the colour link to the
-        # line/points (like a legend entry), so the text stays fully legible even for pale palette
-        # colours - colouring the whole readout hurt contrast on light series (e.g. a pale yellow).
+        # Pair a group-colored swatch with readout text in the theme's neutral ink. Coloring the
+        # text with the series color can reduce contrast for light colors.
         if position is not None:
             text = _correlation_label(
                 result,
@@ -2669,20 +2565,19 @@ def _add_grouped_correlation(
             readout_label = f"{g}: {label if label is not None else text}"
             y_i = base_y + (i - anchor) * line_h
             align, baseline = preset["align"], preset["baseline"]
-            # A filled point swatch sized like a symbol-legend entry: config.legend.symbolSize is
-            # fontSize*6 (so it scales with the font), the default circle shape, and the same
-            # darkmode-aware stroke the legend uses (config.point's stroke is a fixed black).
+            # Match the legend symbol size and stroke. The point mark's configured stroke is fixed
+            # black, while the legend stroke changes for dark mode.
             sym_size = fontSize * 6
             sym_r = (sym_size / math.pi) ** 0.5  # circle radius, for placement
             gap = fontSize * 0.4  # swatch -> text
-            tw = len(readout_label) * fontSize * 0.6  # rough text-width estimate (for right/centre swatch x)
+            tw = len(readout_label) * fontSize * 0.6  # rough text-width estimate (for right/center swatch x)
             if align == "left":
                 text_x, sw_x = base_x + 2 * sym_r + gap, base_x + sym_r
             elif align == "right":
                 text_x, sw_x = base_x, base_x - tw - gap - sym_r
             else:  # center
                 text_x, sw_x = base_x, base_x - tw / 2 - gap - sym_r
-            # Seat the swatch on the text's visual middle, given its baseline.
+            # Adjust the swatch's vertical position for the text baseline.
             _vshift = {"top": 0.35, "middle": 0.0, "alphabetic": -0.35, "bottom": -0.45}.get(baseline, 0.0)
             sw_y = y_i + _vshift * fontSize
             g_layers.append(
@@ -2710,8 +2605,7 @@ def _add_grouped_correlation(
             g_layers.append(_empty_layer())
         staged.append((g_layers, record))
 
-    # Register only after every group has built successfully, so a grouped validation/rendering
-    # failure cannot leave earlier groups in the global report queue.
+    # Register reports after all groups build successfully.
     for g_layers, record in staged:
         marker = _emit_report(record, report, save)
         layers.append(alt.layer(*g_layers).properties(name=marker))
@@ -2753,12 +2647,10 @@ def correlation(
     saveReport: bool | str | Path = False,
 ) -> alt.LayerChart:
     """
-    Annotate a scatter with a correlation coefficient (and an OLS fit line for Pearson).
+    Annotate a scatter with a correlation readout and an OLS fit line for Pearson.
 
-    Reports the coefficient as a corner label, and — for ``method="pearson"``
-    only — draws the ordinary-least-squares regression line. A structured record
-    (``kind="correlation"``) is queued for the export metadata (see ``ds.save``),
-    exactly like ``comparisons``.
+    A structured record (``kind="correlation"``) is queued for export metadata
+    (see ``ds.save``), as it is for ``comparisons``.
 
     Combine with your scatter using ``+``:  ``chart + ds.stats.correlation(...)``.
 
@@ -2769,26 +2661,23 @@ def correlation(
     x, y:
         Column names for the two **continuous** variables.
     method:
-        ``'pearson'`` (default) — linear correlation ``r`` + ``r²`` + slope/intercept,
-        with an OLS line. ``'spearman'`` — rank correlation ``ρ``. ``'kendall'`` —
-        rank correlation ``τ``. The rank methods report the coefficient only (no ``r²``,
-        no line — a straight line isn't their model). Matches pandas' ``DataFrame.corr``.
+        ``'pearson'`` (default) reports linear correlation ``r``, ``r²``, and the
+        slope/intercept of an OLS line. ``'spearman'`` reports rank correlation
+        ``ρ``; ``'kendall'`` reports rank correlation ``τ``. Rank methods do not
+        report ``r²`` or draw a line. Results match pandas' ``DataFrame.corr``.
     groupBy:
-        **Grouped mode.** A column to split the scatter into series (e.g. ``"cell_line"``).
-        When set, a fit + coefficient is computed **per group**, each fit line / CI band /
-        readout coloured by ``groupBy`` on the *same* colour channel your scatter uses -
-        so colour by the same field (``color=alt.Color("cell_line:N")``) and they match
-        (colour is a lookup, so no sort param is needed, unlike ``comparisons``).
-        Readouts stack in the ``position`` corner, each a colour swatch (matching the series)
-        plus the coefficient in neutral ink; one record is registered per group. Note: with
-        ``ci=True``, give your scatter an explicit
-        y-axis title (``alt.Y("val:Q", title="…")``) - otherwise Vega merges the band's
-        internal upper-bound field into the axis title (a Vega title-merge quirk that also
-         affects the single-series ``ci`` path).
-         A custom ``label`` is prefixed with each group's label.
+        **Grouped mode.** A column that splits the scatter into series (e.g. ``"cell_line"``).
+        A fit, coefficient, and optional confidence band are computed per group. Lines, bands,
+        and readouts use the same color encoding as the scatter; encode color by the same field
+        (for example, ``color=alt.Color("cell_line:N")``) to match the colors. The color scale
+        does not require a sort parameter. Readouts stack at ``position`` and pair a series-color
+        swatch with coefficient text in the theme's neutral color. One record is registered per
+        group. With ``ci=True``, give the scatter an explicit y-axis title such as
+        ``alt.Y("val:Q", title="…")``. Vega can otherwise merge the band's internal upper-bound
+        field into the axis title. A custom ``label`` is prefixed with each group's label.
     line:
-        Draw the OLS fit line. Default ``True``. Only applies to ``method="pearson"``
-        (a no-op for the rank methods). Set ``False`` to suppress it and, e.g., compose
+        Draw the OLS fit line. Default ``True``. Applies only to ``method="pearson"``
+        and has no effect for rank methods. Set ``False`` to suppress it and, for example, compose
         your own line from the returned/recorded slope and intercept.
     position:
         Corner preset (a ``text`` position, e.g. ``'topLeft'``) for the readout.
@@ -2797,21 +2686,20 @@ def correlation(
     label:
         Override string for the corner readout. ``None`` builds it from the parts below.
     coefficient:
-        Pearson only — which statistic the readout shows: ``'r'`` (default), ``'r2'``
-        (just ``r²``, Excel-trendline style), or ``'both'``. Ignored for the rank kinds
-        (they always show ``ρ``/``τ``).
+        For Pearson, select ``'r'`` (default), ``'r2'`` (``r²``), or ``'both'``.
+        Ignored for rank methods, which report ``ρ`` or ``τ``.
     includePvalue:
         Append the p-value to the readout. Default ``False``.
     includeEquation:
-        Pearson only — append the fit equation ``, y = 0.84x + 0.27``. Default ``False``.
+        Pearson only – append the fit equation ``, y = 0.84x + 0.27``. Default ``False``.
     verbose:
-        Shortcut for the fullest readout: ``True`` is equivalent to
-        ``coefficient="both", includePvalue=True, includeEquation=True`` (and overrides
-        those three). Default ``False``. So the default readout is just ``r = 0.87``
+        When ``True``, equivalent to ``coefficient="both", includePvalue=True,
+        includeEquation=True``; these settings override the individual arguments.
+        Default ``False``. The default readout is ``r = 0.87``
         (Pearson) / ``ρ = 0.81`` (rank); ``verbose=True`` gives
         ``r = 0.87, r² = 0.76, P < 0.001, y = 0.84x + 0.27``.
     offsetX, offsetY:
-        Pixel nudges for the readout, forwarded to ``text``.
+        Pixel offsets for the readout, forwarded to ``text``.
     fontSize:
         Font size of the readout. Defaults to the theme's primary ``fontSize``
         (``6`` under the built-in defaults), matching the axis font.
@@ -2819,30 +2707,28 @@ def correlation(
         Significant figures / number format for the readout (coefficient, r², p-value,
         and fit equation), as in ``comparisons``. ``sigFigs=None`` reads the theme.
     color, strokeWidth, strokeDash, opacity:
-        Curated style overrides for the fit line (same four knobs as ``rule``). Each
-        defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one
-        to override just that property.
+        Style overrides for the fit line. Each defaults to ``None``, in which case the
+        line inherits that property from the theme's ``mark_line`` config.
     lineStyle:
-        A dict of raw ``mark_line`` properties merged in last, so any Vega-Lite line
-        property is reachable (e.g. ``{"interpolate": "monotone", "strokeCap": "round"}``).
-        Keys here **override** the curated ``color``/``strokeWidth``/etc. above in both single
-        and grouped modes.
+        Raw ``mark_line`` properties applied after the curated style arguments, for example
+        ``{"interpolate": "monotone", "strokeCap": "round"}``. These keys override the
+        corresponding ``color``, ``strokeWidth``, and other curated arguments in single and
+        grouped modes.
     ci:
         Draw a shaded interval band around the OLS fit (Pearson only). ``False``
-        (default) → no band. ``True`` → a 95% band. A float in ``(0, 1)`` → that
-        confidence level (e.g. ``0.99``). The band is hyperbolic - narrowest at the
-        mean of ``x``, widening toward the extremes. Its syntax is validated even for rank
-        methods, where the band is inactive.
+        (default) draws no band. ``True`` draws a 95% band. A float in ``(0, 1)`` sets
+        the confidence level (e.g. ``0.99``). The band is narrowest at the mean of ``x``
+        and widens toward its extremes. Its syntax is validated for rank methods, although
+        they do not draw a band.
     interval:
-        Which band ``ci`` draws: ``'confidence'`` (default, the interval for the mean
-        response - how well the *line* is pinned down) or ``'prediction'`` (the wider
-        interval for a single new observation).
+        Which band ``ci`` draws: ``'confidence'`` (default, an interval for the mean
+        response) or ``'prediction'`` (an interval for a single new observation).
     ciColor:
-        Fill colour of the band. ``None`` (default) inherits the effective fit-line color,
-        including a ``lineStyle`` color,
-        falling back to the theme's mark colour (black / white, darkmode-aware). Because
-        the default resolves darkmode at build time, wrap chart construction in a callable
-        passed to ``ds.save()`` for correct light/dark exports (as with ``shade``).
+        Fill color of the band. ``None`` (default) uses the effective fit-line color,
+        including a ``lineStyle`` color, or the theme's mark color (black or white,
+        depending on dark mode). This default is resolved when the chart is built. To
+        resolve it separately for light and dark exports, pass a chart-building callable
+        to ``ds.save()`` (as with ``shade``).
     ciOpacity:
         Fill opacity of the band. Default ``0.15``.
     report:
@@ -2894,9 +2780,7 @@ def correlation(
     else:
         _validate_statistical_data(data, x_col, y_col, numeric_x=True)
 
-    # Grouped mode: a fit + coefficient PER group of `groupBy` (e.g. one line per cell line), each
-    # coloured to match the scatter's colour scale. A separate path so the single-series body below
-    # is untouched; see the grouped-correlation design point.
+    # Grouped mode computes separate results and layers for each group.
     if groupBy is not None:
         return _add_grouped_correlation(
             data,
@@ -2937,9 +2821,8 @@ def correlation(
 
     layers: list[Any] = []
 
-    # Confidence / prediction band around the OLS fit - Pearson only, opt-in via `ci`.
-    # Drawn BEFORE the line so it sits underneath. The band is hyperbolic, so sample the
-    # x-range densely for a smooth area.
+    # Draw the optional Pearson confidence or prediction band beneath the fit line.
+    # Sample the x range at 64 points to render the curved band.
     if ci and result["slope"] is not None:
         import numpy as np
 
@@ -2953,12 +2836,12 @@ def correlation(
             lo, hi = _ols_band(x_values, y_values, xs, level=level, kind=interval)
         except ValueError as exc:
             raise ValueError(f"correlation {x_col!r} vs {y_col!r}: {exc}") from exc
-        # Lower bound rides on the y_col-named field so its derived axis title dedupes with the
-        # base chart (same trick as the fit line); the upper bound goes in y2 (carries no title).
+        # Use y_col for the lower bound so its derived axis title matches the base chart;
+        # y2 holds the upper bound and has no axis title.
         band_df = pl.DataFrame({x_col: xs, y_col: lo, "__ci_hi": hi})
-        # Match the fit line's colour (black/white, darkmode-aware at build → callable needed
-        # for save() across backgrounds, like shade); pin the stroke off so config.area's
-        # grey fill / stroke can't leak through.
+        # Match the fit line's color. Dark-mode color is resolved when the chart is built, so
+        # use a callable with save() when exporting against different backgrounds. Disable the
+        # area mark's stroke to prevent the theme's area styling from adding one.
         style_color = lineStyle.get("color") if lineStyle is not None else None
         band_fill = (
             ciColor
@@ -2979,16 +2862,15 @@ def correlation(
             )
         )
 
-    # OLS fit line — Pearson only (result["slope"] is None for rank kinds).
+    # Rank-correlation results have no slope; only Pearson results produce an OLS fit line.
     if line and result["slope"] is not None:
         x0, x1 = float(x_values.min()), float(x_values.max())
         slope, intercept = result["slope"], result["intercept"]
-        # Use the original column names because Vega-Lite combines derived axis titles from
-        # layers. Private names such as "_x" would appear in the base title; matching names avoid
-        # duplicate title text.
+        # Use the original column names so the derived axis titles match the base chart and do
+        # not add duplicate title text.
         fit_df = pl.DataFrame({x_col: [x0, x1], y_col: [slope * x0 + intercept, slope * x1 + intercept]})
-        # By default the line inherits the theme's mark_line config (no overrides).
-        # Curated params override only what's passed; lineStyle overrides everything.
+        # The line inherits the theme's mark_line config unless style arguments override it;
+        # lineStyle is applied after the curated arguments.
         mark_kwargs: dict[str, Any] = {}
         if color is not None:
             mark_kwargs["color"] = color
@@ -3000,10 +2882,8 @@ def correlation(
             mark_kwargs["opacity"] = opacity
         if lineStyle:
             mark_kwargs.update(lineStyle)
-        # No title/axis override: matching field names avoid duplicate derived titles, and
-        # an explicit base title still beats this layer's derived one.  (Setting title=None
-        # nulls the base title; axis=None suppresses the axis entirely — both wrong here.)
-        # field=/type= rather than shorthand, so column names containing ':' survive.
+        # Leave titles and axes unset so the base chart's titles remain. Use field/type arguments
+        # so column names containing ':' are treated as field names.
         layers.append(
             alt.Chart(_internal_data(fit_df))
             .mark_line(**mark_kwargs)
@@ -3034,11 +2914,11 @@ def correlation(
             )
         )
 
-    # Structured record → export metadata; printed/written on request.
+    # Queue the record for export metadata and render it when requested.
     record = _make_correlation_record(result, x_col, y_col, data_checksum=_frame_checksum(data))
     marker = _emit_report(record, report, saveReport)
 
     if not layers:
         layers.append(_empty_layer())
-    # Tag with the marker name so save() matches this record to its chart (stripped on write).
+    # The marker links this layer to its report during save(); it is stripped from written JSON.
     return cast(alt.LayerChart, alt.layer(*layers).properties(name=marker))
