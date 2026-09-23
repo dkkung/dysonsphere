@@ -48,31 +48,31 @@ def log_label_expr(base: int = 10, notation: str = "power") -> str:
     --------
     ::
 
-        # power notation — base-10 y-axis: 10⁴, 10⁵, 10⁶, …
+        # power notation – base-10 y-axis: 10⁴, 10⁵, 10⁶, …
         axis=alt.Axis(
             values=[10**e for e in range(4, 8)],
             labelExpr=ds.log_label_expr(),
         )
 
-        # power notation — log2 x-axis: 2⁰, 2¹, …, 2²⁰
+        # power notation – log2 x-axis: 2⁰, 2¹, …, 2²⁰
         axis=alt.Axis(
             values=[2**e for e in range(0, 21)],
             labelExpr=ds.log_label_expr(base=2),
         )
 
-        # scientific notation — base-10 y-axis: 1×10⁴, 1×10⁵, 1×10⁶, …
+        # scientific notation – base-10 y-axis: 1×10⁴, 1×10⁵, 1×10⁶, …
         axis=alt.Axis(
             values=[10**e for e in range(4, 8)],
             labelExpr=ds.log_label_expr(notation="scientific"),
         )
 
-        # e-notation — base-10 y-axis: 1e+4, 1e+5, 1e+6, …
+        # e-notation – base-10 y-axis: 1e+4, 1e+5, 1e+6, …
         axis=alt.Axis(
             values=[10**e for e in range(4, 8)],
             labelExpr=ds.log_label_expr(notation="e"),
         )
 
-        # SI prefix notation — base-10 y-axis: 10k, 100k, 1M, …
+        # SI prefix notation – base-10 y-axis: 10k, 100k, 1M, …
         axis=alt.Axis(
             values=[10**e for e in range(4, 8)],
             labelExpr=ds.log_label_expr(notation="si"),
@@ -84,7 +84,7 @@ def log_label_expr(base: int = 10, notation: str = "power") -> str:
         raise ValueError(f"notation={notation!r} is only defined for base=10.")
 
     # Vega expression building blocks. abs_exp must be written out in full each
-    # time it appears — Vega's restricted expression language has no variable
+    # time it appears – Vega's restricted expression language has no variable
     # binding, so intermediate values cannot be assigned to names.
     e = f"round(log(datum.value) / log({base}))"
     ae = f"abs(round(log(datum.value) / log({base})))"
@@ -121,17 +121,16 @@ def _minor_tick_layer(
     """The minor-tick layer shared by the log and pow constructors.
 
     A point-mark layer carrying a second axis that draws only unlabeled ticks at ``minor_values``.
-    The ``scale`` must set an explicit domain - without it Vega auto-fits the independent scale to
-    the data extent, dropping partial edge intervals. The caller layers it over the main chart with
+    The ``scale`` must set an explicit domain. Without it, Vega auto-fits the independent scale to
+    the data extent and can drop partial edge intervals. The caller layers it over the main chart with
     ``resolve_axis(...="independent")``.
 
-    **The layer renders NO marks.** It shares the user's data (so ``read(what="data")`` /
-    provenance still see exactly one frame - the layer dedupes to the main chart's dataset) but is
-    filtered to zero rows, so it hosts the minor-tick axis (which is driven by the forced ``scale``
-    domain, not by data) while emitting nothing. This is why the axis-host marks do not litter the
-    exported SVG - and it is done at the source rather than by stripping transparent elements after
-    render, which would also delete a user's own opacity-encoded (transparent) DATA marks and break
-    the SVG's data-completeness. ``opacity=0`` is kept as a belt-and-suspenders fallback.
+    The layer is filtered to zero rows, so it emits no marks. It reuses the user's data so
+    ``read(what="data")`` and provenance still find one frame; the layer shares the main chart's
+    dataset. Its axis draws ticks from the explicit scale domain and ``minor_values``, not from
+    mark rows. Filtering here prevents transparent axis-host marks from appearing in the exported
+    SVG. Removing them after rendering could also delete the user's opacity-encoded data marks and
+    make the SVG incomplete. The mark's ``opacity=0`` provides a fallback.
     """
     minor_axis = alt.Axis(
         values=minor_values,
@@ -179,8 +178,8 @@ def _infer_field(chart, axis: str) -> str | None:
 
     Reads ``chart.encoding.<axis>._kwds["shorthand"]`` (the ``.field`` accessor returns a
     ``_PropertySetter`` descriptor, not the value) and strips the ``:Q`` type suffix.
-    Returns ``None`` when the field can't be recovered — a ``LayerChart`` (no top-level
-    encoding), a missing/complex channel, or an aggregate/expression shorthand — so the
+    Returns ``None`` when the field can't be recovered – a ``LayerChart`` (no top-level
+    encoding), a missing/complex channel, or an aggregate/expression shorthand – so the
     caller falls back to requiring an explicit ``field=``.
     """
     enc = getattr(chart, "encoding", alt.Undefined)
@@ -189,7 +188,7 @@ def _infer_field(chart, axis: str) -> str | None:
     if not isinstance(shorthand, str):
         return None
     name = shorthand.split(":")[0]
-    # Reject aggregates/expressions (e.g. "mean(x)", "count()") — not a plain column.
+    # Reject aggregates/expressions (e.g. "mean(x)", "count()") – not a plain column.
     return name if name and "(" not in name else None
 
 
@@ -218,7 +217,7 @@ def add_log_ticks(
     The main chart's scale domain is unaffected.
 
     For ``base=10`` the minor ticks are placed at the 2×–9× integer
-    multiples within each decade — the conventional scientific log tick
+    multiples within each decade – the conventional scientific log tick
     pattern. For other bases (e.g. ``base=2``) ticks are placed at
     ``nMinor`` equally-spaced positions (in log space) per interval,
     defaulting to one tick at the geometric midpoint per octave.
@@ -282,7 +281,7 @@ def add_log_ticks(
     --------
     ::
 
-        # log10 y-axis — exp range auto-derived
+        # log10 y-axis – exp range auto-derived
         chart = ds.add_log_ticks(chart, data, "value")
 
         # log2 x-axis (e.g. fold-change on a volcano plot)
@@ -386,7 +385,7 @@ def add_pow_ticks(
     The main chart's scale domain is unaffected.
 
     Minor ticks are placed at positions that are equally spaced in the
-    power-transformed (visual) space — i.e. they appear visually uniform
+    power-transformed (visual) space – i.e. they appear visually uniform
     on screen regardless of where the major ticks fall in data space.
     The formula for minor tick ``k`` of ``nMinor`` between major ticks
     ``a`` and ``b`` is::
@@ -394,7 +393,7 @@ def add_pow_ticks(
         val = (a**exp + k / (nMinor + 1) * (b**exp - a**exp)) ** (1 / exp)
 
     ``majorValues`` must match the values passed to the main chart's
-    ``axis.values`` — the minor layer uses them to infer interval
+    ``axis.values`` – the minor layer uses them to infer interval
     boundaries and to set the independent scale domain.
 
     Use ``exponent=0.5`` (the default) for a square-root axis
@@ -433,7 +432,7 @@ def add_pow_ticks(
     majorValues:
         Ordered list of major tick data values for the single-axis
         case. Must match the ``values=`` passed to the main chart's
-        ``alt.Axis``. Required — cannot be auto-derived.
+        ``alt.Axis``. Required – cannot be auto-derived.
     nMinor:
         Number of minor ticks between each pair of major ticks.
         Defaults to ``4`` (divides each interval into five equal
