@@ -162,10 +162,10 @@ def mark_violin(
     Returns a ``LayerChart`` that can be saved directly or composed with other
     layers (e.g. ``ds.stats.comparisons``).
 
-    The returned ``LayerChart`` is safe to place in ``alt.hconcat()`` alongside
-    ``mark_strip()`` or any other chart - the violin uses absolute ``x:Q``
-    coordinates internally rather than ``xOffset``, so Vega-Lite's xOffset
-    scale resolution never squishes the violin shape.
+    The returned ``LayerChart`` can be composed in ``alt.hconcat()`` with
+    ``mark_strip()`` or another chart. The violin uses absolute ``x:Q`` coordinates
+    rather than ``xOffset``, so Vega-Lite's xOffset scale resolution does not compress
+    the violin shape.
 
     Parameters
     ----------
@@ -180,24 +180,24 @@ def mark_violin(
         contain each observed value exactly once and no unobserved values. Tuple/list order and
         numeric category values are supported; pass an ordered sequence, not a raw string.
     inner:
-        Inner statistic display: ``"quartiles"`` (default) draws Prism-style
-        horizontal lines - a solid median (at twice the outline ``strokeWidth``,
-        clipped to the violin border) and dashed quartiles (at the outline
-        ``strokeWidth``) - each spanning the violin's width at that value;
+        Inner statistic display: ``"quartiles"`` (default) draws horizontal lines:
+        a solid median (at twice the outline ``strokeWidth``, clipped to the violin
+        border) and dashed quartiles (at the outline ``strokeWidth``), each spanning
+        the violin's width at that value;
         ``"median"`` draws only the median line; ``"box"`` embeds a boxplot;
         ``None`` draws the violin outline only.
     innerColor:
         Color of the median/quartile lines (``"quartiles"``/``"median"``).
-        ``None`` (default) means ``"black"`` in both light and dark mode - the
-        lines sit inside the mark fill, not on the background, so they are
-        deliberately not darkmode-sensitive.
+        ``None`` (default) means ``"black"`` in both light and dark mode. The
+        lines sit inside the mark fill rather than on the background, so their color
+        does not change with dark mode.
     boxplotWidth:
         Width of the boxplot box in pixels (``inner="box"`` only).
     boxplotColor:
         Fill color of the boxplot (``inner="box"`` only).
     boxplotMedianColor:
         Fill color of the boxplot median line (``inner="box"`` only). Defaults to
-        ``"white"`` so it reads against the default black box; overrides the
+        ``"white"`` for contrast against the default black box; overrides the
         theme's ``markMedianFill``.
     palette:
         Named dysonsphere palette or explicit list of category colors. When ``None``, each
@@ -212,7 +212,7 @@ def mark_violin(
         when ``None``.
     stroke:
         Outline color of the violin. ``True`` (default) uses the theme's
-        ``markStroke`` (black - kept black in dark mode too, outlining the light
+        ``markStroke`` (black – kept black in dark mode too, outlining the light
         palette fills like ``mark_strip``'s points); ``False`` or ``None``
         disables the outline; a string sets the color directly.
     strokeWidth:
@@ -224,7 +224,7 @@ def mark_violin(
         sign. ``None`` inherits from ``theme(xLabelAngle)``.
     labelMap:
         ``{raw_value: label}`` mapping applied to the x-axis tick labels at render
-        time via :func:`label_expr` - the data keeps the raw values. A label may be
+        time via :func:`label_expr` – the data keeps the raw values. A label may be
         a list of strings for a multi-line label. Unmapped values show as-is.
     steps:
         Number of y grid points used for KDE estimation (per group).
@@ -342,7 +342,7 @@ def mark_violin(
             group=group,
             kind="violin KDE column",
         )
-        # KDE bandwidth in data units - the tail extension scales with it so the
+        # KDE bandwidth in data units – the tail extension scales with it so the
         # untrimmed overshoot is proportionate on any data scale.
         if trim:
             y_min = float(vals.min())
@@ -397,8 +397,8 @@ def mark_violin(
     if inner in ("quartiles", "median"):
         # Pixel->data conversion for the median's stroke thickness. The rendered y
         # domain is Vega-Lite's nice-rounded union of the violin grids and zero
-        # (zero=True is the y-channel default; verified empirically) - utils'
-        # _nice_domain is the same d3 algorithm, so the estimate tracks it closely.
+        # (zero=True is the y-channel default) – utils' _nice_domain uses the same
+        # d3 algorithm, so the estimate tracks the rendered domain closely.
         grid_lo = min(g[3][0] for g in group_kde)
         grid_hi = max(g[3][-1] for g in group_kde)
         dom_lo, dom_hi = _nice_domain(min(grid_lo, 0.0), max(grid_hi, 0.0))
@@ -452,7 +452,7 @@ def mark_violin(
 
     violin_encoding: dict[str, Any] = {
         # padding=0: the precomputed pixel coordinates assume the full panel width
-        # range - theme(viewPadding=...) must not compress this internal scale
+        # range – theme(viewPadding=...) must not compress this internal scale
         "x": alt.X("__x:Q", scale=alt.Scale(domain=[0, chart_width], padding=0), axis=None),
         "y": s.y("__y:Q"),
         "order": alt.Order("__order:Q"),
@@ -481,12 +481,12 @@ def mark_violin(
         )
         return cast(alt.LayerChart, alt.layer(violin, boxplot).resolve_axis(x="independent"))
 
-    # Without the boxplot no layer carries the nominal x axis, so an invisible
-    # zero-row layer on the user's df hosts it (the add_log_ticks trick: the pinned
-    # category domain drives the axis, transform_filter("false") renders nothing,
-    # and sharing df means no phantom dataset for read(what="data")). It must be a
-    # BAR mark: a point mark makes Vega-Lite type the x:N scale as a POINT scale. The explicit
-    # rect padding makes this band scale match the pixel-computed silhouette and boxplot exactly.
+    # Without the boxplot, no layer carries the nominal x axis. An invisible zero-row
+    # bar layer over the user's data hosts it: the pinned category domain drives the
+    # axis, transform_filter("false") prevents rendering, and reusing the data avoids
+    # an extra dataset in read(what="data"). Use a bar mark because a point mark makes
+    # Vega-Lite type x:N as a point scale. Matching rect padding keeps this band scale
+    # aligned with the pixel-computed silhouette and boxplot.
     axis_host = alt.Chart(data).transform_filter("false").mark_bar(opacity=0).encode(x=violin_x)
     layers: list[Any] = [violin]
 
@@ -555,10 +555,10 @@ def mark_strip(
     xTitle: str | list[str] | None | _UnsetType = _UNSET,
 ) -> alt.LayerChart:
     """
-    Build an Altair layer combining jittered or beeswarm points with a centre statistic.
+    Build an Altair layer combining jittered or beeswarm points with a center statistic.
 
-    With ``errorbars=True`` (default) the centre tick marks the group MEAN - the same
-    statistic the error bars are computed from, so the tick is always centred between
+    With ``errorbars=True`` (default) the center tick marks the group mean – the same
+    statistic the error bars are computed from, so the tick is always centered between
     the caps. With ``errorbars=False`` the tick marks the median instead.
 
     Returns a ``LayerChart`` that can be saved directly or composed with other
@@ -592,7 +592,7 @@ def mark_strip(
     spread:
         Controls point spread in pixels. For ``'jitter'``: standard deviation
         of the Gaussian offsets (~68% of points within ±spread). For
-        ``'beeswarm'``: collision radius (points placed so no two centres are
+        ``'beeswarm'``: collision radius (points placed so no two centers are
         closer than 2·spread); total width grows with n.
     xLabelAngle:
         X-axis label rotation in degrees. Negative tilts left (e.g. ``-45``),
@@ -600,7 +600,7 @@ def mark_strip(
         sign. ``None`` inherits from ``theme(xLabelAngle)``.
     labelMap:
         ``{raw_value: label}`` mapping applied to the x-axis tick labels at render
-        time via :func:`label_expr` - the data keeps the raw values. A label may be
+        time via :func:`label_expr` – the data keeps the raw values. A label may be
         a list of strings for a multi-line label. Unmapped values show as-is.
     errorbars:
         Whether to show error bars around the group mean. When ``True``,
@@ -654,9 +654,9 @@ def mark_strip(
     else:
         raise ValueError(f"scatter must be 'jitter' or 'beeswarm', got {scatter!r}")
 
-    band_padding = _opt("outerPadding")  # the offset variant's padding - see _band_geometry
+    band_padding = _opt("outerPadding")  # the offset variant's padding – see _band_geometry
     step = _band_geometry(len(categories)).step
-    # This is not a band centre: the xOffset scale positions relative to the band start, so this
+    # This is not a band center: the xOffset scale positions relative to the band start, so this
     # is the in-band midpoint expressed in xOffset range coordinates.
     band_center = step * (0.5 - band_padding)
     max_offset = cast(float, data[offset_col].abs().cast(pl.Float64).max() or 0.0)
@@ -733,7 +733,7 @@ def mark_strip(
         )
     )
 
-    # Use the mean so the tick is centred between the error-bar caps, even for skewed data.
+    # Use the mean so the tick is centered between the error-bar caps, even for skewed data.
     # Inherit config.tick styling so its color follows the background at render time.
     mean_tick = (
         alt.Chart(summary)
