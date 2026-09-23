@@ -12,7 +12,7 @@ from .palettes import _DEFAULT_QUALITATIVE_PALETTE, _PALETTE_ALIASES, colors
 # Public names re-exported by dysonsphere.
 __all__ = ["theme", "create_config"]
 
-# Restore the imported palette catalogue on each theme() call
+# Restore the imported palette catalog on each theme() call
 # so config palettes do not accumulate across theme resets.
 _ORIGINAL_COLORS: dict[str, list[str]] = dict(colors)
 _DEFAULT_MARK_FILL_LIGHT = "#DBDBDB"
@@ -147,9 +147,9 @@ def _load_style_overrides(style: str | None) -> dict[str, Any]:
     Build the final override dict for theme().
 
     Merge order (ascending priority):
-      1. [default] blocks from config files   — user's global baseline
-      2. built-in style preset                — preset-specific values beat [default]
-      3. [style] blocks from config files     — user can customise the built-in preset
+      1. [default] blocks from config files   – user's global baseline
+      2. built-in style preset                – preset-specific values beat [default]
+      3. [style] blocks from config files     – user can customize the built-in preset
     """
     default_cfg: dict[str, Any] = {}
     style_cfg: dict[str, Any] = {}
@@ -437,10 +437,10 @@ def theme(
     """
     Configure and register the dysonsphere Altair theme.
 
-    Every styling option is keyword-only. Omitted options inherit the applicable TOML/default/style value;
-    a successful call replaces, rather than updates, the active theme. Explicit ``None`` retains its
-    documented meaning for auto-derived fills, frame state, offsets, and mark dimensions.
-    ``style`` remains an optional positional primary input; every styling option is keyword-only.
+    ``style`` is an optional positional argument; all styling options are keyword-only. Omitted
+    options inherit the applicable TOML/default/style value; a successful call replaces, rather
+    than updates, the active theme. Explicit ``None`` retains its documented meaning for
+    auto-derived fills, frame state, offsets, and mark dimensions.
     Runtime introspection displays ``<omitted>`` for omitted styling defaults; generated source
     signatures may show the private ``_UNSET`` marker. Neither is a value callers pass.
 
@@ -540,7 +540,7 @@ def _compute_derived(p: dict[str, Any]) -> None:
 
     Shared by :func:`theme` and the :func:`_opt` fallback so both resolve the same way.
     """
-    # Computed defaults — None means "derive from other params"
+    # Computed defaults – None means "derive from other params"
     if p["closed"] is None:
         # Inward ticks need a closed axis unless the caller explicitly sets closed=False.
         p["closed"] = p["tickDirection"] == "in" or p["viewFill"] is not None
@@ -567,7 +567,10 @@ _ACTIVE_ARGS: dict[str, Any] = {}
 
 
 def _active_args() -> dict[str, Any]:
-    """A copy of the last theme() call's explicit args - theme() rebinds the global, so read it here."""
+    """Return a copy of the explicit arguments from the last ``theme()`` call.
+
+    ``theme()`` rebinds ``_ACTIVE_ARGS``, so callers need a copy.
+    """
     return dict(_ACTIVE_ARGS)
 
 
@@ -606,7 +609,7 @@ def _temporary_theme(overrides: dict[str, Any]):
 
 
 def _opt(key: str) -> Any:
-    """Read a theme option, falling back to the build-in and/or derived default."""
+    """Read a theme option, falling back to the built-in and/or derived default."""
     if key == "markFill" and alt.theme.options.get("_markFillAuto", True):
         return _DEFAULT_MARK_FILL_DARK if alt.theme.options.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
     try:
@@ -790,8 +793,8 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "circle": {
                 "fill": "white" if opts["darkmode"] else "black",
                 "fillOpacity": opts["markFillOpacity"],
-                # Small default: mark_circle is primarily used to layer raw points over
-                # boxplots/violins/strips, where small dots read best.
+                # Circle marks often overlay raw points on boxplots, violins, and strips, so
+                # their default size is smaller than that of other point marks.
                 "size": opts["markSize"] / 8,
                 "stroke": None,
                 "strokeOpacity": opts["markStrokeOpacity"],
