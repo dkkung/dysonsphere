@@ -1,5 +1,4 @@
-# Support modules stay separate; their contents are not star-imported
-# into the top namespace.
+# Expose support modules without importing their contents into the root namespace.
 from . import ext, metadata, palettes, stats, transforms  # noqa: F401
 from .annotations import *  # noqa: F403
 from .assembly import *  # noqa: F403
@@ -13,8 +12,7 @@ from .palettes import palette
 from .table import *  # noqa: F403
 from .theme import *  # noqa: F403
 
-# Keep the root namespace explicit. Module-level __all__ values control the star imports above;
-# namespace tests check that unrelated imports do not leak here.
+# Limit names exported by package-level star imports to this explicit list.
 __all__ = [
     "add_log_ticks",
     "add_multilabel",
@@ -51,7 +49,7 @@ def __getattr__(name: str):
     is installed (registered under the ``dysonsphere.extensions`` entry-point group); the
     resolved module is cached in the package namespace so later access skips discovery. Any
     other missing attribute raises ``AttributeError`` as usual (a plain typo and an
-    uninstalled extension are indistinguishable here - use ``extensions()`` to list what is
+    uninstalled extension are indistinguishable here – use ``extensions()`` to list what is
     installed, or ``load_extension(name)`` for an ImportError that names them).
     """
     ep = ext._extension_entry_points().get(name)
