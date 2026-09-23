@@ -7,8 +7,8 @@ imports Altair, so it is unit-testable in isolation.
 
 The post-hoc tests scipy does not ship (Dunn, Nemenyi, Games-Howell) are
 implemented here from scipy primitives (``rankdata``, ``norm``,
-``studentized_range``) rather than taking a dependency on ``scikit-posthocs``
-(which would drag in statsmodels + seaborn + matplotlib).
+``studentized_range``) rather than adding ``scikit-posthocs`` and its statsmodels,
+seaborn, and matplotlib dependencies.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ _POSTHOC_DEFAULTS = {
     "friedman": "nemenyi",
 }
 
-# Pairwise tests usable directly (existing behaviour) or as a post-hoc fallback.
+# Pairwise tests usable directly (existing behavior) or as a post-hoc fallback.
 _PAIRWISE_TESTS = {"mannwhitneyu", "ttest_ind", "ttest_rel", "wilcoxon"}
 
 # Correlation methods (stats.correlation). Only "pearson" implies a straight line.
@@ -57,7 +57,7 @@ _CORRELATION_METHODS = {
 # rank-based (→ rank-biserial effect size).
 _PARAMETRIC_POSTHOC = {"tukey_hsd", "games_howell", "ttest_ind", "ttest_rel"}
 
-# Human-readable names for pairwise / post-hoc tests — used for the on-plot test label.
+# Human-readable names for pairwise / post-hoc tests – used for the on-plot test label.
 _TEST_DISPLAY = {
     "mannwhitneyu": "Mann-Whitney U",
     "ttest_ind": "Student's t-test",
@@ -192,7 +192,7 @@ _EFFECT_NAMES = {
 
 
 def _record_hash(record: dict[str, Any]) -> str:
-    """Stable 16-hex content hash of a record (for keying + the marker)."""
+    """Stable 16-hex content hash used as the record key and in marker names."""
     return hashlib.sha256(json.dumps(record, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
@@ -243,10 +243,10 @@ def clear_stats() -> None:
     """Discard all pending statistical records queued by ``stats.comparisons`` /
     ``stats.correlation``.
 
-    ``save()`` embeds only the records whose annotations appear in the chart being saved, so
-    stale records never contaminate a save.  But they do accumulate in memory across a long
-    session — e.g. a notebook where you build many stats charts and display them without
-    saving each.  Call this to drop the pending queue.
+    ``save()`` embeds only records whose annotations appear in the chart being saved, so
+    stale records do not affect a save. Pending records accumulate in memory during long
+    sessions, such as notebooks where many statistics charts are built and displayed without
+    being saved. Call this to clear the pending queue.
     """
     _REPORTS.clear()
 
@@ -433,11 +433,11 @@ def _ols_band(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Lower/upper OLS interval bounds for the simple-regression fit, evaluated at ``xs``.
 
-    ``kind="confidence"`` gives the confidence band for the MEAN response;
-    ``kind="prediction"`` gives the (wider) interval for a single NEW observation.
+    ``kind="confidence"`` gives the confidence band for the mean response;
+    ``kind="prediction"`` gives the wider interval for a single new observation.
     Both are ``ŷ(x) ± t · s · √f`` with ``t`` the two-sided critical value at
     ``level`` on ``n-2`` df and ``s`` the residual standard error; they differ only
-    in ``f`` - ``1/n + (x-x̄)²/Sxx`` for confidence, plus ``1`` for prediction.
+    in ``f`` – ``1/n + (x-x̄)²/Sxx`` for confidence, plus ``1`` for prediction.
     The result is hyperbolic (narrowest at ``x̄``), so callers sample ``xs`` densely
     for a smooth band. Needs ``n >= 3`` (two fitted params leave ≥1 residual df).
     """
@@ -624,9 +624,9 @@ def _adjust(pvals: list[float], method: str | None, m: int) -> list[float]:
         # Benjamini-Hochberg (bh) / Benjamini-Yekutieli (by) step-up FDR control.
         # Adjusted p = p(i) * m / i, swept from the largest rank down as a running min
         # (enforces monotonicity); BY multiplies by the harmonic factor c(m) = Σ 1/k,
-        # buying validity under arbitrary dependence at the cost of extra conservatism.
+        # to control FDR under arbitrary dependence, with a more conservative adjustment.
         # ``m`` is the total family size (may exceed len(pvals) via nComparisons), so the
-        # denominator and the BY factor both use it - matching bonferroni/holm above.
+        # denominator and the BY factor both use it, matching ``bonferroni`` and ``holm`` above.
         n = len(pvals)
         order = sorted(range(n), key=lambda i: pvals[i])
         factor = sum(1.0 / k for k in range(1, m + 1)) if method == "fdr_by" else 1.0
@@ -731,9 +731,9 @@ def _clamp_p(p: float) -> float:
 
     A p-value is strictly positive; scipy returns ``0.0`` only when the true value
     underflows below the representable range. We store the minimum normal positive
-    float instead, so the record (and the JSON) never claim ``P = 0``.  The text report
+    float instead, so the record (and the JSON) never claim ``P = 0``. The text report
     renders this clamp value with ``<`` (see ``_fmt_p``) because the true value is
-    genuinely below float precision.
+    below floating-point precision.
     """
     return sys.float_info.min if p == 0.0 else p
 
@@ -845,12 +845,12 @@ def _fmt(x: float | None) -> str:
 
 
 def _fmt_p(p: float) -> str:
-    """Format a report p-value at 3 significant figures — never floored.
+    """Format a report p-value at 3 significant figures – never floored.
 
-    ``%g`` keeps ordinary p-values as readable decimals (``= 0.032``) and switches
-    tiny ones to e-notation (``= 1.22e-11``) automatically.  This is the *record*
+    ``%g`` keeps ordinary p-values as decimals (``= 0.032``) and switches
+    tiny ones to e-notation (``= 1.22e-11``) automatically. This is the record
     format and is independent of the on-plot label style (``notation``/``sigFigs``).
-    The one clamp-value (see ``_clamp_p``) is rendered with ``<`` because the true
+    The clamp value (see ``_clamp_p``) is rendered with ``<`` because the true
     value is genuinely below float precision.
     """
     if p == sys.float_info.min:
