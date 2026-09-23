@@ -69,7 +69,7 @@ def _multilabel_layer(
     The identity scale puts the content marks in the same coordinate space as the span
     and category-label marks, which position with ``alt.value``.
 
-    **``align="center"``** is required on all ``mark_text`` content marks — the mark
+    **``align="center"``** is required on all ``mark_text`` content marks – the mark
     rotates about its own anchor, so any other alignment swings a rotated row's text
     off its category tick.
 
@@ -171,7 +171,7 @@ def _multilabel_layer(
         if isinstance(v, bool):
             return "+" if v else "−"
         s = str(v)
-        # A lone ASCII hyphen is a "not applicable" placeholder - render it as the same
+        # A lone ASCII hyphen is a "not applicable" placeholder – render it as the same
         # typographic minus a plusminus row uses, so the two match within one table.
         return "−" if s == "-" else s
 
@@ -195,7 +195,7 @@ def _multilabel_layer(
     angle_map = _per_row(rowValueAngle, "rowValueAngle")
 
     def _cell_angles(label: str) -> list[float]:
-        """One angle per category - a row's entry may be a scalar or a per-cell list."""
+        """One angle per category – a row's entry may be a scalar or a per-cell list."""
         entry = angle_map.get(label)
         if isinstance(entry, (list, tuple)):
             seq = cast(list[Any], entry)
@@ -214,7 +214,7 @@ def _multilabel_layer(
     height_map = _per_row(rowHeight, "rowHeight")
 
     def _auto_row_height(label: str) -> float:
-        # Each cell needs the height of its own rotated bounding box - the same estimate
+        # Each cell needs the height of its own rotated bounding box – the same estimate
         # the category-label row uses, with 0.6 em as the mean glyph advance. The row takes
         # the tallest, so an upright cell never shrinks the row a rotated one needs.
         tallest = 0.0
@@ -291,7 +291,7 @@ def _multilabel_layer(
         "__category:N",
         sort=categories,
         # Pin the domain (not only sort) so `resolve_scale(x="shared")` can't re-sort the
-        # merged x domain alphabetically - the same shared-scale union fix as `domain=row_order`
+        # merged x domain alphabetically – the same shared-scale union fix as `domain=row_order`
         # on the y scale below. Without it the chart's x renders in a different order than its
         # (unshared) colour scale, so category colours stop matching their bars.
         scale=alt.Scale(domain=categories),
@@ -327,7 +327,7 @@ def _multilabel_layer(
     # Plus/minus rows
     if plusminus_rows:
         pm_df = marks_df.filter(pl.col("__label").is_in(plusminus_rows))
-        # align="center" keeps rotated text centered on its category - the mark rotates
+        # align="center" keeps rotated text centered on its category – the mark rotates
         # about its own anchor, so any other alignment swings it off the tick.
         layers.append(
             alt.Chart(_internal_data(pm_df))
@@ -429,7 +429,7 @@ def _multilabel_layer(
                     )
         else:  # vertical
             # Emit two rows per segment (start + end) so mark_line can connect them
-            # using only __label — avoiding a second ordinal field on the shared y
+            # using only __label – avoiding a second ordinal field on the shared y
             # scale, which would corrupt paddingInner and shift row spacing.
             for i, cat in enumerate(categories):
                 run = []
@@ -572,7 +572,7 @@ def _multilabel_layer(
             x2 = geo.centers[i_end] + geo.step * 0.30
             x_mid = (x1 + x2) / 2
 
-            # Rule — alt.value() for all positions so no :Q scale is added to the layer
+            # Use alt.value() for each position so the layer does not add a :Q scale.
             layers.append(
                 alt.Chart(_one_row)
                 .mark_rule(color=span_color, strokeWidth=axisWidth_val, strokeDash=[0, 0])
@@ -678,7 +678,7 @@ def add_multilabel(
     Compose a chart with a grid annotation table, replacing its x-axis labels.
 
     Accepts ``alt.Chart`` or ``alt.LayerChart`` (e.g. a strip+boxplot layer), and also a
-    concatenated chart - ``_strip_x_labels`` recurses into ``vconcat``/``hconcat`` panels, so a
+    concatenated chart – ``_strip_x_labels`` recurses into ``vconcat``/``hconcat`` panels, so a
     stack of panels sharing one x-layout (e.g. ``ds.biology.western_blot``'s image strips) gets
     the table below the whole stack. A ``vconcat`` is the usual case; a table under an
     ``hconcat`` of differently-x'd panels composes but rarely aligns meaningfully.
@@ -696,7 +696,7 @@ def add_multilabel(
         The main Altair chart (any type: ``Chart``, ``LayerChart``, etc.).
     groups:
         ``{row_label: [value, ...]}`` mapping, one value per category. Defaults
-        to ``{}`` — omit entirely when only ``showSampleSize`` or
+        to ``{}`` – omit entirely when only ``showSampleSize`` or
         ``categoryLabel`` is needed.
     categories:
         Ordered list of x-axis categories matching the main chart. Defaults to
@@ -785,7 +785,7 @@ def add_multilabel(
         Auto-sizing gives an unrotated row ``10`` px and a rotated row the height of
         its rotated text bounding box (never less than ``10``).
     rowValueAngle:
-        Rotation of the row's values in degrees, in every style — the text of a
+        Rotation of the row's values in degrees, in every style – the text of a
         ``"text"`` or ``"plusminus"`` row, and the marks of a ``"symbol"`` row.
         Accepts a single number applied to every row, a ``dict`` mapping row labels to
         angles, or a ``list`` of angles in row-display order. Defaults to ``0``
@@ -796,7 +796,7 @@ def add_multilabel(
         ``"circle"`` symbol has no visible effect; use a shape with lineOrientation, such
         as ``symbol="triangle-up"``.
 
-        A single row's angle may itself be a ``list`` — one angle per x-axis category —
+        A single row's angle may itself be a ``list`` – one angle per x-axis category –
         to rotate only some cells, e.g. standing dose values on end while leaving the
         ``-`` placeholders of the untreated controls upright::
 
@@ -819,7 +819,7 @@ def add_multilabel(
     labelMap:
         ``{raw_value: label}`` mapping applied to the category-label row (plain lookup;
         the data and band positions keep the raw values). List labels are space-joined
-        here - use the mark constructors' ``labelMap`` for true multi-line axis labels.
+        here – use the mark constructors' ``labelMap`` for true multi-line axis labels.
     span:
         Dict mapping span label → list of categories, or a list of such
         single-entry dicts (one per span). The span extends from the lowest
@@ -866,7 +866,7 @@ def add_multilabel(
         )
         ds.save(composed, "my_plot")
 
-        # Sample sizes only — no groups needed
+        # Sample sizes only – no groups needed
         ds.add_multilabel(chart, categories=CATEGORIES, showSampleSize=True, data=data, x="group")
     """
     x_col = x
@@ -880,8 +880,8 @@ def add_multilabel(
     if showSampleSize:
         if data is None or x_col is None:
             raise ValueError("showSampleSize=True requires both 'data' and 'x'.")
-        # The injected row shares the groups dict, so a same-named row of the caller's would
-        # be silently replaced - by the counts, or by their own values, depending on `order`.
+        # The injected row shares the groups dict. Reject a matching caller row because
+        # inserting the counts could otherwise replace either row's values, depending on `order`.
         if sampleSizeLabel in groups:
             raise ValueError(
                 f"groups already has a row labelled {sampleSizeLabel!r}, which is the label "
@@ -904,9 +904,9 @@ def add_multilabel(
         rowValueAngle = _pin(rowValueAngle, "rowValueAngle")
         rowHeight = _pin(rowHeight, "rowHeight")
         # Explicitly force the n-row to text style regardless of the global
-        # style setting (e.g. "symbol") — counts always render as plain text.
+        # style setting (e.g. "symbol") – counts always render as plain text.
         rowStyles = {**(_pin(rowStyles, "rowStyles") or {}), sampleSizeLabel: "text"}
-        # An explicit order omits the injected row, so seat it at sampleSizeIndex - after the
+        # An explicit order omits the injected row, so insert it at sampleSizeIndex after
         # list normalization above, whose lengths count the caller's own rows.
         if order and sampleSizeLabel not in order:
             order = [*order[:sampleSizeIndex], sampleSizeLabel, *order[sampleSizeIndex:]]
@@ -917,8 +917,8 @@ def add_multilabel(
     modified = copy.deepcopy(chart)
 
     def _strip_x_labels(node: alt.SchemaBase) -> None:
-        # _kwds is used directly because `.axis` on alt.X returns a _PropertySetter
-        # descriptor, not the stored value — reading it would not give the Axis object.
+        # Read _kwds directly because `.axis` on alt.X returns a _PropertySetter
+        # descriptor, not the stored value; accessing it does not return the Axis object.
         if isinstance(node, alt.Chart):
             enc = node._kwds.get("encoding", alt.Undefined)
             if enc is not alt.Undefined:
@@ -926,7 +926,7 @@ def add_multilabel(
                 if x is not alt.Undefined and isinstance(x, alt.X):
                     axis = x._kwds.get("axis", alt.Undefined)
                     # An explicit axis=None means the layer hides its axis (e.g.
-                    # mark_violin's internal pixel-x layers) - leave it hidden.
+                    # mark_violin's internal pixel-x layers); keep that axis hidden.
                     # Replacing it with Axis(labels=False) re-enables the domain
                     # line and ticks (a phantom axis above the chart).
                     if axis is alt.Undefined:
