@@ -1,4 +1,4 @@
-"""Render a DataFrame as a publication-styled table via a composite Altair mark."""
+"""Render a DataFrame as a table using a composite Altair mark."""
 
 import math
 import re
@@ -17,12 +17,11 @@ from .utils import _SUP, _ensure_polars, _internal_data, resolve_palette, stripe
 # Public names re-exported by dysonsphere.
 __all__ = ["mark_table"]
 
-# The stroke placements composable via the `strokes` set. "grid" expands to rows+cols (the
-# interior grid); "all" expands to every rule (outer+header+rows+cols).
+# Stroke placements accepted in `strokes`. "grid" expands to rows+cols (the interior grid);
+# "all" expands to every rule (outer+header+rows+cols).
 _STROKE_KINDS = frozenset({"outer", "header", "rows", "cols", "grid", "all"})
-# d3 parses a single alphabetic type slot and intentionally falls back to its default formatter
-# for letters without a specialised type. Keep that grammar permissive so the width estimate never
-# rejects a format the renderer accepts.
+# d3 parses one alphabetic type slot and falls back to its default formatter for letters without a
+# specialized type. Keep it permissive so width estimation does not reject formats accepted by d3.
 _D3_FORMAT_RE = re.compile(
     r"^(?:(?P<fill>.)(?P<align>[<>=^])|(?P<align_only>[<>=^]))?"
     r"(?P<sign>[+\-( ])?(?P<symbol>[$#])?(?P<zero>0)?(?P<width>\d+)?(?P<comma>,)?"
@@ -51,7 +50,7 @@ def _sup(n: int) -> str:
 
 
 def _fmt_scientific(v: float, sig_figs: int) -> str:
-    """``1.23×10⁻⁵`` - Python-side formatting for width measurement and annotation rendering."""
+    """``1.23×10⁻⁵`` – Python-side formatting for width measurement and annotation rendering."""
     if _is_missing(v):
         return ""
     if v == 0:
@@ -62,7 +61,7 @@ def _fmt_scientific(v: float, sig_figs: int) -> str:
 
 
 def _fmt_power(v: float, sig_figs: int) -> str:
-    """``10⁻⁵`` (nearest power of ten) - Python side."""
+    """``10⁻⁵`` (nearest power of ten) – Python-side formatting."""
     if _is_missing(v):
         return ""
     if v == 0:
@@ -72,7 +71,7 @@ def _fmt_power(v: float, sig_figs: int) -> str:
 
 
 def _fmt_si(v: float, sig_figs: int) -> str:
-    """Rough SI-prefix string - width measurement only (render uses native ``~s``)."""
+    """Rough SI-prefix string – used for width measurement only (render uses native ``~s``)."""
     if _is_missing(v):
         return ""
     if v == 0:
@@ -176,9 +175,9 @@ def _calc_expr(col: str, notation: str, sig_figs: int) -> str:
         e = f"round({log10})"
         superscript = _sup_js(f"abs({e})")
         return f"(!isValid({v}) ? '' : {v} == 0 ? '0' : {sign} + '10' + ({e} < 0 ? '⁻' : '') + {superscript})"
-    # Use d3's native scientific formatter to split the mantissa and exponent. Dividing by
-    # 10**exponent looks simple, but underflows for subnormal values and mishandles rounding carry
-    # (e.g. 9.999 -> 10.00 x 10^0 instead of 1.00 x 10^1).
+    # Use d3's native scientific formatter to split the mantissa and exponent. Calculating the
+    # mantissa by dividing by 10**exponent underflows for subnormal values and mishandles rounding
+    # carry (e.g. 9.999 -> 10.00 x 10^0 instead of 1.00 x 10^1).
     decimals = max(sig_figs - 1, 0)
     formatted = f"format({av}, '.{decimals}e')"
     exponent_start = f"indexof({formatted}, 'e')"
@@ -188,7 +187,7 @@ def _calc_expr(col: str, notation: str, sig_figs: int) -> str:
     return f"(!isValid({v}) ? '' : {v} == 0 ? '0' : {sign} + {mant} + '×10' + ({e} < 0 ? '⁻' : '') + {superscript})"
 
 
-# Value-based cell colouring
+# Value-based cell coloring
 
 
 def _rel_luminance(hex_color: str) -> float:
@@ -202,11 +201,11 @@ def _rel_luminance(hex_color: str) -> float:
 
 
 def _contrast_expr(col: str, hexes: list[str], domain: tuple[float, float]) -> str:
-    """Vega expression → ``'black'`` / ``'white'`` picking the readable text colour per cell.
+    """Vega expression choosing black or white text for each cell.
 
     The palette maps ``domain`` linearly across its stops, so each stop sits at a known data
-    value; where the stop luminance crosses the mid-point the text colour flips. Emits a short
-    ternary chain over ``datum[col]`` with thresholds at the crossing midpoints.
+    value. Text switches when relative luminance crosses 0.4; the expression uses thresholds at
+    the data midpoints between adjacent stops where the selected text color changes.
     """
     n = len(hexes)
     d0, d1 = domain
@@ -250,26 +249,25 @@ def mark_table(
     strokeWidth: float | None = None,
 ) -> alt.LayerChart:
     """
-    Render ``data`` as a styled table: an ``alt.LayerChart`` that composes like any other mark.
+    Render ``data`` as a table: an ``alt.LayerChart`` that composes with other charts and marks.
 
-    The table lays cells out in pixel space (so it drops into ``+`` / ``hconcat`` / ``vconcat``
-    without scale-merge surprises) but drives every per-row mark off the **user's dataframe** via
-    ``transform_window`` (row index) and ``transform_calculate`` (formatted labels, contrast
-    colours). Those transforms never touch the inlined data, so ``read(what="data")`` and the
-    provenance ``dataChecksum`` recover the frame you passed **byte-for-byte**. Fixed elements
-    such as strokes and header text use internal annotation datasets.
+    Cell positions use pixel coordinates and dataframe row positions. Per-row marks use the input
+    data through ``transform_window`` (row index) and ``transform_calculate`` (formatted labels and
+    contrast colors). These transforms do not change the inlined data, so ``read(what="data")``
+    returns the input rows and ``dataChecksum`` is not affected by the calculated fields. Fixed
+    elements such as strokes and header text use internal annotation datasets.
 
     Because a table cannot render at the 100×100 default canvas, ``mark_table`` sizes itself from
     the row/column counts and a per-column content estimate, overriding theme ``width`` /
     ``height``. Column widths are proportional-font estimates (Vega cannot measure text at
     build time); pass ``columnWidths`` for exact control.
 
-    **Darkmode** is resolved at BUILD time (like ``shade`` / ``add_multilabel``): the stripe
-    fills sample the dark end of the palette and the strokes / auto-contrast colours flip when the
-    table is built under ``theme(darkmode=True)`` (cell text with no explicit colour follows the
-    theme's darkmode-aware ``config.text`` at render). So set the theme before building, or - to
-    export light AND dark from one call - pass a **callable** to ``ds.save()`` so the table is
-    rebuilt per background::
+    Darkmode is resolved at build time (like ``shade`` / ``add_multilabel``): stripe fills use
+    the dark end of the palette, and strokes and auto-contrast colors change when the table is
+    built under ``theme(darkmode=True)``. Cell text without an explicit color follows the theme's
+    darkmode-aware ``config.text`` at render. Set the theme before building, or – to export light
+    and dark from one call – pass a **callable** to ``ds.save()`` so the table is rebuilt per
+    background::
 
         ds.save(lambda: ds.mark_table(data, ...), "table", background=["light", "dark"])
 
@@ -290,17 +288,16 @@ def mark_table(
         ``{column: display label}`` to rename headers (unlisted columns keep their name). This is
         a permissive display map; unknown keys are ignored.
     columnFormat:
-        ``{column: format}`` for numeric columns. Each value is either a **notation keyword** -
+        ``{column: format}`` for numeric columns. Each value is either a **notation keyword** –
         ``"scientific"`` (``1.23×10⁻⁵``), ``"power"`` (``10⁻⁵``, nearest power of ten), ``"e"``
-        (``1.2e-5``), ``"si"`` (``12k``) - honouring ``sigFigs``, or any **Vega/d3 format
-        spec** (``".2g"``, ``".1f"``, ``","`` …). The two superscript notations reuse the SVG
-        typesetting the rest of dysonsphere applies, so exponents render aligned and any leading
-        statistical symbol is italicised. Unlisted numeric columns default to ``sigFigs``
-        significant figures; string columns render verbatim. ``"power"`` uses the nearest power
-        of ten and ignores ``sigFigs``. An explicit d3 format uses Vega's format expression and
-        supplies its own precision; it can also format string columns. Boolean columns support
-        numeric formatting. Named numeric notations raise for non-missing string values, while an
-        all-missing column remains blank.
+        (``1.2e-5``), ``"si"`` (``12k``) – using ``sigFigs``, or any **Vega/d3 format spec**
+        (``".2g"``, ``".1f"``, ``","`` …). The two superscript notations use the library's SVG
+        typesetting, so exponents render aligned and leading statistical symbols are italicized.
+        Unlisted numeric columns default to ``sigFigs`` significant figures; string columns render
+        verbatim. ``"power"`` uses the nearest power of ten and ignores ``sigFigs``. An explicit d3
+        format uses Vega's format expression and supplies its own precision; it can also format
+        string columns. Boolean columns support numeric formatting. Named numeric notations raise
+        for non-missing string values, while an all-missing column remains blank.
     sigFigs:
         Significant figures for the notation keywords and the numeric default. ``None`` (default)
         reads ``theme(sigFigs=…)``.
@@ -312,7 +309,7 @@ def mark_table(
     strokes:
         Which rules to draw, as any combination of ``"outer"`` (the border), ``"header"`` (the
         header/body separator), ``"rows"`` (between data rows), ``"cols"`` (between columns),
-        ``"grid"`` (= ``rows`` + ``cols``, the interior grid), and ``"all"`` (every rule -
+        ``"grid"`` (= ``rows`` + ``cols``, the interior grid), and ``"all"`` (every rule –
         ``outer`` + ``header`` + ``rows`` + ``cols``). A single string is accepted. Default
         ``("outer", "header")``.
     stripePalette:
@@ -321,24 +318,24 @@ def mark_table(
     striping:
         Shade alternating rows. Default ``True``.
     nStripes:
-        Number of stripe colours to alternate through. Default ``2``.
+        Number of stripe colors to alternate through. Default ``2``.
     cellPalette:
-        ``{column: palette}`` to shade cells by value (a heatmap column). The column's values map
-        across the palette (a 13-stop diverging palette is centred on 0; otherwise the domain is
-        the column's ``[min, max]``), and each cell's text switches to black or white for
-        contrast. Overrides striping within that column. Mapping keys must be input column names;
-        a known column need not be in ``columns``.
+        ``{column: palette}`` to shade cells by value (a heatmap column). Shown heatmap columns
+        must be numeric. Values map across the palette. A 13-color palette uses a domain symmetric
+        around zero; other palettes use the column's ``[min, max]`` domain, or ``[min, min + 1]``
+        for a constant column. Each cell's text switches to black or white for contrast. This
+        overrides striping in that column. Mapping keys must be input column names; a known column
+        need not be in ``columns``.
     textColor:
-        Body cell text colour. ``None`` (default) inherits the theme's darkmode-aware text
-        colour. A single string colours every body cell; a ``{column: colour}`` dict colours
-        per column (unlisted columns inherit). A ``cellPalette`` (value-shaded) column keeps its
-        automatic black/white contrast unless you give it an explicit **dict** entry here (a
-        per-column colour is taken as deliberate; a global string does not override the
-        heatmap's contrast).
+        Body cell text color. ``None`` (default) inherits the theme's darkmode-aware text color.
+        A single string sets the color for every body cell; a ``{column: color}`` dict sets it per
+        column (unlisted columns inherit). A ``cellPalette`` column keeps its automatic black/white
+        contrast unless you provide an explicit **dict** entry here. A per-column color overrides
+        that contrast; a global string does not.
     fontStyle:
         Body cell font style (``"italic"`` / ``"normal"``; bold is a weight, not a style). ``None`` (default)
         inherits. A single string styles every body cell; a ``{column: style}`` dict styles per
-        column (unlisted columns inherit) - e.g. ``{"gene": "italic"}`` for italic gene names.
+        column (unlisted columns inherit) – e.g. ``{"gene": "italic"}`` for italic gene names.
     fontSize:
         Cell font size. ``None`` (default) reads ``theme(fontSize=…)``.
     headerFontStyle:
@@ -347,12 +344,11 @@ def mark_table(
         Font weight for header labels. Default ``"bold"``; pass ``"normal"`` or a number for
         regular weight.
     headerColor:
-        Header text colour. ``None`` (default) inherits the theme's text colour, or - when
-        ``headerFill`` is set - auto-contrasts (black/white) against the fill. A string sets a
-        fixed colour.
+        Header text color. ``None`` (default) inherits the theme's text color, or auto-contrasts
+        against ``headerFill`` when it is set. A string sets a fixed color.
     headerFill:
         Background band behind the header row, following the ``bool | str`` pattern: ``False``
-        (default) → none; ``True`` → a darkmode-aware default grey band; a string → that colour.
+        (default) → none; ``True`` → a darkmode-aware default gray band; a string → that color.
     cellPadding:
         Horizontal padding inside a cell, in px. ``None`` (default) → ``fontSize * 0.6``.
     rowHeight:
@@ -365,7 +361,7 @@ def mark_table(
         ``cellPalette``, dict ``textColor``, and dict ``fontStyle``; known columns may be omitted
         from ``columns``. ``headerLabels`` is the permissive exception.
     strokeColor:
-        Rule colour. ``None`` (default) → darkmode-aware black/white.
+        Rule color. ``None`` (default) → darkmode-aware black/white.
     strokeWidth:
         Rule width in px. ``None`` (default) → the theme's ``axisWidth``.
 
@@ -440,7 +436,7 @@ def mark_table(
     dark = _opt("darkmode")
     stroke_c = ("white" if dark else "black") if strokeColor is None else strokeColor
 
-    # Header background band + text colour (darkmode-aware, resolved at build like shade).
+    # Header background band and text color are resolved at build time, like shade.
     if headerFill is True:
         from .palettes import colors
 
@@ -454,7 +450,7 @@ def mark_table(
     elif header_fill_c is not None:
         header_text_c = "black" if _rel_luminance(header_fill_c) > 0.4 else "white"
     else:
-        header_text_c = None  # inherit the theme text colour
+        header_text_c = None  # inherit the theme text color
 
     headerLabels = headerLabels or {}
     columnFormat = columnFormat or {}
@@ -477,7 +473,7 @@ def mark_table(
         return "right" if numeric else "left"
 
     def _text_color(col: str) -> tuple[str, str | None]:
-        # ("fixed", colour) | ("contrast", None) | ("inherit", None).
+        # ("fixed", color) | ("contrast", None) | ("inherit", None).
         # A per-column entry overrides heatmap contrast. Otherwise cellPalette supplies contrast,
         # a global string supplies the color, and None inherits the theme.
         if isinstance(textColor, dict) and col in textColor:
@@ -619,12 +615,12 @@ def mark_table(
                 layers.append(
                     _df_base()
                     .transform_filter(f"(datum.__rowidx - 1) % {nStripes} == {k}")
-                    # stroke pinned off: config.rect leaks a black border onto mark_rect otherwise.
+                    # Disable the stroke because config.rect gives mark_rect a black border by default.
                     .mark_rect(fill=color, stroke=None, strokeWidth=0)
                     .encode(x=alt.value(lefts[i]), x2=alt.value(_cell_x2(i)), y=_y("__ytop"), y2=alt.Y2("__ybot"))
                 )
 
-    # Value-coloured cells
+    # Value-colored cells
     for i, p in enumerate(plans):
         col = p["col"]
         if col not in cellPalette:
