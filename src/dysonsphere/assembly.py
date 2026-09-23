@@ -16,9 +16,9 @@ __all__ = ["assemble"]
 _FIGURE_PREFIX = "__dsfigure_"
 _LABEL_NAME = f"{_FIGURE_PREFIX}label_"
 _BLANK_NAME = f"{_FIGURE_PREFIX}blank_"
-# Placeholder names; the finished figure is renumbered in traversal order so two identical
-# figures get identical markers. A process-wide counter made them differ per call, which broke
-# the content checksum - and with it SOURCE_DATE_EPOCH reproducibility - for assembled figures.
+# Placeholder names are renumbered in traversal order so identical figures get identical markers.
+# A process-wide counter assigned different names per call and changed the content checksum,
+# preventing reproducible assembled figures with SOURCE_DATE_EPOCH.
 _PENDING = "pending"
 
 
@@ -57,15 +57,14 @@ _Spacing = float | dict[str, float] | None
 def _label(chart: _AltairChart, text: str, style: dict[str, Any]) -> _AltairChart:
     """Put the figure label at the top-left of the chart's whole area, axes included.
 
-    The label rides a one-member wrapper's title with ``frame="bounds"``. Two reasons that
-    is the construction: ``frame="bounds"`` measures the full bounding box, so the label
-    lands left of the y-axis title (``frame="group"`` stops at the plot area) without our
-    measuring axis text, which cannot be done at build time - a mark at negative pixels
-    undershoots into the axes or overshoots and shoves the chart right. And putting it on a
-    WRAPPER leaves the chart's own title free, so a member can carry both.
+    The label uses a one-member wrapper's title with ``frame="bounds"``, which measures the full
+    bounding box and places the label left of the y-axis title. ``frame="group"`` ends at the plot
+    area. Axis text cannot be measured at build time, so placing a mark at negative pixels could
+    overlap the axis text or expand the layout and shift the chart right. Applying the title to a
+    wrapper leaves any title on the member chart available.
 
-    Colour is left to config.title when unset - that resolves per background, so a save()
-    across light and dark gets the right ink without a callable.
+    When unset, the label color comes from ``config.title`` and resolves per background. A
+    ``save()`` across light and dark backgrounds therefore does not need a callable.
     """
     pad = style["padding"]
     dx, dy = pad if isinstance(pad, tuple) else (pad, pad)
@@ -110,17 +109,17 @@ def _unpack(member: _Member) -> tuple[Any, Any, Any, str | None]:
 def _blank() -> _AltairChart:
     """A filled, outlined view that draws nothing and occupies its size.
 
-    It rides ``view`` rather than a rect mark, so it traces the reserved area with no
-    encodings; colors are read at build time like ``shade``'s, so a ``save()`` across
-    both backgrounds needs a callable. Its row is tagged internal, keeping a reserved slot
-    out of ``read(what="data")`` and the provenance checksums.
+    Its outline uses the view background rather than a rect mark, so the chart has no encodings.
+    Colors are read at build time, like ``shade``; a ``save()`` across both backgrounds therefore
+    needs a callable. Its row is tagged internal, so the reserved slot is excluded from
+    ``read(what="data")`` and the provenance checksums.
     """
     darkmode = _opt("darkmode")
     outline = alt.ViewBackground(
         fill=_opt("chartFill") or ("black" if darkmode else "white"),
         stroke="white" if darkmode else "black",
         strokeWidth=_opt("axisWidth"),
-        strokeDash=[0, 0],  # solid - config.rule's dash must not reach it
+        strokeDash=[0, 0],  # solid – do not apply config.rule's dash
     )
     return (
         alt.Chart(_internal_data([{}])).mark_point(opacity=0).properties(view=outline, name=f"{_BLANK_NAME}{_PENDING}")
@@ -167,25 +166,25 @@ def assemble(
     """
     Compose several charts into one figure, each built at its own size.
 
-    Charts in one figure share a single ``config.view``, so :func:`theme` alone cannot give
-    them different sizes - the last call wins. Sizing with ``.properties()`` instead leaves
-    ``markSize``, the corner and arc radii, and the pixel geometry of every annotation
-    (``shade`` spans, comparison brackets, ``labels`` placement) computed for the
-    theme's size rather than the one the chart renders at. ``assemble`` builds each member
-    while the theme genuinely says its size, so those all land correctly, then stamps the
-    size on the chart so the shared config cannot override it.
+    Charts in one figure share a single ``config.view``, so :func:`theme` cannot set a different
+    size for each chart – the last call sets the shared size. Setting ``.properties()`` alone leaves
+    ``markSize``, corner and arc radii, and annotation pixel geometry (``shade`` spans, comparison
+    brackets, and ``labels`` placement) based on the theme's size rather than the rendered size.
+    ``assemble`` builds each member while the theme uses its requested size, then stamps that size
+    on the chart so the shared config does not override it.
 
-    Size only: Vega-Lite's ``config`` is spec-level, so palettes, fonts and axis styling
-    cannot differ between charts in one figure. Set those on the encoding instead - e.g.
-    ``alt.Color(..., scale=alt.Scale(range=ds.palette("cat3", 3)))`` - which is per-view
-    and survives. Scales are not shared: concat resolves them independently already.
+    Member size is the only setting ``assemble`` adjusts per chart. Vega-Lite's ``config`` is
+    spec-level, so palettes, fonts, and axis styling cannot vary between charts through config.
+    Set per-view properties on marks or channel definitions instead – for example,
+    ``alt.Color(..., scale=alt.Scale(range=ds.palette("cat3", 3)))``. Scales are not shared; concat
+    resolves them independently.
 
     Parameters
     ----------
     members:
         The charts, in layout order. Each is a ``(builder, width, height)`` tuple, a bare
         zero-argument builder (built at the theme's current size), or an already-built chart
-        (used as-is, so a ``assemble`` result can nest inside another). Nest lists to make
+        (used as-is, so an ``assemble`` result can nest inside another figure). Nest lists to make
         rows: ``[[a, b], [c, d]]`` is two rows of two, a flat list is a single row.
 
         Add a fourth element to carry a figure label: ``(time_course, 190, 110, "a")`` puts
@@ -196,22 +195,22 @@ def assemble(
         ``{"chart": time_course, "width": 190, "height": 110, "label": "a"}``. Only
         ``chart`` is required, and it takes a builder or an already-built chart.
 
-        ``None`` as the chart reserves an empty slot of that size - ``(None, 190, 110, "a")``
-        holds space to fill in later, labelled so the lettering stays in sequence. An empty slot
-        has no axes, so it occupies exactly its width; a chart also needs space for axis margins.
+        ``None`` as the chart reserves an empty slot of that size – ``(None, 190, 110, "a")``
+        reserves a slot with a figure label. An empty slot has no axes, so it occupies exactly its
+        width; a chart also needs space for axis margins.
     spacing:
-        Gap between charts in pixels - a number for both directions, or
+        Gap between charts in pixels – a number for both directions, or
         ``{"row": 40, "column": 10}`` to set them independently. ``None`` uses Vega-Lite's
         default.
     labelFontSize, labelFontWeight, labelColor, labelOffset:
         Figure-label styling. Weight is numeric (700, bold, by default). ``labelColor``
-        defaults to the theme's title ink, which follows ``darkmode`` at render, so a
+        defaults to the theme's title text color, which follows ``darkmode`` at render, so a
         ``save()`` across both backgrounds gets the right color without a callable.
-        ``labelOffset`` offsets the label from the corner - one number for both axes, or
-        ``(x, y)``. It defaults to ``(-5, 0)``, holding the label off the chart the way
-        ``axisOffset`` detaches the axes. The label already sits at the figure's leftmost
-        point, so a negative x cannot move it further left - it widens the canvas and
-        indents the chart instead, which reads the same and costs those pixels of width.
+        ``labelOffset`` offsets the label from the corner – one number for both axes, or
+        ``(x, y)``. It defaults to ``(-5, 0)``, holding the label off the chart as
+        ``axisOffset`` does for the axes. The label begins at the figure's leftmost point, so a
+        negative x offset widens the canvas and shifts the chart right instead of moving the label
+        farther left.
 
     Returns
     -------
