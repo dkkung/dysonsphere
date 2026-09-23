@@ -149,23 +149,22 @@ def _decorate_rule_segments(root: ET.Element) -> None:
 def _align_grid_to_content(root: ET.Element, axis_offset: float) -> None:
     """Seat every grid line onto the plot content rectangle, off the detached axes.
 
-    On an open plot each axis is drawn ``axis_offset`` px away from the plot (the detached-axis
-    gap): the x-axis sits below, the y-axis sits left.  Vega renders each grid line inside its
-    axis group, so the grid inherits that offset and renders dragged toward its axis - the
-    vertical (x-axis) grid lines shifted DOWN (top short of the highest tick, bottom overshooting
-    onto the x-axis) and the horizontal (y-axis) grid lines shifted LEFT (touching the y-axis,
-    short of the right edge).  This translates each line back by ``axis_offset`` (span unchanged):
-    vertical lines up, horizontal lines right, so both span the plot content exactly and float
-    symmetrically off both detached axes - matching each other and the closed-plot grid (where
-    the axes are already flush, so this fixer is skipped entirely).
+    On an open plot, each axis is drawn ``axis_offset`` px away from the plot (the detached-axis
+    gap): the x-axis sits below, and the y-axis sits left. Vega renders each grid line inside its
+    axis group, so the grid inherits that offset. Vertical grid lines in the x-axis group shift
+    down (the top falls short of the highest tick, and the bottom extends onto the x-axis); the
+    horizontal grid lines in the y-axis group shift left (touching the y-axis and falling short
+    of the right edge). Translating each line back by ``axis_offset`` leaves its span unchanged:
+    vertical lines move up and horizontal lines move right, so both span the plot content exactly
+    and sit symmetrically off the detached axes. Closed-plot axes are flush with the grid, so this
+    fixer is skipped for closed plots.
 
     A vertical grid line is a ``translate(x,-H)`` (``ty<0``) with ``y2=H``; a horizontal one is a
     ``translate(0,y)`` with ``x2=W``.  Both live inside a ``role-axis-grid`` group.
 
-    Mutates the parsed SVG tree in place, like every fixer in the shared corrected-SVG pipeline.
-    (Formerly part of ``_fix_tick_alignment``.  Tick/grid *positions* need no fixing any
-    more - the theme renders with ``tickRound: false`` / ``axisBand.tickOffset: 0``, so they
-    already sit on the exact fractional scale positions.)
+    Mutates the parsed SVG tree in place, like the other fixers in the corrected-SVG pipeline.
+    Tick and grid positions already match the fractional scale positions because the theme uses
+    ``tickRound: false`` and ``axisBand.tickOffset: 0``.
     """
     _xlate = re.compile(r"translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)")
 
@@ -192,24 +191,22 @@ def _align_grid_to_content(root: ET.Element, axis_offset: float) -> None:
 def _flip_ticks_inward(root: ET.Element) -> None:
     """Negate axis-tick line geometry so ticks point into the plot (theme(tickDirection="in")).
 
-    Vega/Vega-Lite always render ticks outward and reject a negative ``tickSize``, so inward
-    ticks are produced here as an SVG post-process that negates the non-zero ``x2``/``y2`` of
-    every ``<line>`` inside an axis-tick group. x-axis ticks carry their length in ``y2``
-    (``x2="0"``), y-axis ticks in ``x2``
-    (``y2="0"``), so negating the non-zero coordinate flips the direction. Covers primary,
-    secondary (right/top), major, and minor (log/power) ticks uniformly, since all are
-    ``role-axis-tick`` groups.
+    Vega/Vega-Lite render ticks outward and reject a negative ``tickSize``, so inward ticks
+    are produced here as an SVG post-process that negates the non-zero ``x2``/``y2`` of every
+    ``<line>`` inside an axis-tick group. x-axis ticks carry their length in ``y2`` (``x2="0"``);
+    y-axis ticks carry it in ``x2`` (``y2="0"``). Negating the non-zero coordinate flips each
+    tick. This covers primary, secondary (right/top), major, and minor (log/power) ticks because
+    they all use ``role-axis-tick`` groups.
 
-    Labels and titles follow the ticks in: Vega placed them beyond the outward tick, so once
-    the tick flips, the space it occupied would survive as a dead gap between the domain line
-    and the labels. Every ``<text>`` in each axis's ``role-axis-label`` / ``role-axis-title``
-    group is translated toward the view by that axis's OWN tick vector (read before negation,
-    so per-axis lengths - e.g. half-size log/power minor ticks - shift correctly; those axes
-    have no labels anyway). The shift is baked into each text's own ``translate`` - NOT set on
-    the group - because ``_simplify_svg`` later flattens the ``<g>`` wrappers (a group
-    transform would be dropped); trailing transform parts (label ``rotate``) are preserved.
-    The label -> title gap is preserved since both move together; an axis without tick lines
-    is left untouched.
+    Vega places labels and titles beyond outward ticks. When the ticks flip, that spacing would
+    leave a gap between the domain line and labels. Every ``<text>`` in each axis's
+    ``role-axis-label`` / ``role-axis-title`` group is translated toward the view by that axis's
+    tick vector, read before negation. Per-axis lengths, such as half-size log/power minor ticks,
+    determine the shift; those axes have no labels. The shift is applied to each text element's
+    own ``translate``, not its group, because ``_simplify_svg`` later flattens the ``<g>`` wrappers
+    and would drop a group transform. Trailing transform parts, such as label ``rotate``, are
+    preserved. The label-to-title gap is preserved because both move together; an axis without
+    tick lines is left unchanged.
     """
     _xlate = re.compile(r"^translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)(.*)$")
     # Pass 1: pull labels + title in by the tick length, per axis group (pre-negation read).
@@ -275,10 +272,10 @@ def _label_wrapper_parts(node: ET.Element, tx: float, ty: float) -> tuple[ET.Ele
         m = _TRANSLATE.search(el.get("transform") or "")
         if m:
             x, y = x + float(m.group(1)), y + float(m.group(2))
-        # only the title's text - a chart's axis labels come first in document order
+        # Only the title text – chart axis labels come first in document order.
         if in_title and text is None and el.tag == f"{{{_SVG_NS}}}text" and (el.text or "").strip():
             text, label_x = el, x + float(el.get("x") or 0)
-        # the view rectangle - the first background path carrying real geometry
+        # The view rectangle – the first background path carrying geometry.
         if plot_x is None and el.tag == f"{{{_SVG_NS}}}path" and el.get("class") == "background":
             if (el.get("d") or "M0,0") != "M0,0":
                 plot_x = x
@@ -292,15 +289,15 @@ def _label_wrapper_parts(node: ET.Element, tx: float, ty: float) -> tuple[ET.Ele
 def _align_figure_labels(root: ET.Element) -> None:
     """Seat every figure label at the leftmost panel edge in its column.
 
-    Vega aligns concat members by their PLOT area, but a label anchors to its member's
-    bounding box - and those two differ by that member's own axis margin, so the labels go
-    ragged while the plots stay aligned (worst against a blank member, whose margin is zero;
-    measured 26.6 px vs 5.2 px for two real charts with different y-axis widths). Members
-    sharing a column render at an identical plot-area x, so grouping on that and taking the
-    smallest label x per column lines them up exactly, with no text measurement.
+    Vega aligns concat members by their plot area, but a label anchors to its member's
+    bounding box. The difference is that member's axis margin, which misaligns labels while
+    plots remain aligned. The largest mismatch occurs against a blank member, whose margin is
+    zero. For two real charts with different y-axis widths, measured offsets were 26.6 px and
+    5.2 px. Members in a column have the same plot-area x, so grouping on that value and taking
+    the smallest label x per column aligns them without measuring text.
 
-    Must run BEFORE ``_simplify_svg``, which flattens the group transforms this reads, and
-    the shift is baked into each label's own transform for the same reason.
+    Run this before ``_simplify_svg``, which flattens the group transforms it reads. The shift
+    is baked into each label's own transform for the same reason.
     """
     found: list[tuple[ET.Element, float, float]] = []
 
@@ -336,18 +333,19 @@ _IDENTITY_TRANSFORMS = (None, "", "translate(0,0)", "translate(0, 0)")
 
 
 def _sink_border_below_shade(root: ET.Element) -> None:
-    """Move a closed plot's border so it paints AFTER the ``shade`` background.
+    """Move a closed plot's border so it paints after the ``shade`` background.
 
-    Vega emits the stroked view border as a sibling of the group that holds the marks, and the
-    border comes first - so an opaque shade rect paints straight over it. The left and bottom
-    edges survive only because the x/y axis domain lines repaint them; ``axisRight``/``axisTop``
-    are off by default, so the top and right edges are drawn by the border alone and vanish.
+    Vega emits the stroked view border as a sibling of the group that holds the marks, with
+    the border first, so an opaque shade rectangle paints over it. The left and bottom edges
+    survive because the x/y axis domain lines repaint them. ``axisRight`` and ``axisTop`` are
+    off by default, so the border alone draws the top and right edges, which would otherwise
+    be covered.
 
-    ``_layer_axes_below_marks`` cannot fix this: it re-orders within one group, and these two
-    live at different depths. The border is instead moved INTO the group holding the shade,
-    directly after the last shade rect - above the shading, still below the axes and the data.
-    Only done when the intervening groups carry no transform, so the border's coordinates stay
-    in the same space; otherwise it is left alone.
+    ``_layer_axes_below_marks`` cannot fix this because it reorders within one group, while
+    the border and shade are at different depths. The border is moved into the group holding
+    the shade, directly after the last shade rectangle – above the shading but below the axes
+    and data. This is done only when the intervening groups have no transform, so the border's
+    coordinates stay in the same space; otherwise it is left in place.
     """
     parents = {child: parent for parent in root.iter() for child in parent}
 
@@ -383,11 +381,10 @@ def _layer_axes_below_marks(root: ET.Element) -> None:
     Vega emits the view border before all content, so grid lines paint over the
     border edges when closed=True; it also interleaves axis groups with no regard
     for the mark stack. This fix moves non-grid axis groups (domain lines, ticks,
-    labels) and any stroked border path to sit AFTER the grid but BEFORE the data
-    marks: the grid can never overlap the border, and a datum plotted exactly on
-    an axis renders over the axis line instead of being cut by it (deliberately
-    diverges from the matplotlib/ggplot frame-on-top convention per user decision
-    2026-07-23).
+    labels) and any stroked border path to sit after the grid but before the data
+    marks: the grid does not overlap the border, and a datum plotted exactly on
+    an axis renders over the axis line instead of being cut by it. This differs
+    from the matplotlib/ggplot frame-on-top convention.
 
     Grid axis groups (identified by containing a mark-rule role-axis-grid
     descendant) are left in place at the front of the stack.
@@ -406,7 +403,7 @@ def _layer_axes_below_marks(root: ET.Element) -> None:
 
     def reorder(el: ET.Element) -> None:
         to_place = []  # axis groups + border strokes, re-inserted after the grid block
-        shade = []  # shade backgrounds, sunk behind the grid (never over an axis or border)
+        shade = []  # shade backgrounds, placed behind the grid (not over an axis or border)
         for child in list(el):
             cls = child.get("class", "")
             if _SHADE_PREFIX in cls:
@@ -448,8 +445,8 @@ def _layer_axes_below_marks(root: ET.Element) -> None:
             for offset, item in enumerate(to_place):
                 el.insert(index + offset, item)
         if shade:
-            # Straight after the background fill, so the shading sits under the grid, the axes and
-            # the data - a background rect must never paint over the frame it sits inside.
+            # Directly after the background fill, so shading remains below the grid, axes, and data
+            # and does not cover the frame.
             at = 0
             for i, child in enumerate(el):
                 if child.tag == f"{{{_SVG_NS}}}path" and child.get("class", "") == "background":
@@ -478,10 +475,10 @@ def _simplify_svg(root: ET.Element) -> None:
     the parent element. Two classes of ``<g>`` are flattened:
 
     1. Groups with no rendering-relevant attributes (only ``class`` or nothing).
-    2. Groups whose only rendering attribute is ``transform="translate(0,0)"`` —
-       a no-op that Vega emits as a structural wrapper around chart content.
-       Removing it reduces the ungroup depth in Illustrator by one level without
-       affecting visual output.
+    2. Groups whose only rendering attribute is ``transform="translate(0,0)"`` –
+       a translation with no visual effect that Vega emits as a structural wrapper
+       around chart content. Removing it eliminates one group level to remove in
+       Illustrator without affecting visual output.
 
     Groups that carry any of the following attributes are preserved: ``clip-path``,
     ``opacity``, ``mask``, ``filter``, ``style``, ``id``, or any non-trivial
@@ -499,7 +496,7 @@ def _simplify_svg(root: ET.Element) -> None:
         effective = set(child.attrib) & KEEP_ATTRS
         if not effective:
             return True
-        # translate(0,0) has no visual effect — safe to inline.
+        # translate(0,0) has no visual effect – safe to inline.
         if effective == {"transform"} and _NOOP_TRANSLATE.match(child.get("transform", "")):
             return True
         return False
