@@ -14,16 +14,17 @@ __all__: list[str] = []
 
 # Super/subscript typesetting
 #
-# Vega renders each label as a flat string. `_typeset_scripts` moves super/subscripts into smaller,
-# raised or lowered <tspan> elements. Plain ASCII avoids font substitution for missing Unicode glyphs,
-# such as superscript zero in Helvetica Neue.
+# Vega renders each label as a flat string. `_typeset_scripts` renders super/subscript runs in smaller,
+# vertically shifted <tspan> elements. Converting script digits and letters to ordinary characters
+# avoids reliance on font support for those Unicode glyphs, such as superscript zero in Helvetica Neue.
+# The superscript minus is converted to Unicode U+2212 MINUS SIGN.
 
-# Unicode super/subscript -> plain ASCII (the superscript minus becomes the real minus U+2212).
+# Unicode super/subscript characters -> ordinary text characters.
 _SUPERSCRIPT_MAP = str.maketrans(_SUP + "⁻", "0123456789−")
 _SUBSCRIPT_MAP = str.maketrans("₀₁₂₃₄₅₆₇₈₉₋ₐₑₒₓₕₖₗₘₙₚₛₜ", "0123456789-aeoxhklmnpst")
 
-# Run size / shift as a fraction of the base glyph's font-size (2/3 and 5/12 - the original fixed
-# 4px / 2.5px expressed against a 6px base), so a run scales to whatever size the label is.
+# Run size and shift as fractions of the base glyph's font-size (2/3 and 5/12 – the original fixed
+# 4px / 2.5px values relative to a 6px base), so runs scale with the label's font size.
 _SCRIPT_SIZE_RATIO = 2 / 3
 _SCRIPT_RISE_RATIO = 5 / 12
 
@@ -56,19 +57,20 @@ def _script_font_size(el: ET.Element) -> float:
 
 
 def _typeset_scripts(root: ET.Element, specs: "list[_ScriptSpec]" = _ALL_SCRIPTS) -> None:
-    """Typeset super/subscript runs in every label as shrunk, shifted ASCII <tspan>s.
+    """Typeset super/subscript runs in every label as smaller, shifted <tspan> elements.
 
     Handles, in one pass per element: Unicode superscripts (the misaligned/substituted `10⁰`,
     `×10⁻¹⁴` exponents log_label_expr and p-value labels emit), a `^` superscript author token
     (`q^2`), literal Unicode subscripts (`t₀`), and a `__` subscript author token (`q__x`). Each run
-    becomes a <tspan> of plain ASCII, shrunk to `_SCRIPT_SIZE_RATIO` and shifted by `_SCRIPT_RISE_
-    RATIO` of the label's own font-size (up for `raise`, down for `lower`) - so nothing depends on a
-    Unicode super/sub glyph the font may lack, and the shift scales with the label. `specs` selects
-    which detectors run (all four by default; the `_fix_superscript_labels` / `_fix_subscript_labels`
-    wrappers pass a subset).
+    becomes a <tspan> with ordinary characters – digits and subscript letters are converted to
+    ASCII, while the superscript minus becomes Unicode U+2212. The run is shrunk to
+    `_SCRIPT_SIZE_RATIO` and shifted by `_SCRIPT_RISE_RATIO` of the label's own font size (up for
+    `raise`, down for `lower`), so rendering does not depend on Unicode superscript or subscript
+    glyphs and the shift scales with the label. `specs` selects which detectors run (all four by
+    default; the `_fix_superscript_labels` / `_fix_subscript_labels` wrappers pass a subset).
 
     Operates on element .text values in the parsed tree only, never attribute values (which carry the
-    same label text in aria-label/title). Multiple runs in one label - and mixed super/sub - are all
+    same label text in aria-label/title). Multiple runs in one label – including mixed super/sub – are
     handled by collecting every match, dropping overlaps, and rebuilding the element once.
     """
     for el in list(root.iter()):
@@ -133,13 +135,10 @@ def _fix_subscript_labels(root: ET.Element) -> None:
     _typeset_scripts(root, _SUB_SPECS)
 
 
-# Single-letter Latin statistical symbols, set in italic by scientific convention; Greek
-# symbols (ρ, τ, η², ε², χ²) and multi-letter abbreviations (ns) stay upright and are
-# deliberately absent. Matched globally on rendered text - dysonsphere-generated labels
-# and user annotations alike - because the typography is correct regardless of who wrote
-# the text (same policy as _SUP_LABEL_PATTERN above). Each alternative is anchored to the
-# exact context our labels generate, so accidental matches in prose are rare (and
-# typographically right when they do occur).
+# Single-letter Latin statistical symbols are italic by convention; Greek symbols (ρ, τ, η²,
+# ε², χ²) and multi-letter abbreviations (ns) stay upright and are excluded. Patterns match
+# rendered text in both generated labels and user annotations. Their surrounding-character checks
+# reduce accidental matches in prose, but matching user text receives the same styling.
 _ITALIC_STAT_PATTERN = re.compile(
     r"(?<![A-Za-z])(?:"
     r"P(?=\s*[=<≈])"  # p-value: P = 0.012 / P < 0.001 / P ≈ 10⁻⁵
@@ -159,9 +158,9 @@ _ITALIC_STAT_PATTERN = re.compile(
 def _italicize_text_element(el: ET.Element) -> None:
     """Wrap every statistical-symbol match in *el*'s text content in an italic ``<tspan>``.
 
-    Only the string nodes *el* owns are processed - ``el.text`` and each existing child's
-    ``tail``, in document order - so symbols survive in text the superscript fixer has
-    already split around an exponent ``<tspan>``. A child's own ``.text`` is NOT touched
+    Only the string nodes *el* owns are processed – ``el.text`` and each existing child's
+    ``tail``, in document order – so symbols survive in text the superscript fixer has
+    already split around an exponent ``<tspan>``. A child's own ``.text`` is not touched
     here: every ``<tspan>`` is itself a target of :func:`_italicize_stat_symbols` (Vega
     sometimes wraps a whole label in one), so each string node is processed exactly once,
     by the element that owns it.
@@ -206,29 +205,26 @@ def _italicize_stat_symbols(root: ET.Element) -> None:
 
     Scientific typesetting convention sets single-letter Latin statistical symbols in
     italic while numbers, operators, Greek symbols (η², ε², χ², ρ, τ), and multi-letter
-    abbreviations (``ns`` - an abbreviation, not a symbol) stay upright. Vega-Lite
+    abbreviations such as ``ns`` stay upright. Vega-Lite
     text marks have no rich text (``fontStyle`` styles a whole string), so this is applied
     as an SVG post-process: each matched symbol is wrapped in a
     ``<tspan font-style="italic">``, rendering with the label font's italic face.
 
-    Covers the dysonsphere-generated labels - ``stats.comparisons`` bracket p-values and the
+    Covers dysonsphere-generated labels – ``stats.comparisons`` bracket p-values and the
     omnibus/test label (``ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18``), the
     ``stats.correlation`` readout (``r = 0.85, r² = 0.72, P < 0.001, y = 0.84x + 0.27``), and
-    ``add_multilabel``'s ``n =`` sample-size row - and, by the same global-pattern policy as
-    :func:`_fix_superscript_labels`, any user text matching the same forms (a hand-written
-    ``P = 0.03`` via ``text`` gets the identical treatment, keeping typography
-    consistent across a figure).
+    ``add_multilabel``'s ``n =`` sample-size row. The same patterns apply to user text, so a
+    hand-written ``P = 0.03`` via ``text`` is processed too.
 
-    Must run AFTER :func:`_fix_superscript_labels`: that fixer only scans element ``.text``,
+    Run this after :func:`_fix_superscript_labels`: that fixer only scans element ``.text``,
     so wrapping a leading ``P`` into a ``<tspan>`` first would move the ``×10⁻⁵`` portion
     into a tail it cannot see. This fixer scans both ``.text`` and child tails, so the
     reverse order is safe. Operates on element text in the parsed tree only, never attribute
     values (``aria-label``/``title`` carry the same label text).
     """
     # Both tags, like the superscript fixer: Vega sometimes wraps a label in an outer
-    # <tspan>. Materialize before mutating - the italic tspans inserted during the loop
-    # must not become targets themselves (and mutating while root.iter() walks is
-    # undefined anyway).
+    # <tspan>. Materialize before mutating – inserted italic tspans must not become targets
+    # themselves, and this avoids changing the tree while root.iter() is being traversed.
     targets = [el for el in root.iter() if el.tag in (f"{{{_SVG_NS}}}text", f"{{{_SVG_NS}}}tspan")]
     for el in targets:
         _italicize_text_element(el)
@@ -310,26 +306,23 @@ _GENERIC_FONTS = {"serif", "sans-serif", "monospace", "cursive", "fantasy", "sys
 def _illustrator_font_family(value: str) -> str:
     """Rewrite a CSS ``font-family`` stack to an Illustrator-resolvable form, fallbacks kept.
 
-    Adobe Illustrator's SVG importer does NOT resolve CSS fallback stacks the way browsers
-    and vl-convert do - it walks a comma-separated ``font-family`` and lands on the first
-    single-word family it recognizes, so the default theme stack
-    ``Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif`` renders as plain
-    **Helvetica** (the 3rd entry), not Helvetica Neue. Worse, Illustrator aliases the
-    *spaced* family name ``Helvetica Neue`` to Helvetica even as a single value, while the
-    space-free **PostScript** name ``HelveticaNeue`` resolves correctly (verified in
-    Illustrator, regular AND italic faces).
+    Adobe Illustrator's SVG importer handles CSS fallback stacks differently from browsers
+    and vl-convert. It processes comma-separated ``font-family`` values and can select the first
+    recognized single-word family, so the default theme stack
+    ``Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif`` renders as Helvetica, not
+    Helvetica Neue. Illustrator also maps the spaced family name ``Helvetica Neue`` to Helvetica
+    when it is the only value. The space-free PostScript name ``HelveticaNeue`` resolves to
+    Helvetica Neue in Illustrator, including regular and italic faces.
 
-    Two things fix it: (1) put the resolvable form of the primary family first - the space-free
-    PostScript name when the theme provided it as a fallback (the despaced primary appears
-    elsewhere in the stack, the signal it's the intended alias), else the primary as-is (a
-    single spaced family like ``Courier New`` resolves fine on its own; only the Helvetica
-    family aliases). (2) DROP the primary's less-specific same-family aliases - any entry that
-    is a prefix of the primary name (e.g. ``Helvetica`` under ``Helvetica Neue``), which is
-    exactly the entry Illustrator gets trapped on - but KEEP the genuinely-different fallbacks
-    (``Arial``, ``sans-serif``). So the default becomes ``HelveticaNeue, Arial, sans-serif``:
-    Helvetica Neue on macOS Illustrator AND a graceful Arial/sans-serif fallback for every
-    non-macOS consumer (Windows Illustrator, Linux Inkscape, a raw SVG in a browser) that
-    lacks Helvetica Neue. Both verified. Generic-only values are left untouched.
+    The rewrite applies two rules: (1) put the resolvable primary family first – use its
+    space-free PostScript name when that exact name appears elsewhere in the stack, otherwise keep the
+    primary as written. A spaced family such as ``Courier New`` resolves on its own; this alias
+    behavior applies to Helvetica. (2) Remove less-specific aliases that are prefixes of the
+    primary name, such as ``Helvetica`` under ``Helvetica Neue``, and keep distinct fallbacks
+    such as ``Arial`` and ``sans-serif``. The default stack becomes
+    ``HelveticaNeue, Arial, sans-serif``. This selects Helvetica Neue in macOS Illustrator and
+    retains Arial/sans-serif fallbacks for non-macOS consumers that lack it, including Windows
+    Illustrator, Linux Inkscape, and browsers. Generic-only values are left unchanged.
     """
     families = [f.strip().strip("'\"") for f in value.split(",")]
     families = [f for f in families if f]
@@ -354,9 +347,9 @@ def _fix_font_for_illustrator(root: ET.Element) -> None:
 
     SVG-only (runs in the shared corrected-SVG pipeline, never on the spec) so the theme option, the
     JSON, and the browser-targeted HTML keep the original CSS fallback stack - only the
-    Illustrator-targeted SVG is rewritten. See :func:`_illustrator_font_family` for the why
-    and the rule. Italic stat-symbol tspans inherit the parent ``font-family``, so they pick
-    up the resolvable name too (verified: real italic face in Illustrator).
+    Illustrator-targeted SVG is rewritten. See :func:`_illustrator_font_family` for the
+    selection rule. Italic statistical-symbol tspans inherit their parent's ``font-family``
+    and therefore use its rewritten value too.
     """
     for el in root.iter():
         ff = el.get("font-family")
