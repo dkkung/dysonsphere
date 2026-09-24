@@ -1,13 +1,12 @@
 ---
 title: Assembling figures
-description: Compose several charts into one figure with ds.assemble - per-chart sizes, figure labels, and reserved slots.
+description: Compose charts into one figure with per-chart sizes, figure labels, and reserved slots using ds.assemble.
 ---
 
 import Example from '../../../components/Example.astro';
 
-`ds.assemble()` composes several charts into one figure, each built at its own size - a time course
-beside its endpoint quantification, a heatmap beside the correlation it motivates. Members are
-`(builder, width, height)` tuples, and you pass the *function*, not the chart.
+`ds.assemble()` composes charts into one figure, with each chart built at its own size. Members
+are `(builder, width, height)` tuples, and you pass the *function*, not the chart.
 
 ```python
 figure = ds.assemble(
@@ -16,32 +15,31 @@ figure = ds.assemble(
 )
 ```
 
-That matters because `ds.theme()` alone cannot size charts in one figure independently - they share
-one `config.view`, so the last call wins - while `.properties()` sizes the box but leaves `markSize`,
-the corner radii and every pixel annotation computed for the theme's size. `assemble` runs each
-builder while the theme genuinely says that member's size, so `ds.shade` spans, comparison brackets
-and `ds.labels` placement all land correctly.
+`ds.theme()` cannot set a different size for each chart because all charts share a `config.view` –
+the last call sets the shared size. `.properties()` changes chart dimensions but leaves
+`markSize`, corner radii, and pixel annotations calculated for the theme's size. `assemble` runs each
+builder with the theme set to that member's size, so `ds.shade` spans, comparison brackets, and
+`ds.labels` placement use the matching dimensions.
 
 Nest lists to make rows; `spacing` is a number, or `{"row": n, "column": n}`:
 
 <Example name="assemble" alt="Four charts of different sizes composed into one figure" />
 
-Rows are sized independently, so a wide chart does not stretch the column beneath it, and they need
-not hold the same number of charts - a wide track over three panels is one row of one and one row of
-three:
+Rows are sized independently, so a wide chart does not stretch the column beneath it. Rows can
+contain different numbers of charts, such as a wide track above three panels:
 
 <Example name="assemble_rows" alt="A coverage track above three smaller panels" />
 
 ## Figure labels
 
-A fourth element carries the panel's label - used verbatim, and optional per member:
+A fourth element carries the panel's label – used verbatim and optional per member:
 
 ```python
 [(time_course, 190, 110, "a"), (endpoint_quant, 90, 110, "b")]
 ```
 
-It sits at the top-left of the chart's whole area, outside the axis labels, and rides its own
-wrapper so a chart with its own `.properties(title=...)` keeps it. `labelFontSize` (`8`),
+It sits at the top-left of the chart area, outside the axis labels. Its own wrapper lets the chart
+keep a `.properties(title=...)` title. `labelFontSize` (`8`),
 `labelFontWeight` (`700`), `labelColor` and `labelOffset` style every label in the figure; the font
 comes from `ds.theme()`. Labels sharing a column are aligned exactly, whatever each chart's axis
 margin is.
@@ -53,10 +51,9 @@ stays in sequence:
 
 <Example name="assemble_slot" alt="A four-panel figure whose first panel is a reserved empty slot" />
 
-The slot is filled and outlined to match the axes, so it is a solid object to select, and it is
-drawn at exactly the size you give it. Expect a gap beside it: charts in a column align by their
-**plot** areas, and a slot has no axis labels to fill the space its neighbours use for theirs. That
-gap belongs to the neighbours and no slot size changes it.
+The slot is filled and outlined to match the axes, and is drawn at the specified size. A gap may
+appear beside it: charts in a column align by their **plot** areas, while the slot has no axis labels
+to fill the space its neighbors use. Changing the slot size does not remove that gap.
 
 ## Members
 
@@ -67,9 +64,9 @@ wrong size:
 ds.assemble([{"chart": time_course, "width": 190, "height": 110, "label": "a"}])
 ```
 
-A bare builder uses the theme's current size. An already-built chart is used as-is - and since
-`assemble` returns an ordinary Altair chart, one call nests inside another when two rows want
-different internal spacing:
+A bare builder uses the theme's current size. An already-built chart is used as-is. Since
+`assemble` returns an ordinary Altair chart, its result can be nested in another call when rows need
+different spacing:
 
 ```python
 top = ds.assemble([(time_course, 190, 110), (endpoint_quant, 90, 110)], spacing=10)
@@ -80,9 +77,9 @@ figure = ds.assemble([[top], [bottom]], spacing={"row": 40})
 
 ## Styling and export
 
-Vega-Lite's `config` is spec-level, so palettes, fonts and axis styling cannot differ between charts
-in one figure - `assemble` takes size and nothing else. Vary those on the encoding instead, which is
-per-view and survives:
+Vega-Lite's `config` is spec-level, so palettes, fonts, and axis styling cannot differ between
+charts in one figure; `assemble` sets size only. Set those on the encoding instead, which is per-view
+and survives:
 
 ```python
 alt.Color("dose:N", scale=alt.Scale(range=ds.palette("cat3", 3)))
@@ -91,9 +88,8 @@ alt.X("dose:N", axis=alt.Axis(labelFontSize=9))
 
 `ds.save(figure, "figure_1a")` exports it like any chart. Pass a callable when saving both
 backgrounds, since a reserved slot resolves its fill against `darkmode` at build time. An assembled
-figure usually holds several dataframes, so `ds.metadata.read(path, what="data")` needs `dataset="all"` or a
-name - see [saving and reading](/guides/saving/).
+figure may hold several dataframes, so `ds.metadata.read(path, what="data")` needs
+`dataset="all"` or a name – see [saving and reading](/guides/saving/).
 
-Charts made with `.facet()` or `.repeat()` need none of this: they render one chart repeatedly, so
-every panel already uses the theme `width`. Reach for `assemble` when the charts are genuinely
-different.
+Charts made with `.facet()` or `.repeat()` render one chart repeatedly, so every panel uses the
+theme `width`. Use `assemble` when charts need different sizes.
