@@ -6,23 +6,18 @@ tableOfContents: false
 
 import Studio from '../../components/Studio.astro';
 
-Upload CSV, TSV, or JSON data. Choose a chart, add statistics, multilabel tables, and annotations, and tune the theme. Pyodide runs the chart in the browser; **your data stays on the page**.
+Upload CSV, TSV, or JSON data. Choose a chart, add statistics, multilabel tables, and annotations, and tune the theme. The builder reads uploaded data in the browser, where Pyodide runs the chart code.
 
-When the builder's controls run out, press **Edit as code**: the generated snippet opens in a
-live editor where you can keep composing with the full library - the same runtime executes
-whatever you write, and your uploaded file stays available under its own filename. Every example
-in the guides has an *Open in studio* link that lands here too.
+Select **Edit as code** to open the generated Python in a live editor. The editor uses the same runtime and keeps the uploaded file available under its original filename. Guide examples link to this editor with *Open in studio*.
 
-You can also **import a figure saved by `ds.save()`**: a Vega-Lite JSON export rebuilds the chart
-right here through `ds.load()` (theme and all), and JSON, SVG, and PNG exports read back their
-embedded provenance, statistics, and report via `ds.metadata.read()`.
+Import a figure saved by `ds.save()`: a Vega-Lite JSON export rebuilds the chart through `ds.load()`. JSON, SVG, and PNG exports display their embedded provenance, statistics, and report metadata from `ds.metadata.read()`.
 
-The chart appears after the Python runtime loads. The first load can take a few seconds and is cached afterward. The default dataset is cars; you can upload another file or choose a sample.
+The chart appears after the Python runtime loads. The first load can take a few seconds; the runtime is cached afterward. The default dataset is cars. Upload another file or choose a sample dataset.
 
 <Studio />
 
 :::note
-The copied Python runs unchanged in your notebook - it reads your file with `pl.read_csv(...)`,
+The copied Python runs unchanged in your notebook – it reads your file with `pl.read_csv(...)`,
 computes statistics with scipy, and draws everything through Altair. See the
 [comparisons guide](/guides/comparisons/) for what the tests report, and
 [saving & reading](/guides/saving/) for exporting figures with embedded provenance.
