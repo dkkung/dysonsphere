@@ -9,42 +9,51 @@ Both return native Altair layers you compose with `+`, sharing the base chart's 
 
 ## Text
 
-`ds.text()` places annotations at data coordinates (numbers share the quantitative scale, strings
-use categories) or at frame positions via nine presets (`topLeft`, `middleCenter`, …). Add a
-background chip behind the text with `fill` (`True` for a darkmode-aware grey, or a color),
-`fillOpacity`, `stroke`, and `cornerRadius` to keep text legible over the plot. The chip is drawn
-only when `fill` is set.
+`ds.text()` places annotations at data coordinates or at frame positions using nine presets, such
+as `topLeft` and `middleCenter`. Numeric coordinates use the quantitative scale; strings use
+categories.
+
+To keep text legible over the plot, add a background chip with `fill`, `fillOpacity`, `stroke`, and
+`cornerRadius`. `fill=True` uses a darkmode-aware grey; the chip is drawn only when `fill` is set.
 
 <Example name="text" alt="Scatter plot with a frame-anchored sample-size annotation" />
 
 ## Point labels
 
-`ds.labels()` places text labels with collision-aware connector lines for points, such as volcano
-genes, ranked values, or clusters. Placement is deterministic and uses no random selection: a
-bounded search prefers nearby open positions, and straight connectors can slide along a label's
-visible boundary to avoid other points. Adjacent labels omit short connectors unless
-`alwaysShowConnectors=True`. Forced connectors reserve their full endpoint clearances. If a requested
-gap or label cannot fit in the panel, the connector is omitted rather than drawn through a mark.
-Pass the full plotted `data` and let `subset=` select which points to
-name – an integer picks that many spread evenly across the plot, a list names rows by their
-`labels` column value, and a boolean mask (`subset=df["is_hit"]`) selects rows positionally when the
-label column repeats. Passing the full `df` also lets the labels dodge every plotted point, not
-just the ones being named, so they settle into open space instead of on top of the crowd. Style
-the labels with `fontSize`, `color`, and `fontStyle` (e.g. `fontStyle="italic"` for gene or
-species names), and give them a background chip with `fill` / `fillOpacity` / `stroke` /
-`cornerRadius` (drawn only when `fill` is set) to keep them readable over a dense scatter.
+`ds.labels()` adds point labels with collision-aware connectors, for example for volcano genes,
+ranked values, or clusters. Placement is deterministic: a bounded search prefers nearby open
+positions, and straight connectors can slide along a label's visible boundary to avoid other
+points.
 
-Labels are centered, using approximate character-aware text bounds. Connectors prefer edge-body
-attachments, allowing facing corners for diagonal approaches rather than detached, edge-parallel stubs.
-The initial point coordinates and label settings are saved with the layer. When you call `ds.save()` or
-`ds.show()`, dysonsphere evaluates the complete composed panel and places labels again against visible
-sibling points, straight lines and rules, rectangles, and fixed text – including marks added
-before or after `ds.labels()`. The saved coordinates and settings survive `ds.load()`, resizing, and nested
-concat composition; no extra placement call is needed. An omitted `connectorGap` increases when needed
-to clear the rendered symbol plus whitespace, while an explicit zero or numeric value remains exact.
-Arbitrary curves, areas, images, and paths are not treated as exact obstacles. Every requested label
-remains visible, so an overfull plot may still contain overlaps. Bare Altair display
-uses the initial placement; use `ds.show()` to preview the saved layout.
+Adjacent labels omit short connectors unless `alwaysShowConnectors=True`. Forced connectors reserve
+their full endpoint clearances. If a requested gap or label cannot fit in the panel, the connector is
+omitted rather than drawn through a mark.
+Pass the full plotted `data` and use `subset=` to choose which points to label:
+
+- An integer selects that many points spread across the plot.
+- A list selects rows by their `labels` column value.
+- A boolean mask, such as `subset=df["is_hit"]`, selects rows by position when the label column
+  repeats.
+
+Passing the full dataframe also lets labels dodge all plotted points, not only the labeled ones.
+Style them with `fontSize`, `color`, and `fontStyle`, such as `fontStyle="italic"` for gene or
+species names. A background chip uses `fill`, `fillOpacity`, `stroke`, and `cornerRadius`; it is
+drawn only when `fill` is set.
+
+Labels are centered using approximate character-aware text bounds. Connectors attach along a label's
+visible edge and can use facing corners for diagonal approaches rather than detached, edge-parallel
+stubs.
+
+When you call `ds.save()` or `ds.show()`, Dysonsphere lays out labels again against visible sibling
+points, straight lines and rules, rectangles, and fixed text in the complete composition. This
+includes marks added before or after `ds.labels()`. Initial point coordinates and label settings
+are saved with the layer and survive `ds.load()`, resizing, and nested concat composition.
+
+An omitted `connectorGap` increases as needed to clear the rendered symbol and whitespace; an
+explicit zero or number remains exact. Curves, areas, images, and paths are not treated as exact
+obstacles, and every requested label remains visible, so an overfull plot may still contain
+overlaps. Bare Altair display uses the initial placement; use `ds.show()` to preview the saved
+layout.
 
 Set `connectorCap="arrow"` to point each connector toward its target. The existing `connectorGap`
 controls target clearance and is applied once; label placement and text-end clearance do not change.
