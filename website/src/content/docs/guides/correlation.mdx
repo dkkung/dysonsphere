@@ -5,42 +5,41 @@ description: Correlation coefficients and OLS fit lines with ds.stats.correlatio
 
 import Example from '../../../components/Example.astro';
 
-[`ds.stats.correlation()`](/reference/stats/#correlation) adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
-scatter, as a layer you compose with `+`. Like `ds.stats.comparisons()`, it builds a structured report
-that `save()` embeds in the export metadata (`report=True` prints it, `saveReport=True` writes a file).
-The default readout is a bare `r = …`; rank methods report the coefficient only.
+[`ds.stats.correlation()`](/reference/stats/#correlation) adds a coefficient, an optional p-value,
+and (for Pearson) an OLS fit line to a scatter. Compose the result with `+`. Like
+`ds.stats.comparisons()`, each call builds a structured report that
+`save()` embeds in the export metadata. `report=True` prints it, and `saveReport=True` writes it to a
+file. By default, the readout shows `r = …`; rank methods show only their coefficient.
 
 <Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
 
-For Pearson, `ci=True` shades a confidence band around the fit line (pass a level like `ci=0.99`).
-`interval="confidence"` (the default) shows how tightly the line itself is pinned down;
-`interval="prediction"` shows the wider band for a single new observation. The band is drawn under
-the line and styled with `ciColor` / `ciOpacity`:
+For Pearson, `ci=True` draws a shaded band around the OLS fit. Pass a level such as `ci=0.99`. The
+default `interval="confidence"` shows uncertainty in the mean response represented by the fit line;
+`interval="prediction"` gives a wider interval for a single new observation. The band is drawn under
+the line and styled with `ciColor` and `ciOpacity`:
 
 <Example name="correlation_ci" alt="OLS fit line with a shaded 95% confidence band" />
 
-The readout is composed from independent parts, so you can show exactly what you want:
-`coefficient="both"` gives r and r², `includePvalue=True` adds P, `includeEquation=True` adds the
-fit line's equation, and `verbose=True` is a shortcut that turns all of them on. The longer the
-readout, the wider the chart should be (`theme(width=…)`):
+Readout components can be selected separately: `coefficient="both"` shows r and r²,
+`includePvalue=True` adds P, and, for Pearson, `includeEquation=True` adds the fit line's equation.
+`verbose=True` turns on all three. Longer readouts may need a wider chart; adjust `theme(width=…)`:
 
 <Example name="correlation_both" alt="Scatter with an r, r-squared, and p-value readout" />
 
-Rank correlations (`method="spearman"` / `"kendall"`) report only the coefficient (ρ / τ) and its
-p-value - no fit line, since a straight line is not their model:
+Rank correlations (`method="spearman"` / `"kendall"`) report a coefficient (ρ or τ); the p-value
+is optional. They do not fit a straight-line model, so no fit line is drawn:
 
 <Example name="correlation_spearman" alt="Weight versus miles per gallon, Spearman coefficient" />
 
 ## Per-series correlation
 
-Pass `groupBy` to fit and report a correlation **per group** - one fit line, CI band, and coefficient
-per level, each coloured to match its points (colour your scatter by the same field). Colour is a
-lookup rather than a position, so no sort parameter is needed. The readouts stack in the corner, one
+Pass `groupBy` to compute a correlation for each group. Pearson groups get a fit line by default and
+can include an interval band. The lines and readout swatches use groupBy for color; color the scatter by the same field to match.
+This is a color lookup, so no sort parameter is needed. The readouts stack in the corner, one
 per series:
 
-A custom `label=` is prefixed with each group name. `lineStyle` has precedence over the curated
-line options in both single and grouped modes; `ciColor` controls the band fill, which otherwise
-follows the effective line color. Invalid `ci` syntax is rejected for rank methods too, although
-their line and band settings are inactive.
+A custom `label=` value follows each group name. `lineStyle` overrides the curated line options in
+both single and grouped modes. `ciColor` sets the band fill; otherwise, it follows the effective line
+color. `ci` syntax is still validated for rank methods, even though they draw no line or band.
 
 <Example name="correlation_groups" alt="Per-cell-line correlation with fit lines and coefficients" />
