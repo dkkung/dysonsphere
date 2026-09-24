@@ -6,9 +6,9 @@ description: Horizontal, vertical, diagonal, and equation reference lines with d
 import Example from '../../../components/Example.astro';
 
 `ds.rule()` returns a native Altair layer you compose onto a chart with `+`; it shares the base
-chart's scales, so lines land at the right data coordinates automatically. Use `y=...` for a
-horizontal rule or `x=...` for a vertical rule, with optional labels. `strokeDash=None` inherits
-the theme's `ruleStrokeDash` setting; `strokeDash=True` uses the shared theme `strokeDash` pattern,
+chart's scales. Use `y=...` for a horizontal rule or `x=...` for a vertical rule, with optional
+labels. `strokeDash=None` inherits the theme's `ruleStrokeDash` setting; `strokeDash=True` uses the
+shared theme `strokeDash` pattern,
 and `False` forces a solid rule.
 
 <Example name="rule" alt="Strip plot with a labeled horizontal reference line at a release limit" />
@@ -22,9 +22,9 @@ Pass a list of values (and a matching list of labels) for several lines in one c
 
 <Example name="rule_labeled" alt="Scatter plot with three labeled horizontal reference lines" />
 
-`span=(start, end)` slices a line to a portion of the axis it runs along, so a reference only
-covers the range it applies to. Bounds are numeric (data coordinates) or category names (resolved
-via the band scale, like `ds.shade`, using `categories`); a label anchors to the slice's ends:
+`span=(start, end)` limits a line to part of the axis it runs along. Bounds are numeric (data
+coordinates) or category names (resolved via the band scale, like `ds.shade`, using
+`categories`); a label anchors to the slice's ends:
 
 <Example name="rule_span" alt="Bar chart of mean MPG by cylinder count with a benchmark line sliced across the six- and eight-cylinder bars" />
 
@@ -35,9 +35,9 @@ or larger-x endpoint and `labelPosition` places the text above or below it. Thes
 inspect reversed or nonlinear scales.
 
 Equation mode computes a segment over a required numeric x extent, for example
-`ds.rule(slope=2, intercept=1, span=(0, 5))`. It represents `y = slope*x + intercept` only when
-composed with linear quantitative x and y scales. On nonlinear scales, calculate suitable visual
-coordinates yourself and use explicit endpoints.
+`ds.rule(slope=2, intercept=1, span=(0, 5))`. It represents `y = slope*x + intercept` only on
+linear quantitative x and y scales. On nonlinear scales, calculate suitable visual coordinates
+yourself and use explicit endpoints.
 
 `startCap` and `endCap` add `"arrow"`, `"circle"`, or `"square"` endpoint decorations. Their
 `startGap`/`endGap` clearances derive from the theme's marker size, marker stroke, and rule width when
