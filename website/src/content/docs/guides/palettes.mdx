@@ -1,14 +1,13 @@
 ---
 title: Palettes
-description: Browse all 300+ perceptually uniform dysonsphere palettes and use them in a chart.
+description: Browse Dysonsphere palettes and use them in a chart.
 ---
 
 import Example from '../../../components/Example.astro';
 
-Every dysonsphere palette is built in [Oklab](https://bottosson.github.io/posts/oklab/) and
-resampled by arc length, so sequential ramps step evenly in perceived lightness and diverging ramps
-balance around a neutral midpoint. Pass a palette name anywhere a `palette=` argument is accepted,
-or pull colors directly with `ds.palette(name, n)`.
+Dysonsphere's native palettes are built in [Oklab](https://bottosson.github.io/posts/oklab/) and
+resampled by arc length. Imported palettes may use different methods. Pass a palette name wherever
+`palette=` is accepted, or get colors directly with `ds.palette(name, n)`.
 
 For one emphasized mark or annotation rather than a data scale, use the theme-aware named colors in
 the [Accents guide](/guides/accents/).
@@ -26,28 +25,27 @@ and remain unchanged.
 
 ## Choosing a colormap
 
-Every sequential ramp is monotonic in Oklab lightness with near-uniform perceptual step size, so
-value ordering survives greyscale conversion and simulated deuteranopia/protanopia. Which one to
-reach for:
+The native sequential ramps are monotonic in Oklab lightness with near-uniform perceptual step
+size. Their behavior under greyscale conversion and color-vision simulation differs by palette.
+Choose a ramp based on the data and viewing conditions:
 
-- **`viridis`** - the default heatmap and ramp palette in both light and dark modes. Its familiar
-  purple-to-yellow path keeps continuous color mappings stable when only the background changes.
-- **`australis`** - a distinctive built-in alternative spanning magenta, blue, cyan, and green. Hue
-  335°→148° (~190° rotation) over L 0.22-0.87; adjacent-step ΔE ratio 1.08 (viridis: 1.05).
-  It has comparable native perceptual range and more even steps under simulated protanopia.
-- **`borealis`** - hue 297°→143° over L 0.15-0.86 (australis without the magenta segment). The
-  closest viridis analogue; larger minimum adjacent ΔE under protanopia than viridis.
-- **`cosmos`** - L 0.13-0.80, near-black floor to a chroma-0.13 pink top; the widest dynamic
-  range, suited to dark backgrounds.
-- **`nebula`** - L 0.21-0.93 with a low-chroma near-white top; the lowest-contrast member, for
-  figures where color must stay quiet.
+- **`viridis`** - the default heatmap and ramp palette in both light and dark modes. Its
+  purple-to-yellow scale stays the same when only the background mode changes.
+- **`australis`** - spans magenta, blue, cyan, and green. Hue 335°→148° (~190° rotation) over L
+  0.22–0.87; adjacent-step ΔE ratio 1.08 (viridis: 1.05). It has a comparable native perceptual
+  range to viridis and more even steps under simulated protanopia.
+- **`borealis`** - hue 297°→143° over L 0.15–0.86 (australis without the magenta segment). It is
+  the closest viridis analogue, with a larger minimum adjacent ΔE under simulated protanopia.
+- **`cosmos`** - L 0.13–0.80, from a near-black floor to a pink top with chroma 0.13. It has the
+  widest dynamic range and is suited to dark backgrounds.
+- **`nebula`** - L 0.21–0.93 with a low-chroma near-white top; the lowest-contrast ramp in this
+  group. Use it when a low-contrast scale is appropriate.
 - **`brass` / `pewter`** - navy → near-neutral middle (chroma ≤ 0.035) → gold or platinum. The
-  blue-yellow axis is fully preserved under dichromacy; the most conservative choice for
-  colorblind-critical figures.
-- **`focus`** - the imaging colormap: an australis-derived ramp with a true-black floor (stop 0 is
-  pure `#000000`), so zero signal renders black while dim structure stays legible. Built for
-  fluorescence micrographs and astronomy; front-loaded lightness keeps low-signal detail without
-  breaking Oklab uniformity.
+  blue-yellow axis is fully preserved under dichromacy; these are a conservative choice for figures
+  where color-vision deficiency is a concern.
+- **`focus`** - an australis-derived imaging ramp with a black first stop (`#000000`), so zero
+  signal renders black. Its front-loaded lightness keeps low-signal detail visible while maintaining
+  Oklab uniformity. Use it for fluorescence micrographs and astronomy.
 - **Single-hue ramps** (`blues`, `greens`, `pinks`, ...) - fixed hue, lightness-only encoding;
   use when hue is reserved for another channel.
 
@@ -62,27 +60,26 @@ every theme range. To restyle one chart without changing the theme, use
 
 ## Qualitative categories
 
-`ds.palettes.categorical(members=n)` returns a qualitative palette tested for color-vision deficiency
-(blue / pink / yellow / green) sized to your group count. The default (`members=1`) is a
-**flat, tier-major** palette -
-adjacent categories differ in hue, for unrelated groups:
+`ds.palettes.categorical(members=n)` returns a qualitative palette tested for color-vision
+deficiency (blue / pink / yellow / green) and sized for the group count. The default (`members=1`)
+is a **flat, tier-major** palette for unrelated groups: adjacent categories differ in hue:
 
 <Example name="palette_categorical" alt="Strip plot colored with the categorical palette" />
 
 For **paired data** (a treatment measured pre/post, two timepoints per condition), pass
-`members=2..10`: the palette becomes **hue-major**, so each consecutive block of `members`
-categories is one hue climbing in lightness. Sort the members adjacent and each group reads as a
-family:
+`members=2..10`: the palette becomes **hue-major**, with each consecutive block of `members`
+categories using one hue that increases in lightness. Sort each group's members next to one another
+so each group shares a hue:
 
 <Example name="palette_grouped" alt="Paired pre/post bars, each drug a single hue climbing in lightness" />
 
 ## Browsing the catalogue
 
-The [Palette browser](/palettes/) shows all 300+ palettes as filterable swatch strips, with a
-live preview - click any swatch to copy its hex codes and see the charts restyled with it.
+The [Palette browser](/palettes/) shows the catalogue as filterable swatch strips with a live
+preview. Select a swatch to inspect its hex codes and preview the charts with that palette.
 
 ## Illustrator swatches
 
-`ds.palettes.export_swatches()` writes an Illustrator ExtendScript and an `.ase` swatch file for the whole
-catalogue (or a subset), so the exact colors are available in your vector editor. See the
+`ds.palettes.export_swatches()` writes an Illustrator ExtendScript and an `.ase` swatch file for
+the catalogue or a subset. Use these files to load the colors in a vector editor. See the
 [Palettes reference](/reference/palettes/).

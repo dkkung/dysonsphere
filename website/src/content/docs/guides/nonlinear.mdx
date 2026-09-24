@@ -1,25 +1,26 @@
 ---
 title: Nonlinear axes
-description: Correctly spaced minor ticks and typeset labels for log and power axes.
+description: Minor ticks for log and power scales, with label expressions for log scales.
 ---
 
 import Example from '../../../components/Example.astro';
 
-Vega rounds SVG tick positions to integers, which makes minor ticks on nonlinear axes drift
-visibly at print DPI. dysonsphere adds correctly spaced minor ticks and fixes the rounding in the
-exported SVG.
+The log- and power-axis helpers add minor ticks. The dysonsphere theme disables Vega's integer tick
+rounding, so minor tick positions remain exact at render time in any renderer.
 
 ## Log axes
 
-`add_log_ticks()` adds minor ticks to a log-scale axis (base 10 or any integer base). It wraps your
-chart and shares its scale.
+`add_log_ticks()` adds unlabeled minor ticks to a log-scale axis (base 10 or any integer base). It
+wraps the chart in a layer with a separate minor-tick axis and leaves the main chart's scale domain
+unchanged.
 
 <Example name="log" alt="Log-scale line chart of stock prices with minor ticks" />
 
 ## Power axes
 
-`add_pow_ticks()` does the same for power and square-root scales, interpolating minor ticks evenly
-in transformed space. Pass the same `majorValues` you give the main axis.
+`add_pow_ticks()` adds minor ticks to power and square-root scales, evenly spaced in transformed
+space. Pass the same `majorValues` as on the main axis. When ticking both axes, pass each axis's
+major tick values.
 
 <Example name="nonlinear_pow" alt="Square-root axis scatter with evenly spaced minor ticks" />
 

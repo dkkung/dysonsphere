@@ -1,12 +1,12 @@
 ---
 title: Multilabels
-description: Annotation tables below the x axis - plus/minus rows, symbols, sample sizes, and grouped spans.
+description: Annotation tables below the x-axis with plus/minus rows, symbols, sample sizes, and grouped spans.
 ---
 
 import Example from '../../../components/Example.astro';
 
-`add_multilabel()` attaches an annotation table below a chart - `+`/`-` rows, symbols, or plain
-text aligned to each x category, with optional sample-size and category-label rows and grouped
+`add_multilabel()` adds an annotation table below a chart with `+`/`-` rows, symbols, or text
+aligned to x categories. The table can also include sample-size and category-label rows and grouped
 spans.
 
 `order=` may select a subset of rows, but listed labels must be known and unique. `rowStyles=`,
@@ -20,20 +20,20 @@ category names as an angled row of the table:
 
 <Example name="multilabel_sample_size" alt="Strip plot with sample size and category-label rows" />
 
-Use `style="symbol"` for filled/open dots, and `span=` to bracket groups of categories under a
-shared label:
+Use `style="symbol"` for filled and open dots, and `span=` to bracket groups of categories under
+a shared label:
 
 <Example name="multilabel_symbol" alt="Strip plot with a symbol multilabel table and grouped spans" />
 
 ## Rotating row values
 
-A row of numbers - doses, timepoints, concentrations - is usually far wider than its band. Stand
-it on end with `rowValueAngle`, in degrees: `-90` reads bottom-to-top, `90` reads top-to-bottom.
-Values rotate about their own center, so they stay centered on their category, and the row grows
-to fit its tallest rotated value.
+A row of numbers, such as doses, timepoints, or concentrations, may exceed its band's width. Set
+`rowValueAngle` in degrees to rotate the values: `-90` reads bottom-to-top, and `90` reads
+top-to-bottom. Values rotate about their center, so they stay centered on their category. The row
+grows to fit its tallest rotated value.
 
-Give a row a **list** of angles, one per category, to rotate only some of its cells. That is what
-keeps the untreated controls' `-` placeholders upright below, while the doses turn:
+Provide a **list** of angles, one per category, to rotate selected cells. In the example, the
+untreated controls' `-` placeholders remain upright while the dose values rotate:
 
 <Example name="multilabel_rotated" alt="Dose response strip plot with the dose row standing on end" />
 
@@ -46,12 +46,12 @@ rowValueAngle=[0, -90]                         # one per row, in display order
 rowValueAngle={"Dose (µM)": [0, 0, -90, -90]}  # one per cell of that row
 ```
 
-Rotation applies in every row style, so a `"symbol"` row's marks turn as readily as a text row's
-characters - though the default `"circle"` looks the same at any angle, so pair it with a shape
-that has an orientation, such as `symbol="triangle-up"`.
+Rotation applies to all row styles. In a `"symbol"` row, it rotates the marks as well as the
+characters in text rows. The default `"circle"` looks the same at any angle, so use an oriented
+shape such as `symbol="triangle-up"` to see the rotation.
 
-Rows are 10 px tall by default and rotated rows auto-size. Pin them with `rowHeight`, which takes a
-single height, a dict keyed by row label, or a list in row-display order:
+Rows are 10 px tall by default, and rotated rows auto-size. Set explicit heights with `rowHeight`,
+which accepts a single height, a dict keyed by row label, or a list in row-display order:
 
 ```python
 rowHeight=14                          # every row

@@ -1,12 +1,9 @@
 ---
-title: "README.md"
+title: "Dysonsphere skill bundle"
 description: "Use the Dysonsphere guidance bundle with Claude Code, Codex, or OpenCode."
 ---
 
-The bundle contains one skill, `dysonsphere`, and three focused references. Together they help coding
-agents create, refine, and troubleshoot scientific figures with Dysonsphere and Altair. The [skill
-overview](dysonsphere/) explains the workflow; use the reference pages when a task needs plotting,
-statistics, or export guidance.
+The bundle contains the `dysonsphere` skill and three references. The [skill overview](dysonsphere/) describes the workflow; the reference pages cover plotting, statistics, and exports.
 
 ## Install
 
@@ -21,7 +18,7 @@ npx skills add "/path/to/dysonsphere/skills/dysonsphere" --skill dysonsphere \
 Use the path to a checkout containing `skills/dysonsphere/`. The `--agent` option can select Claude
 Code, Codex, and OpenCode; `--copy` copies the skill files into the selected locations.
 
-Manual installation copies the entire `skills/dysonsphere/` directory, including `references/`, to
+Manual installation copies the `skills/dysonsphere/` directory, including `references/`, to
 the selected agent's destination:
 
 | Agent | Project destination |
@@ -32,7 +29,7 @@ the selected agent's destination:
 
 ## Invoke the skill
 
-After installation, restart the harness if it does not discover the skill. Invoke it as follows:
+After installation, restart the harness if the skill is not detected. Invoke it as follows:
 
 | Harness | Invocation |
 | --- | --- |

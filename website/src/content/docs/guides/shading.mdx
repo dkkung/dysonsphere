@@ -1,6 +1,6 @@
 ---
 title: Shading
-description: Background shading layers with ds.shade - alternating bands or explicit coordinate ranges.
+description: Background shading layers with ds.shade – alternating bands or explicit coordinate ranges.
 ---
 
 import Example from '../../../components/Example.astro';
@@ -15,7 +15,7 @@ In positions mode, a numeric `(start, end)` tuple shades a fixed range on either
 
 <Example name="shade_range" alt="Strip plot with a shaded y-range" />
 
-With `axis="both"` and a nested `((x0, x1), (y0, y1))` tuple, it shades a 2D region - an
-intersection rectangle spanning both axes:
+With `axis="both"` and a nested `((x0, x1), (y0, y1))` tuple, it shades the ranges' intersection
+as a rectangle:
 
 <Example name="shade_region" alt="Scatter plot with a shaded 2D region" />

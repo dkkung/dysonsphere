@@ -5,17 +5,16 @@ description: Decision surfaces, evaluation curves, learning curves, and model in
 
 import Example from '../../../components/Example.astro';
 
-Classifiers, evaluation, training, and interpretability. Press **`</> code`** on any figure to read
-the code that made it, or **Open in studio** to run and edit it live.
+Examples cover classifiers, evaluation, training, and interpretability. Select **`</> code`** to view a figure's source or **Open in studio** to edit it.
 
-<Example name="decision_surface" codeToggle caption="A classifier's decision surface - a kernel probability field behind the two-moons data." alt="Classifier decision boundary over two-moons data" />
+<Example name="decision_surface" codeToggle caption="Classifier decision surface with a kernel probability field behind the two-moons data." alt="Classifier decision boundary over two-moons data" />
 
-<Example name="confusion_matrix" codeToggle caption="A confusion matrix - cell counts placed on the band scale with <code>ds.text</code>." alt="Confusion matrix heatmap with counts" />
+<Example name="confusion_matrix" codeToggle caption="Confusion matrix with cell counts on the band scale, annotated with <code>ds.text</code>." alt="Confusion matrix heatmap with counts" />
 
-<Example name="roc_curve" codeToggle caption="ROC curves for three classifiers - true vs false positive rate with AUC in the legend and the chance diagonal." alt="ROC curves for three classifiers" />
+<Example name="roc_curve" codeToggle caption="ROC curves for three classifiers, plotting true-positive rate against false-positive rate; the legend includes AUC values and the chart includes a chance diagonal." alt="ROC curves for three classifiers" />
 
-<Example name="learning_curves" codeToggle caption="Learning curves - training vs validation loss and accuracy over epochs, the validation loss turning up as the model begins to overfit." alt="Training and validation learning curves" />
+<Example name="learning_curves" codeToggle caption="Training and validation loss and accuracy over epochs; validation loss rises as the model begins to overfit." alt="Training and validation learning curves" />
 
-<Example name="shap_beeswarm" codeToggle caption="A SHAP summary beeswarm - per-feature attribution swarms (density-scaled by <code>ds.transforms.quasirandom</code>) coloured by feature value, features ranked by importance." alt="SHAP feature-attribution beeswarm plot" />
+<Example name="shap_beeswarm" codeToggle caption="SHAP summary beeswarm of per-feature attributions. Points are positioned using density-scaled <code>ds.transforms.quasirandom</code> and colored by feature value; features are ranked by importance." alt="SHAP feature-attribution beeswarm plot" />
 
-<Example name="streamgraph" codeToggle caption="A streamgraph - ML framework share of published models across a decade, a centre-stacked <code>mark_area</code>." alt="Streamgraph of ML framework adoption over time" />
+<Example name="streamgraph" codeToggle caption="Streamgraph of machine-learning framework shares among published models over a decade, using center-stacked <code>mark_area</code>." alt="Streamgraph of ML framework adoption over time" />
