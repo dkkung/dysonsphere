@@ -1,12 +1,11 @@
 ---
-title: "Global theme overrides"
-description: "Persistent theme configuration - config file locations, merge order, named styles, custom palettes, and the full key reference."
+title: "Theme configuration"
+description: "`dysonsphere.toml` file locations, merge order, named styles, custom palettes, and valid keys."
 ---
 
-Everything `ds.theme()` accepts as a keyword can also live in a **`dysonsphere.toml`** config
-file, so a project (or your whole machine) keeps its look without repeating arguments in every
-notebook. This page is the complete reference for the file: where it lives, how values merge,
-named styles, custom palettes, and every valid key. To put one together interactively, use the
+Values accepted by `ds.theme()` can also be stored in a **`dysonsphere.toml`** file and reused
+across notebooks and projects. This page describes file locations, merge order, named styles,
+custom palettes, and valid keys. To create a file interactively, use the
 [dysonsphere.toml generator](/config-generator/).
 
 ## Creating a config file
@@ -66,7 +65,7 @@ When both exist, the project file's values win over the user-wide file's, key by
 
 ## Merge order
 
-Values are merged in ascending priority - later sources override earlier ones, **key by key**:
+Values are merged in ascending priority, with later sources overriding earlier ones **key by key**:
 
 1. dysonsphere's built-in defaults
 2. `[default]` from the config file(s)
@@ -74,8 +73,8 @@ Values are merged in ascending priority - later sources override earlier ones, *
 4. the `[style]` section of the same name from the config file(s)
 5. explicit `ds.theme(...)` keyword arguments
 
-So a call decides last, a named style beats `[default]`, and the config file beats the built-ins.
-A worked example:
+Explicit keyword arguments override configured styles, configured style sections override built-in
+presets, and named styles override `[default]` values.
 
 ```toml
 [default]
@@ -99,9 +98,9 @@ Only the keys present in a section are applied; everything else keeps its defaul
 
 ## Named styles
 
-Any table in the file other than `[default]` and `[palettes]` is a **style**, selected with
-`ds.theme(style="name")`. Styles are how you keep several looks on tap - a print figure, a
-poster, a slide deck:
+Any table other than `[default]` and `[palettes]` is a **style**, selected with
+`ds.theme(style="name")`. Use styles for different outputs, such as print figures, posters, or
+slides:
 
 ```toml
 [print]
@@ -121,32 +120,32 @@ style that is neither built-in nor in any config file raises a `ValueError` nami
 
 ## Custom palettes
 
-The `[palettes]` table registers custom palettes alongside the built-in catalogue - each value a
-non-empty list of hex strings. They become available everywhere a palette name works:
-`ds.palette("brand")`, `ds.theme(palette="brand")`, or any per-type key
-(`heatmapPalette = "brand"` or `heatmapPaletteDarkmode = "brand"`).
+The `[palettes]` table registers custom palettes alongside the built-in catalogue. Each value is a
+non-empty list of hex strings. Custom palettes are available wherever a palette name is accepted,
+including `ds.palette("brand")`, `ds.theme(palette="brand")`, and per-type keys such as
+`heatmapPalette = "brand"` or `heatmapPaletteDarkmode = "brand"`.
 
 ```toml
 [palettes]
 brand = ["#0B3954", "#1B5F7E", "#2E86AB", "#63A8C7", "#A8CFE0", "#E8F1F5"]
 ```
 
-Sequential dysonsphere palettes carry 12 stops and diverging ones 13 (a neutral midpoint), but
-custom palettes may be any length. A few notes:
+Sequential native palettes have 12 stops; diverging palettes have 13, including a neutral midpoint.
+Custom palettes may have any length.
 
 - Defining either spelling of a native grey-family palette (for example, `greys2`/`grays2` or
   `warmgreys`/`warmgrays`) overrides both names. If both occur in one file, their lists must be
-  identical; normal user/project file precedence still applies.
-- Custom palettes are re-registered on each `ds.theme()` call and vanish cleanly when the config
-  file does - `ds.palettes.colors` is restored to the built-in catalogue first.
-- Overriding a built-in base hue (say `blues`) does **not** ripple into the derived
-  `categorical` palette, which is fixed at import time. Override `categorical` itself - or set
-  `categoryPalette` - to recolor categories.
+  identical; user and project file precedence still applies.
+- Each `ds.theme()` call restores `ds.palettes.colors` to the built-in catalogue before registering
+  custom palettes. A custom palette is removed when it is no longer present in the configuration.
+- Overriding a built-in base hue such as `blues` does **not** update the derived `categorical`
+  palette, which is fixed at import time. Override `categorical` itself or set `categoryPalette` to
+  recolor categories.
 
 ## Validation
 
 The file is checked eagerly on every `ds.theme()` call: an unknown key in any section raises a
-`ValueError` immediately, naming the key. Typos never silently do nothing. Direct keywords and
+`ValueError` immediately, naming the key. Unknown keys are not ignored. Direct keywords and
 TOML/style values use the same validation before theme or palette state changes: boolean switches
 do not accept `0`/`1`, numbers must be finite, dimensions and `fontSize` are positive, applicable
 sizes/gaps are nonnegative, opacity and inner band padding are in `[0, 1]`, and `sigFigs` is a
