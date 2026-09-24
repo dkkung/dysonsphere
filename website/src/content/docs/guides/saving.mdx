@@ -1,11 +1,11 @@
 ---
 title: Saving, reading, loading
-description: Export self-describing figures and read the provenance, statistics, and data back out.
+description: Export figures with metadata, read embedded information, and rebuild charts from JSON.
 ---
 
-`ds.save()` writes provenance, the resolved theme, and any statistics to exported files. JSON
-exports also contain the chart specification and captured data. `ds.metadata.read()` reads the
-embedded information; `ds.load()` rebuilds a chart from JSON.
+`ds.save()` embeds provenance, the resolved theme, and any chart statistics in exported files by
+default. JSON exports also contain the chart specification and captured data. `ds.metadata.read()`
+reads the embedded information, and `ds.load()` rebuilds a chart from JSON.
 
 ## Saving
 
@@ -18,24 +18,24 @@ ds.theme()
 ds.save(chart, "figure")
 ```
 
-By default this writes `figure.svg` and `figure.json`. Control the outputs with `format=` (any of
-`"svg"`, `"png"`, `"json"`, `"html"` - a string or a list) and `background=` (`"light"`, `"dark"`,
-or both). A two-background export gets `_light` / `_dark` suffixes; a single background gets clean
-names.
+By default, this writes `figure.svg` and `figure.json`. Set `format=` to `"svg"`, `"png"`, `"json"`,
+or `"html"`, as a string or list. Set `background=` to `"light"`, `"dark"`, or both. When both
+backgrounds are exported, filenames use `_light` and `_dark` suffixes; a single background uses the
+base filename.
 
 ```python
 ds.save(chart, "figure", format=["svg", "png", "json"], background=["light", "dark"])
 ds.save(chart, "figure", format="html")   # a self-contained interactive HTML page
 ```
 
-The SVG post-processing means a notebook's inline preview (Altair renders straight from Vega-Lite)
-can differ subtly from the saved file. `ds.show(chart)` applies the same processing as `save()`
-so the preview matches the exported figure exactly.
+SVG post-processing can make a notebook's inline preview differ from the saved file. Altair renders
+the inline preview directly from Vega-Lite. `ds.show(chart)` applies the same processing as
+`save()` and returns the result as HTML.
 
-`show()` styles the preview entirely from the theme, including `transparent` - unlike `save()`,
-which defaults to a transparent background so exports composite onto a page. The preview is
-returned as HTML wrapping the SVG, so it sits on the notebook's own background just like a bare
-Altair chart, and a transparent dark-mode figure stays readable.
+`show()` styles the preview from the theme, including `transparent`. Unlike `save()`, which defaults
+to a transparent background so exports can composite onto a page, the preview follows the theme
+background. Its returned HTML wraps the SVG, which displays against the notebook's background like
+a bare Altair chart. A transparent dark-mode figure remains readable.
 
 The SVG is post-processed for editing and rendering: `<g>` wrappers are flattened for Illustrator,
 axis ticks and log/power minor ticks are snapped to exact positions, superscript exponents are
@@ -55,25 +55,24 @@ By default, `theme(fontGreek="Symbol")` switches only Unicode Greek letters to t
 (`µ`), and explicit italic runs keep their surrounding styling; `theme(fontGreek=None)` disables
 the switch, and a nonblank custom family name selects another installed font. Unicode characters
 remain unchanged in editable SVG text. Interactive HTML and bare Altair output do not receive this
-correction. Because fonts are named rather than embedded, a requested family can fall back when it
-is unavailable and does not by itself prove compliance with a journal's font requirements.
+correction. A requested font family can be unavailable and fall back to another font; naming it does
+not by itself establish compliance with a journal's font requirements.
 
 ## What gets embedded
 
-When `saveMetadata=True` (the default), `save()` writes a `dysonsphere` metadata block into all
-three formats:
+When `saveMetadata=True` (the default), `save()` writes a `dysonsphere` metadata block into every
+output format: JSON, SVG, PNG, and HTML.
 
 - **provenance** - the user, time, chart expression when available, rendering environment, and
   checksums for the specification and captured data.
-- **theme** - the resolved `ds.theme()` arguments, so the look can be reproduced exactly.
+- **theme** - the resolved `ds.theme()` arguments for recreating the theme settings.
 - **statistics** - the structured records from any `ds.stats.comparisons()` / `ds.stats.correlation()` on the
   chart (exact p-values, effect sizes, descriptives).
 - **report** - the human-readable version of those statistics.
 
 ## What the embedded metadata looks like
 
-Here is an example block from a save. It uses a strip plot with a
-Kruskal-Wallis comparison on the classic `cars` dataset:
+This example uses a strip plot with a Kruskal-Wallis comparison on the `cars` dataset:
 
 ```python
 strip = ds.mark_strip(cars, "Origin", "Miles_per_Gallon", origins)
@@ -85,10 +84,10 @@ mpg_comparisons = ds.stats.comparisons(
 ds.save(strip + mpg_comparisons, "mpg_by_origin", format="json")
 ```
 
-`ds.metadata.read("mpg_by_origin.json", what="metadata")` returns a `dict` with four keys - `provenance`,
-`statistics`, `theme`, and `report`. The **provenance** leads with who/when/what, then the full
-rendering environment (the OS and vl-convert pin how text was measured, beyond the library
-versions), and ends with the machine-identity checksums:
+`ds.metadata.read("mpg_by_origin.json", what="metadata")` returns a `dict` with four keys:
+`provenance`, `statistics`, `theme`, and `report`. Provenance includes the user, time, chart
+expression when available, rendering environment, and checksums. The OS and vl-convert version help
+identify the environment used to measure text:
 
 ```json
 {
@@ -107,16 +106,16 @@ versions), and ends with the machine-identity checksums:
 }
 ```
 
-`chart` records the source text of the `chart` argument when it is available at the `save(...)` call
-site. In this example it is `strip + mpg_comparisons`; a plain variable records that variable's
-name. Interactive sessions may not provide source text.
+`chart` records source text for the `chart` argument when available at the `save(...)` call site.
+Here it is `strip + mpg_comparisons`; a variable passed directly is recorded by name. Interactive
+sessions may not provide source text.
 
-The identifiers serve separate purposes. `dataChecksum` is one order-independent checksum per
-captured dataframe. `vegaliteChecksum` identifies the exact Vega-Lite specification. The
-`exportIdentifier` is shared by all formats and backgrounds written by one `save()` call. A
-`sha256:` value hashes the specification bytes. A `multiset-sha256:` value hashes row digests,
-so row order does not affect it and it cannot be recreated by hashing the export file. An export
-built by an extension can also record that extension's version in `environment`.
+The identifiers have different purposes. `dataChecksum` contains one order-independent checksum per
+captured dataframe. `vegaliteChecksum` identifies the normalized Vega-Lite specification, excluding
+usermeta. The `exportIdentifier` is shared by all formats and backgrounds written by one `save()`
+call. A `sha256:` value hashes the canonical specification. A `multiset-sha256:` value hashes row
+digests, so row order does not affect it; it cannot be recreated by hashing the export file. An
+export built by an extension can also record that extension's version in `environment`.
 
 The **statistics** entry is a list of structured records with exact p-values and effect sizes,
 rather than the rounded labels shown on the plot. One omnibus record from the chart above (trimmed):
@@ -147,8 +146,8 @@ rather than the rounded labels shown on the plot. One omnibus record from the ch
 }
 ```
 
-And the **report** key is that same content rendered as the plain-text lab note you get from
-`ds.metadata.read("mpg_by_origin.json")` (the default `what="report"`):
+The **report** key contains the same information returned by
+`ds.metadata.read("mpg_by_origin.json")` by default, with `what="report"`:
 
 ```
 Statistics | Omnibus | Kruskal-Wallis
@@ -179,10 +178,9 @@ Export identifier: ef49895a-2e06-495a-86d3-7b0f2980cd8b
 ```
 
 For a JSON export, `ds.metadata.read("mpg_by_origin.json", what="data")` returns the data included
-in the specification. In this example it is the 398-row dataframe with Altair-inlined transform
-columns such as `jitter_x`; Dysonsphere annotation layers such as bracket coordinates and error bars
-are filtered out. This is not a recovery mechanism for source data that was not included in the
-specification.
+in the specification. Here that is the 398-row dataframe, including Altair-inlined transform
+columns such as `jitter_x` but excluding Dysonsphere annotation layers such as bracket coordinates
+and error bars. It cannot recover source data that was not included in the specification.
 
 ## Reading it back
 
@@ -193,10 +191,9 @@ ds.metadata.read("figure.json", what="metadata")   # the whole dysonsphere block
 ds.metadata.read("figure.json", what="data")       # the original DataFrame
 ```
 
-`ds.metadata.read()` works on JSON, SVG, and PNG for metadata and reports; `what="data"` is JSON-only (only the
-JSON carries the full data). `what="data"` returns the user's frame, filtering out dysonsphere's
-internal annotation datasets; pick the output type with `output=` (`"polars"`, `"pandas"`, `"duckdb"`,
-or `"records"`).
+`ds.metadata.read()` reads metadata and reports from JSON, SVG, and PNG. Use `what="data"` for JSON
+only; JSON carries the full data. `what="data"` returns the user's frame. Choose its output type
+with `output=` (`"polars"`, `"pandas"`, `"duckdb"`, or `"records"`).
 
 ## Verifying a figure
 
@@ -225,7 +222,7 @@ VerifyResult(
 
 | field | |
 | --- | --- |
-| `specValid` | the spec still hashes to the recorded `vegaliteChecksum` - the file has not been edited |
+| `specValid` | for JSON, the specification excluding usermeta still hashes to the recorded `vegaliteChecksum` |
 | `dataMatches` | the frames you passed hash to the recorded `dataChecksum` |
 | `storedDataChecksums` | what the file recorded |
 | `computedDataChecksums` | what your frames hash to now - the two differ only when `dataMatches` is `False` |
@@ -234,12 +231,12 @@ VerifyResult(
 | `matches` / `groups` | filled only when comparing a list - see below |
 | `.ok` | every check that actually ran passed |
 
-Both checks are tri-state: `None` means the check could not run, which is not a failure - SVG and
-PNG carry the checksums but not the spec, so `specValid` is `None` there while `dataMatches` still
-works. `.ok` reads `None` as "not a failure" for that reason. Neither row order nor the order
-dataframes are passed in affects the result.
+Both checks are tri-state: `None` means the check could not run, not that it failed. SVG and PNG
+carry checksums but not the full specification, so `specValid` is `None` for those formats while
+`dataMatches` can still be checked. `.ok` treats `None` as "not a failure." Neither row order nor
+the order of dataframes affects the result.
 
-When a check fails, the two checksum fields are what tell you which frame diverged:
+The result fields show which check did not match:
 
 ```python
 r = ds.metadata.verify("figure.json", data=edited)
@@ -264,7 +261,7 @@ Three fields in `provenance` look interchangeable and are not:
 
 ## Comparing figures
 
-Hand `ds.metadata.verify()` a list and it compares them instead of checking one:
+Pass a list to `ds.metadata.verify()` to compare figures:
 
 ```python
 ds.metadata.verify(["fig1.json", "fig2.png", "fig3.svg"])
@@ -285,14 +282,14 @@ Items may be saved files in any format, or Altair charts you have not saved yet 
 matches the one you published. A chart in memory has no export identity, so `"save"` comes back
 `None` for the whole call. `what=` narrows it: `what="data"` asks only about the data.
 
-Reach for `"spec"` first when you want "is this the same chart". Two saves of an identical chart
-agree on it but get *different* export identifiers, so `"save"` alone reports a difference for a
-figure that was merely re-exported.
+Use `"spec"` to compare chart specifications. Two saves of an identical chart have the same spec
+checksum but different export identifiers, so `"save"` reports a difference when a figure is
+re-exported.
 
 :::note
-Comparing reads what each file *recorded*, which is what lets a PNG be compared with a JSON - a PNG
-carries no spec to re-hash. The cost is that an edited file still compares as the chart it claims
-to be; checking a figure on its own is what detects an edit.
+List comparisons use the values recorded in each file, which allows a PNG to be compared with JSON
+even though PNG has no specification to re-hash. An edited file can still compare as the chart it
+claims to be. Verify a JSON file on its own to detect a changed specification.
 :::
 
 ## Reproducible exports
@@ -328,13 +325,12 @@ chart = ds.load("figure.json")            # an Altair object, theme re-applied
 spec  = ds.load("figure.json", raw=True)  # the untouched Vega-Lite spec dict
 ```
 
-`load()` is JSON-only (it needs the full spec) and re-applies the baked theme so the reconstructed
-chart renders identically.
+`load()` accepts only JSON, which contains the full specification. It reapplies the saved theme so
+the reconstructed chart renders the same way.
 
-The rebuilt Altair object carries **no metadata**: `load()` strips `usermeta` along with `config`,
-because Altair's schema rejects some of the theme's config values. So loading a figure and then
-checking it does not work - there are no checksums left on the object to check. Verify the file
-itself, which is what `ds.metadata.verify()` expects anyway:
+The rebuilt Altair object has no metadata. `load()` strips `usermeta` and `config` because Altair's
+schema rejects some theme config values. The object therefore has no checksums for verification.
+Pass the file to `ds.metadata.verify()` instead:
 
 ```python
 ds.metadata.verify("figure.json", data=df)                    # yes - reads the file
@@ -357,8 +353,8 @@ reference pages for the full API.
 
 ## How the fields map to provenance standards
 
-The field names are dysonsphere's own, but the concepts are not - each has a counterpart in an
-established provenance vocabulary:
+The field names are specific to dysonsphere, but each concept has a counterpart in an established
+provenance vocabulary:
 
 | dysonsphere | Equivalent |
 | --- | --- |
@@ -371,7 +367,7 @@ established provenance vocabulary:
 | `exportIdentifier` | SLSA `metadata.invocationId`; XMP `xmpMM:InstanceID` |
 | `dataChecksum` | SLSA `resolvedDependencies[].digest` |
 
-No single standard covers the whole block. PROV, Dublin Core and XMP describe who and when but have
-no place for a content digest; SLSA and in-toto have digests but no human author and no notion of a
-chart expression. The block is deliberately plain JSON rather than any of these, so it stays
-readable without a toolchain.
+No single standard covers the whole block. PROV, Dublin Core, and XMP describe who and when but do
+not provide a content digest; SLSA and in-toto provide digests but do not describe a human author or
+chart expression. The metadata block is plain JSON rather than an implementation of any one of
+these standards.
