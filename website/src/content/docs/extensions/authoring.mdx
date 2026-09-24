@@ -1,6 +1,6 @@
 ---
 title: Writing an extension
-description: Build your own dysonsphere extension - packaging, entry point registration, the ds.ext API, and data tagging.
+description: Package and register a dysonsphere extension, then use the public API for theme styling and generated-data tagging.
 sidebar:
   order: 2
 ---
@@ -93,9 +93,9 @@ Use these `ext` helpers for chart types, theme settings, and generated data:
   VConcatChart | HConcatChart | ConcatChart`). Use it as your return annotation, matching core's
   own `save()`.
 - **`ext.opt(key)`** - read an active-theme option (`opt("markSize")`, `opt("width")`,
-  `opt("darkmode")`, …). It falls back to the derived built-in default when called before any
-  `ds.theme()`, so your styling code receives derived defaults rather than `None` values. This is the only supported way
-  to read theme options outside core.
+  `opt("darkmode")`, …). Before `ds.theme()` is called, it returns the derived built-in default
+  rather than `None`. It is the only supported way for extensions to read theme options outside
+  core.
 - **`ext.internal_data(data)`** - tag generated annotation data (next section).
 
 Colors resolve from the active theme when the chart is built. Build a chart inside a `ds.save()`
@@ -123,6 +123,10 @@ alt.Chart(pl.from_pandas(df) if not isinstance(df, pl.DataFrame) else df)
 
 `internal_data` accepts a `list[dict]` (→ `alt.Data`) or a polars/pandas DataFrame (→ a tagged
 polars frame). If generated data is not tagged, `read(what="data")` can return it as user data or report multiple frames. If the input frame is tagged, it is omitted from the result.
+
+A generated-data layer cannot be faceted with its chart: Altair requires all layers in a faceted
+chart to share one data source. The core's facet-safe annotation helper is private and is not part
+of this extension API.
 
 ## Lazy imports for heavy dependencies
 
