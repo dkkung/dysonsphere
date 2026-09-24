@@ -15,11 +15,11 @@ figure = ds.assemble(
 )
 ```
 
-`ds.theme()` cannot set a different size for each chart because all charts share a `config.view` –
-the last call sets the shared size. `.properties()` changes chart dimensions but leaves
-`markSize`, corner radii, and pixel annotations calculated for the theme's size. `assemble` runs each
-builder with the theme set to that member's size, so `ds.shade` spans, comparison brackets, and
-`ds.labels` placement use the matching dimensions.
+All charts in one figure share a Vega-Lite `config.view`, so repeated `ds.theme()` calls cannot
+set a different size for each chart – the last call sets the size for the whole figure.
+`.properties()` changes the chart dimensions but leaves `markSize`, corner radii, and pixel-based
+annotations calculated for the theme's size. `ds.assemble()` builds each chart with its own size in
+the theme, so marks and annotations use dimensions that match the panel.
 
 Nest lists to make rows; `spacing` is a number, or `{"row": n, "column": n}`:
 
@@ -39,10 +39,7 @@ A fourth element carries the panel's label – used verbatim and optional per me
 ```
 
 It sits at the top-left of the chart area, outside the axis labels. Its own wrapper lets the chart
-keep a `.properties(title=...)` title. `labelFontSize` (`8`),
-`labelFontWeight` (`700`), `labelColor` and `labelOffset` style every label in the figure; the font
-comes from `ds.theme()`. Labels sharing a column are aligned exactly, whatever each chart's axis
-margin is.
+keep a `.properties(title=...)` title.
 
 ## Reserved slots
 
@@ -51,14 +48,14 @@ stays in sequence:
 
 <Example name="assemble_slot" alt="A four-panel figure whose first panel is a reserved empty slot" />
 
-The slot is filled and outlined to match the axes, and is drawn at the specified size. A gap may
-appear beside it: charts in a column align by their **plot** areas, while the slot has no axis labels
-to fill the space its neighbors use. Changing the slot size does not remove that gap.
+The slot is drawn at the specified size and filled and outlined to match the axes. It may leave a
+gap beside it because charts in a column align by their **plot** areas, while an empty slot has no
+axis labels. Changing the slot size does not remove that gap.
 
 ## Members
 
-Anywhere a tuple works, a dict works, and an unknown key raises rather than leaving a chart at the
-wrong size:
+A member can be a tuple or a dict. An unknown dict key raises an error instead of silently leaving
+a chart at the wrong size:
 
 ```python
 ds.assemble([{"chart": time_course, "width": 190, "height": 110, "label": "a"}])
@@ -77,9 +74,9 @@ figure = ds.assemble([[top], [bottom]], spacing={"row": 40})
 
 ## Styling and export
 
-Vega-Lite's `config` is spec-level, so palettes, fonts, and axis styling cannot differ between
-charts in one figure; `assemble` sets size only. Set those on the encoding instead, which is per-view
-and survives:
+`assemble` sets size only. Vega-Lite's `config` is spec-level, so palettes, fonts, and axis styling
+cannot differ between charts in one figure. Set those on each encoding instead; encoding settings
+apply per view and survive:
 
 ```python
 alt.Color("dose:N", scale=alt.Scale(range=ds.palette("cat3", 3)))
