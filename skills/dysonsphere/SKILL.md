@@ -85,6 +85,8 @@ user's working directory; no Dysonsphere source checkout is required.
 | --- | --- |
 | Chart choice, themes, palettes, composite marks, labels, or panel geometry | [Plotting](references/plotting.md) |
 | Comparisons, correlations, supplied p-values, or statistical records | [Statistics](references/statistics.md) |
+| Tables, multilabel condition rows, or dataframe offset transforms | [Utilities](references/utilities.md) |
+| Log or power scales, labeled major ticks, or nonlinear minor ticks | [Nonlinear axes](references/nonlinear.md) |
 | Saving, light/dark variants, rendering failures, or saved-figure inspection | [Export](references/export.md) |
 
 ## Verify, refine, and stop

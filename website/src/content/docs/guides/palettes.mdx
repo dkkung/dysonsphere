@@ -60,16 +60,18 @@ every theme range. To restyle one chart without changing the theme, use
 
 ## Qualitative categories
 
-`ds.palettes.categorical(members=n)` returns a qualitative palette tested for color-vision
-deficiency (blue / pink / yellow / green) and sized for the group count. The default (`members=1`)
-is a **flat, tier-major** palette for unrelated groups: adjacent categories differ in hue:
+`ds.palettes.categorical(members=1)` returns the default flat `cat1` palette for unrelated
+categories: gray, blue, green, purple, and teal. It is **tier-major**, so adjacent categories differ
+in hue.
 
 <Example name="palette_categorical" alt="Strip plot colored with the categorical palette" />
 
-For **paired data** (a treatment measured pre/post, two timepoints per condition), pass
-`members=2..10`: the palette becomes **hue-major**, with each consecutive block of `members`
-categories using one hue that increases in lightness. Sort each group's members next to one another
-so each group shares a hue:
+For **paired data** (a treatment measured pre/post, two timepoints per condition), `members` means
+the number of related levels within each group, not the total category count. Pass `members=2..10`
+for `cat1` to get a **hue-major** palette: each consecutive block of levels uses one hue at different
+lightnesses. Sort related levels adjacent so each group reads as a family. The `cat2` family supports
+up to six members and has been checked for color-vision-deficiency separation; this check does not
+cover every categorical family or arbitrary palette choice.
 
 <Example name="palette_grouped" alt="Paired pre/post bars, each drug a single hue climbing in lightness" />
 

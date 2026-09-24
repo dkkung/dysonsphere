@@ -1,41 +1,52 @@
 ---
-title: "Dysonsphere skill bundle"
-description: "Use the Dysonsphere guidance bundle with Claude Code, Codex, or OpenCode."
+title: "README.md"
+description: "Install and use the Dysonsphere guidance bundle with Claude Code, Codex, OpenCode, or Pi."
 ---
 
-The bundle contains the `dysonsphere` skill and three references. The [skill overview](dysonsphere/) describes the workflow; the reference pages cover plotting, statistics, and exports.
+`dysonsphere` offers an agent skill and five reference skills for use in agentic coding. Together,
+they help coding agents create, refine, and troubleshoot scientific figures with Dysonsphere and
+Altair. The [skill overview](dysonsphere/) explains the workflow; the references cover plotting,
+statistics, export, nonlinear axes, and utilities.
 
-## Install
+## Installation
 
-The bundle is distributed in this repository under `skills/dysonsphere/`. From the analysis project's
-directory, install it with the [skills CLI](https://github.com/vercel-labs/skills):
+The bundle is distributed in this repository under `skills/dysonsphere/`. Copy the entire
+`skills/dysonsphere/` directory, including `references/`, to the selected harness's destination.
+With the third-party [skills CLI](https://github.com/vercel-labs/skills), install it from your
+analysis project's directory:
 
 ```sh
 npx skills add "/path/to/dysonsphere/skills/dysonsphere" --skill dysonsphere \
-  --agent claude-code codex opencode --copy
+  --agent claude-code codex opencode pi --copy
 ```
 
-Use the path to a checkout containing `skills/dysonsphere/`. The `--agent` option can select Claude
-Code, Codex, and OpenCode; `--copy` copies the skill files into the selected locations.
+Replace the example path with the path to a checkout containing the skill. The CLI is optional and
+requires Node tooling. Review its destination and any existing skill before confirming installation.
+Install the skill in one location per harness to avoid duplicate-name discovery conflicts.
 
-Manual installation copies the `skills/dysonsphere/` directory, including `references/`, to
-the selected agent's destination:
+### Manual installation
 
-| Agent | Project destination |
-| --- | --- |
-| Claude Code | `.claude/skills/dysonsphere/` |
-| Codex | `.agents/skills/dysonsphere/` |
-| OpenCode | `.opencode/skills/dysonsphere/` |
+Copy the **entire** `skills/dysonsphere/` directory, including `references/`, into a destination
+below. Do not copy only `SKILL.md`.
+
+| Harness | Project destination | Global destination |
+| --- | --- | --- |
+| Claude Code | `.claude/skills/dysonsphere/` | `~/.claude/skills/dysonsphere/` |
+| Codex | `.agents/skills/dysonsphere/` | `~/.agents/skills/dysonsphere/` |
+| OpenCode | `.opencode/skills/dysonsphere/` | `~/.config/opencode/skills/dysonsphere/` |
+| Pi | `.pi/skills/dysonsphere/` or `.agents/skills/dysonsphere/` | `~/.pi/agent/skills/dysonsphere/` or `~/.agents/skills/dysonsphere/` |
+
+OpenCode also discovers project skills in `.agents/skills/` and `.claude/skills/`; the CLI may
+select a shared location instead of `.opencode/skills/`.
 
 ## Invoke the skill
-
-After installation, restart the harness if the skill is not detected. Invoke it as follows:
 
 | Harness | Invocation |
 | --- | --- |
 | Claude Code | `/dysonsphere` |
 | Codex | `$dysonsphere` |
 | OpenCode | Ask OpenCode to load `dysonsphere`. |
+| Pi | `/skill:dysonsphere` in an interactive session. |
 
 Give the agent the data, analytical context, and figure task. For example:
 
@@ -45,5 +56,12 @@ analytical meaning, ask about unclear statistical comparisons, render with ds.sa
 the source, export paths, assumptions, and checks.
 ```
 
-The bundle also includes [behavioral evaluation instructions](https://github.com/dkkung/dysonsphere/blob/main/skills/EVALUATION.md)
+The bundle also includes [behavioral evaluation instructions](/agent-skills/#behavioral-evaluation)
 for comparing runs with and without the skill.
+
+## Behavioral evaluation
+
+The [evaluation protocol](https://github.com/dkkung/dysonsphere/blob/main/skills/EVALUATION.md) describes
+separate checks for skill discovery and invocation, executable bundle examples, and figure behavior.
+They are distinct forms of evidence; installing or discovering a skill does not establish figure
+correctness.

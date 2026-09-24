@@ -55,27 +55,30 @@ extra columns to make a strict schema check pass. Select columns separately when
 
 ## Theme and color decisions
 
-- `ds.theme(width=180, height=120, fontSize=6)` controls the panel's intrinsic size and nominal
-  publication font size. Width/height exclude surrounding axes and legends; inspect the full export
-  before claiming it meets a physical figure-width requirement. Raster export scales from 72 intrinsic
-  units per inch. A higher `ppi` adds pixels, not larger text relative to the panel.
+- `ds.theme(style=..., width=180, height=120, fontSize=6)` configures the figure-wide style,
+  typography, axes, legends, layout, colors, and export defaults. Width/height are the panel's
+  intrinsic dimensions and exclude surrounding axes and legends; inspect the full export before
+  claiming it meets a physical figure-width requirement. Raster export scales from 72 intrinsic units
+  per inch. A higher `ppi` adds pixels, not larger text relative to the panel.
 - A second `ds.theme()` call replaces active settings. Set related options together and retain the
-  intended style/configuration. Theme config is figure-wide, not independent for each subchart.
-- `ds.palette("cat1", 3)` returns a list of colors; it does not change the theme. Palette names are
-  case-sensitive. Use categorical colors for unordered groups, sequential ramps for ordered magnitude,
-  and diverging ramps only when there is a meaningful center. Avoid claiming CVD safety for an
-  arbitrary selection; use shape or direct labels when color alone would be ambiguous.
+  intended style/configuration. Theme settings apply to the figure, not independently to each subchart.
+- `ds.theme(palette=...)` sets the master palette and overrides every palette role. For a specific
+  use, set a per-type option such as `categoryPalette`, `divergingPalette`, `heatmapPalette`,
+  `ordinalPalette`, or `rampPalette`; their `*Darkmode` counterparts apply only in dark mode. Without
+  explicit category options, the light/dark category defaults are `cat1`/`cat2`; diverging defaults
+  are `div1`/`div2`, and heatmap/ramp/ordinal defaults are `viridis`/`viridis`/`greys` in both modes.
+- `ds.palette("YlGnBu", n=3)` samples colors from the named catalogue, while `ds.colors["cat1"]`
+  gives the full stored color list for that name. Both return colors without changing theme settings.
+  Names are case-sensitive. Use categorical palettes for unordered groups, sequential ramps for
+  ordered magnitude, and diverging ramps only when there is a meaningful center.
+- `ds.palettes.categorical(members=1, palette="cat1")` returns a flat color sequence for unrelated
+  categories. `members` greater than one returns hue-major blocks for related levels that should be
+  adjacent in the category order; it is not the total number of categories. `cat1` allows up to ten
+  levels per group and `cat2` up to six. Do not assume that one family or palette choice is safe for
+  color-vision deficiency in every use. Use shape or direct labels when color alone is ambiguous.
 - For a native categorical encoding, set an explicit `alt.Scale(domain=categories, range=colors)`
   when consistent category-to-color correspondence matters. Sorting an axis alone does not pin color.
-- The theme's master `palette` overrides its per-type palettes in both modes. Use `categoryPalette`,
-  `rampPalette`, or an explicit native encoding range when only that use should change. The matching
-  `categoryPaletteDarkmode`, `divergingPaletteDarkmode`, `heatmapPaletteDarkmode`,
-  `ordinalPaletteDarkmode`, and `rampPaletteDarkmode` options apply only in dark mode; a regular
-  per-type palette remains active in both modes when its dark-mode option is `None`. With neither
-  per-type option set, light/dark defaults are `cat1`/`cat2` for categories, `div1`/`div2` for
-  diverging scales, `viridis` in both modes for heatmap and ramp scales, and `greys` in both modes
-  for ordinal scales.
-- `ds.palettes.accents["blue"]` is a single emphasis color, not a palette. It resolves the current
+- `ds.palettes.accents["blue"]` is one emphasis color, not a palette. It resolves the current
   light/dark mode at lookup time. Rebuild the lookup inside a callable for multi-background exports.
 
 ## Composite marks and annotations
