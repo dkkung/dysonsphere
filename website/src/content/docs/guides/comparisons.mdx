@@ -128,14 +128,15 @@ of order; `notation` also accepts a `"test"` key for the omnibus label:
 
 ### Placement
 
-In automatic placement, brackets appear above the data they span. Overlapping brackets are separated
-by a constant pixel gap, independent of the y-range. Use the following parameters to set placement
-explicitly.
+Automatic placement stacks brackets above the data they span, with a constant pixel gap between
+overlapping brackets. Set placement explicitly with these parameters:
 
-`yPositions=` sets exact heights. One number puts every label in a flat row; a list gives one height
-per comparison. `yStart=` sets the stack's base and `yStep=` the gap between rows, both in data
-units. `yPad=` adjusts the gap from the data while retaining automatic placement. Supplying any of
-them opts the chart out of pixel placement, so the gaps then follow the y-domain.
+- `yPositions=` sets exact heights. A single value puts all labels in one row; a list sets a
+  height for each comparison.
+- `yStart=` sets the stack's base, and `yStep=` sets the gap between rows. Both use data units.
+- `yPad=` adjusts the gap from the data while keeping automatic placement.
+
+Supplying any of these opts the chart out of pixel placement, so gaps then follow the y-domain.
 
 <Example name="comparisons_placement" alt="Three comparison brackets on an evenly spaced manual ladder" />
 
@@ -150,22 +151,25 @@ columns are ignored. Supplied p-values must be real, finite, non-bool numbers in
 
 ## Grouped (two-factor) comparisons
 
-For a grouped bar chart with a subgroup on `xOffset` within each x-category, such as a qPCR gene ×
-condition panel, pass `xOffset` to compare subgroup levels within each group. `pairs` names the
-levels; with two levels, it defaults to their single pair. One bracket is drawn per x-category, using
-a test for that category and sitting above its bars. Set `categories` and `xOffsetSort` to match the
-chart's `x` and `xOffset` orders. Explicit orders must include every observed value exactly once; the
-sequence order, including for numeric categories, is preserved:
+For a grouped bar chart, pass `xOffset` to compare subgroup levels within each x-category. For
+example, in a qPCR gene-by-condition panel, each bracket compares conditions within one gene.
+
+`pairs` names the levels; with two levels, it defaults to their single pair. Each x-category gets
+one bracket and one test, placed above its bars. Set `categories` and `xOffsetSort` to match the
+chart's `x` and `xOffset` orders. Explicit orders must include every observed value exactly once;
+the given order is preserved, including for numeric categories:
 
 <Example name="qpcr" alt="Grouped qPCR bars with a within-gene significance bracket per gene" />
 
-Grouped mode supports the pairwise tests only. `postHoc` is not supported; notation mappings and
-`yPositions` lists are rejected. Grouped test-label options still apply to the shared test label.
-When correction is used, `nComparisons` must be a positive non-bool integer at least as large as
-the full computed family (`categories × pairs`), even if fewer brackets are drawn. A larger value
-is allowed. Supplied p-values are not corrected again.
+Grouped mode supports pairwise tests only. Its other limits are:
 
-`reverse=` and `bracketStyle="drop"` also work here. In grouped mode, `reverse` names xOffset levels,
-like `pairs`, and applies in every category:
+- `postHoc`, notation mappings, and `yPositions` lists are not supported.
+- Grouped test-label options still apply to the shared test label.
+- With correction, `nComparisons` must be a positive, non-bool integer at least as large as the
+  full family (`categories × pairs`), even if fewer brackets are drawn. Larger values are allowed.
+- Supplied p-values are not corrected again.
+
+`reverse=` and `bracketStyle="drop"` also work in grouped mode. Here, `reverse` names `xOffset`
+levels, like `pairs`, and applies in every category:
 
 <Example name="comparisons_grouped_reverse" alt="Grouped comparisons with brackets hanging below each pair of conditions" />
