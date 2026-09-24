@@ -23,15 +23,17 @@ ds.biology.volcano(df, labels="gene", subset=8)
 
 ## Volcano plot
 
-`volcano()` draws log2 fold change against −log₁₀ p, classifies each point as gained / lost /
-non-differential by the fold-change and p-value thresholds, colors it with the diverging
-active theme's diverging range, keeps a separate darkmode-aware neutral grey, and layers on optional threshold guides and
-gene labels:
+`volcano()` plots log2 fold change against −log₁₀ p. A point is classified as gained or lost
+only when it passes both the fold-change and p-value thresholds; all others are classified as
+non-differential. That classification does not mean the point failed the p-value cutoff. Gained
+and lost points use the active theme's diverging colors; non-differential points use a separate
+darkmode-aware gray. Optional guides show the thresholds, and labels can be added:
 
 <Example name="volcano" alt="Volcano plot of differential expression with labeled top genes" />
 
-Gene labels use [`ds.labels`](/guides/text-labels/#point-labels). The placement is deterministic and connector-linked. The point ranking is domain-specific:
-`subset=8` selects the 8 most significant genes by the combined score `|log2fc| × −log10(p)`.
+Gene labels use [`ds.labels`](/guides/text-labels/#point-labels). Placement is deterministic and
+uses connectors by default. For integer selections, `subset=8` labels up to 8 gained or lost points
+ranked by the combined score `|log2fc| × −log10(p)`.
 
 ### Key parameters
 
@@ -59,7 +61,9 @@ ds.save(lambda: ds.biology.volcano(df, labels="gene", subset=8), "volcano")
 ```
 :::
 
-## Coming next
+<a id="coming-next"></a>
 
-The package currently provides the volcano plot. `nucleotides` and `proteins` palettes are available for sequence-colored charts. To build an extension, see
-[writing an extension](/extensions/authoring/).
+## Additional palettes
+
+The package also provides `nucleotides` and `proteins` palettes for sequence-colored charts. The
+[authoring guide](/extensions/authoring/) covers packaging and entry-point registration.
