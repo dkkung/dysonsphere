@@ -28,37 +28,38 @@ ds.save(chart, "figure", format=["svg", "png", "json"], background=["light", "da
 ds.save(chart, "figure", format="html")   # a self-contained interactive HTML page
 ```
 
-SVG post-processing can make a notebook's inline preview differ from the saved file. Altair renders
-the inline preview directly from Vega-Lite. `ds.show(chart)` applies the same processing as
-`save()` and returns the result as HTML.
+Altair renders notebook previews directly from Vega-Lite, so SVG post-processing can make a
+preview differ from a saved file. `ds.show(chart)` applies the same processing as `save()` and
+returns the result as HTML.
 
-`show()` styles the preview from the theme, including `transparent`. Unlike `save()`, which defaults
-to a transparent background so exports can composite onto a page, the preview follows the theme
-background. Its returned HTML wraps the SVG, which displays against the notebook's background like
-a bare Altair chart. A transparent dark-mode figure remains readable.
+`show()` follows the theme, including `transparent`; `save()` defaults to a transparent background
+so exports can composite onto a page. The HTML wrapper displays the SVG against the notebook's own
+background. This avoids the white image canvas that can make a transparent dark-mode figure
+unreadable.
 
-The SVG is post-processed for editing and rendering: `<g>` wrappers are flattened for Illustrator,
-axis ticks and log/power minor ticks are snapped to exact positions, superscript exponents are
-realigned, and Latin statistical symbols (*P*, *n*, *F*, *r*, ...) are set in italic. Digits,
-operators, and Greek symbols (η², ρ, τ) stay upright.
+Static SVG and PNG output receives additional processing: `<g>` wrappers are flattened for
+Illustrator, axis and log/power minor ticks are snapped to exact positions, superscripts are
+realigned, and Latin statistical symbols such as *P* and *n* are italicized. Digits, operators, and
+Greek symbols stay upright.
 
 ### Fonts
 
-Exports reference fonts by name instead of embedding them, so a saved chart samples the user's system
-across a list of fallback defaults. The default, Helvetica Neue, ships with macOS; Windows falls back
-to Arial, and Linux distributions fall back to their default sans-serif font. SVGs use the PostScript
-name `HelveticaNeue` so they open in the right font in Adobe Illustrator, which doesn't follow the
-usual fallback list. To override the default font on any platform, set `theme(font="...")`.
+Fonts are referenced by name rather than embedded, so the viewing system uses the named font or an
+available fallback. Set `theme(font="...")` to request another installed family. SVG exports use
+the PostScript name `HelveticaNeue` for Adobe Illustrator.
 
-By default, `theme(fontGreek="Symbol")` switches only Unicode Greek letters to the named font in
-`show()` and SVG/PNG `save()` output. Latin text, numerals, punctuation, operators, the micro sign
-(`µ`), and explicit italic runs keep their surrounding styling; `theme(fontGreek=None)` disables
-the switch, and a nonblank custom family name selects another installed font. Unicode characters
-remain unchanged in editable SVG text. Interactive HTML and bare Altair output do not receive this
-correction. A requested font family can be unavailable and fall back to another font; naming it does
-not by itself establish compliance with a journal's font requirements.
+In `show()` and static SVG/PNG output, the default `theme(fontGreek="Symbol")` switches only
+Unicode Greek letters to the named font. The text stays unchanged; Latin letters, numbers,
+punctuation, operators, the micro sign (`µ`), and explicit italic runs keep their styling.
 
-## What gets embedded
+Set `fontGreek=None` to disable the switch or use another installed family. Interactive HTML and
+bare Altair output do not apply it.
+
+An unavailable font may fall back to a system font. A font name alone does not establish journal
+compliance.
+
+<a id="what-gets-embedded" />
+## Embedded metadata
 
 When `saveMetadata=True` (the default), `save()` writes a `dysonsphere` metadata block into every
 output format: JSON, SVG, PNG, and HTML.
@@ -70,7 +71,8 @@ output format: JSON, SVG, PNG, and HTML.
   chart (exact p-values, effect sizes, descriptives).
 - **report** - the human-readable version of those statistics.
 
-## What the embedded metadata looks like
+<a id="what-the-embedded-metadata-looks-like" />
+## Structure of embedded metadata
 
 This example uses a strip plot with a Kruskal-Wallis comparison on the `cars` dataset:
 
@@ -106,19 +108,27 @@ identify the environment used to measure text:
 }
 ```
 
-`chart` records source text for the `chart` argument when available at the `save(...)` call site.
-Here it is `strip + mpg_comparisons`; a variable passed directly is recorded by name. Interactive
-sessions may not provide source text.
+The `chart` field records source text for the `chart` argument when available at the `save(...)`
+call site. Here it is `strip + mpg_comparisons`; a variable passed directly is recorded by name.
+Interactive sessions may not provide source text.
 
-The identifiers have different purposes. `dataChecksum` contains one order-independent checksum per
-captured dataframe. `vegaliteChecksum` identifies the normalized Vega-Lite specification, excluding
-usermeta. The `exportIdentifier` is shared by all formats and backgrounds written by one `save()`
-call. A `sha256:` value hashes the canonical specification. A `multiset-sha256:` value hashes row
-digests, so row order does not affect it; it cannot be recreated by hashing the export file. An
-export built by an extension can also record that extension's version in `environment`.
+### Provenance identifiers
 
-The **statistics** entry is a list of structured records with exact p-values and effect sizes,
-rather than the rounded labels shown on the plot. One omnibus record from the chart above (trimmed):
+These fields identify the chart, data, and export in different ways:
+
+- `dataChecksum` stores one order-independent checksum per captured dataframe. Its
+  `multiset-sha256:` value hashes row digests, so row order does not affect it and it cannot be
+  recreated by hashing the export file.
+- `vegaliteChecksum` identifies the normalized Vega-Lite specification, excluding `usermeta`. A
+  `sha256:` value hashes the canonical specification.
+- `exportIdentifier` is shared by all formats and backgrounds written by one `save()` call.
+
+An export built by an extension may also record its version in `environment`.
+
+### Statistics
+
+The **statistics** entry contains structured records with exact p-values and effect sizes, rather
+than the rounded labels shown on the plot. This is one omnibus record from the example above:
 
 ```json
 {
@@ -146,8 +156,8 @@ rather than the rounded labels shown on the plot. One omnibus record from the ch
 }
 ```
 
-The **report** key contains the same information returned by
-`ds.metadata.read("mpg_by_origin.json")` by default, with `what="report"`:
+The **report** key contains the human-readable version of the statistics. It matches the default
+result of `ds.metadata.read("mpg_by_origin.json")` or the explicit `what="report"` option:
 
 ```
 Statistics | Omnibus | Kruskal-Wallis
@@ -177,10 +187,12 @@ Vega-Lite spec checksum: sha256:53a99fe9…
 Export identifier: ef49895a-2e06-495a-86d3-7b0f2980cd8b
 ```
 
+### Captured data
+
 For a JSON export, `ds.metadata.read("mpg_by_origin.json", what="data")` returns the data included
-in the specification. Here that is the 398-row dataframe, including Altair-inlined transform
+in the specification. Here it is the 398-row dataframe, including Altair-inlined transform
 columns such as `jitter_x` but excluding Dysonsphere annotation layers such as bracket coordinates
-and error bars. It cannot recover source data that was not included in the specification.
+and error bars. Data absent from the specification cannot be recovered.
 
 ## Reading it back
 
@@ -249,9 +261,10 @@ If a file no longer contains its metadata, `ds.metadata.verify()` raises because
 stored checksums to compare. `ds.metadata.frame_checksum(df)` computes a checksum from the dataframe;
 use it to compare that dataframe with an intact export or with a separately recorded checksum.
 
-## Which field answers which question
+<a id="which-field-answers-which-question" />
+## Interpreting embedded metadata
 
-Three fields in `provenance` look interchangeable and are not:
+Three provenance fields answer different questions:
 
 | question | field |
 | --- | --- |
@@ -351,9 +364,10 @@ chart = base + ds.stats.comparisons(df, "group", "value", pairs, test="anova", r
 See the [Saving & loading](/reference/export/) and [Reading exports](/reference/metadata/)
 reference pages for the full API.
 
-## How the fields map to provenance standards
+<a id="how-the-fields-map-to-provenance-standards" />
+## Mapping fields to provenance standards
 
-The field names are specific to dysonsphere, but each concept has a counterpart in an established
+Dysonsphere uses its own field names, but each concept has a counterpart in an established
 provenance vocabulary:
 
 | dysonsphere | Equivalent |
