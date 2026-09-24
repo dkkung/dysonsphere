@@ -5,8 +5,8 @@ description: Composite marks for strip plots, violins, boxplots, and tables.
 
 import Example from '../../../components/Example.astro';
 
-dysonsphere's composite marks return native Altair layers, so you compose them with `+` and keep
-Altair's full API. The jitter, beeswarm, and quasirandom offsets they use are also available as
+dysonsphere's composite marks return native Altair layers that you can combine with `+` and other
+Altair chart methods. Their jitter, beeswarm, and quasirandom offsets are also available as
 standalone [transforms](/guides/transforms/).
 
 For strip and violin marks, `categories` sets display order and must contain each observed group
@@ -38,8 +38,8 @@ embedded boxplot), or `None` (silhouette only); `innerColor` restyles the lines:
 
 <Example name="violin" alt="Violin plot of horsepower by car origin" />
 
-Remove the outline with `stroke=None`, and end the violin sharply at the observed data extremes
-with `trim=True`; `bandwidth` tunes the KDE smoothness:
+Remove the outline with `stroke=None`, and trim the violin tails at the observed data extremes
+with `trim=True`; `bandwidth` controls KDE smoothness:
 
 <Example name="violin_styled" alt="Styled violin plot with a custom palette, no outline, and trimmed tails" />
 
@@ -64,8 +64,8 @@ dark mode.
 
 ## Boxplot
 
-Plain Altair marks inherit the theme too. `mark_boxplot()` gets grey boxes, a single-stroke median,
-and rounded whisker caps out of the box; outlier points are hidden by default. Use Altair's native
+Plain Altair marks also inherit the theme. `mark_boxplot()` uses grey boxes, a single-stroke median,
+and rounded whisker caps. Outlier points are hidden by default. Use Altair's native
 `mark_boxplot(outliers={"size": 5})` override to show or style them per chart.
 
 <Example name="boxplot" alt="Boxplot of miles per gallon by car origin" />
@@ -78,8 +78,8 @@ output. A numeric column can be shaded by value with
 `cellPalette`; and `strokes` picks which rules to draw (`"outer"`, `"header"`, `"rows"`, `"cols"`,
 `"grid"` for the interior, or `"all"` for every rule). Numeric columns are right-aligned by default
 so figures line up on the decimal; everything else is left. The source DataFrame is never mutated, so
-`ds.metadata.read(what="data")` recovers the inlined data - and every cell background is its own rect, so you can
-recolour individual cells in Illustrator.
+`ds.metadata.read(what="data")` recovers the inlined data. Each cell background is a separate rect,
+so you can recolor individual cells in Illustrator.
 
 Missing or non-finite values serialize as `null` and render as blank cells without dropping rows;
 zero remains `0`. Named numeric notations reject non-missing strings, while explicit d3 formats
