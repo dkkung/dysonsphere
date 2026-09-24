@@ -5,11 +5,14 @@ description: Horizontal, vertical, diagonal, and equation reference lines with d
 
 import Example from '../../../components/Example.astro';
 
-`ds.rule()` returns a native Altair layer you compose onto a chart with `+`; it shares the base
-chart's scales. Use `y=...` for a horizontal rule or `x=...` for a vertical rule, with optional
-labels. `strokeDash=None` inherits the theme's `ruleStrokeDash` setting; `strokeDash=True` uses the
-shared theme `strokeDash` pattern,
-and `False` forces a solid rule.
+`ds.rule()` returns a native Altair layer. Add it to a chart with `+`; the rule shares the chart's
+scales. Use `y=...` for a horizontal rule or `x=...` for a vertical one. Both can have labels.
+
+`strokeDash` controls the line pattern:
+
+- `None` inherits the theme's `ruleStrokeDash` setting.
+- `True` uses the theme's shared `strokeDash` pattern.
+- `False` forces a solid rule.
 
 <Example name="rule" alt="Strip plot with a labeled horizontal reference line at a release limit" />
 
@@ -17,33 +20,48 @@ An `x` coordinate draws the same line vertically:
 
 <Example name="rule_vertical" alt="Scatter plot with a dashed vertical reference line" />
 
-Pass a list of values (and a matching list of labels) for several lines in one call.
-`labelPosition` chooses which side of the line the label sits on; `labelAlign`, where along it:
+Pass a list of values and a matching list of labels to draw several rules in one call. Use
+`labelPosition` to choose the side of the line and `labelAlign` to set the label's position along it:
 
 <Example name="rule_labeled" alt="Scatter plot with three labeled horizontal reference lines" />
 
-`span=(start, end)` limits a line to part of the axis it runs along. Bounds are numeric (data
-coordinates) or category names (resolved via the band scale, like `ds.shade`, using
-`categories`); a label anchors to the slice's ends:
+## Limit a rule to a span
+
+`span=(start, end)` limits a horizontal or vertical rule to part of the axis it runs along. Bounds
+can be numeric data coordinates or category names. Category names are resolved through the band
+scale and require `categories`, as in `ds.shade`. A label anchors to the span's ends:
 
 <Example name="rule_span" alt="Bar chart of mean MPG by cylinder count with a benchmark line sliced across the six- and eight-cylinder bars" />
 
-Explicit endpoints draw bounded or diagonal segments: `ds.rule(x=2, x2=8, y=5)` is horizontal,
-`ds.rule(x=5, y=2, y2=8)` is vertical, and `ds.rule(x=2, y=3, x2=8, y2=9)` is diagonal. Diagonal
-labels remain horizontal; `labelAlign` selects the smaller-x endpoint, data-coordinate midpoint,
-or larger-x endpoint and `labelPosition` places the text above or below it. These anchors do not
-inspect reversed or nonlinear scales.
+## Explicit endpoints
 
-Equation mode computes a segment over a required numeric x extent, for example
-`ds.rule(slope=2, intercept=1, span=(0, 5))`. It represents `y = slope*x + intercept` only on
-linear quantitative x and y scales. On nonlinear scales, calculate suitable visual coordinates
-yourself and use explicit endpoints.
+Use endpoint coordinates to draw bounded horizontal or vertical rules, or a diagonal segment:
 
-`startCap` and `endCap` add `"arrow"`, `"circle"`, or `"square"` endpoint decorations. Their
-`startGap`/`endGap` clearances derive from the theme's marker size, marker stroke, and rule width when
-a cap is present, and default to 0 otherwise; explicit gaps also shorten capless rules. Start/end
-preserve explicit endpoint or span order regardless of scale direction;
-implicit full horizontal rules use left/right and implicit full vertical rules use top/bottom:
+- `ds.rule(x=2, x2=8, y=5)` draws a bounded horizontal rule.
+- `ds.rule(x=5, y=2, y2=8)` draws a bounded vertical rule.
+- `ds.rule(x=2, y=3, x2=8, y2=9)` draws a diagonal segment.
+
+Diagonal labels remain horizontal. `labelAlign` selects the smaller-x endpoint, data-coordinate
+midpoint, or larger-x endpoint; `labelPosition` places the text above or below it. These anchors do
+not account for reversed or nonlinear scales.
+
+## Equation mode
+
+Equation mode draws a segment over a required numeric x extent. For example,
+`ds.rule(slope=2, intercept=1, span=(0, 5))` draws `y = slope*x + intercept` across that extent.
+The equation is represented accurately only on linear quantitative x and y scales. For nonlinear
+scales, calculate suitable visual coordinates and use explicit endpoints.
+
+## Caps and gaps
+
+`startCap` and `endCap` add `"arrow"`, `"circle"`, or `"square"` endpoint decorations. When a cap
+is present, `startGap` and `endGap` default to a clearance based on the theme's marker size, marker
+stroke, and rule width. Without a cap, the default gap is 0. Explicit gaps also shorten capless
+rules.
+
+The start and end follow explicit endpoint or span order, regardless of scale direction. For a full
+rule without explicit endpoints, start and end are the left and right edges for horizontal rules,
+and the top and bottom edges for vertical rules:
 
 ```python
 decorated = targets + ds.rule(
@@ -53,6 +71,6 @@ decorated = targets + ds.rule(
 ds.save(decorated, "decorated", format=["svg", "png"])
 ```
 
-Caps and gaps are corrected from rendered SVG geometry, so they follow facets, reversed scales, and
-chart aspect ratio in `ds.save()` SVG/PNG and `ds.show()`. Bare Altair display and interactive HTML
-show the underlying undecorated, ungapped rule.
+Caps and gaps are corrected from rendered SVG geometry in `ds.save()` SVG/PNG and `ds.show()`,
+so they follow facets, reversed scales, and chart aspect ratio. Bare Altair display and interactive
+HTML show the rule without caps or gaps.
