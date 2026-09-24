@@ -72,20 +72,26 @@ and rounded whisker caps. Outlier points are hidden by default. Use Altair's nat
 
 ## Table
 
-`mark_table()` renders a DataFrame as a composable Altair table layer. Columns are formatted per
-column using the library's scientific, power, and SI notations, with superscripts typeset in the
-output. A numeric column can be shaded by value with
-`cellPalette`; and `strokes` picks which rules to draw (`"outer"`, `"header"`, `"rows"`, `"cols"`,
-`"grid"` for the interior, or `"all"` for every rule). Numeric columns are right-aligned by default
-so figures line up on the decimal; everything else is left. The source DataFrame is never mutated, so
-`ds.metadata.read(what="data")` recovers the inlined data. Each cell background is a separate rect,
-so you can recolor individual cells in Illustrator.
+`mark_table()` renders a DataFrame as a composable Altair layer. Columns support scientific, power,
+and SI notation, with superscripts typeset in the output. Use `cellPalette` to shade a numeric
+column by value. Numeric columns are right-aligned by default; other columns are left-aligned.
 
-Missing or non-finite values serialize as `null` and render as blank cells without dropping rows;
-zero remains `0`. Named numeric notations reject non-missing strings, while explicit d3 formats
-use Vega's formatter and may format strings (including padded `c` values). Booleans accept numeric
-formats, and all-missing columns stay blank. Widths are estimates, not a second Python formatter;
-use `columnWidths=` for exact control. Formatting maps validate known input columns, while
-`headerLabels` remains a permissive display map.
+`strokes` selects which table rules to draw:
+
+- `"outer"` draws the outside border; `"header"` draws the header rule.
+- `"rows"` or `"cols"` draws row or column rules; `"grid"` draws interior rules.
+- `"all"` draws every rule.
+
+The source DataFrame is not mutated, so `ds.metadata.read(what="data")` recovers the inlined data.
+Each cell background is a separate rect, which allows individual cells to be recolored in
+Illustrator.
+
+Missing or non-finite values become `null` and render as blank cells without dropping rows; zero
+remains `0`. Named numeric notations reject non-missing strings. Explicit d3 formats use Vega's
+formatter and may format strings, including padded `c` values. Booleans accept numeric formats, and
+all-missing columns stay blank.
+
+Widths are estimates, not a second Python formatter; use `columnWidths=` for exact control.
+Formatting maps validate input columns, while `headerLabels` remains a permissive display map.
 
 <Example name="table" alt="Styled results table with per-column formatting" />
