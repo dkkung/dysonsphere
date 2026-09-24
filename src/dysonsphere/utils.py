@@ -18,7 +18,7 @@ __all__: list[str] = []
 
 
 class _BandGeometry(NamedTuple):
-    """Pixel geometry of an n-category band axis - see :func:`_band_geometry`."""
+    """Pixel geometry of an n-category band axis – see :func:`_band_geometry`."""
 
     step: float
     centers: tuple[float, ...]
@@ -34,47 +34,48 @@ def _band_geometry(
     bandPadding: float | None = None,
 ) -> _BandGeometry:
     """
-    Compute the pixel geometry of an ``n``-category band axis - the single source of
-    truth for dysonsphere's band-position math (violin centres, shade rects, bracket
-    midpoints, multilabel spans).
+    Compute the pixel geometry of an ``n``-category band axis, shared by
+    dysonsphere's band-position calculations for violin centers, shade rectangles,
+    bracket midpoints, and multilabel spans.
 
     Vega-Lite lowers a nominal axis to a D3 band scale whose step size depends on the
-    padding configuration, which differs by mark type. ``scale`` picks the variant, each
-    resolving its inner padding from the matching theme key (outer is one shared key,
-    ``outerPadding``, because Vega-Lite has no mark-specific outer padding):
+    padding configuration for each mark type. ``scale`` selects the scale variant and
+    its inner padding from the matching theme option. The offset, band, and rect variants
+    use shared ``outerPadding`` because Vega-Lite has no mark-specific outer padding; the
+    point scale does not use band padding.
 
-    - ``"offset"`` (default) - ``paddingInner=0``, ``paddingOuter=outerPadding``: what an
-      ``xOffset`` encoding (``mark_circle``/``mark_strip``) or a ``shade`` rect sees.
-    - ``"band"`` - ``paddingInner=barPadding``: what ``mark_bar`` sees.
-    - ``"rect"`` - ``paddingInner=rectPadding`` (``0`` by default, so cells abut): what a
-      ``mark_rect`` heatmap sees - and also ``mark_boxplot`` (and so ``mark_violin``'s
-      embedded boxplot), since Vega-Lite routes "rect and other marks" through the one key.
-    - ``"point"`` - a point scale: ``step = span / n``; centre ``i`` is ``step*(0.5+i)``
-      (``starts``/``ends`` equal ``centers``).
+    - ``"offset"`` (default) – ``paddingInner=0``, ``paddingOuter=outerPadding``; used by
+      an ``xOffset`` encoding (``mark_circle``/``mark_strip``) and by ``shade`` rectangles.
+    - ``"band"`` – ``paddingInner=barPadding``; used by ``mark_bar``.
+    - ``"rect"`` – ``paddingInner=rectPadding`` (``0`` by default, so cells abut); used by
+      ``mark_rect`` heatmaps and ``mark_boxplot`` (including the embedded boxplot in
+      ``mark_violin``), because Vega-Lite routes "rect and other marks" through this key.
+    - ``"point"`` – a point scale with ``step = span / n``; center ``i`` is
+      ``step*(0.5+i)`` (``starts`` and ``ends`` equal ``centers``).
 
-    For every variant but ``"point"``, ``step = span / max(1, n - inner + 2*outer)`` and
-    each band is ``step*(1-inner)`` wide. Remaining space is centered with D3's default
-    ``align=0.5``; without the denominator clamp, band ``i`` starts at ``step*(outer+i)``.
+    For every variant except ``"point"``, ``step = span / max(1, n - inner + 2*outer)``
+    and each band is ``step*(1-inner)`` wide. D3 centers the remaining space with its
+    default ``align=0.5``. Without the denominator clamp, band ``i`` starts at
+    ``step*(outer+i)``.
 
     Parameters
     ----------
     n:
         Number of categories.
     span:
-        Pixel extent of the axis. ``None`` (default) reads ``width`` from the
-        active theme (pass ``height`` explicitly for a y-axis).
+        Pixel extent of the axis. ``None`` (default) reads ``width`` from the active
+        theme; pass ``height`` explicitly for a y-axis.
     scale:
         ``"offset"``, ``"band"``, ``"rect"``, or ``"point"`` (see above).
     bandPadding:
-        Override for the outer padding, and for ``scale="band"`` the inner padding too
-        (the variant where the two are equal by construction). ``None`` (default) reads
-        the active theme.
+        Override for the outer padding and, with ``scale="band"``, the inner padding
+        (both are equal for this scale). ``None`` (default) reads the active theme.
 
     Returns
     -------
     _BandGeometry
-        A named tuple ``(step, centers, starts, ends)``, each position list in
-        category-index order.
+        A named tuple ``(step, centers, starts, ends)``; the position fields are tuples
+        in category-index order.
     """
 
     if n < 1:
@@ -108,14 +109,14 @@ def _band_geometry(
 
 
 def _nested_band_centers(nCategories: int, nLevels: int, span: float | None = None) -> list[list[float]]:
-    """Pixel centres of every sub-bar in a grouped (``xOffset``) chart, as ``[category][level]``.
+    """Pixel centers of every sub-bar in a grouped (``xOffset``) chart, as ``[category][level]``.
 
-    A nested offset scale uses its own padding keys, not the mark-specific ones: the outer band
-    takes ``groupPadding`` (Vega-Lite's ``bandWithNestedOffsetPadding``) and the offset scale
-    inside it takes ``subgroupPadding`` (``offsetBandPadding``). Composing ``_band_geometry`` with
-    each reproduces Vega's rendered sub-bar positions exactly (verified against rendered SVG for
-    2-5 levels and 2-3 categories); ``_band_geometry``'s own ``"band"``/``"offset"`` variants do
-    NOT, because they resolve ``barPadding``/``outerPadding`` instead.
+    A nested offset scale uses different padding keys from the mark-specific scales: the outer
+    band uses ``groupPadding`` (Vega-Lite's ``bandWithNestedOffsetPadding``), and the offset
+    scale inside it uses ``subgroupPadding`` (``offsetBandPadding``). Combining ``_band_geometry``
+    with these values matches Vega's rendered sub-bar positions for 2–5 levels and 2–3 categories.
+    Its ``"band"`` and ``"offset"`` variants do not match this scale because they use
+    ``barPadding`` and ``outerPadding`` instead.
     """
     span = float(_opt("width")) if span is None else span
     outer = _band_geometry(nCategories, span, scale="band", bandPadding=float(_opt("groupPadding")))
@@ -129,13 +130,14 @@ def _nested_band_centers(nCategories: int, nLevels: int, span: float | None = No
 
 
 def _nice_domain(lo: float, hi: float, count: int = 10) -> tuple[float, float]:
-    """Round ``(lo, hi)`` outward to nice tick-increment multiples - d3's ``nice()`` algorithm.
+    """Round ``(lo, hi)`` outward to nice tick-increment multiples using D3's ``nice()`` algorithm.
 
     Used by ``labels`` to pin the shared scale to nice bounds instead of the raw data extent,
-    so the pinned axes read like Vega's own ``nice: true`` (whose rounding this replicates: the
-    d3-scale 1/2/5/10 tick increment at ``count`` ~ticks, applied twice so the widened domain can
-    settle on a coarser step). Exactness vs Vega does not matter - the caller FORCES the returned
-    domain, so whatever this computes is what renders. Degenerate spans return unchanged.
+    so the axes use bounds like Vega's ``nice: true``. The rounding follows the d3-scale
+    1/2/5/10 tick increments at about ``count`` ticks, applied twice so the widened domain can
+    settle on a coarser step. Exact agreement with Vega's automatic domain is not required: the
+    caller sets the returned domain explicitly, so this result determines what renders. Degenerate
+    spans are returned unchanged.
     """
     import math
 
@@ -274,35 +276,35 @@ def _walk(value: Any, scalar) -> Any:
 
 
 def _json_safe(value: Any) -> Any:
-    """Replace non-finite floats with ``None``, recursively - for data that gets WRITTEN.
+    """Replace non-finite floats with ``None`` recursively before export serialization or rendering.
 
-    ``json.dumps`` renders ``NaN``/``Infinity`` as bare tokens, which are a Python extension and
-    not valid JSON: a strict parser (a browser's ``JSON.parse``, ``jq``, ``serde_json``) rejects
-    the file.  ``null`` is what Vega-Lite uses for a missing value, and what vl-convert already
-    writes into the HTML export - so this makes the JSON agree with its sibling formats.
+    ``json.dumps`` renders ``NaN``/``Infinity`` as bare tokens, a Python extension that is not
+    valid JSON. Strict parsers such as a browser's ``JSON.parse``, ``jq``, and ``serde_json``
+    reject them. ``null`` is Vega-Lite's missing-value representation and is also written by
+    vl-convert in HTML exports, so this makes JSON agree with the other formats.
 
-    Deliberately does NOT touch anything else.  In particular it leaves ``1.0`` as a float, so a
-    ``Float64`` column survives save and ``read(what="data")`` as ``Float64``;
-    collapsing it to ``1`` is a *hashing* concern only (see :func:`_canonicalize`).
+    Other scalar values are left unchanged. In particular, ``1.0`` remains a float, so a
+    ``Float64`` column survives save and ``read(what="data")`` as ``Float64``. Converting it to
+    ``1`` is used only for hashing (see :func:`_canonicalize`).
     """
     return _walk(value, lambda v: None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
 
 
 def _canonicalize(value: Any) -> Any:
-    """Normalize a value so equal data HASHES identically - never used for written output.
+    """Normalize values so equivalent data hashes identically; used only for hashing.
 
-    Two spellings of one value would otherwise digest differently:
+    Without normalization, different representations of the same value can produce different
+    digests:
 
-    - **Non-finite floats become ``None``**, so a missing value has one representation
-      (matching :func:`_json_safe`, and making ``NaN`` and ``null`` agree - both mean absent).
-    - **Integral floats become ints**, so an ``Int64`` column and a ``Float64`` column holding
-      the same values agree.  Matches RFC 8785 (JSON Canonicalization Scheme), where ``1.0``
-      serializes as ``1``.  Without this a dtype change alone would alter a data checksum,
-      defeating the point of a checksum that is meant to identify data independently of how it
-      was drawn.
+    - Non-finite floats become ``None``, matching :func:`_json_safe`; ``NaN`` and ``null`` then
+      share one representation for missing values.
+    - Integral floats become integers, so ``Int64`` and ``Float64`` columns with the same values
+      hash identically. This follows RFC 8785 (JSON Canonicalization Scheme), where ``1.0``
+      serializes as ``1``. Without this, a dtype change alone would alter the data checksum even
+      when the data values are unchanged.
 
-    Non-JSON-native types (dates, Decimals) are left alone and handled by ``_hash_rows``'s
-    ``default=str``, so their digest still depends on Python's ``str()``.
+    Non-JSON-native types such as dates and Decimals are left unchanged and handled by
+    ``_hash_rows``'s ``default=str``, so their digest still depends on Python's ``str()``.
     """
 
     def _scalar(v: Any) -> Any:
@@ -319,20 +321,20 @@ _ROW_HASH_PREFIX = "multiset-sha256:"
 
 
 def _hash_rows(rows: list[dict[str, Any]]) -> str:
-    """Order-independent ``multiset-sha256:<hex>`` of a list of record dicts.
+    """Compute an order-independent ``multiset-sha256:<hex>`` for record dictionaries.
 
-    Hashes the *multiset* of per-row canonical-JSON digests (sort the digests, then hash), so a
-    reordered-but-identical set yields the same value; duplicate rows are preserved.  The single
-    implementation shared by the provenance ``dataChecksum`` (over a spec's inlined datasets) and
-    ``metadata.frame_checksum`` (over a raw dataframe), so both compute identical values for identical rows.
-    Every row goes through :func:`_canonicalize` first, so a missing value and a dtype change
-    cannot alter the digest; ``default=str`` then keeps it total for non-JSON-native cell types
-    (dates, Decimals).
+    It hashes each row's canonical-JSON digest, sorts those digests, then hashes the sorted
+    multiset. Reordering rows leaves the result unchanged, while duplicate rows are preserved.
+    This implementation is shared by provenance ``dataChecksum`` (over a spec's inlined
+    datasets) and ``metadata.frame_checksum`` (over a dataframe), so identical rows produce
+    the same value in both paths. Each row is normalized by :func:`_canonicalize` first;
+    ``default=str`` allows non-JSON-native cell types such as dates and Decimals, whose digest
+    then depends on Python's ``str()``.
 
-    The prefix names the *construction*, not just the hash function.  A bare ``sha256:`` means
-    SHA-256 over an artifact's bytes everywhere it is used as a digest label (OCI, in-toto,
-    Frictionless), and this is not that - it is a multiset hash, so it cannot be reproduced by
-    hashing the file.  ``vegaliteChecksum`` does hash bytes and keeps the plain ``sha256:``.
+    The prefix describes this construction, not just the hash function. In OCI, in-toto, and
+    Frictionless, a plain ``sha256:`` label denotes SHA-256 over artifact bytes. This value hashes
+    a multiset of row digests, not artifact bytes, so hashing the file cannot reproduce it.
+    ``vegaliteChecksum`` does hash bytes and keeps the plain ``sha256:`` prefix.
     """
     digests = sorted(
         hashlib.sha256(
@@ -365,19 +367,19 @@ def _frame_checksum(data: "pl.DataFrame | pd.DataFrame") -> str:
 # annotation dataset for a user dataframe.
 _INTERNAL_COL = "__dysonsphere__"
 
-# Marks a `shade` background rect so `_svg_geometry._layer_axes_below_marks` can sink it behind the
-# grid and axes. It does not use the `__dysonsphere_` prefix because `metadata._strip_markers` deletes
-# that from written output, which would break the fixer after save/reload.
+# Marks a `shade` background rectangle so `_svg_geometry._layer_axes_below_marks` can place it behind
+# the grid and axes. It avoids the `__dysonsphere_` prefix because `metadata._strip_markers` removes
+# that prefix from saved output, which would leave the fixer without the marker after `load()`.
 _SHADE_PREFIX = "__dsshade_"
 # Durable rule-decoration marker. Unlike transient statistics/extension markers, this remains in
 # saved Vega-Lite JSON so SVG/PNG rendering after ``load()`` can reapply the decoration geometry.
 _RULE_CAP_PREFIX = "__dsrulecap_"
 
-# Unicode superscript digits 0-9 - the source for every notation label that renders an
-# exponent: nonlinear.log_label_expr (10ⁿ / bⁿ log labels), stats._superscript (p-value
-# ×10ⁿ), and table.py power/scientific columns all index this string. `_svg_typography` script handling
-# reverses it (and the superscript minus ⁻) to raised ASCII at render time. Keep it here, without
-# an Altair dependency, so all four consumers use the same mapping.
+# Unicode superscript digits 0–9 are used by notation labels that render exponents:
+# nonlinear.log_label_expr (10ⁿ / bⁿ log labels), stats._superscript (p-value ×10ⁿ), and
+# table.py power/scientific columns index this string. `_svg_typography` maps the digits to
+# ordinary text and superscript minus ⁻ to U+2212. Keep the mapping here without an Altair
+# dependency so all four consumers use the same characters.
 _SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹"
 
 
@@ -396,10 +398,10 @@ def _internal_data(data: "list[dict[str, Any]] | pl.DataFrame | Any") -> "Any":
 
 
 def _empty_layer() -> "Any":
-    """An invisible placeholder layer, for an annotation with nothing to draw.
+    """An invisible placeholder layer for an annotation with nothing to draw.
 
     Returned so the annotation still composes with ``+`` (``alt.layer()`` requires at least
-    one layer). Rides on a tagged internal frame, so ``read(what="data")`` filters it.
+    one layer). Uses tagged internal data, so ``read(what="data")`` filters it.
     """
     import altair as alt
 
@@ -409,9 +411,9 @@ def _empty_layer() -> "Any":
 def _resolve_dash(value: "bool | Sequence[int | float] | None") -> "list[int | float] | None":
     """Resolve the project-wide ``strokeDash`` convention to a concrete dash array.
 
-    ``True`` -> the theme's ``strokeDash`` pattern; ``False`` -> ``[0, 0]`` (forced solid);
-    a list -> passed through unchanged; ``None`` -> ``None`` (the caller decides what unset
-    means - typically omitting the property so the theme config applies).
+    ``True`` -> the theme's ``strokeDash`` pattern; ``False`` -> ``[0, 0]`` (solid);
+    a sequence -> a list with the same values; ``None`` -> ``None`` (the caller decides what
+    unset means, typically omitting the property so the theme config applies).
     """
     if value is True:
         return _opt("strokeDash")
@@ -426,7 +428,18 @@ _LEGEND_LENGTH_MARKER = re.compile(r"^dysonsphereLegendGradientLength\(([^)]+)\)
 
 
 def _resolve_gradient_legend_lengths(spec: dict[str, Any]) -> dict[str, Any]:
-    """Replace the theme's gradient-length marker with panel-sized native legend properties."""
+    """Resolve the theme's gradient-length marker to native lengths for continuous legends.
+
+    The marker's factor scales the panel dimension; without one, vertical legends use half the
+    panel height and horizontal legends use the full panel width. A legend's local dimensions
+    take precedence over the matching ``config.view`` dimensions. Disabled legends, symbol or
+    binned legends, and legends with an explicit ``gradientLength`` receive no computed length.
+    For a vertical legend with a top- or bottom-oriented title, title lines, font size, and padding
+    are subtracted from the length, which has a minimum of one pixel.
+
+    Mutates and returns *spec*. If no marker exists, it returns the spec unchanged. When found,
+    the marker is removed from config; eligible legends without usable dimensions receive no length.
+    """
     config = spec.get("config")
     legend_config = config.get("legend") if isinstance(config, dict) else None
     if not isinstance(legend_config, dict):
@@ -498,13 +511,13 @@ def _resolve_gradient_legend_lengths(spec: dict[str, Any]) -> dict[str, Any]:
 def _suppress_nice(spec: dict[str, Any]) -> dict[str, Any]:
     """Turn ``nice`` off on continuous x/y scales so ``viewPadding`` lands exactly.
 
-    Vega pads the domain and *then* nices it, so the rounding compounds the inset: a
+    Vega pads the domain and then applies nice rounding, so the rounding changes the inset: a
     ``viewPadding`` of 15 px renders as 19.7 px at one end and 30 px at the other, and a
-    non-negative field can gain a ``-1`` tick where the padded bound crossed zero. Dropping
-    ``nice`` while padding is active makes the padding alone set the bounds, so the inset is
-    exactly what was asked for and the axis stops where the data does.
+    nonnegative field can gain a ``-1`` tick when the padded bound crosses zero. With padding
+    active, dropping ``nice`` lets the padding alone set the bounds, so the inset matches the
+    requested value and the axis stops at the data.
 
-    Never overrides an explicit user ``nice``. Mutates *spec* in place and returns it.
+    Does not override an explicit user ``nice``. Mutates *spec* in place and returns it.
     """
     encoding = spec.get("encoding")
     if isinstance(encoding, dict):
@@ -530,17 +543,15 @@ def _suppress_nice(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def _apply_spec_fixes(spec: dict[str, Any]) -> dict[str, Any]:
-    """Run the spec-level transforms shared by every output format.
+    """Apply the spec-level transforms shared by the output paths.
 
-    Kept as one call so every path that resolves a chart to a spec applies the same transforms:
-    ``save``'s JSON/HTML spec, ``_render_fixed_svg``'s SVG/PNG spec, ``metadata``'s checksum path
-    and the website's example generator. Lives here rather than in ``export`` so ``metadata`` can
-    call it without importing ``export`` - that dependency runs one way only.
+    This entry point keeps transforms consistent for ``save``'s JSON/HTML spec,
+    ``_render_fixed_svg``'s SVG/PNG spec, ``metadata`` checksums, and the website's example
+    generator. It is in this module so ``metadata`` can call it without importing ``export``.
 
-    The nice-suppression is gated on ``continuousPadding`` being present IN THE SPEC, not on the
-    theme flags that currently imply it (``viewPadding and closed``). Padding is what ``nice``
-    conflicts with, so reading the emitted value tracks whatever ``theme.py`` decides to emit -
-    including a future default that pads open plots - with no condition to keep in sync.
+    Nice suppression runs only when ``config.scale.continuousPadding`` is truthy in the spec,
+    not based on theme options such as ``viewPadding`` and ``closed``. Checking the emitted
+    padding value follows the theme configuration directly, including if its defaults change.
     """
     if spec.get("config", {}).get("scale", {}).get("continuousPadding"):
         _suppress_nice(spec)
@@ -562,11 +573,11 @@ def resolve_palette(name_or_list: "str | list[str]") -> list[str]:
 
 
 def stripe_colors(palette: "str | list[str]", n: int, *, darkmode: bool) -> list[str]:
-    """The ``n`` row-striping fills from *palette* - its lightest ``n`` stops, or its darkest in
-    darkmode, since a sequential palette runs light to dark.
+    """Return up to ``n`` row-stripe fills from *palette*: its lightest stops in light mode or
+    its darkest stops in dark mode, since sequential palettes run from light to dark.
 
-    Shared by ``mark_table``'s cell stripes and ``add_multilabel``'s row bands. NOT used by
-    ``shade``, whose darkmode deliberately discards the caller's palette for greys.
+    Shared by ``mark_table`` cell stripes and ``add_multilabel`` row bands. ``shade`` does not
+    use this function; in dark mode it uses grayscale instead of the caller's palette.
     """
     if n < 1:
         raise ValueError(f"n must be >= 1, got {n}.")

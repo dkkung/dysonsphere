@@ -1,4 +1,4 @@
-"""Composable chart annotations - reference lines, text, shading, and auto-placed point labels.
+"""Composable chart annotations – reference lines, text, shading, and auto-placed point labels.
 
 Every constructor returns an Altair chart/layer to compose onto a base chart with ``+``:
 ``rule`` (reference lines), ``text`` (positioned text), ``shade`` (background
@@ -48,11 +48,10 @@ def _rule_number(name: str, value: Any) -> float:
 
 
 def _automatic_marker_gap() -> float:
-    """Return the established theme-derived point-to-decoration clearance in pixels.
+    """Return the theme-derived point-to-decoration clearance in pixels.
 
-    The formula is point edge radius ``sqrt(markSize / (2*pi))`` + marker stroke + two connector
-    stroke widths of daylight. Labels retain their existing geometry by calling this helper, and
-    capped rules use the same default rather than a separate fixed distance.
+    The formula is point edge radius ``sqrt(markSize / (2*pi))`` plus marker stroke width and two
+    connector stroke widths. Point-label connectors and capped rules use this calculation.
     """
     return math.sqrt(_opt("markSize") / (2 * math.pi)) + _opt("markStrokeWidth") + 2.0 * _opt("axisWidth")
 
@@ -150,16 +149,16 @@ def _span_label_anchor(la: str, triple: tuple[str, float, float], axis: str) -> 
     return wrap(pick)
 
 
-# Pixel inset for text anchored at a flush plot edge - shared by rule's edge labels and
-# text's corner presets, which both sit against the spine when the axis is not detached.
+# Pixel inset for text anchored at a flush plot edge – shared by rule edge labels and
+# text corner presets, which sit against the spine when the axis is not detached.
 _EDGE_OFFSET = 2
 
 
 def _default_flush() -> bool:
     """Extend outermost shade/span rects to the plot edge when the spine is flush.
 
-    A detached axis puts a gap there already; a flush spine (closed, or axisOffset 0 - the
-    default) would leave a sliver of unshaded plot between the band and the axis."""
+    A detached axis puts a gap there already; a flush spine (closed, or axisOffset 0 – the
+    default) would leave an unshaded strip between the band and the axis."""
     return bool(_opt("closed") or not _opt("axisOffset"))
 
 
@@ -180,7 +179,7 @@ def _rule_label_geometry(
     ``alt.value``/``alt.datum`` position on it; ``text_kwargs`` are the ``mark_text`` properties.
     With no ``span_triple`` the anchor is a pixel edge of the plot (``alt.value``); with a span it
     anchors to the slice's ends (via ``_span_label_anchor``) so the label stays on the line.
-    Shared by the data-backed and datum (facet-safe) paths so their placement can't drift apart.
+    The data-backed and datum (facet-safe) paths use the same placement logic.
     """
     if axis == "y":
         la = labelAlign if labelAlign is not None else "left"
@@ -238,12 +237,11 @@ def _datum_base(src: Any) -> alt.Chart:
     """Facet-safe datum base: a chart on the shared frame ``src``, collapsed to a single row.
 
     The foundation of every facet-safe annotation ``data=`` path (``rule`` / ``text`` /
-    ``shade``).  It shares ``src`` so a faceted composition partitions correctly — Altair
-    requires all layers of a facet to share one data variable — and the dummy ``transform_aggregate``
+    ``shade``). It shares ``src`` so a faceted composition partitions correctly – Altair
+    requires all layers of a facet to share one data variable – and the dummy ``transform_aggregate``
     collapses N rows to one so constant ``alt.datum`` / ``alt.value`` marks don't overplot N times.
-    Build the mark + a datum/value-only encoding on the result; **never reference a data field**
-    (that would reintroduce a separate annotation dataset and break faceting). See the facet-safe datum-mode
-    discipline in AGENTS.md.
+    Build the mark and a datum/value-only encoding on the result. Do not reference a data field,
+    which would reintroduce a separate annotation dataset and break faceting.
     """
     # Altair's transform_aggregate **kwds form isn't stubbed, hence the ty ignore.
     return alt.Chart(src).transform_aggregate(**{_DATUM_AGG: "count()"})  # ty: ignore[invalid-argument-type]
@@ -338,9 +336,9 @@ def rule(
         plot. A horizontal line runs along x and a vertical line runs along y. Two forms, mirroring
         ``shade``:
 
-        - **Numeric** ``(start, end)`` — data coordinates on the running axis; shares the base
+        - **Numeric** ``(start, end)`` – data coordinates on the running axis; shares the base
           chart's scale (positioned by ``alt.datum``).
-        - **Category names** ``(start, end)`` — resolved to pixels via the band scale (needs
+        - **Category names** ``(start, end)`` – resolved to pixels via the band scale (needs
           ``categories``), so the slice does not merge into the base scale.
 
         A single ``span`` applies to every fixed coordinate when it is a list. When ``span`` is set,
@@ -350,8 +348,8 @@ def rule(
         names (for the band-scale index lookup).
     flush:
         For a category-name ``span``, extend an outermost-category endpoint to the axis domain
-        edge. ``None`` (default) inherits the theme's ``closed`` setting. No effect on a numeric
-        ``span``.
+        edge. ``None`` (default) extends to the edge when the theme has ``closed=True`` or
+        ``axisOffset=0``. No effect on a numeric ``span``.
     label:
         Optional text label(s). One string per fixed coordinate; diagonal/equation rules accept one.
     labelAlign:
@@ -403,7 +401,7 @@ def rule(
         a requested gap or drawing decorations beyond the opposite target.
     data:
         Facet-safe (datum) mode. ``None`` (default) builds the rule from its own small internal
-        dataset — the normal behavior, but **incompatible with faceting** (Altair requires every
+        dataset – the normal behavior, but **incompatible with faceting** (Altair requires every
         layer of a faceted chart to share one data variable). Pass the **same DataFrame you gave
         the base chart** to switch to datum mode: the rule then shares that data and is positioned
         by a constant ``alt.datum`` instead of a separate annotation dataset, so ``(base + rule(..., data=df))``
@@ -684,19 +682,18 @@ def _text_bg_props(
 ) -> "tuple[dict[str, Any], float, float]":
     """Background-rect ``mark_rect`` kwargs + pixel (xOffset, yOffset) for one text.
 
-    The box is sized from a rough text estimate (``len*fs*0.6`` wide, proportional fonts vary so
-    it is not exact) plus padding, and the offsets recentre the pixel-sized rect from the datum
-    onto the text per its ``align``/``baseline`` (and any ``dx``/``dy``), so it sits behind the
-    glyphs without needing the scale - works for both datum (data) and value (pixel) positions.
+    The box is sized from a rough text estimate (``len*fs*0.6`` wide; proportional fonts vary, so
+    it is not exact) plus padding. The offsets recenter the pixel-sized rect from the datum onto the
+    text according to its ``align``/``baseline`` (and any ``dx``/``dy``), so it sits behind the
+    glyphs without using the scale. This works for both datum (data) and value (pixel) positions.
     ``cornerRadius`` follows the ``float | bool`` pattern: ``True`` -> ``fs * 0.25`` (the default
     rounding), ``False`` -> ``0`` (square), an explicit float -> that radius in px.
     """
     tw = len(text) * fs * 0.6  # text width estimate (no padding)
     w = tw + fs * 0.7  # chip width = text estimate + horizontal padding
     h = fs * 1.4
-    # Recentre the chip on the text half-width, not the padded chip half-width: a
-    # left/right-anchored label then sits centred in its chip with equal padding on both sides
-    # (shifting by w/2 hugged the text to the near edge, piling all the padding on the far side).
+    # Center the chip on the estimated text width so left/right-anchored labels have equal
+    # padding on both sides. Shifting by w/2 would offset the text toward one edge.
     x_shift = {"left": tw / 2, "right": -tw / 2}.get(align, 0.0) + dx
     y_shift = {"top": h / 2, "bottom": -h / 2, "alphabetic": -h / 2}.get(baseline, 0.0) + dy
     cr = fs * 0.25 if cornerRadius is True else (0.0 if cornerRadius is False else cornerRadius)
@@ -708,8 +705,7 @@ def _text_bg_props(
         rk["stroke"] = stroke_c
         rk["strokeWidth"] = _opt("markStrokeWidth")
     else:
-        # The theme styles config.rect with a black stroke, which a mark_rect inherits (same
-        # config-leak as config.bar.fill); pin it off so stroke=False means no border.
+        # config.rect gives mark_rect a black stroke, so disable it when stroke=False.
         rk["stroke"] = None
         rk["strokeWidth"] = 0
     return rk, round(x_shift, 2), round(y_shift, 2)
@@ -724,8 +720,8 @@ def _text_datum_layers(
     bg: "tuple[str | None, str | None, float, float | bool] | None" = None,
 ) -> list[alt.Chart]:
     """Datum/value-positioned text layers: one per annotation, each on a fresh ``base_factory``
-    base. Positions come from ``alt.datum`` (data coords) or ``alt.value`` (pixels) - never a data
-    field - so the base chart's axis titles survive the layer merge (a ``title=None`` field would
+    base. Positions come from ``alt.datum`` (data coordinates) or ``alt.value`` (pixels), not data
+    fields, so the base chart's axis titles survive the layer merge (a ``title=None`` field would
     null them; a derived field title would concatenate into them). ``base_factory`` decides
     faceting: ``_datum_base(src)`` (shared frame) is facet-safe; a fresh internal dataset is the
     non-facet-safe default."""
@@ -783,15 +779,15 @@ def text(
     ----------
     text:
         Annotation string(s). Pass a list to place multiple annotations in one
-        call — ``x`` and ``y`` must then also be lists of equal length.
+        call – ``x`` and ``y`` must then also be lists of equal length.
     x:
         Horizontal coordinate(s). Three forms are accepted:
 
-        - ``float`` / ``int`` — data coordinate on a quantitative x axis.
+        - ``float`` / ``int`` – data coordinate on a quantitative x axis.
           Shares the main chart's x scale automatically.
-        - ``str`` — category name on a nominal x axis. Shares the main chart's
+        - ``str`` – category name on a nominal x axis. Shares the main chart's
           band scale, placing the text at the band center.
-        - ``alt.value(n)`` — fixed pixel position, ``n`` pixels from the left
+        - ``alt.value(n)`` – fixed pixel position, ``n`` pixels from the left
           edge of the plot area. Use this (or ``position``) for annotations that
           should not move with the data.
 
@@ -818,7 +814,7 @@ def text(
         +------------------+--------------------+-------------------+
 
         When ``closed=True`` or ``axisOffset=0`` in the active theme, a fixed
-        1 px inset is applied automatically to edge positions so text clears
+        2 px inset is applied automatically to edge positions so text clears
         the border or flush axis line. ``offsetX`` / ``offsetY`` add on top of
         this for further fine-tuning::
 
@@ -833,8 +829,8 @@ def text(
     baseline:
         Vertical text anchor: ``"top"``, ``"middle"`` (default), ``"bottom"``,
         or ``"alphabetic"``. ``"middle"`` centers the text body on the y
-        coordinate — best for annotations near symbols or rules.
-        ``"alphabetic"`` sits the reading baseline on y — best when text sits
+        coordinate – best for annotations near symbols or rules.
+        ``"alphabetic"`` sits the reading baseline on y – best when text sits
         alongside other typeset text. Overrides the position value when both are
         set.
     offsetX:
@@ -869,14 +865,14 @@ def text(
     stroke:
         Border of the background chip. ``True`` (default) -> a darkmode-aware default (``"black"``
         light / ``"white"`` dark); ``False`` -> no border; a string -> that color. Only takes effect
-        when a chip is drawn (i.e. when ``fill`` is set) - it borders the fill, it does not create a
-        chip on its own.
+        when a chip is drawn (i.e. when ``fill`` is set) – it borders the fill, it does not create
+        a chip on its own.
     cornerRadius:
         Corner rounding of the background chip. ``True`` (default) -> ``fontSize * 0.25``; ``False``
         -> ``0`` (square); an explicit float -> that radius in px. Ignored when no chip is drawn.
     data:
         Facet-safe (datum) mode. ``None`` (default) builds the annotation from its own internal
-        dataset — the normal behavior, but **incompatible with faceting**. Pass the **same
+        dataset – the normal behavior, but **incompatible with faceting**. Pass the **same
         DataFrame you gave the base chart** to share its data and position the text by ``alt.datum``
         (data coordinates) / ``alt.value`` (pixels), so ``(base + text(..., data=df))`` can be
         faceted and the text repeats in every panel. Accepts a polars or pandas DataFrame.
@@ -896,7 +892,7 @@ def text(
             ["Low", "High"], x=[1.0, 9.0], y=[0.5, 0.5], align="center"
         )
 
-        # Corner position — top-right, inset 4 px from boundary
+        # Corner position – top-right, inset 4 px from boundary
         chart + ds.text("ANOVA p < 0.001", position="topRight", offsetX=-4, offsetY=4)
 
         # Bottom-left with explicit font overrides
@@ -1004,13 +1000,12 @@ def text(
 def _bool_mask(labels: Any, n_rows: int) -> "list[bool] | None":
     """Return ``labels`` as a ``list[bool]`` if it is a boolean mask matching ``n_rows``, else ``None``.
 
-    Accepts a pandas/polars ``Series``, a NumPy array, or a plain list - anything array-like whose
-    length equals ``n_rows`` and whose every element is a boolean (native ``bool``, or a NumPy/Arrow
-    boolean that ``to_list``/``tolist`` normalizes to native ``bool``). Anything else - a list of
-    label VALUES (strings/ints), a wrong-length sequence, a non-iterable - returns ``None`` so the
-    caller falls back to matching by the ``labels`` column. This lets ``labels(subset=...)`` select
-    rows positionally (decoupled from the display column), so a non-unique ``labels`` column can still pick
-    exactly the intended rows.
+    Accepts a pandas/polars ``Series``, a NumPy array, or a list or tuple – any array-like value whose
+    length equals ``n_rows`` and whose elements are booleans (native ``bool``, or NumPy/Arrow
+    booleans normalized to native ``bool`` by ``to_list``/``tolist``). Other inputs – including a
+    list of label values, a wrong-length sequence, or a non-iterable – return ``None`` so the caller
+    falls back to matching by the ``labels`` column. This lets ``labels(subset=...)`` select rows by
+    position independently of the display column, including when ``labels`` is not unique.
     """
     if hasattr(labels, "to_list"):  # pandas / polars Series -> native bools
         seq = list(labels.to_list())
@@ -1049,53 +1044,53 @@ def labels(
     connectorGap: float | None = None,
     alwaysShowConnectors: bool = False,
 ) -> alt.LayerChart:
-    """Auto-place non-overlapping text labels for a set of points, with connector lines.
+    """Auto-place text labels for a set of points, with connector lines.
 
-    A deterministic search places labels near their points, avoiding other points, labels, and
+    A deterministic search places labels near their points while avoiding other points, labels, and
     connector crossings. Returns a layer to add to the base chart with ``+``. Every requested label
-    is shown, though labels may overlap if the available positions cannot fit the text.
+    is shown, but labels may overlap if the available positions cannot fit the text.
 
     Initial placement is calculated in pixels and stored as data coordinates to preserve reflected
-    scales, native composition, and axis titles. Bare Altair displays this initial placement.
-    ``ds.save()`` and ``ds.show()`` place labels again to avoid supported visible marks in the completed
-    panel, including layers added before or after this call. Point coordinates and label settings
-    survive ``ds.load()``, so this also works after loading, resizing, or composing charts.
-    Text bounds are estimates, not measurements of the installed font.
+    scales, native composition, and axis titles. Bare Altair displays this placement.
+    ``ds.save()`` and ``ds.show()`` place labels again to avoid supported visible marks in the
+    completed panel, including layers added before or after this call. Point coordinates and label
+    settings survive ``ds.load()``, so placement also works after loading, resizing, or composing
+    charts. Text bounds are estimates, not measurements of the installed font.
 
     Parameters
     ----------
     data:
-        The plotted data (polars or pandas) - pass the same frame as the base chart.
+        The plotted data (polars or pandas) – pass the same frame as the base chart.
     x, y:
         Quantitative coordinate columns (must match the base chart's x / y encodings).
     labels:
         Column holding the label text.
     subset:
-        Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n`
-        rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **boolean
-        mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry per row of
-        ``data``) selects rows **positionally** - decoupled from ``labels``, so a non-unique label
-        column still picks exactly the intended rows (e.g. ``subset=data["is_hit"]``); any other
-        **list** labels the rows whose ``labels`` value is in it (e.g. ``subset=["TP53", "EGFR"]``,
-        which needs a unique ``labels``). Pass the full plotted ``data`` and let ``subset`` do the
-        selecting: obstacles and the axis domain both span all of ``data``, so the labels dodge EVERY
-        plotted point (not just the labelled subset) and selecting a subset never clips the axes.
+        Which rows to label. ``None`` (default) labels every row; an **int ``n``** selects ``n``
+        rows using deterministic farthest-point sampling across the normalized x-y extent; a
+        **boolean mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry
+        per row of ``data``) selects rows by position, independently of ``labels`` (so a non-unique
+        label column can still select the intended rows, e.g. ``subset=data["is_hit"]``); any other
+        **list** selects rows whose ``labels`` value is in it (e.g. ``subset=["TP53", "EGFR"]``,
+        which needs a unique ``labels``). Pass the full plotted ``data``: obstacles and the axis
+        domain use every row, so label placement accounts for all plotted points and selecting a
+        subset does not clip the axes.
     xDomain, yDomain:
-        ``(min, max)`` mapping assumptions for a base chart with an explicitly matching domain.
-        By default the solver models a standard linear quantitative scale including zero and the
-        theme's view padding. Pass these when the base uses a nondefault explicit domain, with
-        ``zero=False`` on the base if the supplied bounds exclude zero. Nonlinear scales, different
-        padding/nice settings, or unmatched explicit domains fall outside the pixel collision model.
+        Explicit ``(min, max)`` domains for a base chart with matching linear quantitative scales.
+        By default the solver models a linear scale including zero and the theme's view padding.
+        Pass these when the base uses a nondefault explicit domain, with ``zero=False`` on the base
+        if the supplied bounds exclude zero. Nonlinear scales, different padding or nice settings,
+        and unmatched explicit domains fall outside the pixel collision model.
     fontSize:
         Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
     fontStyle:
-        Label font style, e.g. ``"italic"`` (gene / species names) or ``"bold"``. ``None`` (default)
-        inherits the theme's ``mark_text`` (upright). Applies to every label.
+        Label font style, such as ``"italic"``. ``None`` (default) inherits the theme's
+        ``mark_text`` configuration. Applies to every label.
     color:
         Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware
         black/white).
     fill:
-        Background fill behind each label (a rect chip - useful over a dense scatter). ``False``
+        Background fill behind each label (a rect chip – useful over a dense scatter). ``False``
         (default) -> none; ``True`` -> a darkmode-aware default (``greys[0]`` light / ``greys[11]``
         dark); a string -> that color. Read at build time (like ``shade``), so a ``save()``
         across backgrounds needs a callable. The connector meets the chip's edge, and the text is
@@ -1114,9 +1109,9 @@ def labels(
         Whether to draw the line connecting each point to its label (default ``True``).
     connectorCap:
         Optional ``"arrow"`` at the point-facing end of each connector. The arrow points toward the
-        target point and uses the existing ``connectorGap`` exactly once; no additional cap gap is
-        added. ``None`` (default) leaves connector specs and rendering unchanged. A valid cap is a
-        harmless inactive setting when ``connector=False``. Caps are applied in ``ds.save()`` SVG/PNG
+        target point and uses the existing ``connectorGap`` once; no additional cap gap is added.
+        ``None`` (default) leaves connector specs and rendering unchanged. The setting has no effect
+        when ``connector=False``. Caps are applied in ``ds.save()`` SVG/PNG
         and ``ds.show()``, not bare Altair or interactive HTML. If the post-gap rendered connector is
         too short for the fixed arrow geometry, that connector is omitted rather than shrinking the
         arrow or moving the label; all requested labels remain shown. This also applies when
@@ -1127,33 +1122,29 @@ def labels(
         opaque).
     connectorOpacity:
         Connector line opacity, ``0``-``1``. ``None`` (default) -> inherits the theme's ``mark_rule``
-        opacity (opaque). Sets only the mark opacity, leaving the (darkmode-aware) color intact, so a
-        faded leader - e.g. ``connectorOpacity=0.5`` to quiet the leaders relative to the labels -
-        stays legible in both light and dark mode.
+        opacity (opaque). Sets only the mark opacity, leaving the darkmode-aware color intact. The
+        theme can therefore resolve the connector color for both light and dark mode.
     connectorStrokeDash:
         Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``strokeDash``
         pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
     connectorGap:
-        Pixel gap left at the MARKER end of the connector so it points at the dot rather than
-        piercing it. ``None`` (default) -> the theme's ``mark_point`` edge radius plus two
-        connector stroke widths of whitespace
+        Pixel gap at the marker end of the connector so the line stops short of the dot. ``None``
+        (default) -> the theme's ``mark_point`` edge radius plus two
+        connector stroke widths of clearance
         (``sqrt(markSize/2/pi) + markStrokeWidth + 2*axisWidth``), which clears the default point
-        mark (and the smaller ``mark_circle``) with a visible sliver of daylight at any theme
-        scale. During ``ds.save()``/``ds.show()``, the automatic gap expands to clear a larger
-        rendered anchor symbol; ``0`` -> no marker gap; a float -> that many pixels exactly. The
-        TEXT end always keeps just the whitespace term (``2*axisWidth`` - there is no
-        marker to clear there, so a symmetric gap would open a hole between line and label). Both
-        gaps are uniform - they never shrink, so every drawn connector sits the same distance off
-        its dot and its label; a connector too short to keep the full gaps is dropped instead (see
-        ``alwaysShowConnectors``).
+        mark and the smaller ``mark_circle``. During ``ds.save()``/``ds.show()``, the automatic gap
+        expands to clear a larger rendered anchor symbol; ``0`` -> no marker gap; a float -> that
+        many pixels exactly. The text end keeps only the whitespace term (``2*axisWidth``), since
+        there is no marker to clear there. Both gaps are uniform – they never shrink, so every drawn
+        connector sits the same distance from its dot and label; a connector too short to keep the
+        full gaps is dropped instead (see ``alwaysShowConnectors``).
     alwaysShowConnectors:
         By default (``False``) a connector is omitted when the full end gaps would leave less than
         four connector stroke widths of visible line (length < ``connectorGap + 6*axisWidth``,
-        i.e. < 1 px of line at the default theme) - the stub is just noise and the adjacent label
-        is unambiguous. This threshold is font-independent (tied to the marker gap), so changing
-        the label font never drops real leaders. ``True`` reserves candidate room for the complete
-        marker gap, text gap, and visible stroke. Clearances never shrink; if the requested gap or
-        label cannot fit in the panel, that geometrically impossible connector is omitted.
+        i.e. less than 1 px of line at the default theme). This threshold is independent of font
+        size and is based on marker clearance. ``True`` reserves candidate room for the full marker
+        gap, text gap, and visible stroke. Clearances never shrink; if the requested gap or label
+        cannot fit in the panel, the connector is omitted.
 
     Raises
     ------
@@ -1404,14 +1395,14 @@ def labels(
 # Background shading
 
 
-# Shade rects are background; `_svg_geometry._layer_axes_below_marks` sinks them behind the grid and axes
-# by the view-`name` marker Vega copies into the SVG group class.
+# Shade rects are background; `_svg_geometry._layer_axes_below_marks` places them behind the grid and axes
+# using the view-`name` marker Vega copies into the SVG group class.
 _shade_counter = 0
 
 
 def _tag_shade(chart: alt.Chart) -> alt.Chart:
-    """Name a shade layer so the SVG fixer can sink it. Names must be unique - Vega compiles a
-    view name into a dataset name and rejects collisions."""
+    """Name a shade layer so the SVG fixer can place it behind the axes. Vega compiles each view
+    name into a dataset name, so names must be unique."""
     global _shade_counter
     _shade_counter += 1
     return chart.properties(name=f"{_SHADE_PREFIX}{_shade_counter}")
@@ -1447,11 +1438,11 @@ def shade(
     ranges given as ``(start, end)`` tuples, one rect per tuple. Colors cycle
     across positions (``palette[i % len(palette)]``).
 
-    - *String tuples* — category names on a nominal axis. Requires
+    - *String tuples* – category names on a nominal axis. Requires
       ``categories`` for index lookup. Uses pixel coordinates via
       ``alt.value`` so it does not interfere with the main chart's scale.
       Supports ``axis='x'``, ``'y'``, and ``'both'``.
-    - *Numeric tuples* — data-space coordinates on a quantitative axis.
+    - *Numeric tuples* – data-space coordinates on a quantitative axis.
       Uses ``x:Q``/``x2:Q`` or ``y:Q``/``y2:Q`` encoding, which
       auto-shares the scale with the main chart's matching channel.
       Supports ``axis='x'``, ``'y'``, and ``'both'``.
@@ -1467,18 +1458,18 @@ def shade(
         shade = ds.shade(CATEGORIES)
         chart = shade + main_chart
 
-        # positions mode — shade two category spans on x
+        # positions mode – shade two category spans on x
         shade = ds.shade(
             positions=[("Control", "Group B"), ("Group D", "Group E")],
             categories=CATEGORIES,
         )
 
-        # positions mode — reference band on y (quantitative)
+        # positions mode – reference band on y (quantitative)
         shade = ds.shade(
             positions=[(5.0, 10.0)], axis='y', palette=["#E8F4F8"]
         )
 
-        # positions mode — intersection rect, nominal x + quantitative y
+        # positions mode – intersection rect, nominal x + quantitative y
         shade = ds.shade(
             positions=[(("Control", "Group B"), (8.0, 12.0))],
             axis='both',
@@ -1503,7 +1494,7 @@ def shade(
     palette:
         List of hex color strings to cycle through in light mode. Defaults
         to ``"greys"`` when ``None``. In dark mode this parameter is always
-        ignored — the darkest ``nShades`` stops of ``"greys"`` are used
+        ignored – the darkest ``nShades`` stops of ``"greys"`` are used
         regardless. Resolved at call time; pass a callable to ``ds.save()``
         for correct darkmode rendering.
     nShades:
@@ -1529,11 +1520,11 @@ def shade(
         A list (e.g. ``[4, 2]``) → use that pattern directly.
     flush:
         Extend the outermost rects to the axis domain edge (band mode and
-        string positions only). ``None`` inherits from the theme's
-        ``closed`` setting.
+        string positions only). ``None`` extends to the edge when the theme
+        has ``closed=True`` or ``axisOffset=0``.
     data:
         Facet-safe (datum) mode, **positions mode only**. ``None`` (default) builds each rect from
-        its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass
+        its own internal dataset – the normal behavior, but **incompatible with faceting**. Pass
         the **same DataFrame you gave the base chart** to share its data and position numeric ranges
         by ``alt.datum`` (string/pixel ranges already use ``alt.value``), so
         ``(base + shade(positions=..., data=df))`` can be faceted and the shading repeats in
@@ -1567,9 +1558,8 @@ def shade(
         "stroke": axis_stroke_color if stroke else None,
         "strokeWidth": resolved_stroke_width,
         "strokeOpacity": 1 if stroke else 0,
-        # Shade rects are chart annotations, not data marks, so they pin square corners
-        # regardless of theme(cornerRadius=...) - which styles config.rect and would
-        # otherwise round these background bands as an unintended side effect.
+        # Shade rects are chart annotations, not data marks. Set square corners explicitly because
+        # theme(cornerRadius=...) styles config.rect and would otherwise round these bands.
         "cornerRadius": 0,
     }
     if resolved_dash is not None:
@@ -1587,11 +1577,10 @@ def shade(
     def _shade_rect(color, *, x=None, y=None) -> alt.Chart:
         """One ``mark_rect`` layer. ``x`` / ``y`` are each ``None``, a pixel range ``("px", lo,
         hi)``, or a data range ``("q", start, end)``. Pixel ranges use ``alt.value``; data ranges
-        use ``alt.datum`` - NEVER a data field, whose ``title=None`` would null the base chart's
-        axis title (a field on the shared channel joins Vega-Lite's layer axis-title merge). Datum
-        mode shares ``src`` (faceteable); the default builds a fresh internal annotation dataset
-        (read-filtered, deliberately NOT faceteable). Both share the base chart's scale, so the
-        datum lands at the right data coordinate."""
+        use ``alt.datum``, not a data field, because a field on the shared channel joins Vega-Lite's
+        layer axis-title merge and can null the base chart's title. Datum mode shares ``src`` and is
+        facet-safe; the default builds a fresh internal annotation dataset and is not facet-safe.
+        Both use the base chart's scale, so the datum maps to the corresponding data coordinate."""
         enc: dict[str, Any] = {}
         for ch, spec in (("x", x), ("y", y)):
             if spec is None:
@@ -1600,7 +1589,7 @@ def shade(
             c2 = ch + "2"
             if kind == "px":
                 enc[ch], enc[c2] = alt.value(a), alt.value(b)
-            else:  # ("q", ...) data range - datum keeps the base axis title (a field would clobber it)
+            else:  # ("q", ...) data range – datum keeps the base axis title (a field would replace it)
                 enc[ch], enc[c2] = alt.datum(float(a)), alt.datum(float(b))
         base = _datum_base(src) if datum_mode else alt.Chart(_internal_data(dummy_df))
         return _tag_shade(base.mark_rect(**mark_kwargs, color=color).encode(**enc))
@@ -1611,8 +1600,8 @@ def shade(
 
         if axis == "both":
             # Nested tuples: ((x_start, x_end), (y_start, y_end)).
-            # Each half is resolved independently — string → pixel value via
-            # band scale; numeric → Q field that shares the main chart's scale.
+            # Each half is resolved independently – strings become pixel values via the
+            # band scale; numeric bounds share the main chart's scale.
             chart_width = _opt("width")
             chart_height = _opt("height")
             n = len(categories) if categories else 0
@@ -1623,7 +1612,7 @@ def shade(
                 flush = _default_flush()
 
             def _half(ch: str, start, end, geo, span) -> tuple[Any, ...]:
-                # A string range → pixel span via the band scale; a numeric range → data span.
+                # A string range becomes a pixel span via the band scale; a numeric range is a data span.
                 if isinstance(start, str):
                     if categories is None:
                         raise ValueError(f"categories is required when positions contains string {ch}-ranges.")
@@ -1640,9 +1629,8 @@ def shade(
                 layers.append(_shade_rect(color, x=x_spec, y=y_spec))
 
         elif len(positions) > 0 and isinstance(positions[0][0], str):
-            # String tuples: category names on a nominal axis.
-            # Convert to pixel coordinates using the band scale formula so the
-            # shade layer does not participate in scale merging.
+            # String tuples contain category names on a nominal axis. Convert them to pixel
+            # coordinates using the band scale formula so the shade layer does not affect scale merging.
             if categories is None:
                 raise ValueError("categories is required when positions contains string tuples.")
             n = len(categories)
@@ -1662,8 +1650,8 @@ def shade(
                 layers.append(_shade_rect(color, **({"y": spec} if axis == "y" else {"x": spec})))
 
         else:
-            # Numeric tuples: data-space coordinates on a quantitative axis. Default → Q fields that
-            # share the main chart's scale; datum mode → alt.datum on the same channel.
+            # Numeric tuples contain data-space coordinates on a quantitative axis. The default
+            # uses Q fields that share the main chart's scale; datum mode uses alt.datum.
             for k, (start, end) in enumerate(positions):
                 color = palette[k % n_colors]
                 spec = ("q", start, end)
@@ -1686,9 +1674,8 @@ def shade(
     if flush is None:
         flush = _default_flush()
 
-    # Merge consecutive same-color categories so there is no coincident edge
-    # between two rects of the same fill — that edge would show as a faint gap
-    # in rasterized PNG output regardless of opacity.
+    # Merge consecutive same-color categories to avoid coincident edges between same-fill rects,
+    # which can appear as gaps in rasterized PNG output regardless of opacity.
     run_layers: list[alt.Chart] = []
     i = 0
     while i < n:

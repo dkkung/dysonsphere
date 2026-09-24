@@ -216,8 +216,8 @@ def _shortened_segment(
     """Choose a short straight connector among sampled visible boundary attachments."""
     cx, cy = center
     hw, hh = size[0] / 2.0, size[1] / 2.0
-    # Attach connectors away from corners unless they approach diagonally; near-parallel corner
-    # connections can look like detached underlines.
+    # Keep connectors away from corners unless they approach diagonally; near-parallel
+    # corner connections can be hard to distinguish from underlines.
     inset = min(hw, hh)
     xlo, xhi = cx - hw + inset, cx + hw - inset
     projected_x = min(max(anchor[0], xlo), xhi)

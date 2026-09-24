@@ -33,7 +33,7 @@ def label_expr(mapping: Mapping[Any, str | list[str]]) -> str:
 
     The same string works everywhere Vega-Lite accepts a label expression: axis tick
     labels (``alt.Axis(labelExpr=)``), legend entries (``alt.Legend(labelExpr=)``),
-    and facet headers (``alt.Header(labelExpr=)``). Only the rendered labels change -
+    and facet headers (``alt.Header(labelExpr=)``). Only the rendered labels change –
     the data, exported JSON, checksums, and statistics records keep the raw values.
 
     Parameters
@@ -47,7 +47,7 @@ def label_expr(mapping: Mapping[Any, str | list[str]]) -> str:
     Returns
     -------
     str
-        A Vega expression - a ternary chain, e.g.
+        A Vega expression – a ternary chain, e.g.
         ``"datum.value == 'a' ? 'A' : datum.value == 'b' ? 'B' : datum.value"``.
         (A ternary chain rather than the object-lookup idiom
         ``{...}[datum.value] || datum.value``, whose ``||`` fallback silently

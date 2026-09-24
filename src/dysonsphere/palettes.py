@@ -9,7 +9,7 @@ from pathlib import Path
 # Public names in ds.palettes; palette is also exported at the root.
 __all__ = ["colors", "accents", "palette", "categorical", "export_swatches"]
 
-# Alternate native lookup spellings. Values are canonical catalogue/export names.
+# Alternate native lookup spellings. Values are canonical catalog/export names.
 _PALETTE_ALIASES: dict[str, str] = {}
 
 _ACCENT_LIGHT = {
@@ -237,8 +237,8 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
     """
     Qualitative color palette built from a family of base hues.
 
-    Every color is drawn from an existing base palette at fixed stops - nothing is
-    generated de novo, so retuning a base hue regenerates this palette automatically.
+    Every color is selected from an existing base palette at fixed stops, so changes to a
+    base hue also change this palette.
 
     Parameters
     ----------
@@ -252,23 +252,22 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
           The default ``cat1`` flat form is what ``config.range.category`` uses in light mode;
           the dark-mode default is ``cat2``.
         - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered
-          **hue-major** - each consecutive block of ``members`` categories is one hue
-          climbing through ``members`` lightness levels. Returns ``len(hues) * members``
-          colors. Sort your categories so a group's members are adjacent, then pass this
-          as the color scale range.
+          **hue-major** – each consecutive block of ``members`` categories is one hue
+          across ``members`` lightness levels. Returns ``len(hues) * members`` colors.
+          Sort categories so each group's members are adjacent, then pass this as the color
+          scale range.
 
         For the canonical ``cat3`` and ``cat4`` families, up to ``4`` members use the
         classic tier stops (``1, 4, 7, 10``); beyond ``4``, stops spread evenly across
         ``1``-``10``. ``cat1`` and ``cat2`` instead spread every grouped selection across
         their per-hue usable windows. In either path, adding members shrinks within-hue
         contrast; ``5``-``6`` are reasonable at normal mark sizes but larger groups become
-        increasingly ambiguous. If your "members" are actually ordinal
-        (a dose series, timepoints), a sequential slice per group -
-        ``palette("cat1_blues", n=5)`` - usually communicates that better than a
-        categorical palette pretending they're unordered.
+        increasingly ambiguous. If the categories are ordinal (for example, dose levels or
+        timepoints), a sequential palette slice such as ``palette("cat1_blues", n=5)``
+        usually communicates their order more clearly than a categorical palette.
     palette:
         Which qualitative palette to build. ``"cat1"`` (default) is the static two-tier accent
-        set - grey, blue, green, purple, and teal - with five light-theme accents followed by
+        set – grey, blue, green, purple, and teal – with five light-theme accents followed by
         lighter companions (also stored as ``colors["cat1"]`` and used by the light-mode
         ``config.range.category`` default).
         ``"cat2"`` is the saturated cool set, ``"cat3"`` is the legacy four-hue pastel set,
@@ -327,7 +326,7 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
     if members == 1:
         return [colors[h][s] for s in (1, 4, 7) for h in hues]  # tier-major
     if 1 + 3 * (members - 1) <= 10:
-        # The classic tier stops - (1, 4, 7, 10)[:members] - kept exactly for members<=4
+        # The classic tier stops – (1, 4, 7, 10)[:members] – kept exactly for members<=4
         # so the grouped palette stays consistent with the flat palette's tiers (and with
         # prior versions).
         stops = tuple(range(1, 1 + 3 * members, 3))
@@ -357,7 +356,7 @@ def palette(
 
     When ``n`` is provided, evenly samples ``n`` colors between ``start`` and
     ``stop`` (linspace). Otherwise, returns every ``step``-th color from
-    ``start`` to ``stop`` — with default ``step=1`` this returns the full slice.
+    ``start`` to ``stop`` – with default ``step=1`` this returns the full slice.
 
     Parameters
     ----------
@@ -498,10 +497,10 @@ def export_swatches(
 
     Produces two files (``name`` defaults to ``"dysonsphere"``):
 
-    - ``import_{name}_palettes_to_illustrator.jsx`` — run via
+    - ``import_{name}_palettes_to_illustrator.jsx`` – run via
       File > Scripts > Other Script... to load the selected palettes into the active
       document's Swatches panel as named groups.
-    - ``{name}.ase`` — Adobe Swatch Exchange file containing the selected palettes as
+    - ``{name}.ase`` – Adobe Swatch Exchange file containing the selected palettes as
       named groups. Automatically copied to the Illustrator User Defined Swatches
       folder if it can be detected; otherwise copy it there manually. After restarting
       Illustrator it appears under Open Swatch Library > User Defined > {name}.
@@ -830,12 +829,12 @@ colors = {
         "#012D2C",
     ],
     # Qualitative base ramps: the five australis-harmonious hues sliced by
-    # categorical() to build the cat4 palette. Tuned for colorblindness -
-    # the three cool hues (teal/blue/purple) are pulled apart in hue and given
-    # distinct lightnesses so a CVD viewer separates them by lightness when hue
-    # collapses; green + gold are the yellow-side anchors. Teal leads, gold is
-    # the warm end. These are distinct ramps, not slices of the saturated
-    # blues/greens/etc. (See print_palettes.py for the recipe.)
+    # categorical() to build the cat4 palette. For color-vision accessibility,
+    # the three cool hues (teal/blue/purple) are separated in hue and lightness
+    # so viewers can distinguish them by lightness when hue perception is reduced.
+    # Green and gold are the yellow-side anchors. Teal leads and gold is the warm
+    # end. These are distinct ramps, not slices of the saturated blues/greens/etc.
+    # (See print_palettes.py for the recipe.)
     "cat4_blues": [
         "#CFE0F4",
         "#B7D0EE",
@@ -1089,8 +1088,8 @@ colors = {
         "#4E208B",
         "#3F007D",
     ],
-    # Discrete qualitative - nucleotide chemical identity
-    # 5 colors: A, T, G, C, U — chromatogram convention (A=green, T=red, G=gold, C=blue)
+    # Discrete qualitative – nucleotide chemical identity
+    # 5 colors: A, T, G, C, U – chromatogram convention (A=green, T=red, G=gold, C=blue)
     # U (uracil) violet to distinguish from T.
     "magentas": [
         "#F6DBF4",
@@ -2954,7 +2953,7 @@ colors = {
         "#A55EA2",
         "#933F91",
     ],
-    # Diverging - "2"-suffix sequential single-hue pairs
+    # Diverging – "2"-suffix sequential single-hue pairs
     # Outer tips taken from index 7 of each "2" sequential palette.
     "greysoranges": [
         "#636363",
@@ -3271,7 +3270,7 @@ colors = {
         "#43746E",
         "#1A5C55",
     ],
-    # Diverging - sequential single-hue pairs
+    # Diverging – sequential single-hue pairs
     # Outer tips taken from index 7 of each sequential palette (4th from dark
     # end); 13 stops interpolated at equal Oklab arc-length through #F6F6F6.
     "pugn": [
@@ -3679,7 +3678,7 @@ colors = {
         "#8F648D",
         "#764B75",
     ],
-    # Matplotlib Purples as Oklab starting point - paler/cooler than purples_oklab
+    # Matplotlib Purples as Oklab starting point – paler/cooler than purples_oklab
     "greysoranges2": [
         "#5A5A5A",
         "#727272",
@@ -5044,26 +5043,26 @@ colors = {
         "#F8FDE4",
     ],
     "nucleotides": [
-        "#4D945E",  # A — green (greens[6])
-        "#BC4A5A",  # T — red (reds[7])
-        "#E5C227",  # G — gold (yellows[7])
-        "#4177B1",  # C — blue (blues[7])
-        "#9866D5",  # U — violet (purples[6])
+        "#4D945E",  # A – green (greens[6])
+        "#BC4A5A",  # T – red (reds[7])
+        "#E5C227",  # G – gold (yellows[7])
+        "#4177B1",  # C – blue (blues[7])
+        "#9866D5",  # U – violet (purples[6])
     ],
-    # Discrete qualitative - amino acid biochemical properties (Zappo-inspired)
+    # Discrete qualitative – amino acid biochemical properties (Zappo-inspired)
     # 8 groups: hydrophobic (A,I,L,M,V), aromatic (F,Y,W), positive (R,K),
     #           negative (D,E), polar (S,T,N,Q,H), proline (P), glycine (G), cysteine (C)
     #
-    # proteins:  Zappo-adjusted — blue=negative, green=polar, grey=G, magenta=P
+    # proteins:  Zappo-adjusted – blue=negative, green=polar, grey=G, magenta=P
     "proteins": [
-        "#000000",  # hydrophobic — near-black (greys[11]); was #1F1F1F
-        "#FCD62C",  # aromatic — yellow (yellows[5])
-        "#BC4A5A",  # positive — red (reds[7])
-        "#4177B1",  # negative — blue (blues[7])
-        "#4D945E",  # polar — green (greens[6])
-        "#AD4CAB",  # proline — magenta (magentas[6])
-        "#898989",  # glycine — grey (greys[5])
-        "#E97D1C",  # cysteine — orange (oranges[7])
+        "#000000",  # hydrophobic – near-black (greys[11]); was #1F1F1F
+        "#FCD62C",  # aromatic – yellow (yellows[5])
+        "#BC4A5A",  # positive – red (reds[7])
+        "#4177B1",  # negative – blue (blues[7])
+        "#4D945E",  # polar – green (greens[6])
+        "#AD4CAB",  # proline – magenta (magentas[6])
+        "#898989",  # glycine – grey (greys[5])
+        "#E97D1C",  # cysteine – orange (oranges[7])
     ],
     # Matplotlib qualitative palettes
     # Complete ListedColormap colors from Matplotlib 3.11.1 (matplotlib.org), preserving upstream order.

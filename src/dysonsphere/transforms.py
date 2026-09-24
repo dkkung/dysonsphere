@@ -50,7 +50,7 @@ def _normalised_kde_density(
     group: Any,
     kind: str,
 ) -> np.ndarray:
-    """Evaluate a KDE and normalise it only when the result is numerically usable."""
+    """Evaluate a KDE and normalize it only when the result is numerically usable."""
     try:
         density = np.asarray(kde(values), dtype=float)
     except (np.linalg.LinAlgError, ValueError, FloatingPointError, OverflowError) as exc:
@@ -80,14 +80,14 @@ def _beeswarm_offsets(
     ---------
     1. Map y values linearly to pixel space over ``[0, heightPx]``.
     2. Sort points by y-pixel position (ascending).
-    3. For each point, try x = 0, then ±step, ±2·step, … until a position is
-       found where no already-placed point is within distance 2·spread (i.e.
-       the circles do not overlap).
+    3. For each point, calculate the forbidden x intervals from already-placed points
+       less than ``2 * spread`` away vertically. Test x = 0 and the interval boundaries,
+       from closest to farthest from zero, and accept the first position without overlap.
     4. Return the accepted x offsets in the original row order.
 
-    ``spread`` is the collision radius in pixels — visually, the half-width of
-    each point in the offset axis.  The total beeswarm width is emergent:
-    it grows with n and shrinks with spread.
+    ``spread`` is the collision radius in pixels – visually, the half-width of
+    each point in the offset axis. The total beeswarm width depends on the points' positions:
+    it grows with n and shrinks as ``spread`` decreases.
 
     Parameters
     ----------
@@ -96,12 +96,8 @@ def _beeswarm_offsets(
     heightPx:
         Chart height in pixels. Should match ``.properties(height=...)``.
     spread:
-        Collision radius in pixels. Points are placed so no two centres are
+        Collision radius in pixels. Points are placed so no two centers are
         closer than ``2 * spread``. Defaults to 2.0.
-    step:
-        x step size (px) between candidate positions. Defaults to ``spread``
-        so the candidate grid aligns with the point diameter.
-
     Returns
     -------
     numpy.ndarray
@@ -143,7 +139,7 @@ def _beeswarm_offsets(
         return np.array([])
 
     r = spread
-    d = 2 * r  # minimum centre-to-centre distance
+    d = 2 * r  # minimum center-to-center distance
 
     y_min, y_max = yVals.min(), yVals.max()
     y_px = (yVals - y_min) / max(y_max - y_min, 1e-9) * heightPx
@@ -219,33 +215,33 @@ def _quasirandom_offsets(
     *statistically* by local density: the swarm takes a violin/lens outline (wide where the data
     is dense, narrow in the tails), and within that width points are placed by a van der Corput
     low-discrepancy sequence assigned in y-order, so adjacent-y points fan to opposite sides.
-    Fully deterministic (KDE + van der Corput, no RNG), so figures are reproducible. It does NOT
-    guarantee non-overlap - the trade for a symmetric, evenly-textured spread.
+    The method is deterministic (KDE and van der Corput, without a random number generator),
+    so figures are reproducible. It does not guarantee non-overlap; instead, it produces a
+    symmetric, density-shaped spread.
 
     Algorithm
     ---------
-    1. Estimate the value-axis density with a Gaussian KDE; normalise to ``[0, 1]`` per point.
+    1. Estimate the value-axis density with a Gaussian KDE; normalize to ``[0, 1]`` per point.
     2. Assign each point (in ascending-y order) the next van der Corput value, mapped to ``[-1, 1]``.
     3. Scale each by its local density (the lens width) and ``width`` (the peak half-width in px).
-    4. Recentre the group on its midrange so it sits symmetric about the tick (a rigid shift - safe,
-       since there are no solved collisions to disturb - keeping the swarm's left/right extremes
-       equidistant from the tick and lifting small even-count groups off the centre line, the swarm
-       method's lopsided-even-row artifact).
+    4. Shift the offsets by their midrange so the left and right extremes are equidistant from
+       the tick. This moves small even-count groups away from the center line, avoiding the
+       lopsided even-row placement associated with the exact swarm method.
 
     Parameters
     ----------
     yVals:
         Array of y values for one group.
     heightPx:
-        Chart height in pixels. Used to size the auto ``width`` window. Defaults to the theme's
-        theme ``height``.
+        Chart height in pixels. Used to size the auto ``width`` window. Defaults to the active
+        theme's ``height``.
     spread:
-        Point radius in pixels - the unit the auto ``width`` is built from. Defaults to
+        Point radius in pixels – the unit used to calculate the automatic ``width``. Defaults to
         ``sqrt(markSize / pi)`` from the active theme (matching :func:`_beeswarm_offsets`).
     width:
         Peak half-width of the swarm in pixels (the spread at maximum density). ``None`` (default)
         auto-sizes it to ``spread * peak``, where ``peak`` is the most points falling within any
-        ``2 * spread`` tall vertical window - so the densest region lands on roughly the same
+        ``2 * spread`` tall vertical window – so the densest region lands on roughly the same
         footprint the ``"swarm"`` method would produce.
     bandwidth:
         KDE bandwidth, forwarded to ``scipy.stats.gaussian_kde(bw_method=...)``. ``None`` (default)
@@ -278,8 +274,8 @@ def _quasirandom_offsets(
     if not np.all(np.isfinite(y_px)):
         raise ValueError(f"quasirandom KDE column {column!r} produced non-finite plot coordinates in group {group!r}.")
 
-    # Relative local density (the lens width). A zero or numerically tiny-range group uses the
-    # historical uniform fallback instead of a KDE.
+    # Relative local density (the lens width). A zero or numerically tiny-range group uses a
+    # uniform fallback instead of a KDE.
     if value_span < 1e-9:
         dens = np.ones(n)
     else:
@@ -361,16 +357,15 @@ def beeswarm(
     """
     Add a swarm beeswarm x-offset column to a Polars DataFrame, computed per group.
 
-    Wraps :func:`_beeswarm_offsets` (the greedy exact-collision "swarm" layout, R
-    ggbeeswarm's ``geom_beeswarm(method="swarm")``): every point is guaranteed
-    non-overlapping. The trade is that tightly-packed rows can look lopsided (an
-    even-count row parks a point on the tick, lone points get pushed to one side) -
-    inherent to the swarm algorithm. For a symmetric, density-shaped alternative that
-    allows mild overlap, see :func:`quasirandom`.
+    Wraps :func:`_beeswarm_offsets`, a greedy exact-collision layout based on R
+    ggbeeswarm's ``geom_beeswarm(method="swarm")``. Points do not overlap, but tightly
+    packed rows can be asymmetric: an even-count row may place a point on the tick, and
+    points may be pushed to one side. This is a limitation of the swarm algorithm. For a
+    symmetric, density-shaped alternative that allows overlap, see :func:`quasirandom`.
 
-    ``spread`` is the collision radius in pixels - set it to roughly half the rendered
-    point diameter for non-overlapping points. The total horizontal width is emergent
-    and grows with n.
+    ``spread`` is the collision radius in pixels – set it to roughly half the rendered
+    point diameter for non-overlapping points. The total horizontal width depends on the
+    group size and point positions.
 
     Parameters
     ----------
@@ -406,7 +401,7 @@ def beeswarm(
             xOffset=alt.XOffset("beeswarm_x:Q", scale=alt.Scale(domain=[-m, m])),
         )
 
-    Without the symmetric ``domain``, Vega-Lite centres the tick on the offset range's midpoint,
+    Without the symmetric ``domain``, Vega-Lite centers the tick on the offset range's midpoint,
     so a leaning swarm renders slightly off the tick (``mark_strip`` pins this domain for you).
     """
     data = _ensure_polars(data)
@@ -429,14 +424,12 @@ def quasirandom(
     """
     Add a quasirandom x-offset column to a Polars DataFrame, computed per group.
 
-    Wraps :func:`_quasirandom_offsets` - a density-scaled quasirandom spread (van der
-    Corput low-discrepancy sequence weighted by a Gaussian KDE), R ggbeeswarm's
-    ``geom_quasirandom``. It gives a symmetric, violin-shaped swarm that stays centred
-    on the tick, sidestepping :func:`beeswarm`'s lopsided tightly-packed rows. Fully
-    deterministic (no RNG), so figures reproduce. The trade is that it does NOT guarantee
-    non-overlap - the cost of the smoother, symmetric look. It is the better choice for
-    large or heavily-tied groups; use :func:`beeswarm` for small groups where exact
-    non-overlap matters.
+    Wraps :func:`_quasirandom_offsets`, a density-scaled quasirandom spread using a van der
+    Corput low-discrepancy sequence weighted by a Gaussian KDE, based on R ggbeeswarm's
+    ``geom_quasirandom``. The symmetric, violin-shaped offsets stay centered on the tick
+    and avoid the asymmetry of tightly packed :func:`beeswarm` rows. The method is
+    deterministic and does not guarantee non-overlap. It is suitable for large or heavily
+    tied groups; use :func:`beeswarm` for small groups where exact non-overlap matters.
 
     Parameters
     ----------
@@ -449,7 +442,7 @@ def quasirandom(
     heightPx:
         Chart height in pixels. Defaults to the theme's ``height``.
     spread:
-        Point radius in pixels - the unit the auto ``width`` is built from. Defaults to
+        Point radius in pixels – the unit used to calculate the automatic ``width``. Defaults to
         ``sqrt(markSize / π)`` from the active theme, matching :func:`beeswarm`.
     outCol:
         Name of the output offset column added to the DataFrame.
@@ -534,8 +527,8 @@ def jitter(
 
     Each offset is drawn independently from N(0, spread²), where ``spread``
     is the standard deviation in pixels.  ~68% of points fall within
-    ±spread of centre; ~95% within ±2·spread.  There is no collision
-    avoidance — points can overlap.  Use :func:`beeswarm` instead for
+    ±spread of center; ~95% within ±2·spread.  There is no collision
+    avoidance – points can overlap. Use :func:`beeswarm` instead for
     small n where overlap is undesirable.
 
     Parameters
