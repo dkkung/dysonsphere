@@ -5,18 +5,23 @@ description: Correlation coefficients and OLS fit lines with ds.stats.correlatio
 
 import Example from '../../../components/Example.astro';
 
-[`ds.stats.correlation()`](/reference/stats/#correlation) adds a coefficient, an optional p-value,
-and (for Pearson) an OLS fit line to a scatter. Compose the result with `+`. Like
-`ds.stats.comparisons()`, each call builds a structured report that
-`save()` embeds in the export metadata. `report=True` prints it, and `saveReport=True` writes it to a
-file. By default, the readout shows `r = …`; rank methods show only their coefficient.
+[`ds.stats.correlation()`](/reference/stats/#correlation) adds a coefficient and optional p-value
+to a scatterplot. Pearson correlation also adds an OLS fit line. Compose the result with `+`.
+
+Each call builds a structured report that `save()` embeds in the export metadata. `report=True`
+prints the report, and `saveReport=True` writes it to a file. By default, the readout shows
+`r = …`; rank methods show only their coefficient.
 
 <Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
 
-For Pearson, `ci=True` draws a shaded band around the OLS fit. Pass a level such as `ci=0.99`. The
-default `interval="confidence"` shows uncertainty in the mean response represented by the fit line;
-`interval="prediction"` gives a wider interval for a single new observation. The band is drawn under
-the line and styled with `ciColor` and `ciOpacity`:
+For Pearson, `ci=True` draws a shaded band around the OLS fit; pass a level such as `ci=0.99`.
+
+Choose what the band represents with `interval=`:
+
+- `"confidence"` shows uncertainty in the mean response represented by the fit line.
+- `"prediction"` gives a wider interval for a single new observation.
+
+The band is drawn under the line and styled with `ciColor` and `ciOpacity`:
 
 <Example name="correlation_ci" alt="OLS fit line with a shaded 95% confidence band" />
 
@@ -33,13 +38,13 @@ is optional. They do not fit a straight-line model, so no fit line is drawn:
 
 ## Per-series correlation
 
-Pass `groupBy` to compute a correlation for each group. Pearson groups get a fit line by default and
-can include an interval band. The lines and readout swatches use groupBy for color; color the scatter by the same field to match.
-This is a color lookup, so no sort parameter is needed. The readouts stack in the corner, one
-per series:
+Pass `groupBy` to compute a correlation for each group. Pearson groups get a fit line by default
+and can include an interval band. Readouts stack in the corner, one per series. The lines and
+readout swatches use `groupBy` for color; color the scatter by the same field to match. This is a
+color lookup, so no sort parameter is needed.
 
 A custom `label=` value follows each group name. `lineStyle` overrides the curated line options in
-both single and grouped modes. `ciColor` sets the band fill; otherwise, it follows the effective line
+single and grouped modes. `ciColor` sets the band fill; otherwise, it follows the effective line
 color. `ci` syntax is still validated for rank methods, even though they draw no line or band.
 
 <Example name="correlation_groups" alt="Per-cell-line correlation with fit lines and coefficients" />
