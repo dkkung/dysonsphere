@@ -334,12 +334,13 @@ time.
 ## Rebuilding the chart
 
 ```python
-chart = ds.load("figure.json")            # an Altair object, theme re-applied
-spec  = ds.load("figure.json", raw=True)  # the untouched Vega-Lite spec dict
+chart = ds.load("figure.json")                         # an Altair object, theme re-applied
+spec = ds.load("figure.json", output="spec")          # the untouched Vega-Lite spec dict
 ```
 
 `load()` accepts only JSON, which contains the full specification. It reapplies the saved theme so
-the reconstructed chart renders the same way.
+the reconstructed chart renders the same way. `output="spec"` returns the Vega-Lite dictionary
+without reconstructing an Altair chart or applying the theme.
 
 The rebuilt Altair object has no metadata. `load()` strips `usermeta` and `config` because Altair's
 schema rejects some theme config values. The object therefore has no checksums for verification.
@@ -350,7 +351,7 @@ ds.metadata.verify("figure.json", data=df)                    # yes - reads the 
 ds.metadata.verify(ds.load("figure.json"))                  # no - the object has no metadata
 ```
 
-`ds.load("figure.json", raw=True)` does keep `usermeta`, since it returns the spec untouched.
+`ds.load("figure.json", output="spec")` keeps the untouched spec, including `usermeta`.
 
 ## Statistics without a file
 

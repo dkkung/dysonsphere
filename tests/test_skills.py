@@ -16,7 +16,17 @@ import vl_convert as vlc
 import dysonsphere as ds
 
 SKILL = Path(__file__).parents[1] / "skills" / "dysonsphere"
-EXPECTED_EXAMPLES = {"scatter", "panels", "comparisons", "correlation", "backgrounds"}
+EXPECTED_EXAMPLES = {
+    "scatter",
+    "panels",
+    "comparisons",
+    "correlation",
+    "backgrounds",
+    "table",
+    "multilabel",
+    "quasirandom",
+    "nonlinear",
+}
 STATISTICS = {"comparisons", "correlation"}
 
 
@@ -151,6 +161,8 @@ def test_python_example_exports_are_valid(portable_skill, tmp_path, monkeypatch,
     work = tmp_path / example_id
     work.mkdir()
     monkeypatch.chdir(work)
+    # Keep local user themes out of portable examples so built-in export defaults are tested.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user-config"))
     filename = f"{document}#{example_id}"
     namespace: dict[str, Any] = {"__name__": "__main__"}
     exec(compile(code, filename, "exec"), namespace)
@@ -200,6 +212,67 @@ def test_python_example_exports_are_valid(portable_skill, tmp_path, monkeypatch,
             record = statistics[0]
             assert record["method"] == "pearson"
             assert record["n"] == 6
+
+    if example_id == "table":
+        spec = specs[0]
+        rows = next(rows for rows in spec["datasets"].values() if rows and "target" in rows[0])
+        assert [row["target"] for row in rows] == ["A", "B", "C"]
+        assert list(rows[0]) == ["target", "log2FC", "pvalue"]
+        compiled = vlc.vegalite_to_vega(spec)
+        diverging = next(scale for scale in compiled["scales"] if scale["name"].endswith("_color"))
+        assert diverging["domain"] == [-1.2, 1.2]
+        assert diverging["range"][0] != diverging["range"][-1]
+        root = ET.parse(work / "skill_table.svg").getroot()
+        visible = ["".join(element.itertext()) for element in root.iter() if element.tag.endswith("text")]
+        assert {"Target", "log2FC", "pvalue", "1.20", "−0.80"} <= set(visible)
+        assert "target" not in visible
+        assert any("×10" in value for value in visible)
+
+    if example_id == "multilabel":
+        spec = specs[0]
+        categories = namespace["categories"]
+        plotted = next(rows for rows in spec["datasets"].values() if rows and "response" in rows[0])
+        assert len(plotted) == 12
+        assert [sum(row["condition"] == category for row in plotted) for category in categories] == [4, 4, 4]
+        compiled = vlc.vegalite_to_vega(spec)
+        x_scale = next(scale for scale in compiled["scales"] if scale["name"] == "x")
+        assert x_scale["domain"] == categories == ["Control", "Dose A", "Dose B"]
+        annotations = [row for dataset in spec["datasets"].values() for row in dataset if "__category" in row]
+        counts = {row["__category"]: row["__value"] for row in annotations if row.get("__label") == "n ="}
+        assert counts == dict.fromkeys(categories, "4")
+        condition = {row["__category"]: row["__value"] for row in annotations if row.get("__label") == "Drug present"}
+        assert [condition[category] for category in categories] == ["−", "+", "+"]
+
+    if example_id == "quasirandom":
+        spec = specs[0]
+        source = namespace["data"]
+        points = namespace["points"]
+        assert source.height == points.height == 16
+        assert source.columns == ["condition", "response"]
+        assert points.select(source.columns).equals(source)
+        assert points["quasirandom_x"].n_unique() > 1
+        assert spec["encoding"]["xOffset"]["field"] == "quasirandom_x"
+        bound = namespace["max_offset"]
+        assert bound > 0
+        assert spec["encoding"]["xOffset"]["scale"]["domain"] == pytest.approx([-bound, bound])
+        embedded = next(rows for rows in spec["datasets"].values() if rows and "quasirandom_x" in rows[0])
+        assert [row["response"] for row in embedded] == source["response"].to_list()
+
+    if example_id == "nonlinear":
+        spec = specs[0]
+        compiled = vlc.vegalite_to_vega(spec)
+        x_scale = next(scale for scale in compiled["scales"] if scale["name"] == "x")
+        assert x_scale["type"] == "log" and x_scale["base"] == 10
+        assert x_scale["domain"] == [1, 100]
+        x_axes = [axis for axis in compiled["axes"] if axis["scale"] == "x"]
+        assert len(x_axes) == 2
+        major, minor = x_axes
+        assert major["values"] == [1, 10, 100]
+        assert major["encode"]["labels"]["update"]["text"]["signal"] == ds.log_label_expr()
+        assert minor["labels"] is False and minor["domain"] is False
+        assert minor["values"] == [*(range(2, 10)), *(10 * index for index in range(2, 10))]
+        assert spec["layer"][1]["encoding"]["x"]["field"] == "concentration"
+        assert spec["layer"][1]["encoding"]["x"]["scale"]["base"] == 10
 
     if example_id == "panels":
         endpoint = namespace["endpoint"]

@@ -18,6 +18,12 @@ outside the installed skill so agents do not receive the expected answers.
 - Evaluate behavior and figure correctness, not exact wording or pixel identity. Repeat important
   failures to distinguish a systematic gap from model variability. Do not claim improvement from
   one favorable example; record the baseline failures that the skill actually changes.
+- For Pi, record its installed version and test activation in a disposable project only. Copy the
+  whole skill directory, including `references/`, to `.pi/skills/dysonsphere/`; project discovery
+  requires trust. Check `/skill:dysonsphere`, `/reload` after a copy, and a separate one-run
+  `pi --skill <path>` load. If testing a custom `skills` settings path, record it separately. Do not
+  install into a real global or project agent directory. A successful copy or discovery check does
+  not establish that Pi followed the advice or produced a correct figure.
 
 ## Cases
 
@@ -117,6 +123,51 @@ at least two common y ticks align after rendering, including a nonzero tick. The
 caption explains 3 mN and mean/SD. A parent domain argument, an untested scale-sharing call, or a claim
 that axes match is not evidence. Inspect saved JSON compiled to Vega when resolving a discrepancy.
 Do not require a particular constructor if another supported implementation meets these invariants.
+
+### 10. Pi discovers and can explicitly load the skill
+
+In a disposable analysis project, copy the complete skill directory to `.pi/skills/dysonsphere/`.
+Start Pi in that trusted project, confirm the skill appears as available, and invoke
+`/skill:dysonsphere`. In a separate run, load it with `pi --skill <path>` from the checkout. After
+changing files in the discovered directory, use `/reload` and check that Pi sees the updated skill.
+
+Pass: the tested Pi version discovers the project skill after trust or loads the explicit directory,
+its interactive skill command loads the guidance, and the reload check detects the changed skill.
+Report project discovery, explicit loading, command invocation, and reload separately. Do not count
+package installation, the appearance of a skill description, or a model's unverified claim as proof
+that it read the full instructions. Do not treat a failure to discover untrusted project resources as
+a skill-content failure.
+
+### 11. Nonlinear ticks match the chart scale
+
+Use positive synthetic concentrations `[1, 2, 5, 10, 20, 50, 100]` and corresponding responses
+`[1.1, 1.4, 1.8, 2.3, 2.8, 3.4, 4.0]`.
+
+Prompt: "Plot response against concentration on a base-10 log x-axis. Use major ticks at 1, 10,
+and 100 with power-notation labels, add the conventional unlabeled minor ticks, and save an editable
+figure plus reusable code."
+
+Pass: the x scale is logarithmic with the specified major values, the major labels use `ds.log_label_expr()`,
+`ds.add_log_ticks()` is applied with a matching base and field, and the rendered figure shows minor
+ticks between decades without adding data marks for those ticks. Report actual execution and visual
+inspection separately. Do not accept a chart whose tick positions are just manually overlaid.
+
+### 12. Tabular details should preserve the plotted groups
+
+Use four independent responses per group: Control `[1.0, 1.4, 1.2, 1.6]`, Dose A
+`[1.5, 1.7, 1.9, 2.1]`, and Dose B `[2.0, 2.2, 2.3, 2.5]`. The descriptive means are 1.3,
+1.8, and 2.25, respectively.
+
+Prompt: "Make a descriptive Dysonsphere strip plot for these three groups. Add a condition row below
+the x-axis showing Control as untreated and both doses as treated, plus each group's sample size.
+Also render a small table with the group, sample size, and mean response. Do not add a statistical
+test. Keep the group order Control, Dose A, Dose B and deliver reusable code."
+
+Pass: all twelve observations and their group assignments remain; the condition row and sample-size
+row align with the ordered x categories; the table reports n = 4 and the stated means; no test or
+inferential claim is added. Check visible chart and table outputs and compare the computed summaries
+to the fixture. Do not treat a correct table as evidence that the plotted data or category alignment
+is correct.
 
 ## Record outcomes
 

@@ -71,4 +71,7 @@ ds.save(chart, "my_plot") # writes my_plot.svg + my_plot.json
 
 ## Documentation
 
-Documentation, examples, palettes, and an interactive chart studio at **[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**.
+Documentation, examples, palettes, and an interactive chart studio at
+**[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**. See the
+[agent skills guide](https://dkkung.github.io/dysonsphere/agent-skills/) for installation instructions
+for Claude Code, Codex, OpenCode, or Pi.

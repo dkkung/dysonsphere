@@ -200,6 +200,8 @@ export default defineConfig({
 									items: [
 										{ label: 'plotting.md', slug: 'agent-skills/references/plotting' },
 										{ label: 'statistics.md', slug: 'agent-skills/references/statistics' },
+										{ label: 'utilities.md', slug: 'agent-skills/references/utilities' },
+										{ label: 'nonlinear.md', slug: 'agent-skills/references/nonlinear' },
 										{ label: 'export.md', slug: 'agent-skills/references/export' },
 									],
 								},
