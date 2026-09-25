@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dkkung/dysonsphere/main/website/logo/dysonsphere-brand/svg/dysonsphere-dark.svg" />
-    <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/logo_with_text.svg" width="360" alt="dysonsphere" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dkkung/dysonsphere/6a5999b47263cc8167c75f3eee1c13e4724d2435/website/logo/dysonsphere-brand/svg/dysonsphere-dark.svg" />
+    <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/6a5999b47263cc8167c75f3eee1c13e4724d2435/docs/logo_with_text.svg" width="360" alt="dysonsphere" />
   </picture>
 </p>
 
