@@ -17,7 +17,7 @@
   - `ds.save()` writes SVG, PNG, interactive HTML, and/or Vega-Lite JSON, and embeds figure provenance, allowing the metadata to identify the Vega-Lite spec and original data.
   - `ds.load()` rebuilds the chart from its JSON, allowing for further editing.
 
-Separate authorable extensions can add field-specific plotting tools (such as for molecular biology or astronomy) that use the core theme, palettes, and export behavior.
+Separate authorable extensions can add field-specific plotting recipes that use the core theme, palettes, and export behavior.
 
 ## Installation
 
