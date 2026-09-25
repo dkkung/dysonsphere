@@ -263,7 +263,7 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
 
 /* ------------------------------------------------------------------ landing */
 
-/* Wide surfaces: the landing demo and the Chart Studio want more than the reading-measure
+/* Wide surfaces: the landing links and the Chart Studio want more than the reading-measure
    content column. Starlight derives every content panel's max-width from this variable, so
    widening it on the pane that contains these components is enough. */
 .main-pane:has(.landing),
@@ -271,6 +271,47 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
 .main-pane:has(.palpage),
 .main-pane:has(.cfg) {
   --sl-content-width: 72rem;
+}
+
+/* Home hero: icon and title use separate rows instead of Starlight's desktop 7fr / 4fr
+   columns. A long typed stop cannot resize the icon or push it into the heading. Size the
+   heading from the hero's available width, not the current typed word or the viewport, so
+   it stays the same size throughout a cycle and when the sidebar is collapsed. */
+.main-pane:has(.landing) .hero {
+  container-type: inline-size;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  padding-block: clamp(1.5rem, 4vw, 3rem);
+}
+.main-pane:has(.landing) .hero > img {
+  order: 0;
+  width: clamp(6rem, 12vw, 9rem);
+  height: auto;
+  aspect-ratio: 1;
+}
+.main-pane:has(.landing) .hero .stack {
+  order: 1;
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  align-items: center;
+  gap: clamp(1rem, 2.5vw, 1.5rem);
+}
+.main-pane:has(.landing) .hero .copy {
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+}
+.main-pane:has(.landing) .hero h1 {
+  width: 100%;
+  max-width: 100%;
+  font-size: clamp(1rem, 7cqi, 3.5rem);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.main-pane:has(.landing) .hero .actions {
+  justify-content: center;
 }
 
 /* Palette browser page: the swatch list is the main scrolling column; the live preview charts
@@ -308,8 +349,8 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
 .landing {
   display: flex;
   flex-direction: column;
-  gap: 3.5rem;
-  margin-top: 2.5rem;
+  gap: 2.5rem;
+  margin-top: 2rem;
 }
 /* Center the install one-liner and keep it compact. */
 .landing__install {
@@ -317,40 +358,59 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   margin-inline: auto;
   width: 100%;
 }
-/* Code left, live chart right (vertically centered against each other); the caption spans the
-   full width below both. Stacks on small screens. */
-.landing__demo {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  column-gap: 2.5rem;
-  row-gap: 1.5rem;
-  align-items: center;
+.landing__features > h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
 }
-@media (max-width: 900px) {
-  .landing__demo {
-    grid-template-columns: 1fr;
+.landing__gallery {
+  --gallery-accent: #28287d;
+  width: min(100%, 28rem);
+  margin: 0 auto 1.5rem;
+  text-align: center;
+}
+:root[data-theme='dark'] .landing__gallery {
+  --gallery-accent: #cbd5e1;
+}
+.landing__gallery .sl-link-card {
+  /* Equal outer columns keep the title centered independently of the arrow. */
+  grid-template-columns: 1.333em minmax(0, 1fr) 1.333em;
+  align-items: center;
+  border-color: color-mix(in srgb, var(--gallery-accent) 25%, var(--sl-color-gray-5));
+  border-inline-start: 3px solid var(--gallery-accent);
+  border-inline-end: 3px solid #f5a623;
+  background: color-mix(in srgb, var(--gallery-accent) 5%, var(--sl-color-bg));
+  box-shadow: 0 2px 8px rgb(40 40 125 / 8%);
+  transition: background 180ms ease, box-shadow 180ms ease;
+}
+.landing__gallery .sl-link-card > .stack {
+  grid-column: 2;
+}
+.landing__gallery .sl-link-card > .icon {
+  grid-column: 3;
+  color: #f5a623;
+}
+.landing__gallery .sl-link-card .title {
+  color: var(--gallery-accent);
+}
+.landing__gallery .sl-link-card a {
+  text-decoration: none;
+}
+.landing__gallery .sl-link-card:is(:hover, :focus-within) {
+  background: color-mix(in srgb, var(--gallery-accent) 9%, var(--sl-color-bg));
+  box-shadow: 0 4px 12px rgb(40 40 125 / 14%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing__gallery .sl-link-card {
+    transition: none;
   }
 }
-.landing__demo-code {
-  min-width: 0;
+/* LinkCard stretches its anchor across the card. Match that clickable area on hover/focus. */
+.landing__features .sl-link-card {
+  cursor: pointer;
 }
-.landing__demo-chart {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  /* This hero chart is wider than the inline examples (3 groups + brackets at width=140);
-     dial the zoom back from the site-wide default so it fits the column without scroll. */
-  --ds-chart-zoom: 2.6;
-  overflow: auto;
-}
-.landing__demo-caption {
-  grid-column: 1 / -1;
-  justify-self: center;
-  font-size: 0.85rem;
-  color: var(--sl-color-gray-3);
-  text-align: center;
-  max-width: 40rem;
-  margin: 0;
+.landing__features .sl-link-card:focus-within {
+  outline: 2px solid var(--sl-color-text-accent);
+  outline-offset: 3px;
 }
 
 /* Before/after comparisons (theming guide): the two charts stack vertically, size-matched by
@@ -380,8 +440,7 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
 
 /* --------------------------------------------------------------------- logo */
 
-/* Header logo. Starlight scales the logo down to the nav height by default, which is tiny for our
-   compact lockup - enlarge it (and let the header grow to fit). Tune the one height value. */
+/* Keep the supplied square header icon legible next to the static title chips. */
 a.site-title img {
   height: 3rem;
   width: auto;

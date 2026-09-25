@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/logo_with_text.svg" width="360" alt="dysonsphere" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dkkung/dysonsphere/main/website/logo/dysonsphere-brand/svg/dysonsphere-dark.svg" />
+    <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/main/docs/logo_with_text.svg" width="360" alt="dysonsphere" />
+  </picture>
 </p>
 
 # dysonsphere

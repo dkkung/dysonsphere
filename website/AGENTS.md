@@ -34,7 +34,7 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   palette; holds the copy buttons, the temporary theme toggle, and the COLORBLINDNESS SIMULATOR -
   an feColorMatrix Machado-2009 filter, applied to `.pal__grid` + `.palprev__row` [not the toolbar,
   so controls stay true-color], simulating swatches AND preview charts under deuter/prot/tritanopia), `ConfigGenerator.astro`
-  (editable default dysonsphere.toml + theme-param cheat sheet, inputs from gen_config.py), `SiteTitle.astro` (two-toned header wordmark +
+  (editable default dysonsphere.toml + theme-param cheat sheet, inputs from gen_config.py), `SiteTitle.astro` (theme-aware icon, static word chips, and
   the desktop sidebar-collapse toggle; there is no Sidebar override anymore).
 - `src/lib/runtime.ts` - the **shared Pyodide runtime** (singleton boot; `getRuntime()`,
   `onRuntimeStatus()`). Exposes `runChart(code, dark)`, `loadTable(name, text, format)`,
@@ -50,7 +50,7 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   a `chart` variable. Source of truth for both the shown snippet and the rendered chart.
 - `scripts/` - `gen_api.py` (griffe → `reference/*.md`), `gen_examples.py` (exec each
   `examples/*.py` → `public/charts/*.json`), `gen_palettes.py` (→ `src/generated/palettes.json`).
-- `logo/` - the logo family + its generator (see the Logo section).
+- `logo/dysonsphere-brand/` - the supplied vector brand kit (see the Logo section).
 - `public/charts/` - generated Vega-Lite specs (`<name>-light.json` / `<name>-dark.json`).
 - `astro.config.mjs` - Starlight config, sidebar, Inter/JetBrains-Mono fonts, Expressive Code.
 
@@ -112,6 +112,9 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   snippet. **xOffset gotcha:** for beeswarm/jitter, encode `alt.XOffset("beeswarm_x:Q")` WITHOUT
   `scale=None` - the default (band) scale centers the swarm on its tick; `scale=None` shifts it
   left (was the visible x-axis misalignment on the site).
+- **Homepage navigation.** `index.mdx` has no inline chart example. Under “Guides and tools”,
+  a centered Gallery card precedes the six guide/tool cards. All use `LinkCard` with
+  homepage-relative links; each full card is a real navigation target.
 - **`Example.astro` modes.** Default shows code block + chart. `chartOnly` hides the code.
   **`codeToggle`** (the gallery) renders a clean figure with a small `</> code` button that swaps
   the verbatim source INTO the chart's footprint (code hidden by default, chart/code panes toggled
@@ -292,64 +295,23 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
 
 ## Logo
 
-`logo/gen_dysonsphere_logo.py` generates the whole logo family in BOTH colour schemes (run:
-`uv run --no-project --with fonttools python website/logo/gen_dysonsphere_logo.py`). Geometry
-(panel count, tilt, lighting) is shared; each scheme in the `SCHEMES` dict maps the light
-intensity onto its own ramp + glow + strokes + wordmark colours.
-
-- **Default scheme = the MONO identity** (2026-07-11; the black/white brand): panels shade a
-  BIMODAL ink ramp - warm off-whites (#FFFFFF..#E4E2DB) on the lit side jumping to deep inks
-  (#3F3F3B..#000000) in shadow, deliberately hard-cut for graphic punch (this is NOT the smooth
-  `eclipse` data palette, which shares the endpoints) - ink strokes (#8F8F89), and a star with a
-  DARK core (#141413) brightening outward to warm paper (#FCFBF7), so the panel gaps read as rim
-  light. Files: `dysonsphere_logo.svg` (mark), `dysonsphere_favicon.svg`,
-  `dysonsphere_logo_portrait_with_text{,_outlined}.svg`, and
-  `dysonsphere_logo_horizontal_with_text{,_outlined}.svg`. The OUTLINED portrait lockup draws the
-  brand CHIPS behind the two words (warm #EEECE6 chip + ink text for dyson; ink #141413 chip + paper
-  text for sphere - the site wordmark replicated from glyph ink bounds + 0.09em padding).
-- **Horizontal lockup (`_horizontal_with_text{,_outlined,_chips}`, the hero title)**: mark LEFT,
-  wordmark RIGHT, vertically centred - the icon+wordmark form used by big-company logos. `H_SIZE=110`
-  (a larger wordmark than the portrait's `SIZE=29`, to read proportionate beside the sphere), tucked
-  in tight: the mark is cropped to `R+H_MARK_PAD` (6) - the favicon crop that drops most of the
-  soft corona air - with `H_GAP` (10) px between the mark and the wordmark ink, the wordmark's
-  baseline->cap body centred on the sphere. `_horizontal_layout()` uses fonttools to measure the
-  wordmark for a tight viewBox, so ALL THREE horizontal variants are fonttools-gated (unlike the
-  portrait live-text, which always builds). THREE variants: **live-text** (plain two-tone) and
-  **outlined** (plain two-tone, glyphs->paths) are for KNOWN-LIGHT / professional contexts; the
-  **chips** variant (brand chips behind the words, `horizontal_chipped_text()`) reads on ANY page
-  colour (light OR GitHub-dark - the plain wordmark's near-black `dyson` VANISHES on a dark theme),
-  so it is the README / social-preview asset. Chips reuse the portrait chip construction (abut at
-  the advance split, 0.09em pad, 0.12em radius) and widen the viewBox right so the padded `sphere`
-  chip isn't clipped; australis (no chips) falls back to the plain outlined. NONE are wired into the
-  site chrome (the header/hero keep live HTML text - responsive, accessible, no Graphik dependency).
-- **Heritage scheme (`_australis` prefix)**: the pre-mono australis look kept regenerable -
-  emerald->violet panels (lifted australis, light-first), mid-teal strokes #1D9CCB, warm star
-  core + teal corona, two-tone wordmark #1D83CA/#4DE0B4, no chips. Files:
-  `dysonsphere_australis_logo.svg` etc. Not deployed anywhere; the archive set.
-- **Copy chain (mono files): re-copy ALL FOUR after regenerating** - `src/assets/dysonsphere_logo.svg`
-  (site header + hero), `public/favicon.svg`, repo-root `docs/logo.svg` (bare mark, for READMEs
-  already published to PyPI) and `docs/logo_with_text.svg` (the chipped HORIZONTAL lockup the README
-  shows - copied from `dysonsphere_logo_horizontal_with_text_chips.svg`; chipped so it reads on
-  GitHub light AND dark, outlined because README viewers don't have Graphik. The README `<img>` is
-  `width="360"` for the ~4.5:1 banner. Was the chipped PORTRAIT lockup through 2026-07-11).
-- The mark file carries its own TIGHT square viewBox centered on sphere + corona
-  (`mark_viewbox()`; the portrait canvas would leave the wordmark's dead band below and clip the
-  corona top - the sphere sat off-center when sized by height, e.g. the site header).
-- SiteTitle.astro's `.ds`/`.sp` are the CSS twins of the lockup chips (mono tokens
-  `--sl-color-white`/`--sl-color-black` + the fixed warm chip #EEECE6/#1D1D1B) - keep in sync.
-- `logo/double-dysonsphere/` - the user's archive of the superseded hand-drawn logo (gitignored).
-
-The wordmark is one continuous `<text>` (two colors via an inline `<tspan>`), centered on the panel
-group's exact horizontal extent (`x=100.0000`, computed from the panel vertices, not assumed).
-
-**Site wiring:** header and homepage hero both use the **mark**; the wordmark on the site is real
-page text - the header title (via the `SiteTitle` override, two-toned to match) and the homepage
-`<h1>`. So there is no Graphik dependency on the live site. `logo: { replacesTitle: false }` so the
-mark shows alongside the title.
-
-**Verifying a logo SVG:** rasterize with `qlmanage -t -s 460 -o <outdir> <file>.svg` (macOS Quick
-Look = the same engine as Preview) and view the PNG; the SVGs are transparent, so inject a `<rect>`
-background to check them on light/dark. Do this in `/tmp` and delete the scratch when done.
+The approved source kit is `logo/dysonsphere-brand/`, imported unchanged from
+`/Users/douglaskung/Downloads/dysonsphere-svg-asset-pack.zip`. Its `README.md` lists the
+variants, editable source, colors, and export details. Do not regenerate or recolor the
+outlined production art. The header uses `svg/dysonsphere-icon-mono-black.svg` in light
+mode and `svg/dysonsphere-icon-mono-white.svg` in dark mode. The homepage keeps the color
+variants, `svg/dysonsphere-icon-{light,dark}.svg`. Starlight's image variants follow the
+selected site theme. `SiteTitle.astro` renders the static dyson/sphere title chips beside one visible
+icon; `HeroTypewriter.astro` keeps the established animated homepage title and accessible
+fallback heading. The homepage hero puts its icon in a separate row above the title and sizes
+the title from the hero's available width, so the longest stop does not squeeze the image;
+keep the no-JS heading and sidebar-width behavior when changing that layout. The separate page
+tagline remains. Keep `docs/logo.svg` (light icon) and
+`docs/logo_with_text.svg` (light full lockup) at their published paths; README's dark-mode
+source is the dark full lockup
+in the kit. The site favicon URL, `public/favicon.svg`, contains the kit's shared-theme
+indigo tile. Copy these public aliases from the kit when updating it. Preserve the source
+kit's `source/` editable SVG; do not change plotting colors or the site skin to match branding.
 
 ## Working notes (living - update as we go)
 
