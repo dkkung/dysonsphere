@@ -75,7 +75,12 @@ export default defineConfig({
 		starlight({
 			title: 'dysonsphere',
 			favicon: '/favicon.svg',
-			logo: { src: './src/assets/dysonsphere_logo.svg', replacesTitle: false },
+			logo: {
+				dark: './logo/dysonsphere-brand/svg/dysonsphere-icon-mono-white.svg',
+				light: './logo/dysonsphere-brand/svg/dysonsphere-icon-mono-black.svg',
+				alt: '', // The adjacent visible title names the site; the icon is decorative.
+				replacesTitle: false,
+			},
 			components: {
 				SiteTitle: './src/components/SiteTitle.astro',
 			},
