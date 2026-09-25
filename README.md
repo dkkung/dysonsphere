@@ -1,11 +1,4 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dkkung/dysonsphere/6a5999b47263cc8167c75f3eee1c13e4724d2435/website/logo/dysonsphere-brand/svg/dysonsphere-dark.svg" />
-    <img src="https://raw.githubusercontent.com/dkkung/dysonsphere/6a5999b47263cc8167c75f3eee1c13e4724d2435/docs/logo_with_text.svg" width="360" alt="dysonsphere" />
-  </picture>
-</p>
-
-# dysonsphere
+# dysonsphere <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dkkung/dysonsphere/6a5999b47263cc8167c75f3eee1c13e4724d2435/website/logo/dysonsphere-brand/svg/dysonsphere-icon-dark.svg" /><img align="right" src="https://raw.githubusercontent.com/dkkung/dysonsphere/6a5999b47263cc8167c75f3eee1c13e4724d2435/docs/logo.svg" width="50" height="50" alt="" /></picture>
 
 `dysonsphere` is an [`altair`](https://altair-viz.github.io/) library for plotting scientific figures in Python. It provides:
 - A consistent default configuration enabled with `ds.theme()`.
@@ -75,6 +68,4 @@ ds.save(chart, "my_plot") # writes my_plot.svg + my_plot.json
 ## Documentation
 
 Documentation, examples, palettes, and an interactive chart studio at
-**[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**. See the
-[agent skills guide](https://dkkung.github.io/dysonsphere/agent-skills/) for installation instructions
-for Claude Code, Codex, OpenCode, or Pi.
+**[dkkung.github.io/dysonsphere](https://dkkung.github.io/dysonsphere/)**.
