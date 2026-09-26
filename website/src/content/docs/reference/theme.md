@@ -35,6 +35,7 @@ def theme(
     legendOffset: int | float | None = _UNSET,
     legendRowPadding: int | float = _UNSET,
     legendStroke: bool = _UNSET,
+    legendTickCount: int | float | None = _UNSET,
     lineStrokeDash: bool = _UNSET,
     markFill: str = _UNSET,
     markFillOpacity: int | float = _UNSET,
@@ -102,8 +103,7 @@ dimensions are pixels. ``legendGradientLength=None`` allocates half the panel he
 vertical title-plus-gradient span and the full panel width to a horizontal gradient. A positive
 number is instead a dimensionless factor applied to either orientation at spec-resolution time;
 ``legendGradientThickness`` is a positive pixel width independent of marks and chart dimensions.
-Continuous legends require ``ds.save()`` or ``ds.show()`` to resolve their sizing marker; bare
-Altair/notebook rendering may fail. Signed axis/legend offsets and label angles are supported.
+``legendTickCount=None`` keeps automatic tick counts on gradient legends.
 ``markSize=None`` derives one tenth of
 the smaller canvas dimension and is the common basis for symbol areas and composite dimensions;
 ``markStrokeWidth=None`` derives from ``axisWidth``. An omitted and unconfigured ``markFill``

@@ -56,6 +56,7 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "legendOffset": None,
     "legendRowPadding": 2,
     "legendStroke": False,
+    "legendTickCount": None,
     "lineStrokeDash": False,
     "markFill": colors["greys"][1],
     "markFillOpacity": 1.0,
@@ -277,6 +278,7 @@ def _validate_options(p: dict[str, Any]) -> None:
     for key in ("width", "height", "fontSize", "legendGradientThickness"):
         number(key, positive=True)
     number("legendGradientLength", positive=True, allow_none=True)
+    number("legendTickCount", positive=True, allow_none=True)
     for key in ("axisWidth", "tickSize", "legendColumnPadding", "legendRowPadding"):
         number(key, nonnegative=True)
     for key in ("markSize", "markStrokeWidth"):
@@ -385,6 +387,7 @@ def theme(
     legendOffset: int | float | None = _UNSET,
     legendRowPadding: int | float = _UNSET,
     legendStroke: bool = _UNSET,
+    legendTickCount: int | float | None = _UNSET,
     lineStrokeDash: bool = _UNSET,
     markFill: str = _UNSET,
     markFillOpacity: int | float = _UNSET,
@@ -451,8 +454,7 @@ def theme(
     vertical title-plus-gradient span and the full panel width to a horizontal gradient. A positive
     number is instead a dimensionless factor applied to either orientation at spec-resolution time;
     ``legendGradientThickness`` is a positive pixel width independent of marks and chart dimensions.
-    Continuous legends require ``ds.save()`` or ``ds.show()`` to resolve their sizing marker; bare
-    Altair/notebook rendering may fail. Signed axis/legend offsets and label angles are supported.
+    ``legendTickCount=None`` keeps automatic tick counts on gradient legends.
     ``markSize=None`` derives one tenth of
     the smaller canvas dimension and is the common basis for symbol areas and composite dimensions;
     ``markStrokeWidth=None`` derives from ``axisWidth``. An omitted and unconfigured ``markFill``
@@ -858,6 +860,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "gradientLabelOffset": 2,
                 "columnPadding": opts["legendColumnPadding"],
                 "rowPadding": opts["legendRowPadding"],
+                **({"tickCount": opts["legendTickCount"]} if opts["legendTickCount"] is not None else {}),
                 # save/show replace this non-executable marker with panel geometry. Bare Altair
                 # rendering cannot resolve it; explicit legend lengths take precedence.
                 "gradientLength": {"expr": f"dysonsphereLegendGradientLength({opts['legendGradientLength']!r})"},

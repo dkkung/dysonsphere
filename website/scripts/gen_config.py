@@ -31,6 +31,7 @@ AUTO_HINTS = {
     "chartFill": "auto: white / black by darkmode",
     "closed": 'auto: True when tickDirection = "in" or viewFill',
     "legendOffset": "auto: tickSize * 1.5",
+    "legendTickCount": "auto: Vega-Lite chooses legend ticks",
     "markSize": "auto: min(width, height) / 10",
     "markFill": "when omitted: #DBDBDB light / #9D9D9D dark",
     "markStrokeWidth": "auto: axisWidth",
