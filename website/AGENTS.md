@@ -115,10 +115,11 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
 - **Homepage navigation.** `index.mdx` has no inline chart example. Under “Guides and tools”,
   a centered Gallery card precedes the six guide/tool cards. All use `LinkCard` with
   homepage-relative links; each full card is a real navigation target.
-- **`Example.astro` modes.** Default shows code block + chart. `chartOnly` hides the code.
-  **`codeToggle`** (the gallery) renders a clean figure with a small `</> code` button that swaps
-  the verbatim source INTO the chart's footprint (code hidden by default, chart/code panes toggled
-  via `hidden`); still carries the Open-in-studio link. Use `codeToggle` for showpieces.
+- **`Example.astro` modes.** Default shows highlighted code + chart. `chartOnly` hides code.
+  **`codeToggle`** (gallery) fetches verbatim plain-text source from the static
+  `/example-source/<name>.py` route only on click; it caches success and offers retry on error.
+  Open-in-studio links use `#example=<name>` to fetch the same source; old `#code=` links still work.
+  The source pane uses text rather than token spans, even for very large examples.
 - **The gallery is all-synthetic showpieces** (2026-07-11 rebuild), SPLIT one domain per page
   under `content/docs/gallery/` (imaging/chemistry/signals/data-science/distributions), with
   `gallery.mdx` an overview of LinkCards and a NESTED sidebar group (astro.config.mjs) - a single
