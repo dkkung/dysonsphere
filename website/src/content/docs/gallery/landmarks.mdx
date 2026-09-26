@@ -13,11 +13,19 @@ These pages reconstruct **figures from the history of science** with open or pub
 
 ## Biology
 
-<Example name="mendel_peas" codeToggle caption="Mendel's pea data. F2 counts for seven traits, shown as the observed dominant fraction with a 0.75 reference line. Counts are from Mendel's 1866 paper." alt="Seven pea traits, each with the dominant-phenotype fraction near 0.75, against a 3:1 reference line" />
+<Example
+  name="rao_hic"
+  codeToggle
+  caption="Reconstruction of the Rao et al. (2014) Figure 6B GM12878 locus from the GSE63525 combined primary + replicate map: hg19 chr4:20,550,000–22,550,000, binned at 10 kb (200 × 200). The UCSC .hic source stores raw upper-triangle contacts and a KR vector; displayed KR-balanced intensity is raw_count / (KR_i × KR_j), verified against the source KR matrix. Color uses a logarithmic scale capped at the 99.5th percentile; 136 true zero-contact cells are gray. All 200 bins have valid KR values, so none are masked or unmeasured. This is balanced contact intensity, not observed/expected. The 54.7 GB .hic file is queried by indexed byte ranges; only the small regional extract is used here. Source: <a href='https://hgdownload.soe.ucsc.edu/gbdb/hg19/bbi/hic/GSE63525_GM12878_insitu_primary+replicate_combined.hic'>UCSC GSE63525 Hi-C mirror</a>; paper: <a href='https://doi.org/10.1016/j.cell.2014.11.021'>Rao et al., Cell (2014)</a>."
+  alt="10 kb KR-balanced GM12878 Hi-C heatmap at the Rao Figure 6B locus on hg19 chr4, with a bright main diagonal and gray true-zero cells; no bins are masked"
+/>
 
-<Example name="ld_fluctuation" codeToggle caption="Luria–Delbrück fluctuation test. Parallel bacterial cultures are scored for virus-resistant colonies under induced and spontaneous-mutation models. The spontaneous model has greater variation and occasional large counts. Each point is a simulated culture with matched means; the analysis is from <a href='https://doi.org/10.1093/genetics/28.6.491'>Luria & Delbrück, Genetics (1943)</a>." alt="Strip plot of resistant-colony counts: spontaneous cultures fluctuate with jackpots, induced cultures cluster tightly" />
-
-<Example name="hodgkin_huxley" codeToggle caption="Hodgkin–Huxley action potentials integrated from the 1952 equations. Voltage-gated sodium and potassium conductances produce a train of spikes under sustained current. The four coupled ODEs use the original squid-axon parameters from <a href='https://doi.org/10.1113/jphysiol.1952.sp004764'>Hodgkin & Huxley, J. Physiol. (1952)</a>." alt="Membrane potential over time showing a train of Hodgkin-Huxley action potentials" />
+<Example
+  name="tabula_muris_pancreas"
+  codeToggle
+  caption="Tabula Muris 2018 pancreas FACS: all 1,564 author-annotated cells at their published tSNE_1/tSNE_2 coordinates, colored by all nine cell_ontology_class labels. Class counts are B 449, A 390, acinar 182, ductal 161, D 140, PP 73, endothelial 66, leukocyte 54, and stellate 49. No plotted labels or coordinates are missing, and no cells are selected or re-embedded. t-SNE coordinates are dimensionless embedding values, not physical distances or tissue locations. Source annotation and BSD 3-Clause license: <a href='https://github.com/czbiohub/tabula-muris'>Tabula Muris repository</a>; paper: <a href='https://doi.org/10.1038/s41586-018-0590-4'>Tabula Muris Consortium, Nature (2018)</a>."
+  alt="Tabula Muris t-SNE embedding of all 1,564 pancreas FACS cells, colored by nine author-annotated cell types"
+/>
 
 <Example name="hiv_decay" codeToggle caption="HIV viral-load decay. Plasma HIV-1 RNA falls exponentially after therapy starts; the first-phase fit gives a half-life of about 1–2 days. Traces are simulated from decay parameters in <a href='https://doi.org/10.1038/373123a0'>Ho et al., Nature (1995)</a> and <a href='https://doi.org/10.1126/science.271.5255.1582'>Perelson et al., Science (1996)</a>; they are not the original patient data." alt="Plasma HIV RNA declining exponentially on a log axis for three patients after starting therapy" />
 
