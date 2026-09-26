@@ -219,6 +219,16 @@ class BrandBuildTest(unittest.TestCase):
         self.assertIn("--gallery-accent", compiled_rule(css, ":root[data-theme=dark] .landing__gallery"))
         self.assertNotIn(".landing__demo", css)
 
+        # The homepage has no TOC, so center its container against the full page at desktop
+        # widths. Keep both the width cap and half-sidebar shift scoped to the landing page.
+        centered = compiled_rule(css, ".main-pane:has(.landing) .sl-container")
+        self.assertEqual(centered["max-width"],
+                         "min(var(--sl-content-width), calc(100% - var(--sl-sidebar-width)))")
+        self.assertEqual(centered["left"], "calc(var(--sl-sidebar-width) / -2)")
+        self.assertEqual(centered["position"], "relative")
+        self.assertIn("@media (width>=72rem){.main-pane:has(.landing) .sl-container{", css)
+        self.assertFalse(page("guides/getting-started/index.html").landing_in_main)
+
         # Static built-CSS contract, not a measurement of browser geometry. Separate grid rows
         # keep the icon independent of the animated title, and cqi keys type size to the hero's
         # own width even when the desktop sidebar is collapsed.

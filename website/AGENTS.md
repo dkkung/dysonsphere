@@ -265,10 +265,12 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
 - **Keep render args out of shown code.** darkmode/transparent/zoom are website concerns; only the
   chart-building code appears in snippets, so they stay copy-runnable.
 - **Wide surfaces / persistent sidebar.** The landing page and the Studio widen the content column
-  via `.main-pane:has(.landing/.st) { --sl-content-width }` in theme.css. The sidebar shows on
-  EVERY page (landing uses the default docs template, not `splash`) and has a desktop collapse
-  toggle (`Sidebar.astro` + `[data-ds-sidebar='collapsed']` in theme.css, persisted in
-  localStorage).
+  via `.main-pane:has(.landing/.st) { --sl-content-width }` in theme.css. The landing page has no
+  right TOC: at desktop widths its `.sl-container` is width-capped and shifted half a sidebar left
+  to center on the full page without covering the sidebar. Smaller widths keep Starlight's layout;
+  regular guides and Studio are unchanged. The sidebar shows on EVERY page (landing uses the default
+  docs template, not `splash`) and has a desktop collapse toggle (`Sidebar.astro` +
+  `[data-ds-sidebar='collapsed']` in theme.css, persisted in localStorage).
 - **Stale Expressive Code assets after styleOverrides changes.** The `.md` reference pages'
   rendered HTML is cached by Astro's content layer WITH the EC stylesheet link baked in; changing
   `expressiveCode.styleOverrides` renames the hashed `ec.*.css` asset and the cached pages keep

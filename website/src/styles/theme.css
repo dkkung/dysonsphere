@@ -273,6 +273,18 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   --sl-content-width: 72rem;
 }
 
+/* With no right-hand TOC, Starlight centers the home content in the space AFTER the
+   desktop sidebar. Shift just its content container left by half the sidebar width to
+   center it in the page. Reserve the same width on the right so the content stays clear
+   of the sidebar; narrower screens use Starlight's normal layout instead. */
+@media (min-width: 72rem) {
+  .main-pane:has(.landing) .sl-container {
+    max-width: min(var(--sl-content-width), calc(100% - var(--sl-sidebar-width)));
+    position: relative;
+    left: calc(var(--sl-sidebar-width) / -2);
+  }
+}
+
 /* Home hero: icon and title use separate rows instead of Starlight's desktop 7fr / 4fr
    columns. A long typed stop cannot resize the icon or push it into the heading. Size the
    heading from the hero's available width, not the current typed word or the viewport, so
