@@ -239,6 +239,9 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | `legendStroke` | `false` | Outline legend symbols at `axisWidth` |
 | `legendColumnPadding` | `4` | Horizontal gap between legend entries in px |
 | `legendRowPadding` | `2` | Vertical gap between legend entries in px |
+| `legendTickCount` | `None` | Suggested positive tick count for quantitative legends; automatic when unset |
+
+`ds.theme(legendTickCount=4)` forwards the suggestion to Vega-Lite's native legend settings.
 
 ### Color
 

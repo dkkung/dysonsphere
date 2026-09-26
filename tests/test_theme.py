@@ -387,6 +387,101 @@ class TestLegendGradientLength:
             theme(legendGradientLength=value)
 
 
+class TestLegendTickCount:
+    @staticmethod
+    def _chart(legend=alt.Undefined):
+        data = alt.Data(values=[{"x": 0, "v": 0}, {"x": 1, "v": 800}, {"x": 2, "v": 1600}])
+        return (
+            alt.Chart(data)
+            .mark_circle()
+            .encode(x="x:Q", color=alt.Color("v:Q", scale=alt.Scale(domain=[0, 1600]), legend=legend))
+        )
+
+    @staticmethod
+    def _legend_labels(chart, tmp_path):
+        import xml.etree.ElementTree as ET
+
+        import vl_convert as vlc
+
+        from dysonsphere import save
+
+        path = tmp_path / "legend"
+        save(chart, path, format="json", background="light", saveMetadata=False)
+        spec = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        root = ET.fromstring(vlc.vegalite_to_svg(spec))
+        legend = next(el for el in root.iter() if "role-legend" in el.attrib.get("class", "").split())
+        labels = next(el for el in legend.iter() if "role-legend-label" in el.attrib.get("class", "").split())
+        return spec, [el.text for el in labels.iter() if el.tag.endswith("text")]
+
+    def test_default_none_and_reset_leave_native_tick_selection(self, tmp_path):
+        assert alt.theme.options["legendTickCount"] is None
+        assert "tickCount" not in _dysonsphere_theme()["config"]["legend"]
+        baseline, labels = self._legend_labels(self._chart(), tmp_path)
+        assert labels == ["0", "1,600"]
+        theme(legendTickCount=4)
+        theme(legendTickCount=None)
+        assert alt.theme.options["legendTickCount"] is None
+        reset, reset_labels = self._legend_labels(self._chart(), tmp_path)
+        assert "tickCount" not in reset["config"]["legend"]
+        assert reset["config"]["legend"] == baseline["config"]["legend"]
+        assert reset_labels == labels
+
+    def test_positive_count_reaches_renderer_as_a_suggestion(self, tmp_path):
+        theme(legendTickCount=4)
+        assert alt.theme.options["legendTickCount"] == 4
+        assert _dysonsphere_theme()["config"]["legend"]["tickCount"] == 4
+        spec, labels = self._legend_labels(self._chart(), tmp_path)
+        assert spec["config"]["legend"]["tickCount"] == 4
+        assert labels == ["0", "500", "1,000", "1,500"]
+
+    @pytest.mark.parametrize("value", [True, False, "4", 0, -1, float("inf"), float("nan")])
+    def test_rejects_invalid_count_without_changing_theme(self, value):
+        theme(legendTickCount=4)
+        before = dict(alt.theme.options)
+        error = TypeError if isinstance(value, (bool, str)) else ValueError
+        with pytest.raises(error, match="legendTickCount"):
+            theme(legendTickCount=value)
+        assert alt.theme.options == before
+
+    def test_toml_style_keyword_precedence_and_reset(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            "[default]\nlegendTickCount = 4\n[small]\nlegendTickCount = 6\n", encoding="utf-8"
+        )
+        theme()
+        assert alt.theme.options["legendTickCount"] == 4
+        theme("small")
+        assert alt.theme.options["legendTickCount"] == 6
+        theme("small", legendTickCount=2.5)
+        assert _dysonsphere_theme()["config"]["legend"]["tickCount"] == 2.5
+        theme("small", legendTickCount=None)
+        assert "tickCount" not in _dysonsphere_theme()["config"]["legend"]
+        theme()
+        assert alt.theme.options["legendTickCount"] == 4
+
+    def test_per_chart_count_and_explicit_values_override_theme(self, tmp_path):
+        theme(legendTickCount=8)
+        counted, counted_labels = self._legend_labels(self._chart(alt.Legend(tickCount=3)), tmp_path)
+        assert counted["encoding"]["color"]["legend"]["tickCount"] == 3
+        assert counted_labels == ["0", "500", "1,000", "1,500"]
+        valued, value_labels = self._legend_labels(self._chart(alt.Legend(values=[0, 500, 1500])), tmp_path)
+        assert valued["encoding"]["color"]["legend"]["values"] == [0, 500, 1500]
+        assert value_labels == ["0", "500", "1,500"]
+
+    def test_saved_theme_reapplies_count_on_load(self, tmp_path):
+        import dysonsphere as ds
+
+        theme(legendTickCount=4)
+        path = tmp_path / "legend"
+        ds.save(self._chart(), path, format="json", background="light")
+        saved = path.with_suffix(".json")
+        assert ds.metadata.read(saved, what="metadata")["theme"]["legendTickCount"] == 4
+        theme(legendTickCount=None)
+        ds.load(saved)
+        assert alt.theme.options["legendTickCount"] == 4
+        assert _dysonsphere_theme()["config"]["legend"]["tickCount"] == 4
+
+
 class TestLegendGradientThickness:
     @staticmethod
     def _thickness():

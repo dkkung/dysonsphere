@@ -110,6 +110,11 @@
   "hint": null
  },
  {
+  "key": "legendTickCount",
+  "default": null,
+  "hint": "auto: Vega-Lite chooses legend ticks"
+ },
+ {
   "key": "lineStrokeDash",
   "default": "false",
   "hint": null

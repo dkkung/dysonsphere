@@ -4,6 +4,7 @@
 
 ### New features
 
+- Added `theme(legendTickCount=4)` to suggest a positive tick count for quantitative legends.
 - Added `categoryPaletteDarkmode`, `divergingPaletteDarkmode`, `heatmapPaletteDarkmode`,
   `ordinalPaletteDarkmode`, and `rampPaletteDarkmode` theme controls. Non-None dark-mode ranges
   override their regular per-type palettes only in dark mode. Light/dark defaults are `cat1`/`cat2`
