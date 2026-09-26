@@ -29,18 +29,16 @@ const sources = import.meta.glob('../../examples/*.py', {
 
 const source = sources[`../../examples/${name}.py`];
 if (!source) throw new Error(`No example source: website/examples/${name}.py`);
-const code = source.trimEnd();
-
-// Deep link: /studio/#code=<base64 utf-8>. Decoded by the studio's code editor on load.
-const studioHref = `${import.meta.env.BASE_URL}studio/#code=${encodeURIComponent(
-	Buffer.from(code, 'utf-8').toString('base64'),
-)}`;
+// Toggle panes fetch the unmodified file only when opened. Visible guide code keeps its
+// existing highlighted rendering; Studio links refer to the same static source asset.
+const code = codeToggle || chartOnly ? '' : source.trimEnd();
+const studioHref = `${import.meta.env.BASE_URL}studio/#example=${encodeURIComponent(name)}`;
 const chartAlt = alt ?? `dysonsphere example: ${name}`;
 ---
 
 {
 	codeToggle ? (
-		<figure class="example example--toggle" data-code-toggle>
+		<figure class="example example--toggle" data-code-toggle data-example={name}>
 			<button class="example__codebtn" data-role="toggle" type="button" aria-pressed="false">
 				<span data-when="chart">&lt;/&gt; code</span>
 				<span data-when="code" hidden>← chart</span>
@@ -51,7 +49,9 @@ const chartAlt = alt ?? `dysonsphere example: ${name}`;
 				</div>
 			</div>
 			<div class="example__pane" data-pane="code" hidden>
-				<Code lang="python" code={code} />
+				<p data-role="source-status" role="status" aria-live="polite"></p>
+				<button data-role="source-retry" type="button" hidden>Retry loading code</button>
+				<pre class="example__source"><code data-role="source-code"></code></pre>
 			</div>
 			{caption && <figcaption class="example__caption" set:html={caption} />}
 			<div class="example__actions">
@@ -73,22 +73,11 @@ const chartAlt = alt ?? `dysonsphere example: ${name}`;
 }
 
 <script>
+	import { wireCodeToggle } from '../lib/codeToggle';
+
 	function wireToggles() {
 		document.querySelectorAll<HTMLElement>('[data-code-toggle]').forEach((el) => {
-			if (el.dataset.wired) return;
-			el.dataset.wired = '1';
-			const btn = el.querySelector<HTMLButtonElement>('[data-role="toggle"]');
-			const chartPane = el.querySelector<HTMLElement>('[data-pane="chart"]');
-			const codePane = el.querySelector<HTMLElement>('[data-pane="code"]');
-			if (!btn || !chartPane || !codePane) return;
-			btn.addEventListener('click', () => {
-				const showCode = codePane.hidden;
-				codePane.hidden = !showCode;
-				chartPane.hidden = showCode;
-				btn.setAttribute('aria-pressed', String(showCode));
-				btn.querySelector<HTMLElement>('[data-when="chart"]')!.hidden = showCode;
-				btn.querySelector<HTMLElement>('[data-when="code"]')!.hidden = !showCode;
-			});
+			wireCodeToggle(el, import.meta.env.BASE_URL);
 		});
 	}
 	wireToggles();
@@ -181,5 +170,16 @@ const chartAlt = alt ?? `dysonsphere example: ${name}`;
 	   would override). */
 	.example__pane[data-pane='code'] {
 		padding-top: 1.9rem;
+	}
+	.example__source {
+		max-height: 32rem;
+		overflow: auto;
+		padding: 0.8rem;
+		background: var(--sl-color-gray-6);
+		font-size: 0.75rem;
+		line-height: 1.5;
+	}
+	.example__source code {
+		font-family: var(--sl-font-mono);
 	}
 </style>
