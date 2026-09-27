@@ -20326,7 +20326,7 @@ contact_color = alt.condition(
         "kr_balanced:Q",
         scale=alt.Scale(type="log", domain=[minimum_positive, color_max], nice=False),
         legend=alt.Legend(
-            title=["KR-balanced contacts (log scale)", "gray = zero"],
+            title="KR-balanced contacts",
             values=[1, 10, 100, 1000],
             format="~s",
         ),
