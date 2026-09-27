@@ -1,33 +1,32 @@
 ---
-title: API reference
-description: Reference for the dysonsphere public API, generated from its docstrings.
+title: "API reference"
+description: "Reference for the dysonsphere public API, generated from its docstrings."
 sidebar:
   order: 0
 ---
 
-The pages in this section are generated directly from dysonsphere's docstrings (via
-[griffe](https://mkdocstrings.github.io/griffe/)), so they track the source.
+The API pages are generated from dysonsphere's docstrings with
+[griffe](https://mkdocstrings.github.io/griffe/).
 
 Browse by area in the sidebar:
 
-- **Annotations** - `add_rule()`, `add_text()`, `add_shade()`, `add_labels()`
-- **Display labels** - `label_expr()`
-- **Extension authoring** - the `dysonsphere.ext` primitive surface
-- **Extensions** - `extensions()`, `load_extension()`
-- **Marks** - `mark_strip()`, `mark_violin()`
-- **Multilabels** - `add_multilabel()`
-- **Nonlinear axes** - `add_log_ticks()`, `add_pow_ticks()`, `log_label_expr()`
-- **Palettes** - `palette()`, `categorical()`, `export_swatches()`, and the `colors` catalogue
-- **Reading exports** - `read()`
-- **Saving & loading** - `save()`, `load()`, `show()`
-- **Statistical annotations** - `add_comparisons()`, `add_correlation()`
-- **Statistics registry** - `clear_stats()`
-- **Theming** - `theme()` and config-file scaffolding (`create_config()`)
-- **Transforms** - `add_jitter()`, `add_beeswarm()`
-- **Utilities** - `ensure_polars()`, `count_n()`, `band_geometry()`, `frame_checksum()`
-
-Every public function carries type annotations (the package ships a `py.typed` marker), so the
-signatures shown here are the same contract your editor and type checker see.
+- **Annotations** – `ds.rule()`, `ds.text()`, `ds.shade()`, `ds.labels()`
+- **[Display labels](/reference/display_labels/)** – `ds.label_expr()`
+- **Extension authoring** – the `dysonsphere.ext` API
+- **Extensions** – `extensions()`, `load_extension()`
+- **Marks** – `mark_strip()`, `mark_violin()`
+- **Multilabels** – `add_multilabel()`
+- **Nonlinear axes** – `add_log_ticks()`, `add_pow_ticks()`, `log_label_expr()`
+- **Palettes** – root selection helper `ds.palette()`, `ds.palettes.categorical()`,
+  `ds.palettes.export_swatches()`, and the `ds.palettes.colors` catalog
+- **Reading exports** – `ds.metadata.read()`, `ds.metadata.verify()`, `ds.metadata.VerifyResult`,
+  `ds.metadata.frame_checksum()`
+- **Saving & loading** – `save()`, `load()`, `show()`
+- **[Statistics](/reference/stats/)** – `ds.stats.comparisons()`, `ds.stats.correlation()`, `ds.stats.clear_stats()`
+- **Theming** – `theme()` and config-file creation (`create_config()`)
+- **Transforms** – `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, `ds.transforms.quasirandom()`
+The public functions have type annotations, and the package includes a `py.typed` marker
+for editors and type checkers.
 
 ## Dependencies
 
@@ -37,9 +36,9 @@ Requires Python >= 3.11. Runtime dependencies (installed automatically):
 | --- | --- | --- |
 | `altair` | 6.0.0 | chart construction and the theme registry |
 | `polars[pyarrow]` | 1.19.0 | the native `DataFrame` (pandas input is converted) |
-| `numpy` | 1.26.0 | numeric primitives |
-| `scipy` | 1.11.0 | statistical tests behind `add_comparisons()` / `add_correlation()` |
+| `numpy` | 1.26.0 | numerical operations |
+| `scipy` | 1.11.0 | statistical tests behind `ds.stats.comparisons()` / `ds.stats.correlation()` |
 | `vl-convert-python` | 1.9.0 | the SVG/PNG renderer behind `save()` (lazily imported) |
 
-Optional: `pandas` / `duckdb` (only for `read(..., output="pandas"/"duckdb")`), `IPython` (only
+Optional: `pandas` / `duckdb` (only for `ds.metadata.read(..., output="pandas"/"duckdb")`), `IPython` (only
 for `show()`).

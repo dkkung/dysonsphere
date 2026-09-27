@@ -1,16 +1,25 @@
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
+cars = data.cars().dropna(subset=["Horsepower"])
 origins = ["Europe", "Japan", "USA"]
 
 # Scientific notation for small p-values, 2 significant figures.
 chart = ds.mark_strip(
-    cars, "Origin", "Horsepower", origins,
-) + ds.add_comparisons(
-    cars, "Origin", "Horsepower",
+    cars,
+    "Origin",
+    "Horsepower",
+    origins,
+) + ds.stats.comparisons(
+    cars,
+    "Origin",
+    "Horsepower",
     [("USA", "Japan")],
-    test="ttest_ind", notation="scientific", sigFigs=2, categories=origins,
+    test="ttest_ind",
+    notation="scientific",
+    sigFigs=2,
+    categories=origins,
 )

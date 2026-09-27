@@ -7,7 +7,7 @@ import polars as pl
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=200, chartHeight=145, rampPalette="australis")
+ds.theme(width=200, height=145, rampPalette="australis")
 
 rs = np.linspace(2.8, 4.0, 900)
 x = np.full_like(rs, 0.5)

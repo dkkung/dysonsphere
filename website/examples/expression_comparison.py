@@ -1,4 +1,4 @@
-"""Group comparison - a beeswarm strip with pairwise Mann-Whitney brackets from add_comparisons."""
+"""Group comparison - a beeswarm strip with pairwise Mann-Whitney brackets from ds.stats.comparisons."""
 
 import altair as alt
 import numpy as np
@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=150, chartHeight=150)
+ds.theme(width=150, height=150)
 
 rng = np.random.default_rng(9)
 groups = {"vehicle": (4.0, 0.8), "low dose": (4.7, 0.9), "high dose": (6.3, 1.0)}
@@ -14,7 +14,7 @@ rows = [{"group": g, "expr": float(v)} for g, (m, s) in groups.items() for v in 
 df = pl.DataFrame(rows)
 
 strip = ds.mark_strip(df, "group", "expr", list(groups), scatter="beeswarm", yTitle="expression (a.u.)")
-brackets = ds.add_comparisons(
+brackets = ds.stats.comparisons(
     df,
     "group",
     "expr",

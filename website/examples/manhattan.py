@@ -7,11 +7,10 @@ import polars as pl
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=260, chartHeight=115)
+ds.theme(width=260, height=115)
 
 rng = np.random.default_rng(8)
-chrom_sizes = [249, 243, 198, 191, 181, 171, 159, 145, 138, 134, 135, 133,
-               114, 107, 102, 90, 83, 80, 59, 64, 48, 51]
+chrom_sizes = [249, 243, 198, 191, 181, 171, 159, 145, 138, 134, 135, 133, 114, 107, 102, 90, 83, 80, 59, 64, 48, 51]
 hits = {2: (160, "SORT1"), 6: (32, "HLA-B"), 9: (22, "CDKN2A"), 16: (53, "FTO")}
 
 x, y, parity, tick_pos = [], [], [], []
@@ -45,14 +44,18 @@ points = (
     )
 )
 
-sig = ds.add_rule(7.3, label="P = 5×10⁻⁸", strokeDash=True, labelAlign="right")
+sig = ds.rule(y=7.3, label="P = 5×10⁻⁸", strokeDash=True, labelAlign="right")
 
 hits_df = pl.DataFrame(hit_rows)
-gene_labels = ds.add_labels(
-    hits_df, "pos", "logp", "gene",
-    xDomain=[0, offset], yDomain=[0, 13], fontStyle="italic",  # gene names in italic
+gene_labels = ds.labels(
+    hits_df,
+    "pos",
+    "logp",
+    "gene",
+    xDomain=[0, offset],
+    yDomain=[0, 13],
+    fontStyle="italic",  # gene names in italic
     fill=True,  # a background chip keeps each label legible over the point cloud
 )
 
 chart = points + sig + gene_labels
-

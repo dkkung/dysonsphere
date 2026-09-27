@@ -12,7 +12,7 @@ import tempfile
 import pytest
 
 import dysonsphere as ds
-from dysonsphere.statistics import _REPORTS
+from dysonsphere._statistics import _REPORTS
 
 
 @pytest.fixture(autouse=True)

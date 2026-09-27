@@ -1,17 +1,23 @@
+import re
+import xml.etree.ElementTree as ET
+
 import altair as alt
 import numpy as np
 import polars as pl
 import pytest
 
+from dysonsphere.export import save
 from dysonsphere.marks import mark_strip, mark_violin
+from dysonsphere.palettes import colors
 from dysonsphere.theme import theme
+from dysonsphere.utils import _band_geometry
 
 CATEGORIES = ["A", "B", "C"]
 
 
 @pytest.fixture(autouse=True)
 def default_theme():
-    theme(chartWidth=200, chartHeight=200)
+    theme(width=200, height=200)
 
 
 @pytest.fixture
@@ -28,21 +34,68 @@ def group_df():
 
 class TestMarkViolin:
     def test_returns_layer_chart(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         assert isinstance(result, alt.LayerChart)
+
+    @pytest.mark.parametrize("value", [float("nan"), None, float("inf"), float("-inf")])
+    def test_kde_rejects_missing_or_nonfinite_observations(self, value):
+        data = pl.DataFrame({"group": ["A", "A", "B", "B"], "value": [1.0, value, 3.0, 4.0]})
+        with pytest.raises(ValueError, match="violin KDE column 'value'"):
+            mark_violin(data, "group", "value", ["A", "B"])
+
+    def test_kde_rejects_singleton_group(self):
+        data = pl.DataFrame({"group": ["A", "B", "B"], "value": [1.0, 3.0, 4.0]})
+        with pytest.raises(ValueError, match="violin KDE column 'value'.*group 'A'"):
+            mark_violin(data, "group", "value", ["A", "B"])
+
+    def test_kde_rejects_unusable_group(self):
+        data = pl.DataFrame({"group": ["A", "A", "B", "B"], "value": [1.0, 1.0, 3.0, 4.0]})
+        with pytest.raises(ValueError, match="unusable group 'A'"):
+            mark_violin(data, "group", "value", ["A", "B"])
+
+    @pytest.mark.parametrize("values", [[1e308, -1e308], [1e-320, 2e-320, 3e-320]])
+    def test_kde_rejects_finite_but_numerically_unusable_values(self, values):
+        data = pl.DataFrame({"group": ["A"] * len(values), "value": values})
+        with pytest.raises(ValueError, match="violin KDE column 'value'.*group 'A'"):
+            mark_violin(data, "group", "value", ["A"])
+
+    def test_kde_ignores_invalid_unused_columns(self):
+        data = pl.DataFrame(
+            {"group": ["A", "A", "B", "B"], "value": [1.0, 2.0, 3.0, 4.0], "unused": [float("inf")] * 4}
+        )
+        assert isinstance(mark_violin(data, "group", "value", ["A", "B"]), alt.LayerChart)
+
+    def test_fractional_mark_sizes_are_preserved(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="box", boxplotWidth=4.5).to_dict()
+        box = next(layer for layer in spec["layer"] if _mark_type(layer) == "boxplot")
+        assert box["mark"]["size"] == 4.5
+
+    @pytest.mark.parametrize("categories", [["A", "B"], ["A", "B", "D"], ["A", "B", "B"]])
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    def test_categories_must_match_observed_values_once(self, group_df, categories, constructor):
+        with pytest.raises(ValueError, match="categories"):
+            constructor(group_df, "group", "value", categories)
+
+    def test_numeric_categories_remain_valid(self):
+        data = pl.DataFrame({"group": [2, 1] * 8, "value": np.arange(16, dtype=float)})
+        assert isinstance(mark_strip(data, "group", "value", [2, 1]), alt.LayerChart)
+
+    def test_category_string_is_not_split_into_characters(self, group_df):
+        with pytest.raises(ValueError, match="not a string"):
+            mark_strip(group_df, "group", "value", "ABC")  # ty: ignore[invalid-argument-type]
 
     def test_custom_palette_list(self, group_df):
         result = mark_violin(
             group_df,
-            xCol="group",
-            yCol="value",
+            x="group",
+            y="value",
             categories=CATEGORIES,
             palette=["#FF0000", "#00FF00", "#0000FF"],
         )
         assert isinstance(result, alt.LayerChart)
 
     def test_y_title_default_is_col_name(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         layer_specs = spec.get("layer", [])
         y_titles = [
@@ -53,16 +106,34 @@ class TestMarkViolin:
         assert any(t == "value" for t in y_titles)
 
     def test_y_title_none_suppresses(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES, yTitle=None)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES, yTitle=None)
         spec = result.to_dict()
         for layer in spec.get("layer", []):
             y_enc = layer.get("encoding", {}).get("y", {})
             assert y_enc.get("title") is None or "title" not in y_enc
 
+    def test_multiline_axis_titles_are_preserved(self, group_df):
+        spec = mark_violin(
+            group_df,
+            x="group",
+            y="value",
+            categories=CATEGORIES,
+            xTitle=["Treatment", "group"],
+            yTitle=["Response", "units"],
+        ).to_dict()
+        titles = [
+            enc.get("title")
+            for layer in spec["layer"]
+            for enc in layer.get("encoding", {}).values()
+            if isinstance(enc, dict) and "title" in enc
+        ]
+        assert ["Treatment", "group"] in titles
+        assert ["Response", "units"] in titles
+
     def test_violin_x_uses_absolute_quantitative(self, group_df):
         # Violin line mark encodes x:Q with axis=None - absolute pixel coordinates,
         # not xOffset - so hconcat with mark_strip never squishes the violin.
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         violin_layer = next(
             lyr for lyr in spec["layer"] if isinstance(lyr.get("mark"), dict) and lyr["mark"].get("type") == "line"
@@ -71,21 +142,21 @@ class TestMarkViolin:
         assert x_enc["type"] == "quantitative"
         # axis=None serialises as null in to_dict()
         assert x_enc.get("axis") is None
-        chart_width = alt.theme.options.get("chartWidth", 200)
+        chart_width = alt.theme.options.get("width", 200)
         assert x_enc["scale"]["domain"] == [0, chart_width]
 
     def test_violin_no_xoffset_in_any_layer(self, group_df):
         # No layer uses xOffset - Vega-Lite won't merge xOffset scales across hconcat panels.
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         for layer in spec["layer"]:
             assert "xOffset" not in layer.get("encoding", {})
 
     def test_median_color_wired_to_spec(self, group_df):
-        # Proves the medianColor param flows to the boxplot median fill. Uses an explicit
+        # Proves the boxplotMedianColor param flows to the boxplot median fill. Uses an explicit
         # value (not the default) so it doesn't pin the cosmetic default, which may change.
         result = mark_violin(
-            group_df, xCol="group", yCol="value", categories=CATEGORIES, inner="box", medianColor="red"
+            group_df, x="group", y="value", categories=CATEGORIES, inner="box", boxplotMedianColor="red"
         )
         box = next(
             lyr
@@ -95,7 +166,7 @@ class TestMarkViolin:
         assert box["mark"]["median"]["fill"] == "red"
 
     def test_x_title_defaults_to_col_name(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         x_titles = [
             layer.get("encoding", {}).get("x", {}).get("title")
@@ -105,7 +176,7 @@ class TestMarkViolin:
         assert any(t == "group" for t in x_titles)
 
     def test_x_title_none_suppresses(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES, xTitle=None)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES, xTitle=None)
         spec = result.to_dict()
         for layer in spec["layer"]:
             x_enc = layer.get("encoding", {}).get("x", {})
@@ -128,6 +199,178 @@ def _violin_rows(spec):
 
 def _median_area(spec):
     return next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "area")
+
+
+class TestMarkColors:
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    def test_fixed_fill_is_rendered_without_category_color_encoding(self, constructor, group_df):
+        import vl_convert as vlc
+
+        kwargs = {"fill": "#123456", "legend": True}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        chart = constructor(group_df, "group", "value", CATEGORIES, **kwargs)
+        spec = chart.to_dict()
+        primary = next(layer for layer in spec["layer"] if _mark_type(layer) in ("circle", "line"))
+        assert primary["mark"]["fill"] == "#123456"
+        assert "color" not in primary["encoding"]
+        assert "#123456" in vlc.vegalite_to_svg(spec).lower()
+
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    @pytest.mark.parametrize(
+        ("palette_value", "expected"),
+        [
+            (None, None),
+            (["#111111", "#222222", "#333333"], ["#111111", "#222222", "#333333"]),
+            ("blues", colors["blues"]),
+        ],
+    )
+    def test_default_list_and_named_palette_ranges(self, constructor, palette_value, expected, group_df):
+        kwargs = {"palette": palette_value}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        spec = constructor(group_df, "group", "value", CATEGORIES, **kwargs).to_dict()
+        primary = next(layer for layer in spec["layer"] if _mark_type(layer) in ("circle", "line"))
+        color_scale = primary["encoding"]["color"]["scale"]
+        if expected is None:
+            assert "range" not in color_scale
+        else:
+            assert color_scale["range"] == expected
+
+    def test_fixed_violin_groups_paths_in_rendered_svg(self, group_df):
+        import vl_convert as vlc
+
+        chart = mark_violin(group_df, "group", "value", CATEGORIES, fill="#123456", inner=None, steps=20)
+        spec = chart.to_dict()
+        violin = next(layer for layer in spec["layer"] if _mark_type(layer) == "line")
+        assert violin["encoding"]["detail"]["field"] == "__group"
+        assert violin["encoding"]["order"]["field"] == "__order"
+        vega = vlc.vegalite_to_vega(spec)
+        path_group = next(mark for mark in vega["marks"] if mark.get("type") == "group")
+        assert path_group["from"]["facet"]["groupby"] == ["__group"]
+        svg = vlc.vegalite_to_svg(spec).lower()
+        assert svg.count("#123456") == len(CATEGORIES)
+
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    def test_fill_and_palette_cannot_be_combined(self, constructor, group_df):
+        kwargs = {"fill": "red", "palette": ["#111111"]}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        with pytest.raises(ValueError, match="fill and palette"):
+            constructor(group_df, "group", "value", CATEGORIES, **kwargs)
+
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    @pytest.mark.parametrize("fill", ["", " ", 1, ["red"]])
+    def test_invalid_fill_rejected(self, constructor, fill, group_df):
+        kwargs = {"fill": fill}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        with pytest.raises(ValueError, match="fill"):
+            constructor(group_df, "group", "value", CATEGORIES, **kwargs)
+
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    @pytest.mark.parametrize("palette_value", ["not_a_palette", "#ff0000", [], ["red", ""], ["red", 1], 1])
+    def test_invalid_palette_rejected(self, constructor, palette_value, group_df):
+        kwargs = {"palette": palette_value}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        with pytest.raises(ValueError, match="palette|fill"):
+            constructor(group_df, "group", "value", CATEGORIES, **kwargs)
+
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    @pytest.mark.parametrize("name", ["viridis", "Blues", "blues"])
+    def test_palette_names_are_shared_and_case_sensitive(self, constructor, name, group_df):
+        kwargs = {"palette": name}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        spec = constructor(group_df, "group", "value", CATEGORIES, **kwargs).to_dict()
+        assert any(
+            layer.get("encoding", {}).get("color", {}).get("scale", {}).get("range") == colors[name]
+            for layer in spec["layer"]
+        )
+
+        with pytest.raises(ValueError, match="unknown palette"):
+            constructor(
+                group_df,
+                "group",
+                "value",
+                CATEGORIES,
+                palette="Viridis",
+                **({"inner": None} if constructor is mark_violin else {}),
+            )
+
+    def test_named_palette_can_come_from_project_config(self, group_df, monkeypatch, tmp_path):
+        import os
+
+        root = os.getcwd()
+        (tmp_path / "dysonsphere.toml").write_text('[palettes]\nlocal = ["#112233", "#445566"]\n')
+        monkeypatch.chdir(tmp_path)
+        try:
+            theme()
+            spec = mark_strip(group_df, "group", "value", CATEGORIES, palette="local").to_dict()
+            circle = next(layer for layer in spec["layer"] if _mark_type(layer) == "circle")
+            assert circle["encoding"]["color"]["scale"]["range"] == ["#112233", "#445566"]
+        finally:
+            monkeypatch.chdir(root)
+            theme()
+
+    def test_named_palette_receives_the_same_list_validation(self, group_df, monkeypatch):
+        monkeypatch.setitem(colors, "empty_test_palette", [])
+        with pytest.raises(ValueError, match="non-empty"):
+            mark_strip(group_df, "group", "value", CATEGORIES, palette="empty_test_palette")
+
+    def test_fixed_fill_does_not_mutate_theme_or_conflict_with_theme_palette(self, group_df):
+        theme(palette=["#111111", "#222222", "#333333"])
+        before = dict(alt.theme.options)
+        try:
+            mark_strip(group_df, "group", "value", CATEGORIES, fill="#abcdef")
+            assert alt.theme.options == before
+        finally:
+            theme()
+
+    def test_fixed_fill_preserves_neighbor_legend(self, group_df):
+        import vl_convert as vlc
+
+        fixed = mark_strip(group_df, "group", "value", CATEGORIES, fill="#abcdef", legend=True)
+        colored = mark_strip(group_df, "group", "value", CATEGORIES, legend=True)
+        assert not vlc.vegalite_to_vega(fixed.to_dict()).get("legends")
+        figure = alt.hconcat(fixed, colored)
+        vega = vlc.vegalite_to_vega(figure.to_dict())
+        assert len(vega["legends"]) == 1
+
+    def test_fixed_fill_does_not_style_summary_or_inner_marks(self, group_df):
+        strip_spec = mark_strip(group_df, "group", "value", CATEGORIES, fill="#abcdef").to_dict()
+        assert "fill" not in next(layer for layer in strip_spec["layer"] if _mark_type(layer) == "errorbar")["mark"]
+
+        violin_spec = mark_violin(
+            group_df,
+            "group",
+            "value",
+            CATEGORIES,
+            fill="#abcdef",
+            inner="quartiles",
+            innerColor="orange",
+        ).to_dict()
+        silhouette = next(layer for layer in violin_spec["layer"] if _mark_type(layer) == "line")
+        assert silhouette["mark"]["fill"] == "#abcdef"
+        assert _median_area(violin_spec)["mark"]["fill"] == "orange"
+        assert all(layer["mark"]["color"] == "orange" for layer in _rule_layers(violin_spec))
+
+    def test_fixed_fill_is_darkmode_invariant(self, group_df):
+        import vl_convert as vlc
+
+        try:
+            rendered = []
+            for darkmode in (False, True):
+                theme(darkmode=darkmode)
+                chart = mark_strip(group_df, "group", "value", CATEGORIES, fill="#123456")
+                spec = chart.to_dict()
+                circle = next(layer for layer in spec["layer"] if _mark_type(layer) == "circle")
+                assert circle["mark"]["fill"] == "#123456"
+                rendered.append(vlc.vegalite_to_svg(spec).lower().count("#123456"))
+            assert rendered == [len(group_df), len(group_df)]
+        finally:
+            theme()
 
 
 class TestViolinInner:
@@ -174,7 +417,7 @@ class TestViolinInner:
         # Deliberately NOT darkmode-sensitive: the lines sit inside the mark fill,
         # not on the background.
         for dark in (False, True):
-            theme(chartWidth=200, chartHeight=200, darkmode=dark)
+            theme(width=200, height=200, darkmode=dark)
             spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
             assert _median_area(spec)["mark"]["fill"] == "black"
             assert all(lyr["mark"]["color"] == "black" for lyr in _rule_layers(spec))
@@ -183,7 +426,7 @@ class TestViolinInner:
         # The default violin is outlined with the theme's markStroke - black in
         # dark mode too (it outlines the light palette fills, like mark_strip).
         for dark in (False, True):
-            theme(chartWidth=200, chartHeight=200, darkmode=dark)
+            theme(width=200, height=200, darkmode=dark)
             spec = mark_violin(group_df, "group", "value", CATEGORIES).to_dict()
             violin = next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "line")
             assert violin["mark"]["stroke"] == "black"
@@ -212,10 +455,10 @@ class TestViolinInner:
         assert median["strokeWidth"] == 0
         quartiles = [lyr["mark"] for lyr in _rule_layers(spec)]
         assert len(quartiles) == 2 * len(CATEGORIES)
-        dash_len, gap_len = alt.theme.options["dashedWidth"][:2]
+        dash_len, gap_len = alt.theme.options["strokeDash"][:2]
         for quartile in quartiles:
             # The dash pattern is per-line scaled-to-fit, so only its proportions
-            # match the theme's dashedWidth.
+            # match the theme's strokeDash.
             a, b = quartile["strokeDash"]
             assert a / b == pytest.approx(dash_len / gap_len)
             # Butt caps: the theme's round rule caps would paint strokeWidth/2 of
@@ -262,6 +505,45 @@ class TestViolinInner:
         x_enc = host["encoding"]["x"]
         assert x_enc["type"] == "nominal"
         assert x_enc["scale"]["domain"] == CATEGORIES
+        assert x_enc["scale"]["paddingInner"] == 0
+        assert x_enc["scale"]["paddingOuter"] == 0.1
+
+    @pytest.mark.parametrize("inner", ["quartiles", "median", None, "box"])
+    @pytest.mark.parametrize(
+        ("width", "rect_padding", "bar_padding", "outer_padding", "global_inner"),
+        [(100, 0, 0.1, 0.1, None), (173, 0.3, 0.55, 0.2, None), (173, 0.3, 0.55, 0.2, 0.8)],
+    )
+    def test_rendered_axis_ticks_match_violin_centres(
+        self, group_df, tmp_path, inner, width, rect_padding, bar_padding, outer_padding, global_inner
+    ):
+        categories = ["C", "A", "B"]
+        theme(width=width, rectPadding=rect_padding, barPadding=bar_padding, outerPadding=outer_padding)
+        chart = mark_violin(group_df, "group", "value", categories, inner=inner, xTitle="Groups")
+        if global_inner is not None:
+            # This is native Altair figure config, not a supported ds.theme option. Encoding-level
+            # padding must keep the already-constructed pixel silhouette and its axis together.
+            chart = chart.configure_scale(bandPaddingInner=global_inner)
+        out = tmp_path / f"violin-{inner}"
+        save(chart, str(out), format="svg", background="light")
+        svg = out.with_suffix(".svg").read_text()
+        ticks = [float(value) for value in re.findall(r'<line transform="translate\(([\d.]+),0\)" x2="0" y2="3"', svg)]
+        expected = _band_geometry(len(categories), width, scale="rect").centers
+        assert ticks == pytest.approx(expected, abs=1e-9)
+        root = ET.parse(out.with_suffix(".svg")).getroot()
+        outlines = [
+            path.get("d", "")
+            for path in root.iter()
+            if path.tag.endswith("path") and path.get("aria-roledescription") == "line mark"
+        ]
+        silhouette_centres = []
+        for path in outlines:
+            xs = [float(value) for value in re.findall(r"[ML]([-\d.]+),", path)]
+            silhouette_centres.append((min(xs) + max(xs)) / 2)
+        assert silhouette_centres == pytest.approx(expected, abs=0.001)
+        labels = re.findall(r'font-weight="400"[^>]*>([ABC])</text>', svg)
+        assert labels == categories
+        assert "Groups" in svg
+        assert 'opacity="0"' not in svg, "the zero-row scaffold must not render a mark"
 
     def test_inner_none_draws_violin_only(self, group_df):
         spec = mark_violin(group_df, "group", "value", CATEGORIES, inner=None).to_dict()
@@ -317,11 +599,11 @@ class TestViolinTrim:
 
 class TestMarkStrip:
     def test_returns_layer_chart(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES)
         assert isinstance(result, alt.LayerChart)
 
     def test_x_title_defaults_to_col_name(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         x_titles = [
             layer.get("encoding", {}).get("x", {}).get("title")
@@ -331,32 +613,32 @@ class TestMarkStrip:
         assert any(t == "group" for t in x_titles)
 
     def test_x_title_none_suppresses(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, xTitle=None)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, xTitle=None)
         spec = result.to_dict()
         for layer in spec["layer"]:
             x_enc = layer.get("encoding", {}).get("x", {})
             assert x_enc.get("title") is None or "title" not in x_enc
 
     def test_mark_size_param(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, markSize=20)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, markSize=20)
         spec = result.to_dict()
         circle_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "circle")
         assert circle_layer["mark"]["size"] == 20
 
     def test_mark_opacity_param(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, markOpacity=0.5)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, markOpacity=0.5)
         spec = result.to_dict()
         circle_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "circle")
         assert circle_layer["mark"]["opacity"] == 0.5
 
     def test_errorbars_disabled(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, errorbars=False)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, errorbars=False)
         assert isinstance(result, alt.LayerChart)
 
     def test_errorbars_center_tick_is_mean(self, group_df):
         # The centre tick must draw the MEAN (the errorbar statistic), not the median -
         # a median tick sits off-centre between the caps on skewed data.
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         tick_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "tick")
         errorbar_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "errorbar")
@@ -367,15 +649,15 @@ class TestMarkStrip:
 
     def test_errorbars_disabled_keeps_median_boxplot(self, group_df):
         # Without error bars the centre statistic stays the median (via the hidden boxplot).
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, errorbars=False)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, errorbars=False)
         spec = result.to_dict()
         assert any(lyr.get("mark", {}).get("type") == "boxplot" for lyr in spec["layer"])
 
     def test_beeswarm_scatter(self, group_df):
         result = mark_strip(
             group_df,
-            xCol="group",
-            yCol="value",
+            x="group",
+            y="value",
             categories=CATEGORIES,
             scatter="beeswarm",
         )
@@ -385,8 +667,8 @@ class TestMarkStrip:
         with pytest.raises(ValueError, match="scatter"):
             mark_strip(
                 group_df,
-                xCol="group",
-                yCol="value",
+                x="group",
+                y="value",
                 categories=CATEGORIES,
                 scatter="invalid",
             )

@@ -5,16 +5,15 @@ description: Time-frequency analysis, phase portraits, and chaotic maps.
 
 import Example from '../../../components/Example.astro';
 
-Signal processing and dynamical systems. Press **`</> code`** on any figure to read the code that
-made it, or **Open in studio** to run and edit it live.
+Examples cover signal processing and dynamical systems. Select **`</> code`** to view a figure's source or **Open in studio** to edit it.
 
-<Example name="spectrogram" codeToggle caption="A chirp spectrogram - time-frequency power of a frequency sweep with harmonics, <code>australis</code>." alt="Spectrogram of a frequency-swept chirp" />
+<Example name="spectrogram" codeToggle caption="Spectrogram of a frequency-swept chirp showing time-frequency power and harmonics on <code>australis</code>." alt="Spectrogram of a frequency-swept chirp" />
 
-<Example name="phase_portrait" codeToggle caption="A Van der Pol phase portrait - trajectories onto the limit cycle, drawn with <code>mark_trail</code> (width = speed)." alt="Van der Pol oscillator phase portrait" />
+<Example name="phase_portrait" codeToggle caption="Van der Pol phase portrait of trajectories converging on the limit cycle; <code>mark_trail</code> encodes speed as line width." alt="Van der Pol oscillator phase portrait" />
 
-<Example name="attractor" codeToggle caption="A Clifford strange attractor - the chaotic map's point cloud, colored by local speed." alt="Clifford strange attractor point cloud" />
+<Example name="attractor" codeToggle caption="Point cloud of the Clifford strange attractor, colored by local speed." alt="Clifford strange attractor point cloud" />
 
-<Example name="bifurcation" codeToggle caption="The logistic-map bifurcation diagram - the period-doubling route to chaos, colored by state." alt="Logistic map bifurcation diagram" />
+<Example name="bifurcation" codeToggle caption="Logistic-map bifurcation diagram showing period-doubling to chaos, with points colored by state." alt="Logistic map bifurcation diagram" />
 
 
-<Example name="power_spectrum" codeToggle caption="A power spectral density - 1/f noise with resonant peaks on log-log axes, minor ticks via <code>add_log_ticks</code>." alt="Power spectral density on log-log axes" />
+<Example name="power_spectrum" codeToggle caption="Power spectral density of 1/f noise with resonant peaks on log-log axes. Minor ticks are added with <code>add_log_ticks</code>." alt="Power spectral density on log-log axes" />

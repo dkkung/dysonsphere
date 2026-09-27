@@ -1,13 +1,14 @@
 import altair as alt
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 
-# add_beeswarm() computes collision-avoiding x-offsets per group.
-cars = ds.add_beeswarm(cars, "Miles_per_Gallon", groupBy=["Origin"])
+# ds.transforms.beeswarm() computes collision-avoiding x-offsets per group.
+cars = ds.transforms.beeswarm(cars, "Miles_per_Gallon", groupBy=["Origin"])
 
 # Pin a symmetric xOffset domain so offset 0 sits on the tick - otherwise Vega-Lite centres the
 # tick on the offset range's midpoint, nudging a leaning swarm off-tick (mark_strip does this for

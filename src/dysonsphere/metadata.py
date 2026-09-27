@@ -15,24 +15,34 @@ import struct
 import sys
 import uuid
 import zlib
+from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
-__all__ = ["VerifyResult", "read", "verify"]
+from . import ext
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+from .utils import _frame_checksum as frame_checksum
+
+# Public names in ds.metadata.
+__all__ = ["VerifyResult", "frame_checksum", "read", "verify"]
 
 _REPORT_PREFIX = "dysonsphere-report-"
+_STAT_OWNER_PREFIX = "__dsstatistics_owner_"
 
-# Namespace for the derived (reproducible-build) exportIdentifier - see `_derive_export_id`.
+# Namespace for the derived (reproducible-build) exportIdentifier – see `_derive_export_id`.
 _EXPORT_ID_NAMESPACE = "https://github.com/dkkung/dysonsphere/export/"
 
 
-# ── Writing metadata into output files ───────────────────────────────────────
+# Writing metadata into output files
 
 
 def _inject_png_metadata(png_bytes: bytes, text: str, keyword: str = "Description") -> bytes:
@@ -96,7 +106,7 @@ def _render_provenance(prov: dict[str, Any]) -> str:
 
 def _call_expression(frame) -> str | None:
     """Best-effort source text of the ``chart`` argument at the caller's ``save(...)`` call
-    site — the variable name (``"fig"``) or the inline composition (``"boxplot + points"``,
+    site – the variable name (``"fig"``) or the inline composition (``"boxplot + points"``,
     a whole lambda), captured verbatim for ``provenance.chart``.
 
     How: the caller ``frame``'s currently-executing instruction is the CALL into ``save()``;
@@ -105,11 +115,11 @@ def _call_expression(frame) -> str | None:
     source), parsed with ``ast``, and the first positional argument's (or ``chart=`` keyword's)
     own source segment is returned.
 
-    Returns ``None`` — the field is then omitted — whenever the source is unavailable (plain
+    Returns ``None`` – the field is then omitted – whenever the source is unavailable (plain
     REPL, ``exec``'d strings, frozen apps) or anything else fails: this is convenience
     metadata about the *source code* (a sibling of ``script``), never chart identity (the
-    checksums are), so it fails silently rather than ever failing a save. Known honest
-    limitation: it records the expression *at the call site*, so a wrapper function's
+    checksums are), so it fails silently rather than ever failing a save. Limitation: it
+    records the expression *at the call site*, so a wrapper function's
     ``ds.save(chart, ...)`` records the wrapper's parameter name ``"chart"``, not the
     caller-of-the-wrapper's composition.
     """
@@ -148,7 +158,7 @@ def _source_date_epoch() -> int | None:
 
     The reproducible-builds convention (https://reproducible-builds.org/specs/source-date-epoch/):
     an integer count of UTC seconds that pins every timestamp a build writes.  A malformed value
-    raises rather than being ignored - silently falling back to the wall clock would hand back a
+    raises rather than being ignored – silently falling back to the wall clock would hand back a
     non-reproducible export while the caller believes it is pinned.
     """
     raw = os.environ.get("SOURCE_DATE_EPOCH")
@@ -168,7 +178,7 @@ def _resolve_timestamp() -> str:
     try:
         when = datetime.fromtimestamp(epoch, timezone.utc)
     except (OverflowError, OSError, ValueError):
-        # Out of the platform's representable range - report it as the bad input it is.
+        # Reject epochs outside the platform's representable range.
         raise ValueError(f"SOURCE_DATE_EPOCH is out of range for a UTC timestamp: {epoch}.") from None
     return when.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -196,26 +206,25 @@ def _build_provenance(
     extensions: dict[str, str],
     chart_expression: str | None,
 ) -> dict[str, Any]:
-    """Collect the generation facts for the block.  ``export_id`` and ``timestamp`` are
-    generated once per ``save()`` call (so every variant of one export shares them);
-    ``checksum`` is per-variant (the SHA-256 of that variant's spec).  Field order is human-first:
-    the readable who/when context (``user``/``script``/``chart``/``timestamp``) leads —
-    ``chart`` (the best-effort call-site source text of the ``chart`` argument, from
-    ``_call_expression``; omitted when ``None``) sits directly after ``script``, its sibling
-    source-code fact — then ``environment`` —
-    the platform + versioned toolchain (``os`` from ``platform.platform()`` first, then
-    ``python``/``altair``/``vl_convert``/``dysonsphere``, then ``dysonsphere-extensions``
-    ``{name: version}`` **directly after ``dysonsphere`` only when the figure actually used one**
-    (e.g. ``ds.biology.volcano`` -> ``{"biology": "0.1.0"}``; see ``discovery._used_extensions`` -
-    grouped with the tool it extends, and the explicit label disambiguates from a pypi 'extensions'
-    package), then ``numpy``/``scipy``/``polars``: the OS, interpreter, spec generator, RENDERER,
-    tool + its extensions, and runtime deps; ``os`` + ``vl_convert`` together pin *rendering*). Then
-    finally the machine
-    identity hashes: ``vegaliteChecksum`` (content identity, per variant), ``exportIdentifier`` (the
-    run), and ``dataChecksum`` LAST (data identity, one entry per user frame, order-independent - the
-    only unbounded field, so it trails, keeping the readable top of the block stable). This mirrors
-    the ``_render_provenance`` prose, which also puts the checksums after the 'Generated by …'
-    sentence.
+    """Collect generation facts for one saved figure.
+
+    Fields appear in this order: ``user``, ``script``, optional ``chart`` source text,
+    ``timestamp``, ``environment``, ``vegaliteChecksum``, ``exportIdentifier``, and
+    ``dataChecksum``. The ``chart`` value is the best-effort call-site source text of the
+    ``chart`` argument, from ``_call_expression``; it is omitted when unavailable. The
+    Environment fields appear in this order: ``os`` (from ``platform.platform()``),
+    ``python``, ``altair``, ``vl_convert``, ``dysonsphere``, optional
+    ``dysonsphere-extensions``, ``numpy``, ``scipy``, and ``polars``. The extension
+    field maps extension names to versions and distinguishes them from a generic
+    ``extensions`` package field. Together, ``os`` and ``vl_convert`` record the
+    operating system and renderer used for the export.
+
+    ``export_id`` and ``timestamp`` are generated once per ``save()`` call and shared by
+    its variants. ``checksum`` is the SHA-256 of this variant's spec. Accordingly,
+    ``vegaliteChecksum`` identifies each variant, ``exportIdentifier`` is shared by
+    variants from a save, and ``dataChecksum`` contains one order-independent data identity
+    per user frame. With ``SOURCE_DATE_EPOCH``, identical inputs can produce the same
+    ``exportIdentifier`` across separate saves.
     """
     try:
         _shell = get_ipython().__class__.__name__  # ty: ignore[unresolved-reference]
@@ -239,9 +248,7 @@ def _build_provenance(
             "altair": alt.__version__,
             "vl_convert": importlib.metadata.version("vl-convert-python"),
             "dysonsphere": importlib.metadata.version("dysonsphere"),
-            # dysonsphere extensions that actually PRODUCED this figure (empty -> key omitted).
-            # Grouped directly under `dysonsphere` (the tool + its extensions together); the explicit
-            # `dysonsphere-extensions` label disambiguates from any pypi package named 'extensions'.
+            # Record extensions that produced this figure, grouped under dysonsphere.
             **({"dysonsphere-extensions": extensions} if extensions else {}),
             "numpy": importlib.metadata.version("numpy"),
             "scipy": importlib.metadata.version("scipy"),
@@ -253,61 +260,463 @@ def _build_provenance(
     }
 
 
-def _scan_marker_hashes(spec) -> set[str]:
-    """Collect the record hashes from every ``__dysonsphere_`` marker ``name`` in a spec."""
-    from .statistics import _marker_hash
+def _persistent_owner(name: object) -> str | None:
+    """Return a persistent statistics owner from a view name, including extension wrappers."""
+    _, underlying = ext._unwrap_extension_markers(name)
+    if not isinstance(underlying, str) or not underlying.startswith(_STAT_OWNER_PREFIX):
+        return None
+    owner = underlying[len(_STAT_OWNER_PREFIX) :]
+    return owner if owner and re.fullmatch(r"[0-9a-f]{48}", owner) else None
+
+
+_CHART_CHILD_KEYS = ("layer", "hconcat", "vconcat", "concat")
+
+
+def _walk_chart_nodes(spec: dict[str, Any], visit: Callable[[dict[str, Any]], None]) -> None:
+    """Walk Vega-Lite chart/spec nodes, never arbitrary data rows or metadata dictionaries."""
+    visit(spec)
+    for key in _CHART_CHILD_KEYS:
+        children = spec.get(key)
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, dict):
+                    _walk_chart_nodes(cast(dict[str, Any], child), visit)
+    child = spec.get("spec")
+    if isinstance(child, dict):
+        _walk_chart_nodes(cast(dict[str, Any], child), visit)
+
+
+_CONTEXT_ERROR = (
+    "preserved statistical context changed; rebuild the annotation from its source data with "
+    "ds.stats.comparisons() or ds.stats.correlation()"
+)
+_PRESENTATION_MARK = {
+    "color",
+    "fill",
+    "stroke",
+    "opacity",
+    "fillOpacity",
+    "strokeOpacity",
+    "strokeWidth",
+    "strokeDash",
+    "size",
+    "font",
+    "fontSize",
+    "fontStyle",
+    "fontWeight",
+    "align",
+    "baseline",
+    "dx",
+    "dy",
+    "angle",
+    "cornerRadius",
+    "cursor",
+    "tooltip",
+}
+_PURE_EXPRESSION_FUNCTIONS = {
+    "abs",
+    "ceil",
+    "clamp",
+    "exp",
+    "floor",
+    "if",
+    "indexof",
+    "isFinite",
+    "isNaN",
+    "isValid",
+    "length",
+    "log",
+    "lower",
+    "max",
+    "min",
+    "pow",
+    "replace",
+    "round",
+    "sqrt",
+    "substring",
+    "toNumber",
+    "toString",
+    "upper",
+}
+
+
+def _validate_statistics_expression(expression: str) -> None:
+    """Accept only bounded, deterministic expressions over the current datum."""
+    without_strings = re.sub(r"(['\"])(?:\\.|(?!\1).)*\1", "", expression)
+    without_numbers = re.sub(
+        r"(?<![\w$])(?:0[xX][0-9a-fA-F]+|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)", "", without_strings
+    )
+    # Ignore only static dotted field names. Bracket contents remain tokenized because they may
+    # themselves be computed expressions (datum[random()] must not look like a static field).
+    without_dotted_fields = re.sub(r"(?<=\bdatum)\.[A-Za-z_$][\w$]*", "", without_numbers)
+    identifiers = set(re.findall(r"[A-Za-z_$][\w$]*", without_dotted_fields))
+    allowed = _PURE_EXPRESSION_FUNCTIONS | {"datum", "true", "false", "null"}
+    if identifiers - allowed:
+        raise ValueError(
+            "unsupported statistical context: expressions may use only deterministic datum values and pure functions"
+        )
+
+
+def _validate_statistics_descriptor(value: Any) -> None:
+    """Reject dataflow constructs whose runtime inputs cannot be guarded by a saved spec."""
+    if isinstance(value, dict):
+        if "lookup" in value:
+            raise ValueError("unsupported statistical context: lookup transforms cannot be preserved")
+        if "sample" in value:
+            raise ValueError("unsupported statistical context: nondeterministic sample transforms cannot be preserved")
+        if "param" in value or "selection" in value:
+            raise ValueError("unsupported statistical context: runtime parameters and selections cannot be preserved")
+        for key, child in value.items():
+            if key in {"calculate", "expr"} and isinstance(child, str):
+                _validate_statistics_expression(child)
+            elif key in {"filter", "test"} and isinstance(child, str):
+                _validate_statistics_expression(child)
+            else:
+                _validate_statistics_descriptor(child)
+    elif isinstance(value, list):
+        for child in value:
+            _validate_statistics_descriptor(child)
+
+
+def _statistics_context(spec: dict[str, Any], target: dict[str, Any]) -> str:
+    """Hash the effective analytical leaves in the target owner's concat panel."""
+    datasets: dict[str, Any] = (
+        cast(dict[str, Any], spec.get("datasets")) if isinstance(spec.get("datasets"), dict) else {}
+    )
+    ancestors: list[dict[str, Any]] | None = None
+
+    def locate(node: dict[str, Any], chain: list[dict[str, Any]]) -> None:
+        nonlocal ancestors
+        if node is target:
+            ancestors = chain
+            return
+        for key in _CHART_CHILD_KEYS:
+            for child in node.get(key, []) if isinstance(node.get(key), list) else []:
+                if ancestors is None and isinstance(child, dict):
+                    locate(child, [*chain, node])
+        child = node.get("spec")
+        if ancestors is None and isinstance(child, dict):
+            locate(child, [*chain, node])
+
+    locate(spec, [])
+    if ancestors is None:
+        raise ValueError("statistical owner is not part of the chart")
+    panel = spec
+    inherited_nodes: list[dict[str, Any]] = []
+    for index, ancestor in enumerate(ancestors):
+        if any(isinstance(ancestor.get(key), list) for key in ("hconcat", "vconcat", "concat")):
+            panel = ancestors[index + 1] if index + 1 < len(ancestors) else target
+            inherited_nodes = ancestors[: index + 1]
+
+    def data_value(value: Any) -> Any:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValueError("unsupported statistical context: data must be an object")
+        if "url" in value:
+            raise ValueError("unsupported statistical context: external data cannot be preserved")
+        if isinstance(value.get("name"), str):
+            name = value["name"]
+            if name not in datasets:
+                raise ValueError("unsupported statistical context: named data cannot be resolved")
+            return {**{k: v for k, v in value.items() if k != "name"}, "values": datasets[name]}
+        if "values" not in value:
+            raise ValueError("unsupported statistical context: dynamic data cannot be preserved")
+        return value
+
+    def encoding_value(encoding: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for channel, definition in encoding.items():
+            if channel in {"color", "fill", "stroke", "opacity", "size"} and isinstance(definition, dict):
+                if "field" not in definition and "condition" not in definition and "expr" not in definition:
+                    continue
+            if not isinstance(definition, dict):
+                out[channel] = definition
+                continue
+            item = {k: v for k, v in definition.items() if k not in {"axis", "legend"}}
+            if isinstance(item.get("scale"), dict):
+                scale = {k: v for k, v in item["scale"].items() if k not in {"range", "scheme"}}
+                if scale:
+                    item["scale"] = scale
+                else:
+                    item.pop("scale")
+            out[channel] = item
+        return out
+
+    inherited: dict[str, Any] = {}
+    inherited_transforms: list[Any] = []
+
+    def reject_parameters(node: dict[str, Any]) -> None:
+        if ("params" in node and node["params"] != []) or "selection" in node:
+            raise ValueError("unsupported statistical context: runtime parameters and selections cannot be preserved")
+
+    for node in inherited_nodes:
+        reject_parameters(node)
+        if "data" in node:
+            inherited["data"] = data_value(node["data"])
+        node_transforms = node.get("transform", []) if isinstance(node.get("transform"), list) else []
+        _validate_statistics_descriptor(node_transforms)
+        inherited_transforms.extend(node_transforms)
+        if isinstance(node.get("encoding"), dict):
+            _validate_statistics_descriptor(node["encoding"])
+            inherited["encoding"] = {**inherited.get("encoding", {}), **encoding_value(node["encoding"])}
+        for key in ("facet", "repeat"):
+            if key in node:
+                inherited[key] = node[key]
+
+    leaves: list[Any] = []
+
+    def collect(node: dict[str, Any], state: dict[str, Any]) -> None:
+        from ._label_resolution import _LABEL_GROUP_COL, _LABEL_ITEM_PREFIX
+        from ._statistics import _marker_hash
+
+        # Generated label connectors, chips, and text are derived pixel geometry. Resizing places
+        # them again, so hashing them would make a presentation change look analytical. Require both
+        # mark and data identities; anchor records remain in the context with their settings.
+        mark = node.get("mark")
+        description = mark.get("description", "") if isinstance(mark, dict) else ""
+        raw_data = node.get("data")
+        generated_values = None
+        if isinstance(raw_data, dict):
+            if isinstance(raw_data.get("values"), list):
+                generated_values = raw_data["values"]
+            elif isinstance(raw_data.get("name"), str):
+                generated_values = datasets.get(raw_data["name"])
+        if (
+            _LABEL_ITEM_PREFIX in str(description)
+            and isinstance(generated_values, list)
+            and generated_values
+            and all(isinstance(row, dict) and _LABEL_GROUP_COL in row for row in generated_values)
+        ):
+            return
+
+        _, underlying = ext._unwrap_extension_markers(node.get("name"))
+        owner = _persistent_owner(node.get("name"))
+        live_owner = _marker_hash(underlying) if isinstance(underlying, str) else None
+        if node is not target and (owner is not None or live_owner is not None):
+            return
+        current = deepcopy(state)
+        reject_parameters(node)
+        if "data" in node:
+            current["data"] = data_value(node["data"])
+        transforms = node.get("transform")
+        if isinstance(transforms, list):
+            _validate_statistics_descriptor(transforms)
+            current["transform"] = [*current.get("transform", []), *transforms]
+        if isinstance(node.get("encoding"), dict):
+            _validate_statistics_descriptor(node["encoding"])
+            current["encoding"] = {**current.get("encoding", {}), **encoding_value(node["encoding"])}
+        for key in ("facet", "repeat", "resolve"):
+            if key in node:
+                current[key] = node[key]
+        children: list[dict[str, Any]] = []
+        for key in _CHART_CHILD_KEYS:
+            children.extend(child for child in node.get(key, []) if isinstance(child, dict))
+        if isinstance(node.get("spec"), dict):
+            children.append(node["spec"])
+        if children:
+            for child in children:
+                collect(child, current)
+            return
+        mark = node.get("mark")
+        if isinstance(mark, dict):
+            analytical_mark = {k: v for k, v in mark.items() if k not in _PRESENTATION_MARK}
+            _validate_statistics_descriptor(analytical_mark)
+            current["mark"] = analytical_mark
+        elif mark is not None:
+            current["mark"] = mark
+        leaves.append(current)
+
+    inherited["transform"] = inherited_transforms
+    collect(panel, inherited)
+    serialized = sorted(json.dumps(leaf, sort_keys=True, separators=(",", ":")) for leaf in leaves)
+    return hashlib.sha256(json.dumps(serialized, separators=(",", ":")).encode()).hexdigest()
+
+
+def _prepare_statistics_owners(spec: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, dict[str, str]]]:
+    """Canonicalize available live/imported owners and return records in chart traversal order."""
+    from ._statistics import _live_report, _loaded_report, _marker_hash, _record_hash
+
+    selected: dict[str, dict[str, Any]] = {}
+    bindings: dict[str, dict[str, str]] = {}
+    occurrence = 0
+
+    def prepare(node: dict[str, Any]) -> None:
+        nonlocal occurrence
+        name = node.get("name")
+        _, underlying = ext._unwrap_extension_markers(name)
+        live_hash = _marker_hash(underlying) if isinstance(underlying, str) else None
+        loaded_owner = _persistent_owner(name)
+        record_hash = live_hash if live_hash is not None else (loaded_owner[:16] if loaded_owner is not None else None)
+        saved_context = loaded_owner[16:32] if loaded_owner is not None else None
+        record = (
+            _live_report(record_hash)
+            if live_hash is not None and record_hash is not None
+            else (
+                _loaded_report(record_hash, saved_context)
+                if record_hash is not None and saved_context is not None
+                else None
+            )
+        )
+        if record is None:
+            return
+        actual_hash = _record_hash(record)
+        context_hash = _statistics_context(spec, node)
+        if saved_context is not None and context_hash[:16] != saved_context:
+            raise ValueError(_CONTEXT_ERROR)
+        occurrence += 1
+        nonce = hashlib.sha256(f"{actual_hash}:{occurrence}".encode()).hexdigest()[:16]
+        owner = actual_hash + context_hash[:16] + nonce
+        node["name"] = f"{_STAT_OWNER_PREFIX}{owner}"
+        selected.setdefault(actual_hash, record)
+        bindings[owner] = {"record": actual_hash, "context": f"sha256:{context_hash}"}
+
+    _walk_chart_nodes(spec, prepare)
+    return list(selected.values()), bindings
+
+
+def _restore_statistics_owners(spec: dict[str, Any]) -> tuple[dict[str, Any], list[tuple[dict[str, Any], str]]]:
+    """Validate bindings transactionally and return a copy with fresh runtime owner identities."""
+    from ._statistics import _record_hash
+
+    restored = deepcopy(spec)
+    usermeta = restored.get("usermeta")
+    if usermeta is None:
+        return restored, []
+    if not isinstance(usermeta, dict):
+        raise ValueError("saved usermeta must be an object")
+    block = usermeta.get("dysonsphere")
+    if block is None:
+        return restored, []
+    if not isinstance(block, dict):
+        raise ValueError("saved dysonsphere metadata must be an object")
+    if "statisticsBindings" not in block:
+        return restored, []
+    bindings = block["statisticsBindings"]
+    records = block.get("statistics")
+    if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
+        raise ValueError("saved statisticsBindings require a statistics record list")
+    from ._statistics import _render_report
+
+    for record in records:
+        try:
+            json.dumps(record, allow_nan=False)
+            if record.get("kind") not in {"pairwise", "omnibus", "correlation"}:
+                raise ValueError
+            checksum = record.get("dataChecksum")
+            if checksum is not None and not (
+                isinstance(checksum, str) and re.fullmatch(r"multiset-sha256:[0-9a-f]{64}", checksum)
+            ):
+                raise ValueError
+            _render_report(record)
+        except (KeyError, TypeError, ValueError, OverflowError) as error:
+            raise ValueError("saved statistics contain a malformed record") from error
+    by_hash = {_record_hash(record): record for record in records}
+    if not isinstance(bindings, dict) or not all(
+        isinstance(owner, str)
+        and re.fullmatch(r"[0-9a-f]{48}", owner)
+        and isinstance(binding, dict)
+        and set(binding) == {"record", "context"}
+        and isinstance(binding.get("record"), str)
+        and re.fullmatch(r"[0-9a-f]{16}", binding["record"])
+        and isinstance(binding.get("context"), str)
+        and re.fullmatch(r"sha256:[0-9a-f]{64}", binding["context"])
+        for owner, binding in bindings.items()
+    ):
+        raise ValueError("saved statisticsBindings must map owners to record and context identifiers")
+    typed_bindings = cast(dict[str, dict[str, str]], bindings)
+    if any(binding["record"] not in by_hash for binding in typed_bindings.values()):
+        raise ValueError("saved statisticsBindings reference an unknown statistical record")
+    if any(
+        owner[:16] != binding["record"] or owner[16:32] != binding["context"][7:23]
+        for owner, binding in typed_bindings.items()
+    ):
+        raise ValueError("saved statisticsBindings associate an owner with the wrong record")
 
     found: set[str] = set()
 
-    def walk(o):
-        if isinstance(o, dict):
-            h = _marker_hash(o.get("name", ""))
-            if h:
-                found.add(h)
-            for v in o.values():
-                walk(v)
-        elif isinstance(o, list):
-            for v in o:
-                walk(v)
+    def validate_owner(node: dict[str, Any]) -> None:
+        if (owner := _persistent_owner(node.get("name"))) is not None:
+            if owner not in typed_bindings:
+                raise ValueError("saved chart contains an unbound statistical owner")
+            found.add(owner)
 
-    walk(spec)
-    return found
+    _walk_chart_nodes(restored, validate_owner)
+    if found != set(typed_bindings):
+        raise ValueError("saved statisticsBindings contain an owner absent from the chart")
+    owner_nodes: dict[str, dict[str, Any]] = {}
+
+    def collect_owner(node: dict[str, Any]) -> None:
+        if (owner := _persistent_owner(node.get("name"))) is not None:
+            owner_nodes[owner] = node
+
+    _walk_chart_nodes(restored, collect_owner)
+    for owner, node in owner_nodes.items():
+        if _statistics_context(restored, node) != typed_bindings[owner]["context"][7:]:
+            raise ValueError(_CONTEXT_ERROR)
+    fresh_owners = {
+        owner: binding["record"] + binding["context"][7:23] + uuid.uuid4().hex[:16]
+        for owner, binding in typed_bindings.items()
+    }
+
+    def freshen(node: dict[str, Any]) -> None:
+        if (owner := _persistent_owner(node.get("name"))) is not None:
+            node["name"] = f"{_STAT_OWNER_PREFIX}{fresh_owners[owner]}"
+
+    _walk_chart_nodes(restored, freshen)
+    imported: dict[tuple[str, str], tuple[dict[str, Any], str]] = {}
+    for binding in typed_bindings.values():
+        key = (binding["record"], binding["context"][7:])
+        imported.setdefault(key, (deepcopy(by_hash[binding["record"]]), binding["context"][7:]))
+    return restored, list(imported.values())
 
 
-def _strip_markers(spec) -> None:
-    """Remove every ``__dysonsphere_`` marker ``name`` from a spec dict, in place."""
-    from .statistics import _MARKER_PREFIX
+def _strip_markers(spec, *, statistics_owners: bool = False) -> None:
+    """Remove runtime markers from chart nodes, optionally including persistent statistics owners."""
+    from ._statistics import _MARKER_PREFIX
 
-    def walk(o):
-        if isinstance(o, dict):
-            name = o.get("name")
-            if isinstance(name, str) and name.startswith(_MARKER_PREFIX):
+    def strip_node(o: dict[str, Any]) -> None:
+        name = o.get("name")
+        marker_names, underlying_name = ext._unwrap_extension_markers(name)
+        if marker_names:
+            name = underlying_name
+            if name is None:
                 del o["name"]
-            for v in o.values():
-                walk(v)
-        elif isinstance(o, list):
-            for v in o:
-                walk(v)
+            else:
+                o["name"] = name
+        if isinstance(name, str) and name.startswith(_MARKER_PREFIX):
+            del o["name"]
+        elif statistics_owners and _persistent_owner(name) is not None:
+            del o["name"]
 
-    walk(spec)
+    _walk_chart_nodes(spec, strip_node)
 
 
 def _spec_checksum(spec) -> str:
-    """``sha256:<hex>`` of the canonical Vega-Lite spec with ``usermeta`` removed (assumes
-    markers are already stripped).  Sorted keys + compact separators make it reproducible;
-    re-validate by stripping ``usermeta`` from the file and re-hashing.
+    """``sha256:<hex>`` of the canonical Vega-Lite spec with ``usermeta`` removed.
+
+    Runtime markers are already stripped. Persistent statistics owners retain their record and
+    analytical-context hashes in canonical form but discard the fresh nonce, so ownership affects
+    integrity while repeated loads remain reproducible. Sorted keys + compact separators make the
+    result stable.
     """
-    clean = {k: v for k, v in spec.items() if k != "usermeta"}
+    clean = deepcopy({k: v for k, v in spec.items() if k != "usermeta"})
+
+    def normalize_owner(node: dict[str, Any]) -> None:
+        if (owner := _persistent_owner(node.get("name"))) is not None:
+            node["name"] = f"{_STAT_OWNER_PREFIX}{owner[:32]}"
+
+    _walk_chart_nodes(clean, normalize_owner)
     canon = json.dumps(clean, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(canon.encode()).hexdigest()
 
 
 def _user_datasets(spec) -> dict[str, list[Any]]:
-    """Every user (non-sidecar) inlined row-list in a spec, keyed by name.
+    """Every user (non-annotation) inlined row-list in a spec, keyed by name.
 
     Collects named datasets (``spec["datasets"]``) then any inline ``data.values`` found by
     walking the tree (named ``inline-<i>``), and drops empty datasets plus dysonsphere's own
-    internal sidecars — those carry the ``_INTERNAL_COL`` sentinel column.  Shared by
+    internal annotation data – those carry the ``_INTERNAL_COL`` marker column. Shared by
     ``_read_data`` and ``_data_checksum`` so both see the same set of user frames.
     """
     from .utils import _INTERNAL_COL
@@ -337,8 +746,8 @@ def _data_checksum(spec) -> list[str]:
     Unlike ``vegaliteChecksum`` (which changes with row order, since the inlined data is part
     of the spec it hashes), this ignores row order: it hashes the *multiset* of per-row
     canonical-JSON digests, so a reordered-but-identical frame yields the same value.  Duplicate
-    rows are preserved.  Internal sidecar datasets are excluded, so the checksum is independent
-    of how the data is drawn — two charts built from the same data match even across different
+    rows are preserved. Internal annotation datasets are excluded, so the checksum is independent
+    of how the data is drawn – two charts built from the same data match even across different
     marks/encodings/themes.  The list is sorted so multi-frame charts are order-independent too.
     """
     from .utils import _hash_rows
@@ -358,29 +767,34 @@ def _build_block(
     extensions: dict[str, str],
     chart_expression: str | None,
     description: str | None,
+    statistics_bindings: dict[str, dict[str, str]] | None = None,
 ) -> tuple[dict[str, Any], str, dict[str, str] | None]:
     """Assemble the ``dysonsphere`` metadata block from the drained statistical records.
 
     Returns ``(usermeta, usermeta_json, report_sections)``:
 
-    - ``usermeta`` — ``{"dysonsphere": {provenance, statistics?, theme, report?, description?}}``
+    - ``usermeta`` – ``{"dysonsphere": {provenance, statistics?, theme, report?, description?}}``
       for the Vega-Lite JSON ``usermeta`` (the ``report`` member is nested only here).
-    - ``usermeta_json`` — the structured block *without* ``report``, serialized for the SVG
+    - ``usermeta_json`` – the structured block *without* ``report``, serialized for the SVG
       ``<metadata>`` / PNG iTXt (those carry the report in dedicated readable channels).
-    - ``report_sections`` — ``{section: text}`` (``statistics`` when there are records +
+    - ``report_sections`` – ``{section: text}`` (``statistics`` when there are records +
       ``provenance`` always), or ``None`` when ``embed_report`` is off.
 
-    ``theme`` holds the resolved ``ds.theme()`` args (only ``_BUILTIN_DEFAULTS`` keys, so
-    every one is a valid kwarg — dysonsphere params, never Altair's), letting ``load()``
-    reconstruct the styling via ``ds.theme(**theme)``.
+    ``theme`` holds resolved ``ds.theme()`` arguments using only ``_BUILTIN_DEFAULTS`` keys,
+    which are dysonsphere parameters accepted by ``load()``. ``themeAutomatic`` records
+    fields that were originally omitted, letting ``load()`` reconstruct their live defaults
+    rather than pinning values from one exported mode.
 
-    ``description`` (the user's ``save(description=...)`` text) rides as the **last** member of
-    the block in *both* channels — after ``report`` in the JSON ``usermeta``, and last in the
-    report-free structured blob — so it is machine-readable from all three formats' embedded
+    ``description`` (the user's ``save(description=...)`` text) is the **last** member of
+    the block in *both* channels – after ``report`` in the JSON ``usermeta``, and last in the
+    report-free structured blob – so it is machine-readable from all three formats' embedded
     JSON (this is in addition to the native ``description``/``<desc>``/``iTXt Description``).
+
+    ``statistics_bindings`` maps each compact persistent owner to its record and analytical-context
+    hashes. Records remain serialized once in ``statistics`` rather than being copied into owners.
     """
-    from .statistics import _render_report
-    from .theme import _BUILTIN_DEFAULTS
+    from ._statistics import _render_report
+    from .theme import _BUILTIN_DEFAULTS, _opt
 
     provenance = _build_provenance(
         export_id=export_id,
@@ -393,10 +807,15 @@ def _build_block(
     ds_block: dict[str, Any] = {"provenance": provenance}
     if records:
         ds_block["statistics"] = records
+    if statistics_bindings:
+        ds_block["statisticsBindings"] = statistics_bindings
     ds_block["theme"] = {k: v for k, v in alt.theme.options.items() if k in _BUILTIN_DEFAULTS}
-    # The SVG/PNG structured blob is report-free (they get per-section readable channels) but
-    # DOES carry `description` — as the last member, mirroring the JSON.  ensure_ascii=False
-    # keeps η²/─ literal.
+    ds_block["theme"]["markFill"] = _opt("markFill")
+    if alt.theme.options.get("_markFillAuto", True):
+        # Keep the public theme snapshot fully resolved while retaining omission provenance for load().
+        ds_block["themeAutomatic"] = ["markFill"]
+    # SVG/PNG store report sections separately from the structured metadata, which ends with
+    # description when supplied. ensure_ascii=False preserves literal non-ASCII characters.
     blob: dict[str, Any] = dict[str, Any](ds_block)
     if description is not None:
         blob["description"] = description
@@ -442,13 +861,13 @@ def _inject_png_block(
         png_bytes = _inject_png_metadata(png_bytes, usermeta_json, keyword="dysonsphere")
     if report_sections is not None:
         # _inject_png_metadata prepends (each chunk lands right after IHDR), so inject in
-        # reverse to leave the sections in section order — matching the JSON/SVG.
+        # reverse to leave the sections in section order – matching the JSON/SVG.
         for section, text in reversed(report_sections.items()):
             png_bytes = _inject_png_metadata(png_bytes, text, keyword=f"{_REPORT_PREFIX}{section}")
     return png_bytes
 
 
-# ── Reading metadata back ────────────────────────────────────────────────────
+# Reading metadata back
 
 
 def _iter_png_itxt(png_bytes: bytes):
@@ -472,7 +891,7 @@ def _read_png_text(png_bytes: bytes, keyword: str) -> str | None:
     return next((t for kw, t in _iter_png_itxt(png_bytes) if kw == keyword), None)
 
 
-def _read_dysonsphere_block(path: str) -> dict[str, Any]:
+def _read_dysonsphere_block(path: str | Path) -> dict[str, Any]:
     """Read the embedded ``usermeta.dysonsphere`` block from a dysonsphere-exported PNG,
     SVG, or Vega-Lite JSON (detected by extension), as the unified
     ``{provenance, statistics, theme, report}`` dict.  For SVG/PNG the ``report`` container
@@ -514,7 +933,7 @@ def _rows_as(rows: list[Any], output: str) -> Any:
     """Materialize a list of record dicts in the requested ``output`` form (pandas/duckdb
     imported lazily, with a clear error if missing)."""
     if output == "records":
-        return rows  # raw list[dict] — no dataframe library needed
+        return rows  # raw list[dict] – no dataframe library needed
     if output == "pandas":
         try:
             import pandas as pd
@@ -534,16 +953,17 @@ def _rows_as(rows: list[Any], output: str) -> Any:
     return duckdb.from_arrow(df.to_arrow())  # a queryable DuckDBPyRelation (pyarrow via polars)
 
 
-def _read_data(path: str, output: str, dataset: str | None) -> Any:
-    """Rebuild the user's data from a Vega-Lite JSON (the ``.json`` spec).
+def _read_data(path: str | Path, output: str, dataset: str | None) -> Any:
+    """Rebuild user data from a Vega-Lite JSON (the ``.json`` spec).
 
-    Altair inlines the whole ``alt.Chart(df)`` frame — **every column, even unused ones** —
-    as named datasets.  dysonsphere's own composite marks/annotations also embed small
-    internal sidecar datasets, each tagged with the ``_INTERNAL_COL`` sentinel; those are
-    filtered out here so only the user's frame(s) remain.  ``dataset``: ``None`` (default)
-    returns the single user frame — **raising** (with a listing) if there are ≥2, so a
-    multi-frame chart is never silently truncated; ``"all"`` returns a ``{name: frame}`` dict;
-    ``"<name>"`` returns one by name.  Each frame is materialized in the ``output`` form.
+    Altair inlines the full ``alt.Chart(df)`` frame as named datasets, including columns
+    the chart does not use. dysonsphere's composite marks and annotations also embed
+    internal datasets tagged with the ``_INTERNAL_COL`` marker; these are excluded.
+    ``dataset=None`` requires exactly one user frame: it returns that frame and raises if
+    none or multiple frames are present. The multiple-frame error lists the available frames.
+    ``dataset="all"`` returns a ``{name: frame}`` dict, and another string
+    selects the frame with that name. Each frame is materialized in the requested ``output``
+    form.
     """
     if output not in _DATA_OUTPUTS:
         raise ValueError(f"output must be one of {_DATA_OUTPUTS}, got {output!r}")
@@ -552,7 +972,7 @@ def _read_data(path: str, output: str, dataset: str | None) -> Any:
         raise ValueError(f"what='data' needs the Vega-Lite JSON (the .json spec), got {p.suffix!r}")
     spec = json.loads(p.read_text(encoding="utf-8"))
 
-    # User frames = non-empty inlined datasets WITHOUT the internal sentinel column.
+    # User frames are non-empty inlined datasets without the internal marker column.
     user = _user_datasets(spec)
 
     if dataset == "all":
@@ -573,7 +993,12 @@ def _read_data(path: str, output: str, dataset: str | None) -> Any:
 
 
 def read(
-    path: str, *, what: str = "report", save: bool | str = False, output: str = "polars", dataset: str | None = None
+    path: str | Path,
+    *,
+    what: str = "report",
+    saveReport: bool | str | Path = False,
+    output: str = "polars",
+    dataset: str | None = None,
 ) -> Any:
     """Read back the metadata (or data) embedded by :func:`save` from a PNG, SVG, or JSON.
 
@@ -584,25 +1009,30 @@ def read(
     what:
         Which artifact to return:
 
-        - ``'report'`` (default) — the human-readable report **table** as a ``str``;
+        - ``'report'`` (default) – the human-readable report **table** as a ``str``;
           it is printed to stdout and returned. Joins every section of the ``report``
           container (``statistics`` + ``provenance``). Falls back to re-rendering the
           statistics from the embedded records if the prose wasn't saved
           (``embedReport=False``).
-        - ``'statistics'`` — the structured **records** (list of dicts, exact floats).
-        - ``'metadata'`` — the whole ``{provenance, statistics, theme, report}`` dict, where
+        - ``'statistics'`` – the structured **records** (list of dicts, exact floats).
+        - ``'metadata'`` – the whole ``{provenance, statistics, theme, report}`` dict, where
           ``report`` is the ``{section: text}`` container.
-        - ``'data'`` — the **original data** Altair inlined into the spec (the whole frame,
+        - ``'data'`` – the **original data** Altair inlined into the spec (the whole frame,
           including columns the chart never plotted). **JSON only** (PNG/SVG don't carry the
           data). The form is chosen by ``output``.
-    save:
+    saveReport:
         Only for ``what='report'``: ``True`` writes the report to a ``.txt`` in the cwd;
-        a string writes to that directory.
+        a path writes to that directory.
     output:
-        Only for ``what='data'`` — the form to return the data in: ``'polars'`` (default) →
+        Only for ``what='data'`` – the form to return the data in: ``'polars'`` (default) →
         ``pl.DataFrame``; ``'pandas'`` → ``pd.DataFrame``; ``'duckdb'`` → a ``DuckDBPyRelation``;
         ``'records'`` → the raw ``list[dict]`` (no dataframe library needed). ``pandas`` and
         ``duckdb`` are imported lazily and are not package dependencies.
+
+    Returns
+    -------
+    str, list[dict[str, Any]], dict[str, Any], or dataframe-like object
+        The result selected by ``what`` and, for ``what='data'``, by ``output`` and ``dataset``.
     """
     if what == "data":
         return _read_data(path, output, dataset)
@@ -616,13 +1046,13 @@ def read(
     report = block.get("report")  # {section: text} container
     if report:
         text = "\n\n".join(report.values())
-    else:  # prose wasn't embedded (embedReport=False) — re-render from records
-        from .statistics import _render_report
+    else:  # prose wasn't embedded (embedReport=False) – re-render from records
+        from ._statistics import _render_report
 
         text = "\n\n".join(_render_report(r) for r in block.get("statistics", []))
     print(text)
-    if save:
-        directory = Path(save) if isinstance(save, str) else Path.cwd()
+    if saveReport:
+        directory = Path(saveReport) if not isinstance(saveReport, bool) else Path.cwd()
         directory.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         (directory / f"dysonsphere_report_{ts}.txt").write_text(text + "\n", encoding="utf-8")
@@ -631,15 +1061,16 @@ def read(
 
 @dataclass(frozen=True)
 class VerifyResult:
-    """Outcome of :func:`verify` - what could be checked, and what matched.
+    """Result of :func:`verify`: checks performed and their outcomes.
 
-    ``specValid`` and ``dataMatches`` are **tri-state**: ``True``/``False`` when the check ran,
-    and ``None`` when it could not run at all.  A check that was impossible is not a failure -
-    an SVG or PNG carries no spec to re-hash, so ``specValid`` is ``None`` there, and
-    ``dataMatches`` is ``None`` when no dataframe was supplied to compare against.
+    ``specValid`` and ``dataMatches`` are tri-state: ``True`` or ``False`` when checked,
+    and ``None`` when a check could not run. SVG and PNG files do not contain the spec,
+    so ``specValid`` is ``None`` for those formats. ``dataMatches`` is ``None`` when no
+    dataframe was supplied.
 
-    Checking one figure fills ``path``/``specValid``/``dataMatches``; comparing a list fills
-    ``matches``/``groups`` instead, and leaves ``path`` ``None`` since there is no single file.
+    Checking one figure fills ``path``, ``specValid``, and ``dataMatches``. Comparing a
+    list fills ``matches`` and ``groups`` instead; ``path`` is ``None`` because there is
+    no single file.
     """
 
     path: str | None
@@ -654,18 +1085,19 @@ class VerifyResult:
 
     @property
     def ok(self) -> bool:
-        """True when every check that actually ran passed (an un-run check does not fail)."""
-        return self.specValid is not False and self.dataMatches is not False
+        """True when every integrity or comparison check that actually ran passed."""
+        comparison_ok = self.matches is None or all(match is not False for match in self.matches.values())
+        return self.specValid is not False and self.dataMatches is not False and comparison_ok
 
 
 _COMPARE_KEYS = ("spec", "data", "save")
 
 
 def _identities(item: Any, index: int) -> tuple[str, dict[str, str | None]]:
-    """A label plus the three identities of one figure - a saved file or a chart in memory.
+    """A label and three identities for a saved file or an in-memory chart.
 
-    A file reports what it recorded at save time.  A chart is measured directly, and has no
-    ``save`` identity at all: it was never exported, so there is no export event to name.
+    A file reports the identities recorded at save time. A chart is measured directly and
+    has no ``save`` identity because it has not been exported.
     """
     from .utils import _hash_rows
 
@@ -687,8 +1119,8 @@ def _identities(item: Any, index: int) -> tuple[str, dict[str, str | None]]:
     # save() runs the same spec transforms before hashing, so an in-memory chart has to go through
     # them too or it can never match the file it was saved to.
     spec = _apply_spec_fixes(item.to_dict())
-    # save() strips the statistics markers before hashing, and their names carry a counter that
-    # increments per build - leaving them in would make two identical charts look different.
+    # Match save()'s record + analytical-context identity while discarding owner nonces.
+    _prepare_statistics_owners(spec)
     _strip_markers(spec)
     frames = _user_datasets(spec)
     return f"chart[{index}]", {
@@ -699,11 +1131,10 @@ def _identities(item: Any, index: int) -> tuple[str, dict[str, str | None]]:
 
 
 def _group_by_identity(labels: list[str], values: list[str | None]) -> dict[str, int] | None:
-    """Number each figure by shared identity - same number, same figure.
+    """Assign a number to each distinct identity value.
 
-    The numbers are assigned AFTER grouping on the full checksum, so two different figures can
-    never share one.  A truncated checksum would read better but could collide, showing two
-    different charts as identical.
+    Identical values share a number; distinct values are numbered separately. Return
+    ``None`` if any identity is unavailable.
     """
     if any(v is None for v in values):
         return None
@@ -711,47 +1142,49 @@ def _group_by_identity(labels: list[str], values: list[str | None]) -> dict[str,
     return {label: numbering.setdefault(cast(str, value), len(numbering)) for label, value in zip(labels, values)}
 
 
-def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS) -> VerifyResult:
-    """Check a saved figure against its own embedded checksums, and optionally against its data.
+def verify(
+    figure: Any,
+    data: pl.DataFrame
+    | pd.DataFrame
+    | list[pl.DataFrame | pd.DataFrame]
+    | tuple[pl.DataFrame | pd.DataFrame, ...]
+    | None = None,
+    *,
+    what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS,
+) -> VerifyResult:
+    """Check a saved figure's embedded checksums and optionally compare it with data.
 
-    Two independent questions, neither of which needs the original script:
+    For one figure, ``specValid`` reports whether the JSON spec matches its recorded
+    ``vegaliteChecksum``. SVG and PNG files contain metadata but not the full spec, so
+    ``specValid`` is ``None`` for those formats. When ``data`` is supplied, each frame's
+    checksum is compared with the recorded ``dataChecksum``. This works for all three
+    formats and ignores both row order within a frame and the order of supplied frames.
 
-    - **Is the file internally consistent?**  The spec is re-hashed and compared with the
-      recorded ``vegaliteChecksum``, so an edited spec is detectable.  JSON only - SVG and PNG
-      embed the metadata block but not the full spec, so ``specValid`` is ``None`` for them.
-    - **Did this figure come from this data?**  Pass ``df`` and each frame's checksum is
-      compared with the recorded ``dataChecksum``.  This works for **all three formats**, since
-      the checksums travel in the metadata block, and it is order-independent in both senses:
-      row order within a frame does not matter, nor does the order frames are passed in.
+    ``exportIdentifier`` is reported but not checked. It is a random UUID per ``save()``
+    call, or, under ``SOURCE_DATE_EPOCH``, a content-derived identifier that can be shared
+    by separate saves with identical inputs. Compare export identifiers for a match;
+    compare ``vegaliteChecksum`` to check whether files contain the same chart.
 
-    ``exportIdentifier`` is reported, never checked.  It is a random UUID per ``save()`` call, or
-    - under ``SOURCE_DATE_EPOCH`` - one derived from the figure's own content, in which case two
-    saves of identical inputs share it by design.  Compare it across two files to ask whether they
-    came from one save; compare ``vegaliteChecksum`` to ask whether they are the same chart.
+    A file without its metadata cannot be checked and raises an error. Its data can still
+    be compared with another export if an independent checksum is available:
+    ``frame_checksum(data)`` returns the same value for the same rows.
 
-    A file whose metadata is gone - screenshotted, or re-saved by a tool that drops it - cannot
-    be checked at all: there is nothing to compare against, and this raises.  What survives is the
-    trail for the DATA, because these checksums are recomputed from content rather than minted per
-    file.  ``frame_checksum(df)`` returns the same value for the same rows forever, so a dataframe
-    can still be matched against an intact sibling export or a checksum recorded elsewhere.
+    Passing a list compares figures instead of checking one. Each entry may be a saved
+    file or an in-memory chart. ``what`` selects ``"spec"`` (same chart), ``"data"``
+    (same data), or ``"save"`` (same ``save()`` call); it defaults to all three.
+    ``matches`` reports whether all figures agree for each selected identity, and
+    ``groups`` assigns a number to each identity. An in-memory chart has no ``save``
+    identity, so that comparison is ``None`` for the whole call.
 
-    Passing a **list** compares figures instead of checking one.  Each may be a saved file or a
-    chart still in memory, in any mix.  ``what`` selects the questions - ``"spec"`` (the same
-    chart, however it was exported), ``"data"`` (built from the same data), ``"save"`` (produced by
-    one ``save()`` call) - and defaults to all three.  ``matches`` says whether every figure agrees
-    on each; ``groups`` numbers them, so the same number means the same figure.  A chart in memory
-    has no ``save`` identity, so that question comes back ``None`` for the whole call.
-
-    Comparing reads what each file RECORDED, which is what lets a PNG be compared with a JSON -
-    but it means an edited file still compares as the chart it claims to be.  Checking one figure
-    on its own is what detects an edit; the two questions are deliberately separate.
+    List comparisons use the identities recorded by each file. An edited file is compared
+    as the chart it claims to contain; checking one file's own spec checksum detects edits.
 
     Parameters
     ----------
     figure:
-        A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` to check - or a list of figures
+        A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` to check, or a list of figures
         to compare, each a path or an Altair chart.
-    df:
+    data:
         Optional dataframe, or list of dataframes, that the figure should have been built from.
         Polars or pandas.  Omit to check only the spec.
     what:
@@ -768,17 +1201,15 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
     --------
     ::
 
-        ds.verify("fig.json").ok                 # untampered?
-        ds.verify("fig.png", df=df).dataMatches  # built from this data?
-        ds.verify("fig.json", df=[counts, meta]) # multi-frame chart
+        ds.metadata.verify("fig.json").ok                 # untampered?
+        ds.metadata.verify("fig.png", data=data).dataMatches  # built from this data?
+        ds.metadata.verify("fig.json", data=[counts, meta]) # multi-frame chart
     """
-    from .utils import frame_checksum
-
     if isinstance(figure, (list, tuple)):
-        if df is not None:
+        if data is not None:
             raise ValueError(
-                "df= checks one figure against its data; it does not apply when comparing a list. "
-                "Verify each figure separately, or drop df= to compare them with each other."
+                "data= checks one figure against its data; it does not apply when comparing a list. "
+                "Verify each figure separately, or drop data= to compare them with each other."
             )
         wanted = [what] if isinstance(what, str) else list(what)
         unknown = [w for w in wanted if w not in _COMPARE_KEYS]
@@ -829,9 +1260,9 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
 
     computed: list[str] = []
     data_matches: bool | None = None
-    if df is not None:
-        frames = df if isinstance(df, (list, tuple)) else [df]
-        computed = sorted(frame_checksum(f) for f in frames)
+    if data is not None:
+        frames = data if isinstance(data, (list, tuple)) else [data]
+        computed = sorted(frame_checksum(cast("pl.DataFrame | pd.DataFrame", f)) for f in frames)
         data_matches = computed == stored
 
     return VerifyResult(

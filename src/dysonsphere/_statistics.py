@@ -1,0 +1,931 @@
+"""Pure statistical computation (no Altair).
+
+Backs the chart-annotation constructors in ``stats.py`` (notably
+``comparisons``).  Holds the omnibus tests, hand-rolled post-hoc tests,
+effect-size functions, and the descriptive report builder.  Nothing here
+imports Altair, so it is unit-testable in isolation.
+
+The post-hoc tests scipy does not ship (Dunn, Nemenyi, Games-Howell) are
+implemented here from scipy primitives (``rankdata``, ``norm``,
+``studentized_range``) rather than adding ``scikit-posthocs`` and its statsmodels,
+seaborn, and matplotlib dependencies.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import numbers
+import sys
+from dataclasses import dataclass, field
+from typing import Any
+
+import numpy as np
+
+# Private computation engine; clear_stats is re-exported by ds.stats.
+__all__: list[str] = []
+
+# Omnibus tests.
+_OMNIBUS_TESTS = {"anova", "kruskal", "friedman", "alexandergovern"}
+
+# Display names + the post-hoc each omnibus test defaults to.
+_OMNIBUS_NAMES = {
+    "anova": "ANOVA",
+    "kruskal": "Kruskal-Wallis",
+    "friedman": "Friedman",
+    "alexandergovern": "Alexander-Govern",
+}
+_POSTHOC_DEFAULTS = {
+    "anova": "tukey_hsd",
+    "alexandergovern": "games_howell",
+    "kruskal": "dunn",
+    "friedman": "nemenyi",
+}
+
+# Pairwise tests usable directly (existing behavior) or as a post-hoc fallback.
+_PAIRWISE_TESTS = {"mannwhitneyu", "ttest_ind", "ttest_rel", "wilcoxon"}
+
+# Correlation methods (stats.correlation). Only "pearson" implies a straight line.
+_CORRELATION_METHODS = {
+    "pearson": ("Pearson", "r", "pearson_r"),
+    "spearman": ("Spearman", "ρ", "spearman_rho"),
+    "kendall": ("Kendall", "τ", "kendall_tau"),
+}
+
+# Post-hoc tests treated as parametric (→ Cohen's d effect size); the rest are
+# rank-based (→ rank-biserial effect size).
+_PARAMETRIC_POSTHOC = {"tukey_hsd", "games_howell", "ttest_ind", "ttest_rel"}
+
+# Human-readable names for pairwise / post-hoc tests – used for the on-plot test label.
+_TEST_DISPLAY = {
+    "mannwhitneyu": "Mann-Whitney U",
+    "ttest_ind": "Student's t-test",
+    "ttest_rel": "Paired t-test",
+    "wilcoxon": "Wilcoxon signed-rank",
+    "tukey_hsd": "Tukey HSD",
+    "dunn": "Dunn's test",
+    "nemenyi": "Nemenyi test",
+    "games_howell": "Games-Howell",
+}
+
+_INTRINSICALLY_ADJUSTED = {"tukey_hsd", "games_howell", "nemenyi"}
+
+
+# Shared numerical validation
+def _validate_pvalue(value: Any, context: str = "p-value") -> float:
+    """Return a supplied probability after rejecting bools, non-numbers, and undefined values."""
+    if isinstance(value, bool) or isinstance(value, numbers.Complex) and not isinstance(value, numbers.Real):
+        raise ValueError(f"{context} must be a finite numeric value in [0, 1], got {value!r}.")
+    if not isinstance(value, numbers.Number):
+        raise ValueError(f"{context} must be a finite numeric value in [0, 1], got {value!r}.")
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{context} must be a finite numeric value in [0, 1], got {value!r}.") from None
+    if not math.isfinite(result) or not 0.0 <= result <= 1.0:
+        raise ValueError(f"{context} must be a finite numeric value in [0, 1], got {value!r}.")
+    return result
+
+
+def _validate_observations(
+    values: Any, column: str, group: Any = None, *, kind: str = "statistical column"
+) -> np.ndarray:
+    """Validate one used observation column and return a finite float array.
+
+    Missing, non-numeric, and non-finite values are rejected; unused dataframe columns are not
+    inspected.
+    """
+    context = f" in group {group!r}" if group is not None else ""
+    out: list[float] = []
+    for index, value in enumerate(values):
+        if (
+            value is None
+            or (isinstance(value, numbers.Complex) and not isinstance(value, numbers.Real))
+            or not isinstance(value, numbers.Number)
+        ):
+            raise ValueError(
+                f"{kind} {column!r} contains a missing or non-numeric observation{context} at row {index}."
+            )
+        try:
+            converted = float(value)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError(
+                f"{kind} {column!r} contains a missing or non-numeric observation{context} at row {index}."
+            ) from None
+        if not math.isfinite(converted):
+            raise ValueError(f"{kind} {column!r} contains a non-finite observation{context} at row {index}.")
+        out.append(converted)
+    if not out:
+        raise ValueError(f"{kind} {column!r} has no observations{context}.")
+    return np.asarray(out, dtype=float)
+
+
+def _validate_group_ids(values: Any, column: str) -> None:
+    """Reject missing or non-finite grouping identifiers without restricting their type."""
+    for index, value in enumerate(values):
+        missing = value is None
+        if not missing and isinstance(value, numbers.Number):
+            try:
+                missing = not math.isfinite(float(value))
+            except (TypeError, ValueError, OverflowError):
+                missing = True
+        if missing:
+            raise ValueError(f"grouping column {column!r} contains a missing grouping ID at row {index}.")
+
+
+def _validate_finite_result(value: Any, name: str, context: str) -> float:
+    """Validate a required finite computed result while allowing optional fields to remain absent."""
+    if isinstance(value, bool) or isinstance(value, numbers.Complex) and not isinstance(value, numbers.Real):
+        raise ValueError(f"{context} returned an undefined {name}: {value!r}.")
+    if not isinstance(value, numbers.Number):
+        raise ValueError(f"{context} returned an undefined {name}: {value!r}.")
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{context} returned an undefined {name}: {value!r}.") from None
+    if not math.isfinite(result):
+        raise ValueError(f"{context} returned an undefined {name}: {value!r}.")
+    return result
+
+
+def _validate_computed_pvalue(value: Any, context: str) -> float:
+    """Validate a p-value returned by a statistical calculation."""
+    try:
+        return _validate_pvalue(value, f"{context} p-value")
+    except ValueError:
+        raise ValueError(f"{context} returned an undefined p-value: {value!r}.") from None
+
+
+def _validate_family_size(n_comparisons: Any, actual: int, *, correction: str | None) -> int:
+    """Validate a correction family size and reject a family smaller than computed results."""
+    if isinstance(n_comparisons, bool) or not isinstance(n_comparisons, numbers.Integral):
+        raise ValueError(f"nComparisons must be a positive integer, got {n_comparisons!r}.")
+    result = int(n_comparisons)
+    if result <= 0:
+        raise ValueError(f"nComparisons must be a positive integer, got {n_comparisons!r}.")
+    if correction is not None and result < actual:
+        raise ValueError(f"nComparisons ({result}) must be at least the computed family size ({actual}).")
+    return result
+
+
+# Report registry
+# stats.comparisons()/stats.correlation() register records keyed by content hash and return
+# marker names for their annotation layers. Altair strips custom metadata when layers are
+# combined, but preserves view names, which link queued records back to their chart.
+_MARKER_PREFIX = "__dysonsphere_"
+_REPORTS: dict[str, dict[str, Any]] = {}  # content-hash -> record
+# Records reconstructed from a current-version export are deduplicated by record and analytical
+# context. Unlike pending live records, these survive clear_stats(); repeated loads therefore do not
+# add process-lifetime entries for each fresh owner nonce.
+_LOADED_REPORTS: dict[tuple[str, str], dict[str, Any]] = {}
+_marker_counter = 0
+
+# Machine-readable names for the effect-size symbols used in the text report.
+_EFFECT_NAMES = {
+    "η²": "eta_squared",
+    "ε²": "epsilon_squared",
+    "W": "kendalls_w",
+    "d": "cohens_d",
+    "r": "rank_biserial",
+}
+
+
+def _record_hash(record: dict[str, Any]) -> str:
+    """Stable 16-hex content hash used as the record key and in marker names."""
+    return hashlib.sha256(json.dumps(record, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
+def _register_report(record: dict[str, Any]) -> str:
+    """Store ``record`` (keyed by content hash) and return a unique marker ``name`` for the
+    annotation layer.  The name is ``__dysonsphere_<hash>_<counter>``: the hash lets
+    ``save()`` look the record up, the counter keeps the name unique within a spec (two
+    identical annotations must not share a Vega-Lite view name).  Rebuilding the same chart
+    re-registers the same hash (idempotent), so callable charts don't duplicate records.
+    """
+    global _marker_counter
+    h = _record_hash(record)
+    _REPORTS[h] = record
+    _marker_counter += 1
+    return f"{_MARKER_PREFIX}{h}_{_marker_counter}"
+
+
+def _marker_hash(name: str) -> str | None:
+    """Extract the record hash from a marker ``name`` (or None if it isn't a marker)."""
+    if not isinstance(name, str) or not name.startswith(_MARKER_PREFIX):
+        return None
+    return name[len(_MARKER_PREFIX) :].rsplit("_", 1)[0]
+
+
+def _register_loaded_report(record: dict[str, Any], context_hash: str) -> None:
+    """Retain one imported record for one saved analytical context."""
+    _LOADED_REPORTS[(_record_hash(record), context_hash)] = record
+
+
+def _live_report(record_hash: str) -> dict[str, Any] | None:
+    """Return a pending live record without consulting retained imported records."""
+    return _REPORTS.get(record_hash)
+
+
+def _loaded_report(record_hash: str, context_hash: str) -> dict[str, Any] | None:
+    """Return an imported record/context pair without consulting the live queue."""
+    return next(
+        (
+            record
+            for (saved_record, saved_context), record in _LOADED_REPORTS.items()
+            if saved_record == record_hash and saved_context.startswith(context_hash)
+        ),
+        None,
+    )
+
+
+def clear_stats() -> None:
+    """Discard all pending statistical records queued by ``stats.comparisons`` /
+    ``stats.correlation``.
+
+    ``save()`` embeds only records whose annotations appear in the chart being saved, so
+    stale records do not affect a save. Pending records accumulate in memory during long
+    sessions, such as notebooks where many statistics charts are built and displayed without
+    being saved. Call this to clear the pending queue.
+    """
+    _REPORTS.clear()
+
+
+# Omnibus result
+@dataclass
+class _OmnibusResult:
+    test: str  # key, e.g. "anova"
+    name: str  # display, e.g. "ANOVA"
+    stat: float
+    pvalue: float
+    stat_symbol: str  # "F", "H", "χ²", "A"
+    df: tuple[int, ...]  # (df1, df2) for F; (df,) otherwise
+    effect_name: str  # "η²", "ε²", "W"
+    effect_size: float
+    descriptives: list[dict[str, Any]] = field(default_factory=list)
+
+
+# Descriptive statistics
+def _describe(label: str, x: np.ndarray) -> dict[str, Any]:
+    x = np.asarray(x, dtype=float)
+    return {
+        "label": label,
+        "n": int(x.size),
+        "mean": float(np.mean(x)),
+        "sd": float(np.std(x, ddof=1)) if x.size > 1 else None,
+        "median": float(np.median(x)),
+        "q1": float(np.percentile(x, 25)),
+        "q3": float(np.percentile(x, 75)),
+        "min": float(np.min(x)),
+        "max": float(np.max(x)),
+    }
+
+
+def _describe_all(groups: list[np.ndarray], labels: list[str]) -> list[dict[str, Any]]:
+    return [_describe(str(lab), g) for lab, g in zip(labels, groups)]
+
+
+# Effect sizes (omnibus)
+def _eta_squared(groups: list[np.ndarray]) -> float:
+    """Classic eta-squared: SS_between / SS_total, computed directly from the data."""
+    all_vals = np.concatenate(groups)
+    grand = all_vals.mean()
+    ss_total = float(np.sum((all_vals - grand) ** 2))
+    ss_between = float(sum(g.size * (g.mean() - grand) ** 2 for g in groups))
+    return ss_between / ss_total if ss_total > 0 else 0.0
+
+
+def _epsilon_squared(h: float, n_total: int) -> float:
+    """Epsilon-squared for Kruskal-Wallis: H / (N - 1)."""
+    return h / (n_total - 1) if n_total > 1 else 0.0
+
+
+def _kendalls_w(chi2: float, n_subjects: int, k_groups: int) -> float:
+    """Kendall's W for Friedman: χ² / (n * (k - 1))."""
+    denom = n_subjects * (k_groups - 1)
+    return chi2 / denom if denom > 0 else 0.0
+
+
+# Omnibus runners
+def _run_omnibus(test: str, groups: list[np.ndarray], labels: list[str]) -> _OmnibusResult:
+    from scipy import stats as _stats
+
+    if test not in _OMNIBUS_TESTS:
+        raise ValueError(f"Unknown omnibus test {test!r}. Choose from: {sorted(_OMNIBUS_TESTS)}")
+
+    k = len(groups)
+    n_total = int(sum(g.size for g in groups))
+    name = _OMNIBUS_NAMES[test]
+    for label, group in zip(labels, groups):
+        _validate_observations(group, "observation", label)
+        if group.size == 0:
+            raise ValueError(f"omnibus test {test!r} cannot calculate an empty group {label!r}.")
+    descriptives = _describe_all(groups, labels)
+
+    if test == "anova":
+        res = _stats.f_oneway(*groups)
+        stat = _validate_finite_result(res.statistic, "statistic", f"{name}")
+        pval = _validate_computed_pvalue(res.pvalue, name)
+        df = (k - 1, n_total - k)
+        effect = _validate_finite_result(_eta_squared(groups), "effect size", name)
+        return _OmnibusResult(test, name, stat, pval, "F", df, "η²", effect, descriptives)
+
+    if test == "kruskal":
+        res = _stats.kruskal(*groups)
+        stat = _validate_finite_result(res.statistic, "statistic", f"{name}")
+        pval = _validate_computed_pvalue(res.pvalue, name)
+        return _OmnibusResult(
+            test,
+            name,
+            stat,
+            pval,
+            "H",
+            (k - 1,),
+            "ε²",
+            _validate_finite_result(_epsilon_squared(stat, n_total), "effect size", name),
+            descriptives,
+        )
+
+    if test == "friedman":
+        lengths = {g.size for g in groups}
+        if len(lengths) != 1:
+            raise ValueError("friedman requires balanced data: every group must have the same number of observations.")
+        res = _stats.friedmanchisquare(*groups)
+        stat = _validate_finite_result(res.statistic, "statistic", f"{name}")
+        pval = _validate_computed_pvalue(res.pvalue, name)
+        n_subjects = groups[0].size
+        return _OmnibusResult(
+            test,
+            name,
+            stat,
+            pval,
+            "χ²",
+            (k - 1,),
+            "W",
+            _validate_finite_result(_kendalls_w(stat, n_subjects, k), "effect size", name),
+            descriptives,
+        )
+
+    # alexandergovern
+    res = _stats.alexandergovern(*groups)
+    stat = _validate_finite_result(res.statistic, "statistic", f"{name}")
+    pval = _validate_computed_pvalue(res.pvalue, name)
+    effect = _validate_finite_result(_eta_squared(groups), "effect size", name)
+    return _OmnibusResult(test, name, stat, pval, "A", (k - 1,), "η²", effect, descriptives)
+
+
+# Correlation
+def _run_correlation(method: str, x: np.ndarray, y: np.ndarray) -> dict[str, Any]:
+    """Compute a correlation coefficient (+ OLS fit for Pearson) between two continuous vars."""
+    from scipy import stats as _stats
+
+    if method not in _CORRELATION_METHODS:
+        raise ValueError(f"method must be one of {sorted(_CORRELATION_METHODS)}, got {method!r}")
+    x = _validate_observations(np.asarray(x).tolist(), "x")
+    y = _validate_observations(np.asarray(y).tolist(), "y")
+    if x.size != y.size:
+        raise ValueError(
+            f"correlation requires x and y to have the same number of observations, got {x.size} and {y.size}."
+        )
+    _, symbol, machine = _CORRELATION_METHODS[method]
+
+    if method == "pearson":
+        res = _stats.linregress(x, y)
+        coef = _validate_finite_result(res.rvalue, "coefficient", "Pearson correlation")
+        pvalue = _validate_computed_pvalue(res.pvalue, "Pearson correlation")
+        slope = _validate_finite_result(res.slope, "slope", "Pearson correlation")
+        intercept = _validate_finite_result(res.intercept, "intercept", "Pearson correlation")
+        return {
+            "method": method,
+            "symbol": symbol,
+            "machine": machine,
+            "coefficient": coef,
+            "rSquared": coef * coef,
+            "pvalue": pvalue,
+            "slope": slope,
+            "intercept": intercept,
+            "n": int(x.size),
+        }
+
+    res = _stats.spearmanr(x, y) if method == "spearman" else _stats.kendalltau(x, y)
+    coefficient_value = _validate_finite_result(res.statistic, "coefficient", f"{method.title()} correlation")
+    pvalue = _validate_computed_pvalue(res.pvalue, f"{method.title()} correlation")
+    return {
+        "method": method,
+        "symbol": symbol,
+        "machine": machine,
+        "coefficient": coefficient_value,
+        "rSquared": None,  # not meaningful for rank correlations
+        "pvalue": pvalue,
+        "slope": None,
+        "intercept": None,
+        "n": int(x.size),
+    }
+
+
+def _ols_band(
+    x: np.ndarray,
+    y: np.ndarray,
+    xs: np.ndarray,
+    *,
+    level: float = 0.95,
+    kind: str = "confidence",
+) -> tuple[np.ndarray, np.ndarray]:
+    """Lower/upper OLS interval bounds for the simple-regression fit, evaluated at ``xs``.
+
+    ``kind="confidence"`` gives the confidence band for the mean response;
+    ``kind="prediction"`` gives the wider interval for a single new observation.
+    Both are ``ŷ(x) ± t · s · √f`` with ``t`` the two-sided critical value at
+    ``level`` on ``n-2`` df and ``s`` the residual standard error; they differ only
+    in ``f`` – ``1/n + (x-x̄)²/Sxx`` for confidence, plus ``1`` for prediction.
+    The result is hyperbolic (narrowest at ``x̄``), so callers sample ``xs`` densely
+    for a smooth band. Needs ``n >= 3`` (two fitted params leave ≥1 residual df).
+    """
+    from scipy import stats as _stats
+
+    if kind not in ("confidence", "prediction"):
+        raise ValueError(f"kind must be 'confidence' or 'prediction', got {kind!r}")
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    xs = np.asarray(xs, dtype=float)
+    n = x.size
+    if n < 3:
+        raise ValueError(f"OLS interval band needs n >= 3 points, got {n}")
+
+    res = _stats.linregress(x, y)
+    slope, intercept = float(res.slope), float(res.intercept)
+    xbar = float(x.mean())
+    sxx = float(np.sum((x - xbar) ** 2))
+    resid = y - (slope * x + intercept)
+    s = math.sqrt(float(np.sum(resid**2)) / (n - 2))  # residual standard error
+    tcrit = float(_stats.t.ppf(1 - (1 - level) / 2, n - 2))
+
+    var = 1.0 / n + (xs - xbar) ** 2 / sxx
+    if kind == "prediction":
+        var = var + 1.0
+    half = tcrit * s * np.sqrt(var)
+    fit = slope * xs + intercept
+    return fit - half, fit + half
+
+
+def _make_correlation_record(
+    result: dict[str, Any], x_col: str, y_col: str, data_checksum: str | None = None, group: Any = None
+) -> dict[str, Any]:
+    """Structured record for a correlation, used to build usermeta.
+
+    Supplied comparison p-values leave ``comparisons.test``, correction, and pair effects absent;
+    an omnibus result remains recorded when omnibus mode was requested.
+
+    ``data_checksum`` is the order-independent fingerprint of the source dataframe
+    (``metadata.frame_checksum``), so records from distinct dataframes are distinguishable; it also
+    feeds the record's content hash (the marker), so two correlations on different data never
+    collapse.  ``None`` when built without a frame (e.g. a direct unit-test call).  ``group`` labels
+    a per-group record in grouped mode (``stats.correlation(groupBy=...)``); ``None`` for a single fit.
+    """
+    coefficient = _validate_finite_result(result["coefficient"], "coefficient", "correlation")
+    if result["rSquared"] is not None:
+        r_squared = _validate_finite_result(result["rSquared"], "rSquared", "correlation")
+    else:
+        r_squared = None
+    if result["method"] == "pearson" and r_squared is None:
+        raise ValueError("Pearson correlation returned an undefined rSquared.")
+    if result["method"] == "pearson" and result["slope"] is None:
+        raise ValueError("Pearson correlation returned an undefined fit.")
+    if result["slope"] is not None:
+        slope = _validate_finite_result(result["slope"], "slope", "correlation")
+        intercept = _validate_finite_result(result["intercept"], "intercept", "correlation")
+    else:
+        slope = intercept = None
+    pvalue = _validate_pvalue(result["pvalue"], "correlation p-value")
+    record = {
+        "kind": "correlation",
+        "dataChecksum": data_checksum,
+        "method": result["method"],
+        "x": x_col,
+        "y": y_col,
+        "n": result["n"],
+        "coefficient": {"name": result["machine"], "symbol": result["symbol"], "value": coefficient},
+        "rSquared": r_squared,
+        "pvalue": _clamp_p(pvalue),
+        "fit": None if slope is None else {"slope": slope, "intercept": intercept},
+    }
+    if group is not None:
+        record["group"] = group
+    return record
+
+
+# Post-hoc tests
+def _dunn_matrix(groups: list[np.ndarray]) -> np.ndarray:
+    """Dunn's test (post-hoc for Kruskal-Wallis). Returns a k×k matrix of unadjusted p-values.
+
+    z_ij = (R̄_i − R̄_j) / sqrt( [N(N+1)/12 − Σ(t³−t)/(12(N−1))] · (1/n_i + 1/n_j) )
+    where R̄ are mean ranks over the pooled, tie-averaged ranking.
+    """
+    from scipy.stats import norm, rankdata
+
+    k = len(groups)
+    sizes = [g.size for g in groups]
+    n = int(sum(sizes))
+    pooled = np.concatenate(groups)
+    ranks = rankdata(pooled)
+    mean_ranks, idx = [], 0
+    for s in sizes:
+        mean_ranks.append(ranks[idx : idx + s].mean())
+        idx += s
+
+    _, counts = np.unique(pooled, return_counts=True)
+    ties = float(np.sum(counts**3 - counts))
+    sigma = (n * (n + 1) / 12.0) - ties / (12.0 * (n - 1))
+    if sigma <= 0:
+        raise ValueError("dunn cannot compute a comparison with zero pooled rank variance.")
+
+    p = np.ones((k, k))
+    for i in range(k):
+        for j in range(i + 1, k):
+            se = math.sqrt(sigma * (1.0 / sizes[i] + 1.0 / sizes[j]))
+            z = (mean_ranks[i] - mean_ranks[j]) / se
+            p[i, j] = p[j, i] = float(2 * norm.sf(abs(z)))
+    return p
+
+
+def _games_howell_matrix(groups: list[np.ndarray]) -> np.ndarray:
+    """Games-Howell (post-hoc for unequal-variance / Welch-type designs). k×k p-value matrix.
+
+    t = (m_i − m_j) / sqrt(s_i²/n_i + s_j²/n_j), with Welch-Satterthwaite df, and
+    p from the studentized range: q = |t|·√2, p = sr.sf(q, k, df).
+    """
+    from scipy.stats import studentized_range
+
+    k = len(groups)
+    means = [float(g.mean()) for g in groups]
+    var = [float(g.var(ddof=1)) for g in groups]
+    sizes = [g.size for g in groups]
+
+    p = np.ones((k, k))
+    for i in range(k):
+        for j in range(i + 1, k):
+            vi, vj = var[i] / sizes[i], var[j] / sizes[j]
+            t = (means[i] - means[j]) / math.sqrt(vi + vj)
+            df = (vi + vj) ** 2 / (vi**2 / (sizes[i] - 1) + vj**2 / (sizes[j] - 1))
+            q = abs(t) * math.sqrt(2)
+            p[i, j] = p[j, i] = float(studentized_range.sf(q, k, df))
+    return p
+
+
+def _nemenyi_matrix(groups: list[np.ndarray]) -> np.ndarray:
+    """Nemenyi (post-hoc for Friedman). Requires balanced data. k×k p-value matrix.
+
+    Within-block ranks → mean rank per treatment. q = |R̄_i − R̄_j| / sqrt(k(k+1)/(6n)),
+    p = sr.sf(q·√2, k, ∞).
+    """
+    from scipy.stats import rankdata, studentized_range
+
+    lengths = {g.size for g in groups}
+    if len(lengths) != 1:
+        raise ValueError("nemenyi requires balanced data: every group must have the same number of observations.")
+
+    data = np.column_stack(groups)  # n_subjects × k
+    n, k = data.shape
+    ranks = np.apply_along_axis(rankdata, 1, data)
+    mean_ranks = ranks.mean(axis=0)
+
+    p = np.ones((k, k))
+    denom = math.sqrt(k * (k + 1) / (6.0 * n))
+    for i in range(k):
+        for j in range(i + 1, k):
+            q = abs(mean_ranks[i] - mean_ranks[j]) / denom
+            p[i, j] = p[j, i] = float(studentized_range.sf(q * math.sqrt(2), k, np.inf))
+    return p
+
+
+def _tukey_matrix(groups: list[np.ndarray]) -> np.ndarray:
+    from scipy import stats as _stats
+
+    return np.asarray(_stats.tukey_hsd(*groups).pvalue, dtype=float)
+
+
+def _adjust(pvals: list[float], method: str | None, m: int) -> list[float]:
+    """Apply a multiple-comparison correction to a flat list of p-values."""
+    _validate_family_size(m, len(pvals), correction=method)
+    pvals = [_validate_pvalue(p, "computed p-value") for p in pvals]
+    if method is None:
+        return list(pvals)
+    if method == "bonferroni":
+        return [min(p * m, 1.0) for p in pvals]
+    if method == "holm":
+        order = sorted(range(len(pvals)), key=lambda i: pvals[i])
+        out = [0.0] * len(pvals)
+        running = 0.0
+        for rank, i in enumerate(order):
+            running = max(running, min(pvals[i] * (m - rank), 1.0))
+            out[i] = running
+        return out
+    if method in ("fdr_bh", "fdr_by"):
+        # Benjamini-Hochberg (bh) / Benjamini-Yekutieli (by) step-up FDR control.
+        # Adjusted p = p(i) * m / i, swept from the largest rank down as a running min
+        # (enforces monotonicity); BY multiplies by the harmonic factor c(m) = Σ 1/k,
+        # to control FDR under arbitrary dependence, with a more conservative adjustment.
+        # ``m`` is the total family size (may exceed len(pvals) via nComparisons), so the
+        # denominator and the BY factor both use it, matching ``bonferroni`` and ``holm`` above.
+        n = len(pvals)
+        order = sorted(range(n), key=lambda i: pvals[i])
+        factor = sum(1.0 / k for k in range(1, m + 1)) if method == "fdr_by" else 1.0
+        out = [0.0] * n
+        running = 1.0
+        for rank in range(n, 0, -1):
+            i = order[rank - 1]
+            running = min(running, min(pvals[i] * m * factor / rank, 1.0))
+            out[i] = running
+        return out
+    raise ValueError(f"correction must be None, 'bonferroni', 'holm', 'fdr_bh', or 'fdr_by', got {method!r}")
+
+
+def _post_hoc_matrix(
+    name: str,
+    groups: list[np.ndarray],
+    correction: str | None,
+    n_comparisons: int | None = None,
+    *,
+    labels: list[str] | None = None,
+    correction_input_values: list[float] | None = None,
+) -> np.ndarray:
+    """Return a k×k matrix of post-hoc p-values, corrected over all unique pairs.
+
+    ``tukey_hsd`` ignores ``correction`` (its correction is built in).
+    When provided, ``correction_input_values`` is mutated by appending upper-triangle values in
+    category-pair order before generic correction. These inputs are not necessarily raw p-values:
+    Games-Howell and Nemenyi are intrinsically adjusted. Tukey HSD leaves this list untouched.
+    """
+    builders = {
+        "tukey_hsd": _tukey_matrix,
+        "dunn": _dunn_matrix,
+        "nemenyi": _nemenyi_matrix,
+        "games_howell": _games_howell_matrix,
+    }
+    if name not in builders:
+        raise ValueError(f"Unknown post-hoc test {name!r}. Choose from: {sorted(builders)}")
+
+    if len(groups) < 2:
+        raise ValueError(f"{name} requires at least two groups.")
+    try:
+        mat = np.asarray(builders[name](groups), dtype=float)
+    except ArithmeticError as exc:
+        raise ValueError(f"{name} could not compute defined post-hoc results: {exc}") from exc
+    if mat.ndim != 2 or mat.shape[0] != mat.shape[1]:
+        raise ValueError(f"{name} returned an invalid p-value matrix with shape {mat.shape}.")
+    for i in range(mat.shape[0]):
+        for j in range(mat.shape[1]):
+            pair = ""
+            if labels is not None and i != j:
+                pair = f" for {labels[i]!r} vs {labels[j]!r}"
+            _validate_pvalue(mat[i, j], f"{name} computed p-value{pair}")
+    if name == "tukey_hsd" or correction is None:
+        if correction_input_values is not None and name != "tukey_hsd":
+            correction_input_values.extend(
+                float(mat[i, j]) for i in range(mat.shape[0]) for j in range(i + 1, mat.shape[1])
+            )
+        return mat
+
+    k = mat.shape[0]
+    pairs = [(i, j) for i in range(k) for j in range(i + 1, k)]
+    if correction_input_values is not None:
+        correction_input_values.extend(float(mat[i, j]) for i, j in pairs)
+    family_size = (
+        len(pairs) if n_comparisons is None else _validate_family_size(n_comparisons, len(pairs), correction=correction)
+    )
+    adjusted = _adjust([mat[i, j] for i, j in pairs], correction, family_size)
+    out = np.ones_like(mat)
+    for (i, j), p in zip(pairs, adjusted):
+        out[i, j] = out[j, i] = p
+    return out
+
+
+# Pairwise effect sizes
+def _cohens_d(a: np.ndarray, b: np.ndarray, paired: bool) -> float:
+    if paired:
+        d = a - b
+        sd = np.std(d, ddof=1)
+        return float(np.mean(d) / sd) if sd > 0 else 0.0
+    na, nb = a.size, b.size
+    sp = math.sqrt(((na - 1) * np.var(a, ddof=1) + (nb - 1) * np.var(b, ddof=1)) / (na + nb - 2))
+    return float((a.mean() - b.mean()) / sp) if sp > 0 else 0.0
+
+
+def _rank_biserial(a: np.ndarray, b: np.ndarray) -> float:
+    """Rank-biserial correlation from the Mann-Whitney U: r = 1 − 2U/(n_a·n_b)."""
+    from scipy.stats import mannwhitneyu
+
+    u = float(mannwhitneyu(a, b, alternative="two-sided").statistic)
+    return 1.0 - (2.0 * u) / (a.size * b.size)
+
+
+def _pair_effect(a: np.ndarray, b: np.ndarray, *, parametric: bool, paired: bool = False) -> tuple[str, float]:
+    if parametric:
+        return "d", _validate_finite_result(_cohens_d(a, b, paired), "effect size", "pairwise test")
+    return "r", _validate_finite_result(_rank_biserial(a, b), "effect size", "pairwise test")
+
+
+# Report record
+def _clamp_p(p: float) -> float:
+    """Clamp a p-value away from an impossible ``0.0``.
+
+    A p-value is strictly positive; scipy returns ``0.0`` only when the true value
+    underflows below the representable range. We store the minimum normal positive
+    float instead, so the record (and the JSON) never claim ``P = 0``. The text report
+    renders this clamp value with ``<`` (see ``_fmt_p``) because the true value is
+    below floating-point precision.
+    """
+    return sys.float_info.min if p == 0.0 else p
+
+
+def _make_record(
+    *,
+    test: str,
+    is_omnibus: bool,
+    omnibus: _OmnibusResult | None,
+    descriptives: list[dict[str, Any]],
+    comparisons: list[dict[str, Any]],
+    comparison_test: str | None,
+    correction: str | None,
+    pvalues_provided: bool,
+    n_comparisons: int | None = None,
+    intrinsically_adjusted: bool = False,
+    data_checksum: str | None = None,
+) -> dict[str, Any]:
+    """Build the structured report record.
+
+    This dict supplies the report data: ``_render_report`` turns it into the
+    plain-text report, and ``export.save`` embeds it verbatim under
+    ``usermeta.dysonsphere.statistics``.  ``comparisons`` is the internal list of
+    dicts with keys ``g1``/``g2``/``pvalue`` and optionally ``unadjustedPvalue`` and
+    ``effectName``/``effect``. The exported ``pvalue`` is the reported value, adjusted when a
+    correction applies. ``unadjustedPvalue`` keeps the same key in intermediate and exported records:
+    the calculated unadjusted value, or ``None`` for supplied values and intrinsically adjusted methods.
+    ``pvalueOrigin`` distinguishes those cases. ``nComparisons`` is the effective generic correction-family
+    size; it is ``None`` when no generic correction was applied. ``correctionInputPvalue`` is present only
+    when a generic correction is applied to an intrinsically adjusted result.
+
+    ``data_checksum`` is the order-independent fingerprint of the source dataframe
+    (``metadata.frame_checksum``), so records from distinct dataframes are distinguishable; it also
+    feeds the record's content hash (the marker).  ``None`` when built without a frame (e.g. a
+    direct unit-test call).
+    """
+
+    def _effect(symbol: str | None, value) -> dict[str, Any] | None:
+        if symbol is None:
+            return None
+        return {
+            "name": _EFFECT_NAMES.get(symbol, symbol),
+            "symbol": symbol,
+            "value": _validate_finite_result(value, "effect size", "comparison"),
+        }
+
+    statistic = None
+    effect_size = None
+    if omnibus is not None:
+        statistic = _validate_finite_result(omnibus.stat, "statistic", omnibus.name)
+        effect_size = _validate_finite_result(omnibus.effect_size, "effect size", omnibus.name)
+        omnibus_pvalue = _validate_pvalue(omnibus.pvalue, f"{omnibus.name} p-value")
+    record: dict[str, Any] = {
+        "kind": "omnibus" if is_omnibus else "pairwise",
+        "dataChecksum": data_checksum,
+        # Keep the computed omnibus attribution even when its requested comparisons are supplied;
+        # only the pairwise section must avoid naming a test that was not run.
+        "test": test if is_omnibus else (None if pvalues_provided else test),
+        "groups": descriptives,
+    }
+    if omnibus is not None:
+        record["omnibus"] = {
+            "name": omnibus.name,
+            "statistic": {"symbol": omnibus.stat_symbol, "value": statistic, "df": list(omnibus.df)},
+            "pvalue": _clamp_p(omnibus_pvalue),
+            "effect": _effect(omnibus.effect_name, effect_size),
+        }
+    record["comparisons"] = {
+        "test": comparison_test,
+        "correction": correction,
+        "pvalueOrigin": (
+            "supplied" if pvalues_provided else ("intrinsically-adjusted" if intrinsically_adjusted else "computed")
+        ),
+        "nComparisons": n_comparisons,
+        "pairs": [
+            {
+                "group1": c["g1"],
+                "group2": c["g2"],
+                "pvalue": _clamp_p(_validate_pvalue(c["pvalue"], "comparison p-value")),
+                "unadjustedPvalue": (
+                    _clamp_p(_validate_pvalue(c["unadjustedPvalue"], "unadjusted comparison p-value"))
+                    if c.get("unadjustedPvalue") is not None
+                    else None
+                ),
+                **(
+                    {
+                        "correctionInputPvalue": _clamp_p(
+                            _validate_pvalue(c["correctionInputPvalue"], "correction input p-value")
+                        )
+                    }
+                    if c.get("correctionInputPvalue") is not None
+                    else {}
+                ),
+                "effect": _effect(c.get("effectName"), c.get("effect")),
+            }
+            for c in comparisons
+        ],
+    }
+    return record
+
+
+# Text report (rendered from a record)
+# Reports use three significant figures, independent of the plot's sigFigs setting.
+_REPORT_SIGFIGS = 3
+
+
+def _fmt(x: float | None) -> str:
+    return "n/a" if x is None else f"{x:.{_REPORT_SIGFIGS}g}"
+
+
+def _fmt_p(p: float) -> str:
+    """Format a report p-value at 3 significant figures – never floored.
+
+    ``%g`` keeps ordinary p-values as decimals (``= 0.032``) and switches
+    tiny ones to e-notation (``= 1.22e-11``) automatically. This is the record
+    format and is independent of the on-plot label style (``notation``/``sigFigs``).
+    The clamp value (see ``_clamp_p``) is rendered with ``<`` because the true
+    value is genuinely below float precision.
+    """
+    if p == sys.float_info.min:
+        return f"< {sys.float_info.min:.{_REPORT_SIGFIGS}g}"
+    return f"= {p:.{_REPORT_SIGFIGS}g}"
+
+
+def _render_correlation(record: dict[str, Any]) -> str:
+    method = _CORRELATION_METHODS[record["method"]][0]
+    title = f"Statistics | Correlation | {method}"
+    if "group" in record:  # grouped mode: one record per series
+        title += f" | {record['group']}"
+    lines: list[str] = [title, "─" * len(title), ""]
+    c = record["coefficient"]
+    parts = [f"{c['symbol']} = {_fmt(c['value'])}"]
+    if record["rSquared"] is not None:
+        parts.append(f"r² = {_fmt(record['rSquared'])}")
+    parts.append(f"P {_fmt_p(record['pvalue'])}")
+    lines.append(", ".join(parts))
+    if record["fit"] is not None:
+        f = record["fit"]
+        sign = "+" if f["intercept"] >= 0 else "-"
+        lines.append(f"Fit: y = {_fmt(f['slope'])}x {sign} {_fmt(abs(f['intercept']))}")
+    lines.append(f"n = {record['n']}  ({record['x']} vs {record['y']})")
+    return "\n".join(lines)
+
+
+def _render_report(record: dict[str, Any]) -> str:
+    """Render the plain-text descriptive + effect-size report from a record dict."""
+    if record["kind"] == "correlation":
+        return _render_correlation(record)
+    if record["kind"] == "omnibus":
+        title = f"Statistics | Omnibus | {record['omnibus']['name']}"
+    elif record["test"] is None:
+        title = "Statistics | Pairwise comparisons | user p-values"
+    else:
+        title = f"Statistics | Pairwise comparisons | {record['test']}"
+
+    lines: list[str] = [title, "─" * len(title), ""]
+
+    if record["kind"] == "omnibus":
+        o = record["omnibus"]
+        df_str = ", ".join(str(d) for d in o["statistic"]["df"])
+        stat = f"{o['statistic']['symbol']}({df_str}) = {_fmt(o['statistic']['value'])}"
+        lines.append(f"{stat}, P {_fmt_p(o['pvalue'])}")
+        lines.append(f"Effect size: {o['effect']['symbol']} = {_fmt(o['effect']['value'])}")
+        lines.append("")
+
+    lines.append("Group descriptives:")
+    groups = record["groups"]
+    width = max((len(g["label"]) for g in groups), default=0)
+    for g in groups:
+        lines.append(
+            f"  {g['label']:<{width}}  n={g['n']:<4d} mean={_fmt(g['mean'])}  sd={_fmt(g['sd'])}  "
+            f"median={_fmt(g['median'])}  IQR=[{_fmt(g['q1'])}, {_fmt(g['q3'])}]  "
+            f"range=[{_fmt(g['min'])}, {_fmt(g['max'])}]"
+        )
+
+    pairs = record["comparisons"]["pairs"]
+    if pairs:
+        name = record["comparisons"]["test"]
+        corr = record["comparisons"].get("correction")
+        family_size = record["comparisons"].get("nComparisons")
+        label = "Post-hoc" if record["kind"] == "omnibus" else "Comparisons"
+        correction_label = f"{corr}, m={family_size}" if corr and family_size is not None else corr
+        origin_label = "supplied p-values" if record["comparisons"].get("pvalueOrigin") == "supplied" else None
+        suffix = ", ".join(x for x in (name, correction_label, origin_label) if x)
+        lines.append("")
+        lines.append(f"{label}{f' ({suffix})' if suffix else ''}:")
+        pair_width = max(len(f"{p['group1']} vs {p['group2']}") for p in pairs)
+        for p in pairs:
+            pair = f"{p['group1']} vs {p['group2']}"
+            line = f"  {pair:<{pair_width}}  P {_fmt_p(p['pvalue'])}"
+            if p["effect"] is not None:
+                line += f"  {p['effect']['symbol']} = {_fmt(p['effect']['value'])}"
+            lines.append(line)
+
+    return "\n".join(lines)

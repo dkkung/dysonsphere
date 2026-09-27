@@ -2,7 +2,7 @@ import altair as alt
 import dysonsphere as ds
 from vega_datasets import data
 
-# grid=True draws grid lines; dashedGrid=False makes them solid instead of dashed.
+# grid=True draws grid lines; gridStrokeDash=False makes them solid instead of dashed.
 ds.theme(grid=True)
 
 stocks = data.stocks()

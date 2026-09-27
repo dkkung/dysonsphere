@@ -6,19 +6,19 @@
 interface Props {
 	name: string;
 	alt?: string;
-	/** Apply the save()-time inward-ticks SVG fix (theme(inwardTicks=True) charts). */
-	inwardTicks?: boolean;
+	/** Apply the save()-time inward-ticks SVG fix for tickDirection="in" charts. */
+	tickDirection?: 'in' | 'out';
 	/** Auto-zoom the render to fill its container's width (for size-matched comparisons). */
 	fitWidth?: boolean;
 }
-const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false } = Astro.props;
+const { name, alt = 'dysonsphere chart', tickDirection = 'out', fitWidth = false } = Astro.props;
 ---
 
 <figure class="ds-chart">
 	<div
 		class="ds-chart__view"
 		data-chart={name}
-		data-inward={inwardTicks ? '1' : undefined}
+		data-inward={tickDirection === 'in' ? '1' : undefined}
 		data-fit={fitWidth ? '1' : undefined}
 		role="img"
 		aria-label={alt}
@@ -27,21 +27,29 @@ const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false }
 </figure>
 
 <script>
-	import vegaEmbed from 'vega-embed';
-	import { alignFigureLabels, alignGridToContent, flipTicksInward, italicizeStatSymbols, typesetScripts } from '../lib/fixSuperscripts';
-	import { fitChartToWidth, scaleChart } from '../lib/scaleChart';
+	import { chartView, clearChart, embedChart } from '../lib/embedChart';
+	import { fitChartToWidth, scaleChart, watchChartResolution } from '../lib/scaleChart';
 
 	const BASE = import.meta.env.BASE_URL;
-	const views = new WeakMap<HTMLElement, { finalize: () => void }>();
+	const active = new Set<HTMLElement>();
 
-	async function renderOne(el: HTMLElement) {
+	function fit(el: HTMLElement) {
+		if (el.dataset.fit) {
+			// The figure is independent of the embed's already-scaled content.
+			fitChartToWidth(el, el.closest('figure')?.clientWidth ?? 0, chartView(el));
+		} else scaleChart(el, undefined, chartView(el));
+	}
+
+	function renderOne(el: HTMLElement) {
 		const name = el.dataset.chart;
 		if (!name) return;
+		active.add(el);
 		const theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-		try {
-			const spec = await (await fetch(`${BASE}charts/${name}-${theme}.json`)).json();
-			// Image marks reference a root-relative asset (e.g. /gallery/x.png); prefix the deploy
-			// BASE so it resolves on project-pages (/dysonsphere/...) as well as locally.
+		void embedChart(el, async () => {
+			const response = await fetch(`${BASE}charts/${name}-${theme}.json`);
+			if (!response.ok) throw new Error(`Chart ${name}: ${response.status}`);
+			const spec = await response.json();
+			// Prefix root-relative image assets for project-pages deployments.
 			const baseNoSlash = BASE.replace(/\/$/, '');
 			const fixUrls = (o: unknown): void => {
 				if (Array.isArray(o)) o.forEach(fixUrls);
@@ -54,44 +62,24 @@ const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false }
 				}
 			};
 			fixUrls(spec);
-			views.get(el)?.finalize();
-			el.innerHTML = '';
-			// A spec that bakes its own background (chartFill comparisons, the default-theme
-			// example) keeps it; everything else renders transparent so the page shows through.
-			const opaque = Boolean(spec.background ?? spec.config?.background);
-			views.set(
-				el,
-				await vegaEmbed(el, spec, {
-					actions: true,
-					renderer: 'svg',
-					...(opaque ? {} : { background: 'transparent' }),
-				}),
-			);
-			alignGridToContent(el, spec);
-			alignFigureLabels(el);
-			typesetScripts(el);
-			italicizeStatSymbols(el);
-			if (el.dataset.inward) flipTicksInward(el);
-			if (el.dataset.fit) {
-				// Measure the block-level <figure>, NOT the embed container: vega-embed sizes the
-				// container to its (already-scaled) content, which would feed back.
-				fitChartToWidth(el, el.closest('figure')?.clientWidth ?? 0);
-			} else {
-				scaleChart(el);
-			}
-		} catch (e) {
-			el.textContent = 'Failed to load chart.';
+			return spec;
+		}, { actions: true, inward: Boolean(el.dataset.inward), afterRender: () => fit(el) }).catch((e) => {
+			if (el.isConnected) el.textContent = 'Failed to load chart.';
 			console.error(e);
-		}
+		});
 	}
 
 	function renderAll() {
-		document.querySelectorAll<HTMLElement>('.ds-chart__view[data-chart]').forEach((el) => renderOne(el));
+		document.querySelectorAll<HTMLElement>('.ds-chart__view[data-chart]').forEach(renderOne);
 	}
 
 	renderAll();
-	// Re-render on client-side navigation (view transitions) and on the light/dark toggle.
 	document.addEventListener('astro:page-load', renderAll);
+	document.addEventListener('astro:before-swap', () => {
+		for (const el of active) clearChart(el);
+		active.clear();
+	});
+	watchChartResolution(() => { for (const el of active) if (el.isConnected) fit(el); });
 	new MutationObserver(renderAll).observe(document.documentElement, {
 		attributes: true,
 		attributeFilter: ['data-theme'],

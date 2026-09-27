@@ -1,12 +1,84 @@
+import hashlib
+import importlib.util
+import json
 import math
 import re
 import struct
+from collections.abc import Mapping
+from typing import Any, cast
 
 import pytest
 
-from dysonsphere.palettes import categorical, colors, palette
+from dysonsphere.palettes import (
+    _ACCENT_DARK,
+    _ACCENT_LIGHT,
+    _CMOCEAN_PALETTES,
+    _MATPLOTLIB_PALETTES,
+    _PALETTE_ALIASES,
+    _PORTED_PALETTE_NAMES,
+    accents,
+    categorical,
+    colors,
+    palette,
+)
 
 HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+class TestAccents:
+    def test_read_only_mapping_and_alias(self):
+        assert isinstance(accents, Mapping)
+        assert len(accents) == 14
+        assert list(accents) == [
+            "red",
+            "orange",
+            "yellow",
+            "green",
+            "blue",
+            "purple",
+            "violet",
+            "teal",
+            "cyan",
+            "pink",
+            "brown",
+            "lime",
+            "grey",
+            "gray",
+        ]
+        assert accents["grey"] == accents["gray"]
+        with pytest.raises(TypeError):
+            cast(Any, accents)["blue"] = "#000000"
+
+    def test_mode_lookup_and_separation_from_palette_registry(self):
+        from dysonsphere import theme
+
+        theme(darkmode=False)
+        assert dict(accents) == _ACCENT_LIGHT
+        captured = accents["blue"]
+        theme(darkmode=True)
+        assert dict(accents) == _ACCENT_DARK
+        assert captured == "#28287D"
+        assert accents["blue"] == "#7783DB"
+        assert "accents" not in colors
+        with pytest.raises(KeyError):
+            palette("accents")
+        with pytest.raises(KeyError):
+            _ = accents["Blue"]
+
+    def test_recipe_reproduces_literals(self):
+        spec = importlib.util.spec_from_file_location("print_palettes", "scripts/print_palettes.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert module.ACCENT_LIGHT == {
+            key: value for key, value in _ACCENT_LIGHT.items() if key not in {"grey", "gray"}
+        }
+        assert module.build_cyan_accent() == _ACCENT_LIGHT["cyan"]
+        expected = {key: value for key, value in _ACCENT_DARK.items() if key not in {"grey", "gray"}}
+        assert module.build_dark_accents() == expected
+        assert _ACCENT_LIGHT["grey"] == colors["greys"][4]
+        assert _ACCENT_DARK["grey"] == colors["greys"][1]
+
 
 SEQUENTIAL = [
     "blues",
@@ -22,7 +94,6 @@ SEQUENTIAL = [
     "oranges",
     "browns",
     "pinks",
-    "neongreens",
 ]
 SEQUENTIAL_2 = [f"{n}2" for n in SEQUENTIAL]
 SEQUENTIAL_3 = [f"{n}3" for n in SEQUENTIAL]
@@ -77,6 +148,23 @@ def test_palette_n_one():
     assert result == [colors["blues"][0]]
 
 
+def test_palette_n_zero_is_empty():
+    assert palette("blues", n=0) == []
+
+
+def test_palette_n_oversampling_keeps_inclusive_endpoints():
+    result = palette("blues", n=20, start=2, end=5, step=99)
+    assert len(result) == 20
+    assert result[0] == colors["blues"][2]
+    assert result[-1] == colors["blues"][5]
+
+
+@pytest.mark.parametrize("n", [-1, 1.0, True, "4"])
+def test_palette_n_requires_a_nonnegative_integer(n):
+    with pytest.raises(ValueError, match="nonnegative integer"):
+        palette("blues", n=n)
+
+
 def test_palette_reverse():
     result = palette("blues", reverse=True)
     assert result == list(reversed(colors["blues"]))
@@ -100,16 +188,16 @@ def test_palette_unknown_key_raises():
 class TestCategorical:
     # The two qualitative palettes and their base hues, keyed by the `palette=` argument.
     HUES = {
-        "ds_cat_1": ("cat_teals", "cat_blues", "cat_purples", "cat_greens", "cat_golds"),
-        "ds_cat_2": ("blues", "pinks", "yellows", "greens"),
+        "cat3": ("blues", "pinks", "yellows", "greens"),
+        "cat4": ("cat4_teals", "cat4_blues", "cat4_purples", "cat4_greens", "cat4_golds"),
     }
-    PALETTES = ["ds_cat_1", "ds_cat_2"]
+    PALETTES = ["cat3", "cat4"]
 
     def test_default_is_members_one(self):
         assert categorical() == categorical(1)
 
-    def test_default_palette_is_ds_cat_3(self):
-        assert categorical() == categorical(1, palette="ds_cat_3")
+    def test_default_palette_is_cat1(self):
+        assert categorical() == categorical(1, palette="cat1")
 
     @pytest.mark.parametrize("name", PALETTES)
     def test_named_palette_matches_function(self, name):
@@ -180,76 +268,193 @@ class TestCategorical:
             categorical(palette="nope")
 
 
-class TestDsCat3:
-    """ds_cat_3 uses hand-tuned stops rather than the canonical (1, 4, 7), and gives each
+class TestCat2:
+    """cat2 uses hand-tuned stops rather than the canonical (1, 4, 7), and gives each
     hue its own usable window in grouped mode - so it needs its own assertions."""
 
-    HUES = ("greys", "cat3_blues", "cat3_greens", "cat3_purples", "cat3_teals")
+    HUES = ("greys", "cat2_blues", "cat2_greens", "cat2_purples", "cat2_teals")
     # The designed palette: tier-major over grey/blue/green/purple/teal, so the first five
     # categories are five distinct hues and the sixth restarts the cycle one tier down.
     EXPECTED = [
         "#B2B2B2",  # greys[3]        light grey
-        "#4A7CD3",  # cat3_blues[5]   blue (the hero)
-        "#008542",  # cat3_greens[6]  green
-        "#664CAF",  # cat3_purples[6] violet
-        "#509F98",  # cat3_teals[4]   teal
+        "#4A7CD3",  # cat2_blues[5]   blue (the hero)
+        "#008542",  # cat2_greens[6]  green
+        "#664CAF",  # cat2_purples[6] violet
+        "#509F98",  # cat2_teals[4]   teal
         "#636363",  # greys[7]        dark grey
-        "#284F93",  # cat3_blues[8]   cobalt
-        "#005226",  # cat3_greens[9]  dark green
-        "#382864",  # cat3_purples[9] indigo
-        "#285753",  # cat3_teals[8]   dark teal
+        "#284F93",  # cat2_blues[8]   cobalt
+        "#005226",  # cat2_greens[9]  dark green
+        "#382864",  # cat2_purples[9] indigo
+        "#285753",  # cat2_teals[8]   dark teal
     ]
 
     def test_flat_palette_is_the_designed_order(self):
-        assert colors["ds_cat_3"] == self.EXPECTED
+        assert colors["cat2"] == self.EXPECTED
 
     def test_named_palette_matches_function(self):
-        assert colors["ds_cat_3"] == categorical(1, palette="ds_cat_3")
+        assert colors["cat2"] == categorical(1, palette="cat2")
 
     @pytest.mark.parametrize("cvd", ["deuteranopia", "protanopia"])
     @pytest.mark.parametrize("n", [4, 5, 6])
     def test_cvd_separation_at_common_category_counts(self, cvd, n):
-        # cat3_purples stops 3-5 sit at blue's lightness and collapse against it under
+        # cat2_purples stops 3-5 sit at blue's lightness and collapse against it under
         # dichromacy; 0.07 is the palette's own worst pair. Grouped mode caps at 6.
         import itertools
 
         matrix = _DEUTERANOPIA if cvd == "deuteranopia" else _PROTANOPIA
-        labs = [_hex_to_oklab(_simulate_cvd(c, matrix)) for c in colors["ds_cat_3"][:n]]
+        labs = [_hex_to_oklab(_simulate_cvd(c, matrix)) for c in colors["cat2"][:n]]
         worst = min(math.dist(labs[i], labs[j]) for i, j in itertools.combinations(range(n), 2))
         assert worst >= 0.07
 
     def test_every_color_derived_from_base_hues(self):
         # Nothing de novo - every entry is a stop on one of the base ramps.
         pool = {hx for h in self.HUES for hx in colors[h]}
-        assert set(colors["ds_cat_3"]) <= pool
+        assert set(colors["cat2"]) <= pool
 
     @pytest.mark.parametrize("members", [2, 3, 4, 5, 6])
     def test_grouped_lengths_and_distinctness(self, members):
-        got = categorical(members, palette="ds_cat_3")
+        got = categorical(members, palette="cat2")
         assert len(got) == len(self.HUES) * members
         assert len(set(got)) == len(got)
 
     def test_grouped_is_hue_major(self):
         # Each family contributes a consecutive block spanning its own window.
-        got = categorical(2, palette="ds_cat_3")
+        got = categorical(2, palette="cat2")
         assert got[:2] == [colors["greys"][3], colors["greys"][10]]
-        assert got[2:4] == [colors["cat3_blues"][1], colors["cat3_blues"][11]]
+        assert got[2:4] == [colors["cat2_blues"][1], colors["cat2_blues"][11]]
 
     def test_members_above_ceiling_raises_naming_the_family(self):
-        # cat3_greens has the narrowest window (stops 6-11), so it binds at 6.
-        with pytest.raises(ValueError, match="cat3_greens"):
-            categorical(7, palette="ds_cat_3")
+        # cat2_greens has the narrowest window (stops 6-11), so it binds at 6.
+        with pytest.raises(ValueError, match="cat2_greens"):
+            categorical(7, palette="cat2")
 
     def test_other_palettes_unaffected(self):
         # The per-family window path must not touch the canonical-stop palettes.
-        cat1 = ("cat_teals", "cat_blues", "cat_purples", "cat_greens", "cat_golds")
-        assert categorical(1, palette="ds_cat_1") == [colors[h][s] for s in (1, 4, 7) for h in cat1]
-        assert categorical(2, palette="ds_cat_2") == [
+        cat4 = ("cat4_teals", "cat4_blues", "cat4_purples", "cat4_greens", "cat4_golds")
+        assert categorical(1, palette="cat4") == [colors[h][s] for s in (1, 4, 7) for h in cat4]
+        assert categorical(2, palette="cat3") == [
             colors[h][s] for h in ("blues", "pinks", "yellows", "greens") for s in (1, 4)
         ]
 
 
+class TestCat1:
+    HUES = ("greys", "cat1_blues", "cat1_greens", "cat1_purples", "cat1_teals")
+    ANCHORS = ["#9D9D9D", "#28287D", "#004225", "#47266F", "#00605D"]
+    ANCHOR_STOPS = (4, 9, 9, 9, 8)
+    LIGHTER = ["#DBDBDB", "#7983C1", "#6E927B", "#937FB4", "#699A97"]
+    LIGHTER_STOPS = (1, 4, 4, 4, 4)
+
+    def test_flat_order_and_exact_anchors(self):
+        assert colors["cat1"] == self.ANCHORS + self.LIGHTER
+        assert colors["cat1"] == categorical(palette="cat1")
+        assert [colors[name][stop] for name, stop in zip(self.HUES, self.ANCHOR_STOPS)] == self.ANCHORS
+        assert [colors[name][stop] for name, stop in zip(self.HUES, self.LIGHTER_STOPS)] == self.LIGHTER
+        assert self.ANCHORS == [_ACCENT_LIGHT[name] for name in ("grey", "blue", "green", "purple", "teal")]
+        assert [colors["cat1"][0], colors["cat1"][5]] == ["#9D9D9D", "#DBDBDB"]
+        assert [colors["cat1"][0], colors["cat1"][5]] == [_ACCENT_LIGHT["grey"], _ACCENT_DARK["grey"]]
+
+    def test_recipe_reproduces_precomputed_ramps(self):
+        spec = importlib.util.spec_from_file_location("print_palettes", "scripts/print_palettes.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for name, settings in module.CAT1_ANCHORED.items():
+            anchor, anchor_index, light_L, light_scale, dark_L, dark_scale = settings
+            kwargs = {
+                "anchor_index": anchor_index,
+                "light_L": light_L,
+                "light_chroma_scale": light_scale,
+                "dark_L": dark_L,
+                "dark_chroma_scale": dark_scale,
+            }
+            assert module.build_anchored_ramp(anchor, **kwargs) == colors[name]
+
+    def test_recipe_path_is_in_gamut_and_retains_anchor_hue(self):
+        spec = importlib.util.spec_from_file_location("print_palettes", "scripts/print_palettes.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for settings in module.CAT1_ANCHORED.values():
+            anchor, anchor_index, light_L, light_scale, dark_L, dark_scale = settings
+            anchor_lab = module.hex_to_oklab(anchor)
+            chroma = math.hypot(anchor_lab[1], anchor_lab[2])
+            unit = (0.0, 0.0) if chroma < 1e-5 else (anchor_lab[1] / chroma, anchor_lab[2] / chroma)
+            light = (light_L, unit[0] * chroma * light_scale, unit[1] * chroma * light_scale)
+            dark = (dark_L, unit[0] * chroma * dark_scale, unit[1] * chroma * dark_scale)
+            points = []
+            for index in range(12):
+                if index <= anchor_index:
+                    point = tuple(start + (end - start) * index / anchor_index for start, end in zip(light, anchor_lab))
+                else:
+                    point = tuple(
+                        start + (end - start) * (index - anchor_index) / (11 - anchor_index)
+                        for start, end in zip(anchor_lab, dark)
+                    )
+                points.append(point)
+            assert all(module.in_gamut_oklab(*point) for point in points)
+            if chroma >= 1e-5:
+                anchor_hue = math.atan2(anchor_lab[2], anchor_lab[1])
+                for color in module.build_anchored_ramp(
+                    anchor,
+                    anchor_index=anchor_index,
+                    light_L=light_L,
+                    light_chroma_scale=light_scale,
+                    dark_L=dark_L,
+                    dark_chroma_scale=dark_scale,
+                ):
+                    _, a, b = module.hex_to_oklab(color)
+                    hue_error = abs(
+                        math.atan2(math.sin(math.atan2(b, a) - anchor_hue), math.cos(math.atan2(b, a) - anchor_hue))
+                    )
+                    assert hue_error < math.radians(2)
+
+    @pytest.mark.parametrize("members", range(2, 11))
+    def test_grouped_is_hue_major_and_distinct(self, members):
+        got = categorical(members, palette="cat1")
+        assert len(got) == len(set(got)) == 5 * members
+        expected_stops = [round(1 + 9 * i / (members - 1)) for i in range(members)]
+        assert got == [colors[hue][stop] for hue in self.HUES for stop in expected_stops]
+
+    def test_grouped_cap_names_binding_family(self):
+        with pytest.raises(ValueError, match="'greys'"):
+            categorical(11, palette="cat1")
+
+    def test_static_and_sampling(self, monkeypatch):
+        fixed = categorical(palette="cat1")
+        monkeypatch.setitem(_ACCENT_LIGHT, "grey", "#FFFFFF")
+        monkeypatch.setitem(_ACCENT_DARK, "grey", "#000000")
+        assert categorical(palette="cat1") == fixed
+        assert palette("cat1_blues", n=3) == [
+            colors["cat1_blues"][0],
+            colors["cat1_blues"][6],
+            colors["cat1_blues"][11],
+        ]
+        assert "cat1_greys" not in colors
+        assert "cat1_grays" not in colors
+
+
 class TestExportSwatches:
+    @pytest.mark.parametrize(
+        ("selection", "canonical", "alias"),
+        [
+            (None, "greys", "grays"),
+            (["graysblues2"], "greysblues2", "graysblues2"),
+            (["warmgreys", "warmgrays", "warmgreys"], "warmgreys", "warmgrays"),
+        ],
+    )
+    def test_grey_family_alias_exports_once_under_canonical_name(
+        self, tmp_path, monkeypatch, selection, canonical, alias
+    ):
+        from dysonsphere import palettes as p
+
+        monkeypatch.setattr(p, "_find_illustrator_swatches", lambda: None)
+        p.export_swatches(tmp_path, palettes=selection)
+        content = (tmp_path / "import_dysonsphere_palettes_to_illustrator.jsx").read_text()
+        assert content.count(f'"{canonical}":') == 1
+        assert f'"{alias}":' not in content
+        raw = (tmp_path / "dysonsphere.ase").read_bytes()
+        assert f"{alias}\0".encode("utf-16-be") not in raw
+
     def test_creates_jsx_file(self, tmp_path):
         from dysonsphere.palettes import export_swatches
 
@@ -363,7 +568,7 @@ class TestExportSwatches:
 
 
 # ── perceptual quality invariants ────────────────────────────────────────────
-# Every dysonsphere-NATIVE palette (mpl_/cmocean_ ship as-is and are exempt) must uphold the
+# Every dysonsphere-native palette (ported palettes ship as-is and are exempt) must uphold the
 # perceptual guarantees the build recipes promise. These are safety nets against hand-edits:
 # the bounds are empirical (worst native adjacent-ΔE ratio is bluelagoon at 1.29; viridis-grade
 # is ~1.05), so a failure means a palette regressed, not that the bound is tight.
@@ -413,14 +618,315 @@ def _adjacent_delta_e(pal: list[str]) -> list[float]:
 
 
 def _native(name: str) -> bool:
-    return not name.startswith(("mpl_", "cmocean_"))
+    return name not in _PORTED_PALETTE_NAMES
 
 
-# ds_cat_2 carries 12 stops but is a QUALITATIVE hue-cycling palette, not a ramp (ds_cat_1 has 15,
+# cat3 and cat4 are QUALITATIVE hue-cycling palettes, not ramps (cat2 has 15,
 # so it is excluded by the stop count). The cat_* base ramps ARE genuine 12-stop sequential ramps.
-_QUALITATIVE = {"ds_cat_1", "ds_cat_2", "ds_cat_3"}
+_QUALITATIVE = {"cat1", "cat2", "cat3", "cat4"}
 NATIVE_SEQUENTIAL = sorted(n for n, c in colors.items() if _native(n) and len(c) == 12 and n not in _QUALITATIVE)
 NATIVE_DIVERGING = sorted(n for n, c in colors.items() if _native(n) and len(c) == 13)
+
+
+class TestDiv1:
+    def test_recipe_reproduces_literal_and_selected_ramp_stops(self):
+        spec = importlib.util.spec_from_file_location("print_palettes", "scripts/print_palettes.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        expected = module.build_diverging(colors["cat1_purples"][8], colors["cat1_teals"][9], center_hex="#F6F6F6")
+        assert colors["div1"] == expected
+
+    def test_structure_order_and_balanced_inputs(self):
+        ramp = colors["div1"]
+        assert len(ramp) == len(set(ramp)) == 13
+        assert ramp[6] == "#F6F6F6"
+        assert ramp[0] == "#4F4265" and ramp[-1] == "#164D4B"
+        purple = _hex_to_oklab(colors["cat1_purples"][8])
+        teal = _hex_to_oklab(colors["cat1_teals"][9])
+        assert abs(purple[0] - teal[0]) < 0.03
+
+    def test_each_arm_is_uniform_and_cvd_monotonic(self):
+        for arm in (colors["div1"][:7], colors["div1"][6:]):
+            assert _monotonic([_hex_to_oklab(color)[0] for color in arm])
+            delta_e = _adjacent_delta_e(arm)
+            assert max(delta_e) / min(delta_e) <= 1.5
+            for matrix in (_DEUTERANOPIA, _PROTANOPIA):
+                assert _monotonic([_hex_to_oklab(_simulate_cvd(color, matrix))[0] for color in arm])
+
+
+class TestDiv3:
+    def test_recipe_reproduces_literal_from_cat3_family(self):
+        spec = importlib.util.spec_from_file_location("print_palettes", "scripts/print_palettes.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert colors["div3"] == module.build_diverging(colors["pinks"][8], colors["blues"][7], center_hex="#F6F6F6")
+
+    def test_structure_balance_uniformity_and_cvd(self):
+        ramp = colors["div3"]
+        assert len(ramp) == len(set(ramp)) == 13 and ramp[6] == "#F6F6F6"
+        pink = _hex_to_oklab(colors["pinks"][8])
+        blue = _hex_to_oklab(colors["blues"][7])
+        assert abs(pink[0] - blue[0]) < 0.02
+        for arm in (ramp[:7], ramp[6:]):
+            delta_e = _adjacent_delta_e(arm)
+            assert max(delta_e) / min(delta_e) <= 1.5
+            for matrix in (_DEUTERANOPIA, _PROTANOPIA):
+                assert _monotonic([_hex_to_oklab(_simulate_cvd(color, matrix))[0] for color in arm])
+
+
+class TestDiv4:
+    def test_recipe_reproduces_retained_warm_center_literal(self):
+        spec = importlib.util.spec_from_file_location("print_palettes", "scripts/print_palettes.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert colors["div4"] == module.build_diverging("#6D572F", "#2C555D", center_hex="#F4F1E9")
+
+
+def _digest(value) -> str:
+    return hashlib.sha256(json.dumps(value, separators=(",", ":")).encode()).hexdigest()
+
+
+def test_registry_name_migration_exact_parity():
+    assert len(colors) == 360
+    canonical_colors = {name: stops for name, stops in colors.items() if name not in _PALETTE_ALIASES}
+    assert len(canonical_colors) == 322
+    assert _digest(canonical_colors) == "ed22b4564500110e2638a64fb78e98208774863f5875d7d3aac4331dde702783"
+    for removed in (
+        "cmocean_gray",
+        "mpl_viridis",
+        "ds_cat_1",
+        "ds_cat_2",
+        "ds_cat_3",
+    ):
+        assert removed not in colors
+    assert {"gray", "grays", "greys", "Greys", "greenblue", "GnBu", "yellowgreenblue", "YlGnBu"} <= colors.keys()
+    assert len(_PALETTE_ALIASES) == 38
+    for alias, canonical in _PALETTE_ALIASES.items():
+        assert alias == canonical.replace("greys", "grays")
+        assert canonical not in _PORTED_PALETTE_NAMES
+        assert colors[alias] is colors[canonical]
+        assert palette(alias, n=4) == palette(canonical, n=4)
+    assert colors["gray"] != colors["greys"]
+    assert colors["Greys"] != colors["greys"]
+    for unknown in ("GRAYS", "coolgray", "grayblues", "graysblues4"):
+        with pytest.raises(KeyError):
+            palette(unknown)
+    assert colors["greenblue"] != colors["GnBu"]
+    assert colors["yellowgreenblue"] != colors["YlGnBu"]
+    assert _digest(colors["greenblue"]) == "f2544b8324a44a221971ea1f6f0905d82c054e66e38e2f04c121519b59b6af0f"
+    assert _digest(colors["GnBu"]) == "679ef045c95c5231a041d43e0ff65f004fe7e9e78c0becd84a82f723b2906844"
+    assert _digest(colors["yellowgreenblue"]) == "daf85baa7248b7190d149303992529803b98f4bc3d0568fc6425d0294faf6a57"
+    assert _digest(colors["YlGnBu"]) == "baa0bb23103c336626367fee486e9610bea3978a7cc9411f157b2e0034c28974"
+    assert len(_PORTED_PALETTE_NAMES) == 104
+    assert _PORTED_PALETTE_NAMES <= colors.keys()
+
+
+def test_family_renumbering_preserves_pre_renumber_values():
+    expected = {
+        "cat1": "fd3f68aa7710553a99236586759fb6e1b898eef01b6612b4f9445c4a991c6468",
+        "cat2": "33e77658a0d4fafeddbee81f2199c5288adf5416810acd328adde4efc1aa99d1",
+        "cat3": "87d079b68eb532c6496634a740384974ee039a4505dffcfacf1e178be147a321",
+        "cat4": "2fda3ab43e172de97d910fce22b8e3ad6b789313d792fa71f6683a095eedf778",
+        "div1": "593661d178ae999d01531a50f609ae820ec4b8905fffa92790b3fc408ca3c198",
+        "div2": "0f86ac11e61ed45835fc6c52086be92466d2a9ca77cb47276a3909bd04889872",
+        "div3": "a30527dfdecf280820ad4903f7bea9ac9120d37ea750ffe2380ed3a1131afbd7",
+        "div4": "ccd9412bb128899d6f290b37e3443a5e05b90c1a84118e144eaf3a3d2339caeb",
+        "cat1_blues": "ade410ce8a1785bf7a5b666568d3a36b2b1df718f417175c03da6d0bd7c2e7ee",
+        "cat1_greens": "fc95eb3dfcc904427f31c8002a2c4b79badd1f979e9f0dd1517269570add474c",
+        "cat1_purples": "e569ee34d45b510071c69fd1a343fb9f9b3aae8ce58e0b4f18d67397863f32cc",
+        "cat1_teals": "2f76322a13940a596ffadfbf22b7a3662fd42010ab8c636573a792a22c4a39be",
+        "cat2_blues": "c97121f869193dd6733df15f4a8cb383fcd7cf72d0863189ec63403bd6c615e7",
+        "cat2_greens": "9d25573b9fd2d86f79cfb26f68b8bba98bbaaa354a9f19f0b74e0fa0b35fe8dd",
+        "cat2_purples": "b32cc00b8e075d4793a716caa86d91408da28b8d32f3aae83f8b615e56741fec",
+        "cat2_teals": "70148dc2d5ee3823eff6624bc28d5d3b6ece156bfaa223653414b67f1af5434b",
+        "cat4_blues": "dfadc85dab06d18548d3e3fbde174ea6b1b3672bbe2999babbe73da80c7a26a6",
+        "cat4_greens": "697c44bdd6d86da036cb2fca6b952ce03fba6ce1c3278c6d6452d57cb21226e0",
+        "cat4_purples": "e36c0fd105eccc090ab0922801dda8b3b64ecf5c3245300a9ed88b645b7b6042",
+        "cat4_teals": "0baf4d358d6be2a425ddf2877da5ad0202e54dec5e1727e1e069b380d5853673",
+        "cat4_golds": "c2f1a2ebc3afd242e50ab899ab7f2b91d783e171feea964081f47a8df68e92c9",
+    }
+    assert {name: _digest(colors[name]) for name in expected} == expected
+
+
+def test_current_registry_reconstructs_prechange_ordered_baseline():
+    # The inverse comparison intentionally excludes the approved palette removals; its
+    # digest still guards every surviving pre-change palette and its order.
+    removed_neongreens = {
+        "neongreens",
+        "neongreens2",
+        "neongreens3",
+    } | {
+        f"{arm}neongreens{suffix}"
+        for arm in ("browns", "greys", "lavenders", "magentas", "oranges", "pinks", "purples", "reds")
+        for suffix in ("", "2", "3")
+    }
+    assert len(removed_neongreens) == 27
+    removed_palettes = removed_neongreens | {"bluerlagoon", "bluestlagoon"}
+    assert len(removed_palettes) == 29
+    assert not removed_palettes & colors.keys()
+    intentional_discrete_changes = {
+        "Accent",
+        "Dark2",
+        "Paired",
+        "Pastel1",
+        "Pastel2",
+        "Set1",
+        "Set2",
+        "Set3",
+        "tab10",
+        "tab20",
+        "tab20b",
+        "tab20c",
+    }
+    new_palette_names = {"cat1", "cat1_blues", "cat1_greens", "cat1_purples", "cat1_teals", "div1", "div3"}
+    native_old_names = {
+        "greenblue": "GnBu",
+        "yellowgreenblue": "YlGnBu",
+        "brgn": "BrGn",
+        "brte": "BrTe",
+        "gdbu": "GdBu",
+        "mggn": "MgGn",
+        "pkte": "PkTe",
+        "pugn": "PuGn",
+        "rdbu": "RdBu",
+        "rdylbu": "RdYlBu",
+        "cat2": "ds_cat_3",
+        "cat3": "ds_cat_2",
+        "cat4": "ds_cat_1",
+        "cat2_blues": "cat3_blues",
+        "cat2_greens": "cat3_greens",
+        "cat2_purples": "cat3_purples",
+        "cat2_teals": "cat3_teals",
+        "cat4_blues": "cat_blues",
+        "cat4_golds": "cat_golds",
+        "cat4_greens": "cat_greens",
+        "cat4_purples": "cat_purples",
+        "cat4_teals": "cat_teals",
+        "div2": "ds_div_3",
+        "div4": "ds_div_1",
+        "greyslavenders": "greyslavender",
+    }
+    old_gray = [
+        "#000000",
+        "#020202",
+        "#121212",
+        "#272727",
+        "#3E3D3D",
+        "#575656",
+        "#70706F",
+        "#8A8A89",
+        "#A6A6A5",
+        "#C3C2C1",
+        "#E0E0DF",
+        "#FEFEFD",
+    ]
+    reconstructed = {}
+    for name, stops in colors.items():
+        if name in _PALETTE_ALIASES:
+            continue
+        if name in intentional_discrete_changes:
+            continue
+        if name in new_palette_names:
+            continue
+        if name == "haline":
+            reconstructed["cmocean_gray"] = old_gray
+        if name in _MATPLOTLIB_PALETTES:
+            old_name = f"mpl_{name}"
+        elif name in _CMOCEAN_PALETTES:
+            old_name = f"cmocean_{name}"
+        else:
+            old_name = native_old_names.get(name, name)
+        reconstructed[old_name] = stops
+    assert len(reconstructed) == 304
+    # Family renumbering deliberately changes registry insertion order while preserving every value.
+    assert _digest(reconstructed) == "25e5b5e62576d578adfdffb5328915df9e900202693d347538bd5dea0add025d"
+
+
+def test_neongreens_family_is_fully_removed_without_affecting_green_families():
+    assert not any("neongreen" in name for name in colors)
+    assert {"greens", "greens2", "greens3", "cat1_greens", "cat2_greens", "cat4_greens"} <= colors.keys()
+
+
+def test_lagoon_cleanup_retains_only_authorized_variants():
+    assert {"lagoon", "bluelagoon"} <= colors.keys()
+    assert {"bluerlagoon", "bluestlagoon", "gnbu", "ylgnbu"}.isdisjoint(colors)
+
+
+def test_matplotlib_discrete_palettes_are_complete_upstream_lists():
+    expected_lengths = {
+        "Accent": 8,
+        "Dark2": 8,
+        "Paired": 12,
+        "Pastel1": 9,
+        "Pastel2": 8,
+        "Set1": 9,
+        "Set2": 8,
+        "Set3": 12,
+        "tab10": 10,
+        "tab20": 20,
+        "tab20b": 20,
+        "tab20c": 20,
+    }
+    actual = {name: colors[name] for name in expected_lengths}
+    assert {name: len(stops) for name, stops in actual.items()} == expected_lengths
+    assert _digest(actual) == "a81f529d37455e190b49ca2c469dde357cb0f06e77eed481be1a925cc6e36ff5"
+
+
+_CATEGORICAL_HASHES = {
+    "cat1": [
+        "fd3f68aa7710553a99236586759fb6e1b898eef01b6612b4f9445c4a991c6468",
+        "42a0e86a669eb0f247301cfd39d52a8fae1665686e518a6a23aac0fc89d66d1a",
+        "cbb66cf736e4edad15fae0f5b91ce3d8fa43f032f6b95f6f499931c5ee8587ce",
+        "22022f831ee5fa28d9b36167d323cdda4cc29d36cc4da3e36cdb0107f7d9aac8",
+        "c5130cccb407c5cba74c4cf3af67d62442668b8596d0a83d0e32c85b7360c06b",
+        "d0e3c76f64c695c436e532aca843b746a8cc9f297327e6dd95067eb76783c568",
+        "b4c91670f549c678ce6ecd0416a7637b87120d67f30d643c08f0cdc808bea664",
+        "23029ead3b3cce5f4310288f6c4c08693a83eb1afcbcb3a0a6708dd289441867",
+        "f2a54c08e08a963410a250f83a51cfbb057b36d931fdbb5563e4119d7aec551a",
+        "63813b2ce21c15d4d30bd8e403a4602cb17207bdf685334061de545292754fa5",
+    ],
+    "cat2": [
+        "33e77658a0d4fafeddbee81f2199c5288adf5416810acd328adde4efc1aa99d1",
+        "31f2d2bc51a159aa316d0681b89e81bb39ce6a262d4b9f1a50623cc51f39b6d7",
+        "6baff5757f6c7a78b308d78ba8e8e11e5ffced786cc4a3d50166758583bb38e1",
+        "3f5bf22eac774e394a66d45fcb85a953f3cdb13cf01b25b9b284ab7553a7f36d",
+        "435ce8acd1c7f477b9f84ad6098305cf70a7791c75f008eb4b26d664f5355383",
+        "3a482ea0e4a5643679a55e9e70e4b81f4ae02b35be431437b770214ebcb802ed",
+    ],
+    "cat3": [
+        "87d079b68eb532c6496634a740384974ee039a4505dffcfacf1e178be147a321",
+        "bcfe408b494ca2e1a51f352572723fdb86f324a0effe1d20c925b7df205d6bfe",
+        "1a8dfe09cff4e05581cc6cefb649c71d4fdd4118a04320d79910e9f1666ee328",
+        "044a969d5da0c64cbb9a4880f9a20c9f4577ab63f6d54b05e4fdd44898fb0190",
+        "4296a1c239e8418cc959b3cc27d56e70ec0440aab90d79df5fd4a2ecb67d5327",
+        "3b991788591599550340316b63c46e531ec9f87649e1614079f45bfb7b19ce0e",
+        "c80c17ce6c798b65767d83ef35c28755c37dfb26b47a08be196740456bee767d",
+        "2a9c5be655c910706f9a97cd7f579ad3e11f69fd34c4b2898390173ce7e57743",
+        "867b069991aa917b82a06e929d1029f530b43f734e8319af591a1e93fb797626",
+        "c153e83b315bb264c938865f75c7e505ee8628831e4cb154cd715a191dbc5f00",
+    ],
+    "cat4": [
+        "2fda3ab43e172de97d910fce22b8e3ad6b789313d792fa71f6683a095eedf778",
+        "ea0f9df00c1e96a26ac5db8c9241ebb7175847145cad26655407497cfd6782ff",
+        "2c02e1155a4e9871d1410c14332eff40775162b55abe06dfac1139f61df820bf",
+        "5d7f69efa8db66efdcbc024ba63ed2c094bf4b85585597d02710991c087c842c",
+        "4309a9eb9e6e7f7f607988d168f7db0becf65044c22f52709a4f1a369d585e84",
+        "b6146489c4d3e2e4d185cdf6217ce4890d43c09761190c0a59a445c664c967ae",
+        "49bf1a20d221e6d5382e61f3098c6a8b4693557264c9fab5219cd761721494c2",
+        "b8925a396197c3c5aacf6b692a11ea6391c9064a40cde8776ba06256e1af26dc",
+        "c03d8c7ea37368603eb6226a6641d51d4bcd460e11d88d7d3011629eb93e1342",
+        "e082ac8793faee51ce7c74785daeb364eb9e22233a47c93c7ed8def0acbd513f",
+    ],
+}
+
+
+@pytest.mark.parametrize("name", ["cat1", "cat2", "cat3", "cat4"])
+def test_categorical_name_migration_exact_parity(name):
+    for members, expected in enumerate(_CATEGORICAL_HASHES[name], 1):
+        assert _digest(categorical(members, palette=name)) == expected
 
 
 class TestPaletteQuality:

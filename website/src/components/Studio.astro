@@ -10,7 +10,7 @@
 //
 // "Import an export" takes a file saved by ds.save(): a Vega-Lite JSON rebuilds the chart via
 // ds.load() (seeded + run in the code editor, so the shown snippet is what executed); JSON,
-// SVG, and PNG all read their embedded dysonsphere block back via ds.read() into a metadata
+// SVG, and PNG all read their embedded dysonsphere block back via ds.metadata.read() into a metadata
 // panel (report + structured JSON).
 //
 // Uploaded data is written into the runtime's virtual filesystem under its real filename, so the
@@ -226,7 +226,7 @@ const paletteGroups = [
 			<div class="st__meta">
 				<h4>Report</h4>
 				<pre id="st-meta-report"></pre>
-				<h4>Structured block (<code>ds.read(path, what="metadata")</code>)</h4>
+				<h4>Structured block (<code>ds.metadata.read(path, what="metadata")</code>)</h4>
 				<pre id="st-meta-json"></pre>
 			</div>
 		</div>
@@ -235,6 +235,7 @@ const paletteGroups = [
 				<span id="st-code-title">Python</span>
 				<span class="st__label-actions">
 					<button id="st-run" class="st__copy st__run" type="button" hidden>Run &#9654;</button>
+					<button id="st-source-retry" class="st__copy" type="button" hidden>Retry loading source</button>
 					<button id="st-edit" class="st__copy" type="button">Edit as code</button>
 					<button id="st-back" class="st__copy" type="button" hidden>Back to builder</button>
 					<button id="st-copy" class="st__copy" type="button">Copy</button>
@@ -252,15 +253,15 @@ const paletteGroups = [
 </div>
 
 <script>
-	import vegaEmbed from 'vega-embed';
-	import { alignFigureLabels, alignGridToContent, italicizeStatSymbols, typesetScripts } from '../lib/fixSuperscripts';
-	import { chartNaturalSize, scaleChart } from '../lib/scaleChart';
+	import { chartView, clearChart, embedChart } from '../lib/embedChart';
+	import { chartNaturalSize, scaleChart, watchChartResolution } from '../lib/scaleChart';
 	import { EditorView, basicSetup } from 'codemirror';
 	import { keymap } from '@codemirror/view';
 	import { python } from '@codemirror/lang-python';
 	import { geistLight, geistDark } from '../lib/cmTheme';
 	import { Compartment, EditorState } from '@codemirror/state';
 	import { getRuntime, onRuntimeStatus, type DsRuntime } from '../lib/runtime';
+	import { codeFromHash, exampleFromHash, loadExampleSource } from '../lib/exampleSource';
 	import palettes from '../generated/palettes.json';
 
 	const PALETTE_COLORS: Record<string, string[]> = Object.fromEntries(
@@ -299,18 +300,6 @@ high,100,26.4,6`;
 	const q = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
 	const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-	/** Code from a #code=<base64 utf-8> deep link, if present and decodable. */
-	function hashCode(): string | null {
-		const m = location.hash.match(/#code=([^&]+)/);
-		if (!m) return null;
-		try {
-			const bytes = Uint8Array.from(atob(decodeURIComponent(m[1])), (c) => c.charCodeAt(0));
-			return new TextDecoder().decode(bytes);
-		} catch {
-			return null;
-		}
-	}
-
 	function initStudio() {
 		const root = document.getElementById('studio');
 		if (!root || root.dataset.booted) return;
@@ -325,7 +314,13 @@ high,100,26.4,6`;
 		let columns: Column[] = [];
 		let fileName = 'data.csv';
 		let fileFormat: 'csv' | 'tsv' | 'json' = 'csv';
-		let mode: 'build' | 'code' = hashCode() === null ? 'build' : 'code';
+		let mode: 'build' | 'code' =
+			codeFromHash(location.hash) !== null || exampleFromHash(location.hash) !== null ? 'code' : 'build';
+		let sourceRequest = 0;
+		let sourcePending = false;
+		let sourceFailed = false;
+		let runtimeBooted = false;
+		let renderGeneration = 0;
 
 		const setStatus = (msg: string, kind = '') => {
 			statusEl.textContent = msg;
@@ -347,7 +342,7 @@ high,100,26.4,6`;
 		const themeCompartment = new Compartment();
 		const cmTheme = () => (isDark() ? geistDark : geistLight);
 		const editor = new EditorView({
-			doc: hashCode() ?? '',
+			doc: codeFromHash(location.hash) ?? '',
 			extensions: [
 				basicSetup,
 				python(),
@@ -540,8 +535,8 @@ high,100,26.4,6`;
 			if (pal) t.push(`palette=${q(pal)}`);
 			const w = +el<HTMLInputElement>('st-w').value;
 			const h = +el<HTMLInputElement>('st-h').value;
-			if (w !== 100) t.push(`chartWidth=${w}`);
-			if (h !== 100) t.push(`chartHeight=${h}`);
+			if (w !== 100) t.push(`width=${w}`);
+			if (h !== 100) t.push(`height=${h}`);
 			const axisOffset = el<HTMLInputElement>('st-axisoffset').value.trim();
 			if (axisOffset !== '') t.push(`axisOffset=${+axisOffset}`);
 			const xangle = +el<HTMLInputElement>('st-xangle').value;
@@ -594,8 +589,8 @@ high,100,26.4,6`;
 				const off = `${transform}_x`;
 				const call =
 					transform === 'jitter'
-						? `df = ds.add_jitter(df)`
-						: `df = ds.add_${transform}(df, ${q(y)}, groupBy=[${q(x)}])`;
+						? `df = ds.transforms.jitter(df)`
+						: `df = ds.transforms.${transform}(df, ${q(y)}, groupBy=[${q(x)}])`;
 				const enc = [
 					`        x=alt.X("${x}:N", title=None),`,
 					`        y=alt.Y("${y}:Q"),`,
@@ -630,12 +625,12 @@ high,100,26.4,6`;
 
 			// Layers compose with + : shade under, statistics/rules/text over, multilabel wraps.
 			if (categorical && el<HTMLInputElement>('st-shade').checked) {
-				body.push('', `chart = ds.add_shade(categories=categories) + chart`);
+				body.push('', `chart = ds.shade(categories=categories) + chart`);
 			}
 			const shadeLo = el<HTMLInputElement>('st-shade-lo').value.trim();
 			const shadeHi = el<HTMLInputElement>('st-shade-hi').value.trim();
 			if (shadeLo !== '' && shadeHi !== '') {
-				body.push('', `chart = ds.add_shade(positions=[(${+shadeLo}, ${+shadeHi})], axis="y") + chart`);
+				body.push('', `chart = ds.shade(positions=[(${+shadeLo}, ${+shadeHi})], axis="y") + chart`);
 			}
 
 			if (type === 'point' && xtype === 'Q') {
@@ -643,7 +638,7 @@ high,100,26.4,6`;
 				if (method) {
 					const opts = [`method=${q(method)}`];
 					if (el<HTMLInputElement>('st-corr-verbose').checked) opts.push('verbose=True');
-					body.push('', `chart = chart + ds.add_correlation(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
+					body.push('', `chart = chart + ds.stats.correlation(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
 				}
 			}
 
@@ -653,9 +648,9 @@ high,100,26.4,6`;
 				if (labelStyle !== 'p') opts.push(`labelStyle=${q(labelStyle)}`);
 				if (wantsBrackets) {
 					body.push('', `pairs = list(combinations(categories, 2))`);
-					body.push(`chart = chart + ds.add_comparisons(df, ${q(x)}, ${q(y)}, pairs, ${opts.join(', ')})`);
+						body.push(`chart = chart + ds.stats.comparisons(df, ${q(x)}, ${q(y)}, pairs, ${opts.join(', ')})`);
 				} else {
-					body.push('', `chart = chart + ds.add_comparisons(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
+						body.push('', `chart = chart + ds.stats.comparisons(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
 				}
 			}
 
@@ -663,20 +658,20 @@ high,100,26.4,6`;
 			if (rule !== '') {
 				const label = el<HTMLInputElement>('st-rule-label').value.trim();
 				const labelArg = label ? `, label=${q(label)}` : '';
-				body.push('', `chart = chart + ds.add_rule(${+rule}${labelArg})`);
+				body.push('', `chart = chart + ds.rule(y=${+rule}${labelArg})`);
 			}
 
 			const textNote = el<HTMLInputElement>('st-text').value.trim();
 			if (textNote !== '') {
 				const pos = el<HTMLSelectElement>('st-text-pos').value;
-				body.push('', `chart = chart + ds.add_text(${q(textNote)}, position=${q(pos)})`);
+				body.push('', `chart = chart + ds.text(${q(textNote)}, position=${q(pos)})`);
 			}
 
 			if (categorical && el<HTMLInputElement>('st-multilabel').checked) {
 				const rows = parseRows();
 				const opts: string[] = [];
 				if (el<HTMLInputElement>('st-samplesize').checked)
-					opts.push(`showSampleSize=True`, `df=df`, `xCol=${q(x)}`);
+					opts.push(`showSampleSize=True`, `data=df`, `x=${q(x)}`);
 				if (el<HTMLInputElement>('st-catlabels').checked) opts.push('categoryLabel=True');
 				body.push(
 					'',
@@ -710,8 +705,7 @@ high,100,26.4,6`;
 		// Fit the render to the panel: the site-wide 3.5x chart zoom overflows once a legend
 		// or a wide canvas grows the chart - cap the zoom so the whole figure stays in view.
 		function fitChartZoom() {
-			// The natural size comes from the viewBox, so re-fitting never compounds (this runs
-			// on every resize, and scaleChart writes the svg's width/height).
+			// The natural size is independent of zoom, so repeated fitting never compounds.
 			const natural = chartNaturalSize(chartEl);
 			if (!natural) return;
 			// Measure the PARENT panel: the chart div itself is (re)classed .vega-embed and can
@@ -719,24 +713,30 @@ high,100,26.4,6`;
 			const panel = chartEl.parentElement?.getBoundingClientRect().width ?? 0;
 			const avail = panel - 34; // chart padding + panel border
 			if (avail <= 0) return;
-			scaleChart(chartEl, Math.min(3.5, Math.max(1, avail / natural.width)));
+			scaleChart(chartEl, Math.min(3.5, Math.max(1, avail / natural.width)), chartView(chartEl));
 		}
-		new ResizeObserver(() => fitChartZoom()).observe(chartEl);
+		const chartObserver = new ResizeObserver(fitChartZoom);
+		chartObserver.observe(chartEl);
+		const stopResolution = watchChartResolution(fitChartZoom);
+		document.addEventListener('astro:before-swap', () => {
+			chartObserver.disconnect();
+			stopResolution();
+			renderGeneration++;
+			clearChart(chartEl);
+		}, { once: true });
 
 		async function renderSpec(code: string) {
 			if (!runtime) return;
+			const id = ++renderGeneration;
 			setStatus('Rendering…');
 			try {
 				const spec = JSON.parse(runtime.runChart(code, isDark()));
-				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
-				alignGridToContent(chartEl, spec);
-				alignFigureLabels(chartEl);
-				typesetScripts(chartEl);
-				italicizeStatSymbols(chartEl);
-				fitChartZoom();
+				await embedChart(chartEl, spec, { actions: true, flipBeforeText: true, afterRender: fitChartZoom });
+				if (id !== renderGeneration) return;
 				clearError();
 				setStatus('', 'ok');
 			} catch (e) {
+				if (id !== renderGeneration) return;
 				setStatus('Error', 'err');
 				showError(e);
 				console.error(e);
@@ -758,6 +758,7 @@ high,100,26.4,6`;
 			renderTimer = window.setTimeout(renderBuild, 150);
 		}
 		async function runCode() {
+			if (sourcePending || sourceFailed) return;
 			await renderSpec(editor.state.doc.toString());
 		}
 		function rerenderCurrent() {
@@ -811,7 +812,7 @@ high,100,26.4,6`;
 
 		// A file saved by ds.save(): a JSON spec rebuilds the chart through ds.load() (run in
 		// the code editor, so the shown snippet is exactly what executed); JSON, SVG, and PNG
-		// all surface their embedded dysonsphere block via ds.read().
+		// all surface their embedded dysonsphere block via ds.metadata.read().
 		async function importExport(file: File) {
 			const rt = runtime ?? (await getRuntime());
 			runtime = rt;
@@ -914,6 +915,9 @@ high,100,26.4,6`;
 		});
 		el('st-edit').addEventListener('click', () => setMode('code', buildCode()));
 		el('st-back').addEventListener('click', () => {
+			++sourceRequest; // Ignore a source fetch that finishes after leaving code mode.
+			sourcePending = sourceFailed = false;
+			el('st-source-retry').hidden = true;
 			setMode('build');
 			scheduleRender();
 		});
@@ -927,21 +931,60 @@ high,100,26.4,6`;
 			rerenderCurrent();
 		}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
-		// A new #code= deep link while already on this page replaces the editor and re-runs.
+		const retrySource = el<HTMLButtonElement>('st-source-retry');
+		async function openExample(name: string) {
+			const request = ++sourceRequest;
+			sourcePending = true;
+			sourceFailed = false;
+			retrySource.hidden = true;
+			setMode('code', '');
+			clearError();
+			setStatus('Loading example source…');
+			try {
+				const source = await loadExampleSource(name, import.meta.env.BASE_URL);
+				if (request !== sourceRequest) return;
+				setMode('code', source);
+				sourcePending = false;
+				if (runtimeBooted) await runCode();
+			} catch (error) {
+				if (request !== sourceRequest) return;
+				sourcePending = false;
+				sourceFailed = true;
+				setStatus('Could not load example source', 'err');
+				showError(error);
+				retrySource.hidden = false;
+			}
+		}
+		retrySource.addEventListener('click', () => {
+			const name = exampleFromHash(location.hash);
+			if (name) void openExample(name);
+		});
+		// New source links work without reloading Studio; legacy #code= links stay valid.
 		window.addEventListener('hashchange', () => {
-			const code = hashCode();
+			const name = exampleFromHash(location.hash);
+			if (name) {
+				void openExample(name);
+				return;
+			}
+			const code = codeFromHash(location.hash);
 			if (code === null) return;
+			++sourceRequest;
+			sourcePending = sourceFailed = false;
+			retrySource.hidden = true;
+			clearError();
 			setMode('code', code);
-			if (runtime) runCode();
+			if (runtimeBooted) void runCode();
 		});
 
-		// Initial state: code mode when deep-linked, builder otherwise. The builder shows its
-		// generated snippet immediately; the chart appears once the runtime boots.
-		if (mode === 'code') setMode('code');
-		else setBuilderCode(buildCode());
+		// Start fetching only for an explicit example link, independently of runtime boot.
+		if (mode === 'code') {
+			setMode('code');
+			const name = exampleFromHash(location.hash);
+			if (name) void openExample(name);
+		} else setBuilderCode(buildCode());
 		syncVisibility();
 		onRuntimeStatus((msg) => {
-			if (!runtime) setStatus(msg);
+			if (!runtime && !sourcePending && !sourceFailed) setStatus(msg);
 		});
 		getRuntime()
 			.then(async (rt) => {
@@ -964,8 +1007,9 @@ high,100,26.4,6`;
 				setSel('st-y', 'Weight_in_lbs');
 				syncXType();
 				syncVisibility();
+				runtimeBooted = true;
 				if (mode === 'build') renderBuild();
-				if (mode === 'code') await runCode();
+				if (mode === 'code' && !sourcePending && !sourceFailed) await runCode();
 			})
 			.catch((e) => {
 				setStatus('Boot failed', 'err');

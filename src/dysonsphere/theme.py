@@ -1,62 +1,66 @@
+import math
 import os
 import tomllib
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Sequence
 
 import altair as alt
 
-from .palettes import _DEFAULT_QUALITATIVE_PALETTE, colors
+from .palettes import _DEFAULT_QUALITATIVE_PALETTE, _PALETTE_ALIASES, colors
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["theme", "create_config"]
 
-# Snapshot of the original palette catalogue at import time — restored on each
-# theme() call so custom palettes from config files don't accumulate or bleed
-# across theme resets.
+# Restore the imported palette catalog on each theme() call
+# so config palettes do not accumulate across theme resets.
 _ORIGINAL_COLORS: dict[str, list[str]] = dict(colors)
+_DEFAULT_MARK_FILL_LIGHT = "#DBDBDB"
+_DEFAULT_MARK_FILL_DARK = "#9D9D9D"
 
 _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
+    "small": {
+        "width": 70,
+        "height": 70,
+        "fontSize": 5,
+    },
     "notebook": {
-        "chartWidth": 900,
-        "chartHeight": 900,
+        "width": 900,
+        "height": 900,
         "darkmode": True,
         "fontSize": 18,
         "transparent": True,
     },
 }
 
-# Keys are alphabetical (case-insensitive), with the exception of padding and palette configs.
 _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisOffset": False,
     "axisWidth": 0.25,
-    "boxplotOutliers": False,
     "chartFill": None,
-    "chartHeight": 100,
-    "chartWidth": 100,
     "closed": None,
     "cornerRadius": False,
     "darkmode": False,
-    "dashedGrid": False,
-    "dashedLine": False,
-    "dashedRule": True,
-    "dashedWidth": [2, 2],
     "font": "Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif",
-    "fontSize": 7,
+    "fontGreek": "Symbol",
+    "fontSize": 6,
     "fontStyle": "normal",
     "fontWeight": 400,
     "grid": False,
     "gridColor": colors["greys"][0],
-    "inwardTicks": False,
+    "gridStrokeDash": False,
+    "height": 100,
     "legend": True,
     "legendColumnPadding": 4,
+    "legendGradientLength": None,
+    "legendGradientThickness": 5,
     "legendOffset": None,
     "legendRowPadding": 2,
     "legendStroke": False,
+    "legendTickCount": None,
+    "lineStrokeDash": False,
     "markFill": colors["greys"][1],
     "markFillOpacity": 1.0,
     "markMedianFill": "black",
-    "markMedianStroke": "black",
     "markSize": None,
     "markStroke": "black",
     "markStrokeOpacity": 1,
@@ -69,21 +73,28 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "tickPadding": 0.1,
     "palette": None,
     "categoryPalette": None,
+    "categoryPaletteDarkmode": None,
     "divergingPalette": None,
+    "divergingPaletteDarkmode": None,
     "heatmapPalette": None,
+    "heatmapPaletteDarkmode": None,
     "ordinalPalette": None,
+    "ordinalPaletteDarkmode": None,
     "rampPalette": None,
+    "rampPaletteDarkmode": None,
+    "ruleStrokeDash": True,
     "saveBackground": "light",
     "saveFormat": ["svg", "json"],
-    "secondaryFontSize": None,
     "sigFigs": 3,
-    "smallestFontSize": 5,
     "strokeCap": "round",
+    "strokeDash": [2, 2],
+    "tickDirection": "out",
     "ticks": True,
-    "tickSize": 3,
+    "tickSize": 3.0,
     "transparent": False,
     "viewFill": None,
     "viewPadding": True,
+    "width": 100,
     "xAxis": True,
     "xDomain": True,
     "xLabelAngle": 0,
@@ -95,29 +106,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "yLabels": True,
     "yTicks": True,
 }
-
-
-# DEPRECATED (remove at v4.0.0): old parameter names, silently mapped to their
-# replacements. A value maps to one or more new keys - `bandPadding` set both the
-# inner and outer band padding, so it expands to the two keys that now carry them.
-_DEPRECATED_ALIASES: dict[str, tuple[str, ...]] = {
-    "bandPadding": ("barPadding", "outerPadding"),  # split by mark type in v3.11
-}
-
-
-def _apply_deprecated_aliases(params: dict[str, Any]) -> dict[str, Any]:
-    """Map deprecated parameter names to their replacements.
-
-    Returns a new dict with old keys renamed. An explicitly-set new name wins over
-    the value inherited from the old one.
-    """
-    out = dict(params)
-    for old, new_keys in _DEPRECATED_ALIASES.items():
-        if old in out:
-            val = out.pop(old)
-            for new in new_keys:
-                out.setdefault(new, val)
-    return out
 
 
 def _find_project_config() -> Path | None:
@@ -160,9 +148,9 @@ def _load_style_overrides(style: str | None) -> dict[str, Any]:
     Build the final override dict for theme().
 
     Merge order (ascending priority):
-      1. [default] blocks from config files   — user's global baseline
-      2. built-in style preset                — preset-specific values beat [default]
-      3. [style] blocks from config files     — user can customise the built-in preset
+      1. [default] blocks from config files   – user's global baseline
+      2. built-in style preset                – preset-specific values beat [default]
+      3. [style] blocks from config files     – user can customize the built-in preset
     """
     default_cfg: dict[str, Any] = {}
     style_cfg: dict[str, Any] = {}
@@ -174,7 +162,6 @@ def _load_style_overrides(style: str | None) -> dict[str, Any]:
 
         for section in ("default", style):
             if section and section in config:
-                config[section] = _apply_deprecated_aliases(config[section])
                 unknown = set(config[section]) - set(_BUILTIN_DEFAULTS)
                 if unknown:
                     raise ValueError(f"Unknown theme parameter(s) in [{section}] of {path}: {sorted(unknown)}")
@@ -204,120 +191,429 @@ def _load_custom_palettes() -> dict[str, list[str]]:
         with open(path, "rb") as f:
             config: dict[str, Any] = tomllib.load(f)
         palettes_section = config.get("palettes", {})
+        file_palettes: dict[str, list[str]] = {}
         for name, values in palettes_section.items():
             if not isinstance(values, list) or len(values) == 0:
-                raise ValueError(f"Palette {name!r} in {path} must be a non-empty list of hex strings.")
-            if not all(isinstance(v, str) for v in values):
-                raise ValueError(f"Palette {name!r} in {path} must contain only strings (hex color codes).")
-            custom[name] = values
+                raise ValueError(f"Palette {name!r} in {path} must be a non-empty list of color strings.")
+            if not all(isinstance(v, str) and v for v in values):
+                raise ValueError(f"Palette {name!r} in {path} must contain only color strings.")
+            canonical = _PALETTE_ALIASES.get(name, name)
+            if canonical in file_palettes and file_palettes[canonical] != values:
+                aliases = sorted(key for key in palettes_section if _PALETTE_ALIASES.get(key, key) == canonical)
+                raise ValueError(f"Conflicting palette definitions {aliases} in {path}; use identical values.")
+            file_palettes[canonical] = values
+        for canonical, values in file_palettes.items():
+            custom[canonical] = values
+            for alias, target in _PALETTE_ALIASES.items():
+                if target == canonical:
+                    custom[alias] = values
     return custom
 
 
-def theme(style: str | None = None, **kwargs: Any) -> None:
+class _UnsetType:
+    def __repr__(self) -> str:
+        return "<omitted>"
+
+
+_UNSET: Any = _UnsetType()
+
+
+def _resolve_choice(value: str | Sequence[str], valid: tuple[str, ...], name: str) -> list[str]:
+    """Normalize and validate a non-empty string-or-sequence choice."""
+    if not isinstance(value, str) and (isinstance(value, bytes) or not isinstance(value, Sequence)):
+        raise TypeError(f"{name} must be a string or sequence of strings; got {value!r}")
+    items = [value] if isinstance(value, str) else list(value)
+    if not items:
+        raise ValueError(f"{name} must be non-empty; got {value!r}")
+    invalid = [item for item in items if not isinstance(item, str) or item not in valid]
+    if invalid:
+        raise ValueError(f"{name} must be one of {valid}, got {invalid!r}")
+    return items
+
+
+def _validate_options(p: dict[str, Any]) -> None:
+    """Validate source values before deriving or committing theme state."""
+    bool_keys = {
+        "darkmode",
+        "grid",
+        "gridStrokeDash",
+        "lineStrokeDash",
+        "legend",
+        "legendStroke",
+        "ruleStrokeDash",
+        "ticks",
+        "transparent",
+        "xAxis",
+        "xDomain",
+        "xLabels",
+        "xTicks",
+        "yAxis",
+        "yDomain",
+        "yLabels",
+        "yTicks",
+    }
+    for key in bool_keys:
+        if not isinstance(p[key], bool):
+            raise TypeError(f"{key} must be a bool; got {p[key]!r}")
+    if p["closed"] is not None and not isinstance(p["closed"], bool):
+        raise TypeError(f"closed must be a bool or None; got {p['closed']!r}")
+    if not isinstance(p["tickDirection"], str):
+        raise TypeError(f"tickDirection must be 'in' or 'out'; got {p['tickDirection']!r}")
+    if p["tickDirection"] not in ("in", "out"):
+        raise ValueError(f"tickDirection must be 'in' or 'out'; got {p['tickDirection']!r}")
+
+    def number(key: str, *, positive: bool = False, nonnegative: bool = False, allow_none: bool = False) -> None:
+        value = p[key]
+        if allow_none and value is None:
+            return
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"{key} must be a number{', or None' if allow_none else ''}; got {value!r}")
+        if not math.isfinite(value):
+            raise ValueError(f"{key} must be finite; got {value!r}")
+        if positive and value <= 0:
+            raise ValueError(f"{key} must be positive; got {value!r}")
+        if nonnegative and value < 0:
+            raise ValueError(f"{key} must be nonnegative; got {value!r}")
+
+    for key in ("width", "height", "fontSize", "legendGradientThickness"):
+        number(key, positive=True)
+    number("legendGradientLength", positive=True, allow_none=True)
+    number("legendTickCount", positive=True, allow_none=True)
+    for key in ("axisWidth", "tickSize", "legendColumnPadding", "legendRowPadding"):
+        number(key, nonnegative=True)
+    for key in ("markSize", "markStrokeWidth"):
+        number(key, nonnegative=True, allow_none=True)
+    for key in ("axisOffset", "legendOffset", "xLabelAngle", "yLabelAngle"):
+        if key == "axisOffset" and isinstance(p[key], bool):
+            continue
+        if key == "axisOffset" and p[key] is None:
+            raise ValueError("axisOffset=None is not supported; use False, True, or a numeric offset.")
+        number(key, allow_none=key == "legendOffset")
+    for key in ("markFillOpacity", "markStrokeOpacity"):
+        number(key, nonnegative=True)
+        if p[key] > 1:
+            raise ValueError(f"{key} must be between 0 and 1; got {p[key]!r}")
+    for key in ("barPadding", "rectPadding", "tickPadding", "groupPadding", "subgroupPadding"):
+        number(key, nonnegative=True)
+        if p[key] > 1:
+            raise ValueError(f"{key} must be at most 1; got {p[key]!r}")
+    number("outerPadding", nonnegative=True)
+    for key in ("cornerRadius", "viewPadding"):
+        if not isinstance(p[key], bool):
+            number(key, nonnegative=True)
+
+    if isinstance(p["sigFigs"], bool) or not isinstance(p["sigFigs"], int):
+        raise TypeError(f"sigFigs must be an integer; got {p['sigFigs']!r}")
+    if p["sigFigs"] <= 0:
+        raise ValueError(f"sigFigs must be positive; got {p['sigFigs']!r}")
+    if p["fontStyle"] not in ("normal", "italic", "oblique"):
+        raise ValueError("fontStyle must be 'normal', 'italic', or 'oblique'")
+    if p["strokeCap"] not in ("butt", "round", "square"):
+        raise ValueError("strokeCap must be 'butt', 'round', or 'square'")
+    weight = p["fontWeight"]
+    if isinstance(weight, bool) or not isinstance(weight, (str, int, float)):
+        raise TypeError(f"fontWeight must be a CSS weight name or number; got {weight!r}")
+    if isinstance(weight, str):
+        if weight not in {"normal", "bold", "lighter", "bolder"}:
+            raise ValueError(f"fontWeight has unsupported CSS weight name {weight!r}")
+    elif not math.isfinite(weight) or not 1 <= weight <= 1000:
+        raise ValueError(f"numeric fontWeight must be finite and between 1 and 1000; got {weight!r}")
+    for key in ("font", "gridColor", "markFill", "markMedianFill", "markStroke"):
+        if not isinstance(p[key], str) or not p[key]:
+            raise TypeError(f"{key} must be a non-empty color or font string; got {p[key]!r}")
+    if p["fontGreek"] is not None:
+        if not isinstance(p["fontGreek"], str):
+            raise TypeError(f"fontGreek must be a non-empty font string or None; got {p['fontGreek']!r}")
+        if not p["fontGreek"].strip():
+            raise ValueError("fontGreek must not be blank")
+    for key in ("chartFill", "viewFill"):
+        if p[key] is not None and (not isinstance(p[key], str) or not p[key]):
+            raise TypeError(f"{key} must be a non-empty color string or None; got {p[key]!r}")
+    dash = p["strokeDash"]
+    if isinstance(dash, (str, bytes)) or not isinstance(dash, Sequence):
+        raise TypeError(f"strokeDash must be a sequence of numbers; got {dash!r}")
+    for value in dash:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"strokeDash must contain only numbers; got {dash!r}")
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"strokeDash values must be finite and nonnegative; got {dash!r}")
+    p["strokeDash"] = list(dash)
+    palette_keys = (
+        "palette",
+        "categoryPalette",
+        "categoryPaletteDarkmode",
+        "divergingPalette",
+        "divergingPaletteDarkmode",
+        "heatmapPalette",
+        "heatmapPaletteDarkmode",
+        "ordinalPalette",
+        "ordinalPaletteDarkmode",
+        "rampPalette",
+        "rampPaletteDarkmode",
+    )
+    for key in palette_keys:
+        value = p[key]
+        if isinstance(value, str) and not value.strip():
+            raise ValueError(f"{key} must not be blank")
+        if value is not None and not isinstance(value, str):
+            if not isinstance(value, list) or not value or not all(isinstance(item, str) and item for item in value):
+                raise TypeError(f"{key} must be a name, a non-empty list of color strings, or None; got {value!r}")
+    _resolve_choice(p["saveFormat"], ("svg", "png", "json", "html"), "saveFormat")
+    _resolve_choice(p["saveBackground"], ("light", "dark"), "saveBackground")
+
+
+def theme(
+    style: str | None = None,
+    *,
+    axisOffset: int | float | bool = _UNSET,
+    axisWidth: int | float = _UNSET,
+    chartFill: str | None = _UNSET,
+    closed: bool | None = _UNSET,
+    cornerRadius: int | float | bool = _UNSET,
+    darkmode: bool = _UNSET,
+    font: str = _UNSET,
+    fontGreek: str | None = _UNSET,
+    fontSize: int | float = _UNSET,
+    fontStyle: str = _UNSET,
+    fontWeight: str | int | float = _UNSET,
+    grid: bool = _UNSET,
+    gridColor: str = _UNSET,
+    gridStrokeDash: bool = _UNSET,
+    height: int | float = _UNSET,
+    legend: bool = _UNSET,
+    legendColumnPadding: int | float = _UNSET,
+    legendGradientLength: int | float | None = _UNSET,
+    legendGradientThickness: int | float = _UNSET,
+    legendOffset: int | float | None = _UNSET,
+    legendRowPadding: int | float = _UNSET,
+    legendStroke: bool = _UNSET,
+    legendTickCount: int | float | None = _UNSET,
+    lineStrokeDash: bool = _UNSET,
+    markFill: str = _UNSET,
+    markFillOpacity: int | float = _UNSET,
+    markMedianFill: str = _UNSET,
+    markSize: int | float | None = _UNSET,
+    markStroke: str = _UNSET,
+    markStrokeOpacity: int | float = _UNSET,
+    markStrokeWidth: int | float | None = _UNSET,
+    barPadding: int | float = _UNSET,
+    groupPadding: int | float = _UNSET,
+    outerPadding: int | float = _UNSET,
+    rectPadding: int | float = _UNSET,
+    subgroupPadding: int | float = _UNSET,
+    tickPadding: int | float = _UNSET,
+    palette: str | list[str] | None = _UNSET,
+    categoryPalette: str | list[str] | None = _UNSET,
+    categoryPaletteDarkmode: str | list[str] | None = _UNSET,
+    divergingPalette: str | list[str] | None = _UNSET,
+    divergingPaletteDarkmode: str | list[str] | None = _UNSET,
+    heatmapPalette: str | list[str] | None = _UNSET,
+    heatmapPaletteDarkmode: str | list[str] | None = _UNSET,
+    ordinalPalette: str | list[str] | None = _UNSET,
+    ordinalPaletteDarkmode: str | list[str] | None = _UNSET,
+    rampPalette: str | list[str] | None = _UNSET,
+    rampPaletteDarkmode: str | list[str] | None = _UNSET,
+    ruleStrokeDash: bool = _UNSET,
+    saveBackground: str | Sequence[str] = _UNSET,
+    saveFormat: str | Sequence[str] = _UNSET,
+    sigFigs: int = _UNSET,
+    strokeCap: str = _UNSET,
+    strokeDash: Sequence[int | float] = _UNSET,
+    tickDirection: Literal["in", "out"] = _UNSET,
+    ticks: bool = _UNSET,
+    tickSize: int | float = _UNSET,
+    transparent: bool = _UNSET,
+    viewFill: str | None = _UNSET,
+    viewPadding: int | float | bool = _UNSET,
+    width: int | float = _UNSET,
+    xAxis: bool = _UNSET,
+    xDomain: bool = _UNSET,
+    xLabelAngle: int | float = _UNSET,
+    xLabels: bool = _UNSET,
+    xTicks: bool = _UNSET,
+    yAxis: bool = _UNSET,
+    yDomain: bool = _UNSET,
+    yLabelAngle: int | float = _UNSET,
+    yLabels: bool = _UNSET,
+    yTicks: bool = _UNSET,
+) -> None:
     """
     Configure and register the dysonsphere Altair theme.
 
-    All parameters are optional — pass only the ones you want to change.
-    Everything else uses the dysonsphere built-in defaults.
+    ``style`` is an optional positional argument; all styling options are keyword-only. Omitted
+    options inherit the applicable TOML/default/style value; a successful call replaces, rather
+    than updates, the active theme. Explicit ``None`` retains its documented meaning for
+    auto-derived fills, frame state, offsets, and mark dimensions.
+    Runtime introspection displays ``<omitted>`` for omitted styling defaults; generated source
+    signatures may show the private ``_UNSET`` marker. Neither is a value callers pass.
+
+    By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=6`` is a nominal
+    publication point size; SVG markup exposes the same number as a renderer user-unit value, and raster
+    export scales from 72 intrinsic units per inch. Axis, tick, legend, radius, and linear composite
+    dimensions are pixels. ``legendGradientLength=None`` allocates half the panel height to a
+    vertical title-plus-gradient span and the full panel width to a horizontal gradient. A positive
+    number is instead a dimensionless factor applied to either orientation at spec-resolution time;
+    ``legendGradientThickness`` is a positive pixel width independent of marks and chart dimensions.
+    ``legendTickCount=None`` keeps automatic tick counts on gradient legends.
+    ``markSize=None`` derives one tenth of
+    the smaller canvas dimension and is the common basis for symbol areas and composite dimensions;
+    ``markStrokeWidth=None`` derives from ``axisWidth``. An omitted and unconfigured ``markFill``
+    follows the render mode (``greys[1]`` light, ``greys[4]`` dark); an explicit or configured value
+    stays fixed across modes. Circle marks keep their separate black/white fill.
+    ``fontGreek="Symbol"`` switches Unicode Greek letters to that named font in corrected SVG/PNG
+    output and ``ds.show()`` while leaving the surrounding font untouched. Set it to ``None`` to
+    disable switching, or provide another nonblank font family name. Fonts are referenced, not embedded;
+    interactive HTML and bare Altair rendering do not receive this SVG typography correction.
+
+    Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
+    ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True`` and ``cornerRadius=True`` derive
+    size-dependent values; False disables them and a nonnegative number is explicit. Inner band
+    paddings are dimensionless values in [0, 1]; ``outerPadding`` is any nonnegative value. Opacities
+    are in [0, 1]. ``strokeDash`` is the shared sequence of finite nonnegative pixel lengths;
+    ``gridStrokeDash``, ``lineStrokeDash``, and ``ruleStrokeDash`` select it for those components.
+    Empty and odd-length sequences are valid.
+
+    Palette options accept a nonblank registered name, renderer scheme name, nonempty color-string
+    list, or None. The five ``*PaletteDarkmode`` options are used only in dark mode when non-None;
+    otherwise their regular per-type palette is used in both modes. With neither category option set,
+    the categorical range defaults to ``cat1`` in light mode and ``cat2`` in dark mode. Diverging,
+    heatmap, ordinal, and ramp default to ``div1``, ``viridis``, ``greys``, and ``viridis`` in light
+    mode and ``div2``, ``viridis``, ``greys``, and ``viridis`` in dark mode. The master
+    ``palette`` remains None by default and overrides every per-type palette, including dark-mode
+    overrides, after source precedence is resolved. ``saveFormat`` accepts svg/png/json/html and
+    ``saveBackground`` accepts light/dark as a string or nonempty sequence. See the [configuration
+    guide](/guides/configuration/) for the complete per-option defaults and scopes.
 
     A TOML config file can provide persistent per-project or per-user
     overrides. See the README for the config file format and search path.
     Named styles in the config file are selected with ``style=``.
+
+    Raises
+    ------
+    TypeError
+        If a value has the wrong type. Boolean switches reject numeric substitutes.
+    ValueError
+        If a configuration file contains an unknown parameter or invalid palette, a requested style
+        is unavailable, or a value is outside its finite range or supported enum. Failed calls leave
+        the active theme and palette registry unchanged.
     """
     global _ACTIVE_ARGS
-    _ACTIVE_ARGS = {**kwargs, **({"style": style} if style is not None else {})}
-    kwargs = _apply_deprecated_aliases(kwargs)
-    unknown = set(kwargs) - set(_BUILTIN_DEFAULTS)
-    if unknown:
-        raise TypeError(f"theme() got unexpected keyword argument(s): {sorted(unknown)}")
-
-    # Restore built-in palettes, then layer in any custom palettes from config files.
-    colors.clear()
-    colors.update(_ORIGINAL_COLORS)
-    colors.update(_load_custom_palettes())
+    if style is not None and not isinstance(style, str):
+        raise TypeError(f"style must be a string or None; got {style!r}")
+    supplied = {key: value for key, value in locals().items() if key != "style" and value is not _UNSET}
 
     overrides = _load_style_overrides(style)
-    p: dict[str, Any] = {**_BUILTIN_DEFAULTS, **overrides, **kwargs}
+    custom_palettes = _load_custom_palettes()
+    p: dict[str, Any] = {**_BUILTIN_DEFAULTS, **overrides, **supplied}
+    mark_fill_auto = "markFill" not in overrides and "markFill" not in supplied
+    if mark_fill_auto:
+        p["markFill"] = _DEFAULT_MARK_FILL_DARK if p["darkmode"] else _DEFAULT_MARK_FILL_LIGHT
+    _validate_options(p)
     _compute_derived(p)
+    _validate_options(p)
 
-    # Resolve every palette-valued key: a name in `colors` (built-in or custom)
-    # becomes its hex list; anything else (a raw list, or a Vega scheme name) is
-    # passed through unchanged.
-    for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
+    # Resolve every palette-valued key
+    palette_keys = (
+        "palette",
+        "categoryPalette",
+        "categoryPaletteDarkmode",
+        "divergingPalette",
+        "divergingPaletteDarkmode",
+        "heatmapPalette",
+        "heatmapPaletteDarkmode",
+        "ordinalPalette",
+        "ordinalPaletteDarkmode",
+        "rampPalette",
+        "rampPaletteDarkmode",
+    )
+    for key in palette_keys:
         val = p[key]
-        p[key] = colors[val] if isinstance(val, str) and val in colors else val
+        p[key] = custom_palettes.get(val, _ORIGINAL_COLORS.get(val, val)) if isinstance(val, str) else val
 
-    alt.theme.options = {**p, "tickWidth": p["axisWidth"]}
+    colors.clear()
+    colors.update(_ORIGINAL_COLORS)
+    colors.update(custom_palettes)
+    alt.theme.options = {**p, "tickWidth": p["axisWidth"], "_markFillAuto": mark_fill_auto}
+    _ACTIVE_ARGS = {**supplied, **({"style": style} if style is not None else {})}
 
 
 def _compute_derived(p: dict[str, Any]) -> None:
-    """Resolve the derive-at-theme-time sentinels in *p* in place (None / True markers).
+    """Resolve the derive-at-theme-time markers in *p* in place (None / True values).
 
     Shared by :func:`theme` and the :func:`_opt` fallback so both resolve the same way.
     """
-    # Computed defaults — None means "derive from other params"
+    # Computed defaults – None means "derive from other params"
     if p["closed"] is None:
-        # inward ticks point into the plot, so they need a closed (non-offset) axis;
-        # default closed=True when inwardTicks is set (an explicit closed=False still wins).
-        p["closed"] = p["inwardTicks"] or p["viewFill"] is not None
+        # Inward ticks need a closed axis unless the caller explicitly sets closed=False.
+        p["closed"] = p["tickDirection"] == "in" or p["viewFill"] is not None
     if p["markSize"] is None:
-        p["markSize"] = min(p["chartWidth"], p["chartHeight"]) * 0.1
+        p["markSize"] = min(p["width"], p["height"]) * 0.1
     if p["markStrokeWidth"] is None:
         p["markStrokeWidth"] = p["axisWidth"]
     if p["cornerRadius"] is True:
-        p["cornerRadius"] = min(p["chartWidth"], p["chartHeight"]) / 100
-    if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
-        p["boxplotOutliers"] = p["markSize"] / 10
-    if p["viewPadding"] is True:  # closed-plot data inset, chart-scaled like markSize
-        p["viewPadding"] = min(p["chartWidth"], p["chartHeight"]) * 0.05
-    # chartFill=None is resolved at config-build time in _dysonsphere_theme(), NOT here, so it
-    # follows darkmode live (save() toggles darkmode per background without re-running theme()).
-    # Axes are flush by default; the gap between axis and data comes from viewPadding instead.
-    # True restores the Prism-style detached axis at 1.5x tick length - a sentinel rather than a
-    # literal 4.5 so it keeps tracking tickSize. Resolved once here so the axis config and
-    # save()'s grid-span fix read one consistent value.
-    if p["axisOffset"] is True or p["axisOffset"] is None:  # DEPRECATED spelling of True
+        p["cornerRadius"] = min(p["width"], p["height"]) / 100
+    if p["viewPadding"] is True:  # continuous-scale data inset scaled to chart dimensions
+        p["viewPadding"] = min(p["width"], p["height"]) * 0.05
+    if p["axisOffset"] is None:
+        raise ValueError("axisOffset=None is not supported; use False, True, or a numeric offset.")
+    if p["axisOffset"] is True:
         p["axisOffset"] = p["tickSize"] * 1.5
     elif p["axisOffset"] is False:
         p["axisOffset"] = 0
     if p["legendOffset"] is None:
         p["legendOffset"] = p["tickSize"] * 1.5
-    # smallestFontSize is a fixed floor (5) and a minimize switch: True drops the whole
-    # plot's base font to it; False / an int just leaves it retrievable.
-    if p["smallestFontSize"] is True:
-        p["smallestFontSize"] = 5
-        p["fontSize"] = p["smallestFontSize"]
-    elif p["smallestFontSize"] is False:
-        p["smallestFontSize"] = 5
-    if p["secondaryFontSize"] is None:
-        p["secondaryFontSize"] = max(1, p["fontSize"] - 1)  # smaller tier for in-plot annotations
-        if p["fontSize"] >= p["smallestFontSize"]:  # don't let the tier dip below the floor …
-            p["secondaryFontSize"] = max(p["secondaryFontSize"], p["smallestFontSize"])
-        # … unless the user explicitly set fontSize below the floor (escape hatch)
 
 
 _FALLBACK_OPTIONS: dict[str, Any] | None = None
-# the args of the last theme() call - a scoped override rebuilds from these, since the
-# resolved options would freeze markSize and friends instead of re-deriving them
 _ACTIVE_ARGS: dict[str, Any] = {}
 
 
 def _active_args() -> dict[str, Any]:
-    """A copy of the last theme() call's explicit args - theme() rebinds the global, so read it here."""
+    """Return a copy of the explicit arguments from the last ``theme()`` call.
+
+    ``theme()`` rebinds ``_ACTIVE_ARGS``, so callers need a copy.
+    """
     return dict(_ACTIVE_ARGS)
 
 
-def _opt(key: str) -> Any:
-    """Read a theme option, falling back to the (derived) built-in default.
+def _restore_theme(theme_args: dict[str, Any], automatic: set[str]) -> None:
+    """Restore saved resolved options while retaining supported automatic-option provenance."""
+    global _ACTIVE_ARGS
+    theme(**theme_args)
+    if "markFill" in automatic:
+        alt.theme.options["_markFillAuto"] = True
+        _ACTIVE_ARGS.pop("markFill", None)
 
-    The single accessor for theme options outside theme.py — replaces scattered
-    ``alt.theme.options.get(key, hardcoded)`` calls, whose per-site hardcoded fallbacks
-    could silently drift from ``_BUILTIN_DEFAULTS``. After ``ds.theme()`` every option is
-    present in ``alt.theme.options``, so the fallback only matters when a chart helper is
-    called before any ``theme()``; it then sees the fully derived built-in defaults
-    (``markSize`` 10.0, ``axisOffset`` 0, …), computed once and cached. Unknown keys
-    raise ``KeyError``.
-    """
+
+@contextmanager
+def _temporary_theme(overrides: dict[str, Any]):
+    """Re-derive selected options while preserving the exact active theme state."""
+    global _ACTIVE_ARGS
+    previous_options = dict(alt.theme.options)
+    previous_args = dict(_ACTIVE_ARGS)
+    previous_colors = dict(colors)
+    render_mode = {key: previous_options.get(key, _opt(key)) for key in ("darkmode", "transparent")}
+    rebuild_args: dict[str, Any] = {**previous_args, **render_mode, **overrides}
+    mark_fill_auto = previous_options.get("_markFillAuto", True) and "markFill" not in overrides
+    if mark_fill_auto:
+        rebuild_args["markFill"] = _DEFAULT_MARK_FILL_DARK if rebuild_args["darkmode"] else _DEFAULT_MARK_FILL_LIGHT
+    theme(**rebuild_args)
+    if mark_fill_auto:
+        alt.theme.options["_markFillAuto"] = True
+        _ACTIVE_ARGS.pop("markFill", None)
+    try:
+        yield
+    finally:
+        alt.theme.options = previous_options
+        _ACTIVE_ARGS = previous_args
+        colors.clear()
+        colors.update(previous_colors)
+
+
+def _opt(key: str) -> Any:
+    """Read a theme option, falling back to the built-in and/or derived default."""
+    if key == "markFill" and alt.theme.options.get("_markFillAuto", True):
+        return _DEFAULT_MARK_FILL_DARK if alt.theme.options.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
     try:
         return alt.theme.options[key]
     except KeyError:
@@ -331,21 +627,29 @@ def _opt(key: str) -> Any:
 
 @alt.theme.register("dysonsphere", enable=True)
 def _dysonsphere_theme() -> dict[str, Any]:
-    opts = alt.theme.options
+    opts = dict(alt.theme.options)
+    if opts.get("_markFillAuto", True):
+        opts["markFill"] = _DEFAULT_MARK_FILL_DARK if opts.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
 
-    def _scheme(type_key: str, default: Any) -> Any:
-        # Precedence: global `palette` (master override) → per-type `<type>Palette` → default.
+    def _scheme(type_key: str, darkmode_key: str, default: Any, darkmode_default: Any | None = None) -> Any:
+        # Precedence: global `palette` -> dark-mode per-type override -> regular per-type palette -> default.
         if opts.get("palette") is not None:
             return opts["palette"]
+        if opts.get("darkmode") and opts.get(darkmode_key) is not None:
+            return opts[darkmode_key]
         if opts.get(type_key) is not None:
             return opts[type_key]
+        if opts.get("darkmode") and darkmode_default is not None:
+            return darkmode_default
         return default
 
-    # config.range.category must be a BARE array so a nominal scale maps positionally
-    # (category i -> color i), which the tier-major `categorical` palette relies on. The
-    # {"scheme": [...]} form is invalid for nominal and silently drops the range. A Vega
-    # scheme *name* (a str, e.g. "tableau10") still needs the {"scheme": ...} wrapper.
-    _cat = _scheme("categoryPalette", colors[_DEFAULT_QUALITATIVE_PALETTE])
+    # config.range.category must be an array so a nominal scale maps positionally
+    _cat = _scheme(
+        "categoryPalette",
+        "categoryPaletteDarkmode",
+        colors[_DEFAULT_QUALITATIVE_PALETTE],
+        colors["cat2"],
+    )
     category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
     return {
@@ -359,7 +663,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "arc": {
                 "fill": opts["markFill"],
                 "fillOpacity": opts["markFillOpacity"],
-                "innerRadius": min(opts["chartWidth"], opts["chartHeight"]) / 4,
+                "innerRadius": min(opts["width"], opts["height"]) / 4,
                 "padAngle": 0.03,
                 "stroke": opts["markStroke"],
                 "strokeOpacity": opts["markStrokeOpacity"],
@@ -381,7 +685,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "grid": opts["grid"],
                 "gridCap": opts["strokeCap"],
                 "gridColor": (opts["gridColor"] if opts["darkmode"] else opts["gridColor"]),
-                "gridDash": opts["dashedWidth"] if opts["dashedGrid"] else [0, 0],
+                "gridDash": opts["strokeDash"] if opts["gridStrokeDash"] else [0, 0],
                 "gridOpacity": 1.00,
                 "gridWidth": opts["axisWidth"],
                 "labelColor": "white" if opts["darkmode"] else "black",
@@ -393,11 +697,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ticks": opts["ticks"],
                 "tickCap": opts["strokeCap"],
                 "tickColor": "white" if opts["darkmode"] else "black",
-                # Vega rounds tick/grid positions to integers for on-screen crispness, which
-                # drifts them off the (fractional) mark positions at high DPI. tickRound=False
-                # keeps ticks on the exact scale positions - the same family of fix as the
-                # hardcoded "translate": 0 below (Vega's 0.5px crisp-pixel offset).
-                "tickRound": False,
+                "tickRound": False,  # Vega rounds tick positions to integers, throwing off SVG post-alignment
                 "tickSize": opts["tickSize"],
                 "tickWidth": opts["axisWidth"],
                 "titleColor": "white" if opts["darkmode"] else "black",
@@ -438,11 +738,8 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ticks": opts["xAxis"] and opts["xTicks"] and opts["ticks"],
                 "translate": 0,
             },
-            # Band-scale axes place ticks 0.5px off the band centre by default (Vega's
-            # tickOffset, resolved via the scale-type-specific axisBand config, not
-            # config.axis). Zeroing it puts ticks exactly on band centres.
             "axisBand": {
-                "tickOffset": 0,
+                "tickOffset": 0,  # band-scale axes default to placing ticks 0.5 px off the band center
             },
             "bar": {
                 "fill": opts["markFill"],
@@ -457,9 +754,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "ticks": {
                     "cornerRadius": opts["markStrokeWidth"],
                     "fill": "white" if opts["darkmode"] else "black",
-                    # opacity 1 so config.tick's opacity (markFillOpacity) can't leak in
-                    # through the composite lowering and double-dim with fillOpacity
-                    "opacity": 1,
+                    "opacity": 1,  # opacity 1 so config.tick's opacity (markFillOpacity) can't leak in
                     "size": opts["markSize"] * 0.45,  # half the box width (markSize * 0.9)
                     "thickness": opts["markStrokeWidth"],
                 },
@@ -471,15 +766,11 @@ def _dysonsphere_theme() -> dict[str, Any]:
                     **({"cornerRadius": opts["cornerRadius"]} if opts["cornerRadius"] else {}),
                 },
                 "median": {
-                    # square ends, flush with the box edges (config.tick's round caps
-                    # would otherwise inherit through the composite lowering)
                     "cornerRadius": 0,
                     "fill": opts["markMedianFill"],
                     "fillOpacity": opts["markFillOpacity"],
-                    # opacity 1: see the ticks block (fillOpacity alone governs the fade)
                     "opacity": 1,
                     "size": opts["markSize"] * 0.9,  # spans the box
-                    # a single stroke of markStrokeWidth thickness (no competing outline stroke)
                     "thickness": opts["markStrokeWidth"],
                 },
                 "rule": {
@@ -495,7 +786,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                     "color": "white" if opts["darkmode"] else "black",
                     "fill": "white" if opts["darkmode"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
-                    "size": opts["boxplotOutliers"] or 0,  # False → 0 (hidden); a number → that size
+                    "size": 0,
                     "stroke": opts["markStroke"],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
@@ -504,13 +795,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "circle": {
                 "fill": "white" if opts["darkmode"] else "black",
                 "fillOpacity": opts["markFillOpacity"],
-                # Small default: mark_circle is primarily used to layer raw points over
-                # boxplots/violins/strips, where small dots read best.
+                # Circle marks often overlay raw points on boxplots, violins, and strips, so
+                # their default size is smaller than that of other point marks.
                 "size": opts["markSize"] / 8,
-                # No outline: at this dot size a stroke swamps the fill. Explicit None
-                # (not omitted) so nothing is inherited from other mark configs. The
-                # opacity/width stay configured so a re-enabled stroke (per chart or a
-                # future config) renders with the house style.
                 "stroke": None,
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
@@ -524,8 +811,8 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 },
                 "borders": {
                     "opacity": 0,
-                    "strokeOpacity": opts["markStrokeWidth"],
-                    "strokeWidth": opts["markStrokeOpacity"],
+                    "strokeOpacity": opts["markStrokeOpacity"],
+                    "strokeWidth": opts["markStrokeWidth"],
                 },
             },
             "errorbar": {
@@ -568,18 +855,16 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "disable": not opts["legend"],
                 "offset": opts["legendOffset"],
                 # Legend text spacing mirrors the axis defaults: label gap 2, title gap 4.
-                # titlePadding = title->content (default 5); labelOffset = symbol->label (default
-                # 4); gradientLabelOffset = gradient-bar->label (labelOffset does NOT reach
-                # gradient labels). Applies to every legend (symbol + gradient).
                 "titlePadding": 4,
                 "labelOffset": 2,
                 "gradientLabelOffset": 2,
-                # Entry spacing. Vega's own defaults are lopsided - 10 across, 2 down - which
-                # reads loose on a horizontal legend next to this theme's 2/4px gaps.
                 "columnPadding": opts["legendColumnPadding"],
                 "rowPadding": opts["legendRowPadding"],
-                "gradientLength": opts["markSize"] * 5,
-                "gradientThickness": opts["markSize"] * 0.5,
+                **({"tickCount": opts["legendTickCount"]} if opts["legendTickCount"] is not None else {}),
+                # save/show replace this non-executable marker with panel geometry. Bare Altair
+                # rendering cannot resolve it; explicit legend lengths take precedence.
+                "gradientLength": {"expr": f"dysonsphereLegendGradientLength({opts['legendGradientLength']!r})"},
+                "gradientThickness": opts["legendGradientThickness"],
                 "gradientOpacity": opts["markFillOpacity"],
                 "gradientStrokeColor": "white" if opts["darkmode"] else "black",
                 "gradientStrokeWidth": opts["markStrokeWidth"],
@@ -603,7 +888,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "color": "white" if opts["darkmode"] else "black",
                 "stroke": "white" if opts["darkmode"] else "black",
                 "strokeCap": "butt",
-                "strokeDash": opts["dashedWidth"] if opts["dashedLine"] else [0, 0],
+                "strokeDash": opts["strokeDash"] if opts["lineStrokeDash"] else [0, 0],
                 "strokeOpacity": 1,
                 "strokeWidth": opts["axisWidth"] * 2,
             },
@@ -618,24 +903,23 @@ def _dysonsphere_theme() -> dict[str, Any]:
             },
             "range": {
                 "category": category_range,
-                "diverging": {"scheme": _scheme("divergingPalette", colors["ds_div_3"])},
-                "heatmap": {"scheme": _scheme("heatmapPalette", colors["mpl_viridis"])},
-                "ordinal": {"scheme": _scheme("ordinalPalette", colors["greys"])},
-                "ramp": {"scheme": _scheme("rampPalette", colors["mpl_viridis"])},
+                "diverging": {
+                    "scheme": _scheme("divergingPalette", "divergingPaletteDarkmode", colors["div1"], colors["div2"])
+                },
+                "heatmap": {"scheme": _scheme("heatmapPalette", "heatmapPaletteDarkmode", colors["viridis"])},
+                "ordinal": {"scheme": _scheme("ordinalPalette", "ordinalPaletteDarkmode", colors["greys"])},
+                "ramp": {"scheme": _scheme("rampPalette", "rampPaletteDarkmode", colors["viridis"])},
             },
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",
                 "stroke": "white" if opts["darkmode"] else "black",
                 "strokeCap": opts["strokeCap"],
-                "strokeDash": opts["dashedWidth"] if opts["dashedRule"] else [0, 0],
+                "strokeDash": opts["strokeDash"] if opts["ruleStrokeDash"] else [0, 0],
                 "strokeOpacity": 1,
                 "strokeWidth": opts["axisWidth"],
             },
             "scale": {
-                # Band padding is set per mark type, never via the global bandPaddingInner -
-                # that key overrides all three mark-specific defaults at once, which is what
-                # used to band heatmap cells with the bar spacing. Outer has no mark-specific
-                # counterpart in Vega-Lite, so one key covers every band scale.
+                # Band padding is set per mark type
                 "barBandPaddingInner": opts["barPadding"],
                 "rectBandPaddingInner": opts["rectPadding"],
                 "tickBandPaddingInner": opts["tickPadding"],
@@ -644,8 +928,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "bandWithNestedOffsetPaddingOuter": opts["groupPadding"],
                 "offsetBandPaddingInner": opts["subgroupPadding"],
                 "offsetBandPaddingOuter": opts["subgroupPadding"],
-                # The data inset that keeps marks off the axes. export._suppress_nice drops `nice`
-                # wherever this is emitted, so the inset lands at exactly this many pixels.
+                # Data inset that keeps marks off the axes.
                 **({"continuousPadding": opts["viewPadding"]} if opts["viewPadding"] else {}),
                 "round": False,
             },
@@ -689,22 +972,21 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "fontWeight": opts["fontWeight"],
                 "subtitleColor": "white" if opts["darkmode"] else "black",
                 "subtitleFont": opts["font"],
-                "subtitleFontSize": opts["font"],
+                "subtitleFontSize": opts["fontSize"],
                 "subtitleFontStyle": opts["fontStyle"],
                 "subtitleFontWeight": opts["fontWeight"],
             },
             "trail": {
                 "color": "white" if opts["darkmode"] else "black",
                 "opacity": 1,
-                # default width when there is no size encoding - matches config.line's
-                # strokeWidth so an unsized trail renders exactly like a line
+                # Matches config.line's strokeWidth so an unsized trail renders exactly like a line
                 "size": opts["axisWidth"] * 2,
             },
             "view": {
-                "continuousWidth": opts["chartWidth"],
-                "continuousHeight": opts["chartHeight"],
-                "discreteWidth": opts["chartWidth"],
-                "discreteHeight": opts["chartHeight"],
+                "continuousWidth": opts["width"],
+                "continuousHeight": opts["height"],
+                "discreteWidth": opts["width"],
+                "discreteHeight": opts["height"],
                 "fill": None if opts["darkmode"] else opts["viewFill"],
                 "stroke": ("white" if opts["darkmode"] else "black") if opts["closed"] else None,
                 "strokeWidth": opts["axisWidth"],
@@ -743,19 +1025,15 @@ def create_config(directory: str | Path | None = None, *, persist: bool = False)
 
     lines = [
         "# dysonsphere.toml",
-        "# Theme configuration for dysonsphere.",
         '# Load a style with ds.theme(style="name").',
         "",
-        "# Only the keys present in a section are applied - everything else uses",
-        "# dysonsphere's built-in defaults. Unknown keys raise a ValueError immediately.",
-        "",
         "# [default] applies to every ds.theme() call regardless of style.",
-        "# Leave it empty or omit to use dysonsphere's built-in defaults unchanged,",
-        "# or add keys to override the defaults, such as default palettes for range types.",
+        "# Leave it empty or omit to use dysonsphere's built-in defaults unchanged.",
+        "# Add keys to override the library defaults.",
         "",
         "[default]",
         "",
-        "# Built-in styles - edit values or remove sections you don't need.",
+        "# Built-in styles (edit values or remove sections you don't need).",
     ]
 
     for name, params in _BUILTIN_STYLES.items():
@@ -766,13 +1044,12 @@ def create_config(directory: str | Path | None = None, *, persist: bool = False)
 
     lines += [
         "",
-        "# Custom styles - add your own style sections below",
+        "# Custom styles (add your own style sections below).",
         "",
         "[my_style]  # Rename to your desired style name",
         "",
-        '# Custom palettes - lists of hex strings, available via ds.palette("name")',
-        '# or ds.theme(palette="name"). dysonsphere palettes are typically 12 stops',
-        "# for sequential palettes, and 13 stops for diverging palettes.",
+        "# Custom palettes as lists of hex strings.",
+        '# Usable with ds.palette("name") or ds.theme(palette="name").',
         "",
         "[palettes]",
         '# my_palette = ["#DFE9F7", "#C6D9F1", "#ADC8EC", "#94B8E6", "#7AA8E0", "#6097DA", "#4D87CA", "#4177B1", "#386898", "#2F597F", "#264A69", "#1D3A58"]',  # noqa: E501

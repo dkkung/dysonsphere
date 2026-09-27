@@ -1,10 +1,8 @@
 """Western blot figure: stacked blot-strip images with a dysonsphere condition table below.
 
-Built on public surfaces - core (``ds.add_multilabel`` / ``ds.ensure_polars``) plus the
-extension primitive surface (``dysonsphere.ext``). Each blot image is loaded, scaled to the
-shared chart width (aspect preserved), optionally bordered, and stacked; the stack is handed to
-``ds.add_multilabel`` so the whole condition-table machinery (``+``/``-`` rows, symbols, spans,
-sample sizes, category labels) annotates the lanes below the blots.
+Uses ``ds.add_multilabel`` and ``dysonsphere.ext``. Each blot image is loaded, scaled to the shared
+chart width with its aspect preserved, optionally bordered, and stacked. The stack receives a
+condition table with ``+``/``-`` rows, symbols, spans, sample sizes, and category labels.
 
 The condition table is ALWAYS evenly spaced (dysonsphere's band geometry) - it is not aligned to
 the physical lane positions in the image. Molecular-weight markers are intentionally out of scope:
@@ -15,7 +13,8 @@ from __future__ import annotations
 
 import base64
 import io
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 import altair as alt
 
@@ -40,8 +39,8 @@ def _load_image(image: Any) -> tuple[str, int, int]:
         _, b64 = image.split(",", 1)
         im = Image.open(io.BytesIO(base64.b64decode(b64)))
         return image, im.width, im.height
-    if isinstance(image, str):
-        raw = open(image, "rb").read()
+    if isinstance(image, (str, Path)):
+        raw = Path(image).read_bytes()
         im = Image.open(io.BytesIO(raw))
         mime = Image.MIME.get(im.format or "", "image/png")
         return f"data:{mime};base64," + base64.b64encode(raw).decode(), im.width, im.height
@@ -58,12 +57,12 @@ def western_blot(
     categories: list[str] | None = None,
     *,
     stroke: bool | float = True,
-    padding: float = 0.0,
+    stripSpacing: float = 0.0,
     **kwargs: Any,
-) -> ext.AltairChart:
+) -> alt.VConcatChart:
     """Compose western blot strip image(s) with a dysonsphere condition table.
 
-    Each image is scaled to the theme's ``chartWidth`` (aspect preserved), the strips are stacked
+    Each image is scaled to the theme's ``width`` (aspect preserved), the strips are stacked
     vertically, and the stack is annotated with :func:`dysonsphere.add_multilabel` - so the
     lane/condition table (``+``/``-`` rows, dot symbols, spans, sample sizes, category labels)
     renders beneath the blots. Returns an ``alt.VConcatChart``; pass it to ``ds.save()``.
@@ -92,12 +91,12 @@ def western_blot(
         Border around each blot image, following the ``bool | float`` pattern: ``True`` (default)
         -> a darkmode-aware ``markStrokeWidth`` border; ``False`` -> no border; a float -> that
         stroke width.
-    padding:
+    stripSpacing:
         Vertical gap in pixels between stacked blot strips (default ``0`` - the strips abut).
     **kwargs:
         Forwarded to :func:`dysonsphere.add_multilabel` (e.g. ``style``, ``categoryLabel``,
-        ``showSampleSize`` with ``df``/``xCol``, ``span``, ``rowStyles``, and ``spacing`` - the
-        gap between the blot stack and the table).
+        ``showSampleSize`` with ``data``/``x``, ``labelPosition``, ``lineOrientation``, ``span``,
+        ``rowStyles``, and ``spacing`` - the gap between the blot stack and the table).
 
     Raises
     ------
@@ -109,18 +108,18 @@ def western_blot(
     ::
 
         fig = ds.biology.western_blot(
-            ["pakt.png", "akt.png", "gapdh.png"],   # three antibody strips, stacked
+            ["pakt.png", "akt.png", "gapdh.png"],   # antibody strips, stacked
             {"EGF": [False, True, True], "Inhibitor": [False, False, True]},
             categories=["Ctrl", "EGF", "EGF + Inh"],
             categoryLabel=True,
         )
         ds.save(fig, "blot")
     """
-    image_list = [images] if isinstance(images, str) or hasattr(images, "save") else list(images)
+    image_list = [images] if isinstance(images, (str, Path)) or hasattr(images, "save") else list(images)
     if not image_list:
         raise ValueError("western_blot() needs at least one image.")
 
-    cw = ext.opt("chartWidth")
+    cw = ext.opt("width")
     if stroke is False:
         view: dict[str, Any] = {"fill": None, "stroke": None}
     else:
@@ -130,7 +129,7 @@ def western_blot(
     strips: list[Any] = []
     for image in image_list:
         uri, iw, ih = _load_image(image)
-        h = cw * ih / iw  # preserve the blot's aspect at the shared chart width
+        h = cw * ih / iw  # preserve aspect at the shared width
         strips.append(
             alt.Chart(ext.internal_data([{"__blot": uri}]))
             .mark_image(aspect=False)
@@ -138,6 +137,6 @@ def western_blot(
             .properties(width=cw, height=h, view=view)
         )
 
-    stack = strips[0] if len(strips) == 1 else alt.vconcat(*strips, spacing=padding)
+    stack = strips[0] if len(strips) == 1 else alt.vconcat(*strips, spacing=stripSpacing)
     result = ds.add_multilabel(stack, groups, categories, **kwargs)
-    return ext.tag_extension(result, "biology")
+    return cast(alt.VConcatChart, ext.tag_extension(result, "biology"))

@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=250, chartHeight=130)
+ds.theme(width=250, height=130)
 
 rng = np.random.default_rng(2)
 # fragment peaks (m/z, rel. intensity, label); each gets a small isotope tail
@@ -40,10 +40,9 @@ sticks = (
     )
 )
 
-labels = ds.add_text([f[2] for f in frags if f[2]][0], x=71.0, y=104.0)
+labels = ds.text([f[2] for f in frags if f[2]][0], x=71.0, y=104.0)
 for m, h, lab in frags:
     if lab and m != 71:
-        labels = labels + ds.add_text(lab, x=float(m), y=float(h + 6))
+        labels = labels + ds.text(lab, x=float(m), y=float(h + 6))
 
 chart = sticks + labels
-

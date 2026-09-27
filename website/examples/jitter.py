@@ -1,13 +1,14 @@
 import altair as alt
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 
-# add_jitter() adds a Gaussian x-offset column; pass it to Altair's xOffset.
-cars = ds.add_jitter(cars)
+# ds.transforms.jitter() adds a Gaussian x-offset column; pass it to Altair's xOffset.
+cars = ds.transforms.jitter(cars)
 
 chart = (
     alt.Chart(cars)

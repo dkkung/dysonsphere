@@ -1,6 +1,7 @@
 import altair as alt
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 ds.theme(palette="blues", xLabelAngle=-45)
 
@@ -18,4 +19,4 @@ bar = (
 )
 
 # Band mode: alternate background shades across the x-axis categories.
-chart = ds.add_shade(categories=sites, palette=[ds.colors["blues"][0], "white"], opacity=0.5) + bar
+chart = ds.shade(categories=sites, palette=[ds.palettes.colors["blues"][0], "white"], opacity=0.5) + bar

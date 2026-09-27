@@ -12,10 +12,14 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# project-specific
+/*.md
+!/README.md
+!/CHANGELOG.md
 
 # environment variables
 .env
 .env.production
 
-# macOS-specific files
+# OS files
 .DS_Store

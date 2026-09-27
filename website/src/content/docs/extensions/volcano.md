@@ -9,32 +9,30 @@ sidebar:
 
 Volcano plot for differential-expression results.
 
-Built entirely on dysonsphere's public surfaces - core (``ds.theme`` / ``ds.add_rule`` /
-``ds.colors`` / ``ds.ensure_polars``) plus the extension-author primitive surface
-(``dysonsphere.ext``: ``opt`` / ``internal_data`` / ``AltairChart``). It doubles as the
-reference for how an extension composes a first-class dysonsphere chart without reaching into
-core internals.
+Uses dysonsphere's public core and extension APIs. This coordinated first-party package
+may use shared core helpers internally; third-party extensions should use ``dysonsphere.ext`` for
+extension primitives rather than shared private helpers.
 
 ## `volcano`
 
 ```python
 def volcano(
-    df: pl.DataFrame | Any,
+    data: 'pl.DataFrame | pd.DataFrame',
     *,
-    log2fcCol: str = 'log2fc',
-    pvalueCol: str = 'pvalue',
-    geneCol: str | None = None,
+    log2fc: str = 'log2fc',
+    pvalue: str = 'pvalue',
+    labels: str | None = None,
     fcThreshold: float = 1.0,
     pThreshold: float = 0.05,
-    label: str | int | list[str] | None = None,
+    subset: str | int | list[str] | None = None,
     thresholdLines: bool = True,
-    palette: tuple[str, str] | None = None,
-    nsColor: str | None = None,
-    markOpacity: float = 0.85,
+    palette: str | list[str] | tuple[str, str] | None = None,
+    nonDifferentialColor: str | None = None,
+    markOpacity: float | None = None,
     legend: bool = True,
-    xTitle: str | None = _UNSET,
-    yTitle: str | None = _UNSET,
-) -> ext.AltairChart: ...
+    xTitle: str | list[str] | None = _UNSET,
+    yTitle: str | list[str] | None = _UNSET,
+) -> alt.LayerChart: ...
 ```
 
 Build a volcano plot (log2 fold change vs -log10 p) as a layered Altair chart.
@@ -45,23 +43,23 @@ labels are layered on. Returns an ``alt.LayerChart`` to compose or pass to ``ds.
 (The third label describes the analytical call, not significance - a point can be significant
 yet miss the fold-change threshold, so ``"ns"`` would be wrong for it.)
 
-Colors are resolved from the active theme at call time (darkmode-aware grey for the
-non-differential points), so build inside a ``ds.save(lambda: volcano(...))`` callable for
-correct light/dark export.
+Gained/lost colors inherit the active theme's diverging range when ``palette`` is omitted.
+The neutral remains a separate darkmode-aware grey, so build inside a
+``ds.save(lambda: volcano(...))`` callable for correct light/dark export.
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame | Any`) - A polars or pandas DataFrame with per-gene results.
-- **`log2fcCol`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
-- **`pvalueCol`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
-- **`geneCol`** (`str | None`) - Column of gene names; required only when ``label`` is set.
+- **`data`** (`'pl.DataFrame | pd.DataFrame'`) - A polars or pandas DataFrame with per-gene results.
+- **`log2fc`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
+- **`pvalue`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
+- **`labels`** (`str | None`) - Column of gene names; required only when ``subset`` is set.
 - **`fcThreshold`** (`float`) - ``|log2fc|`` significance cutoff (default ``1.0``). Vertical guides at ``+-`` this.
 - **`pThreshold`** (`float`) - P-value significance cutoff (default ``0.05``). Horizontal guide at ``-log10`` of it.
-- **`label`** (`str | int | list[str] | None`) - Which points to label (default ``None`` - no labels). ``int`` -> the top-N most significant, ranked by combined score ``|log2fc| * -log10(p)``; ``"significant"`` -> every significant point; ``list[str]`` -> the named genes. Any non-None value requires ``geneCol``.
+- **`subset`** (`str | int | list[str] | None`) - Which points to label (default ``None`` - no labels). ``int`` -> the top-N most significant, ranked by combined score ``|log2fc| * -log10(p)``; ``"significant"`` -> every significant point; ``list[str]`` -> the named genes. Any non-None value requires ``labels``.
 - **`thresholdLines`** (`bool`) - Draw the fold-change / p-value guide lines (default ``True``).
-- **`palette`** (`tuple[str, str] | None`) - ``(gained, lost)`` hex colors. Defaults to the ``ds_div_1`` diverging endpoints (teal = gained, gold = lost).
-- **`nsColor`** (`str | None`) - Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
-- **`markOpacity`** (`float`) - Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes from the active theme's ``mark_point`` config.
+- **`palette`** (`str | list[str] | tuple[str, str] | None`) - A registered palette name, an explicit low-to-high color list, or the existing ``(gained, lost)`` endpoint tuple. Omission inherits the active theme's diverging range.
+- **`nonDifferentialColor`** (`str | None`) - Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
+- **`markOpacity`** (`float | None`) - Point opacity. Inherits ``markFillOpacity`` from the active theme when ``None``.
 - **`legend`** (`bool`) - Show the significance color legend (default ``True``).
-- **`xTitle`** (`str | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.
-- **`yTitle`** (`str | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.
+- **`xTitle`** (`str | list[str] | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.
+- **`yTitle`** (`str | list[str] | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.

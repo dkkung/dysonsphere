@@ -1,16 +1,24 @@
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
+cars = data.cars().dropna(subset=["Horsepower"])
 origins = ["Europe", "Japan", "USA"]
 
 # Pairwise Mann-Whitney U with Holm correction; brackets stack automatically.
 chart = ds.mark_strip(
-    cars, "Origin", "Horsepower", origins,
-) + ds.add_comparisons(
-    cars, "Origin", "Horsepower",
+    cars,
+    "Origin",
+    "Horsepower",
+    origins,
+) + ds.stats.comparisons(
+    cars,
+    "Origin",
+    "Horsepower",
     [("USA", "Europe"), ("Europe", "Japan"), ("USA", "Japan")],
-    test="mannwhitneyu", correction="holm", categories=origins,
+    test="mannwhitneyu",
+    correction="holm",
+    categories=origins,
 )

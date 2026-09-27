@@ -1,17 +1,19 @@
 import math
+from typing import TYPE_CHECKING
 
 import altair as alt
+import polars as pl
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .theme import _opt
-from .utils import _SUP, ensure_polars
+from .utils import _SUP, _ensure_polars
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# Public names re-exported by dysonsphere.
 __all__ = ["log_label_expr", "add_log_ticks", "add_pow_ticks"]
 
-# ---------------------------------------------------------------------------
-# Log-scale axis label helper
-# ---------------------------------------------------------------------------
+# Log-scale axis labels
 
 
 def log_label_expr(base: int = 10, notation: str = "power") -> str:
@@ -46,31 +48,31 @@ def log_label_expr(base: int = 10, notation: str = "power") -> str:
     --------
     ::
 
-        # power notation — base-10 y-axis: 10⁴, 10⁵, 10⁶, …
+        # power notation – base-10 y-axis: 10⁴, 10⁵, 10⁶, …
         axis=alt.Axis(
             values=[10**e for e in range(4, 8)],
             labelExpr=ds.log_label_expr(),
         )
 
-        # power notation — log2 x-axis: 2⁰, 2¹, …, 2²⁰
+        # power notation – log2 x-axis: 2⁰, 2¹, …, 2²⁰
         axis=alt.Axis(
             values=[2**e for e in range(0, 21)],
             labelExpr=ds.log_label_expr(base=2),
         )
 
-        # scientific notation — base-10 y-axis: 1×10⁴, 1×10⁵, 1×10⁶, …
+        # scientific notation – base-10 y-axis: 1×10⁴, 1×10⁵, 1×10⁶, …
         axis=alt.Axis(
             values=[10**e for e in range(4, 8)],
             labelExpr=ds.log_label_expr(notation="scientific"),
         )
 
-        # e-notation — base-10 y-axis: 1e+4, 1e+5, 1e+6, …
+        # e-notation – base-10 y-axis: 1e+4, 1e+5, 1e+6, …
         axis=alt.Axis(
             values=[10**e for e in range(4, 8)],
             labelExpr=ds.log_label_expr(notation="e"),
         )
 
-        # SI prefix notation — base-10 y-axis: 10k, 100k, 1M, …
+        # SI prefix notation – base-10 y-axis: 10k, 100k, 1M, …
         axis=alt.Axis(
             values=[10**e for e in range(4, 8)],
             labelExpr=ds.log_label_expr(notation="si"),
@@ -82,7 +84,7 @@ def log_label_expr(base: int = 10, notation: str = "power") -> str:
         raise ValueError(f"notation={notation!r} is only defined for base=10.")
 
     # Vega expression building blocks. abs_exp must be written out in full each
-    # time it appears — Vega's restricted expression language has no variable
+    # time it appears – Vega's restricted expression language has no variable
     # binding, so intermediate values cannot be assigned to names.
     e = f"round(log(datum.value) / log({base}))"
     ae = f"abs(round(log(datum.value) / log({base})))"
@@ -105,13 +107,11 @@ def log_label_expr(base: int = 10, notation: str = "power") -> str:
     return f"{e} < 0 ? '{b}⁻' + {two} : '{b}' + {two}"
 
 
-# ---------------------------------------------------------------------------
 # Log-scale minor ticks
-# ---------------------------------------------------------------------------
 
 
 def _minor_tick_layer(
-    df,
+    data,
     field: str,
     axis: str,
     minor_values: list[float],
@@ -121,17 +121,16 @@ def _minor_tick_layer(
     """The minor-tick layer shared by the log and pow constructors.
 
     A point-mark layer carrying a second axis that draws only unlabeled ticks at ``minor_values``.
-    The ``scale`` must set an explicit domain - without it Vega auto-fits the independent scale to
-    the data extent, dropping partial edge intervals. The caller layers it over the main chart with
+    The ``scale`` must set an explicit domain. Without it, Vega auto-fits the independent scale to
+    the data extent and can drop partial edge intervals. The caller layers it over the main chart with
     ``resolve_axis(...="independent")``.
 
-    **The layer renders NO marks.** It shares the user's ``df`` (so ``read(what="data")`` /
-    provenance still see exactly one frame - the layer dedupes to the main chart's dataset) but is
-    filtered to zero rows, so it hosts the minor-tick axis (which is driven by the forced ``scale``
-    domain, not by data) while emitting nothing. This is why the axis-host marks do not litter the
-    exported SVG - and it is done at the source rather than by stripping transparent elements after
-    render, which would also delete a user's own opacity-encoded (transparent) DATA marks and break
-    the SVG's data-completeness. ``opacity=0`` is kept as a belt-and-suspenders fallback.
+    The layer is filtered to zero rows, so it emits no marks. It reuses the user's data so
+    ``read(what="data")`` and provenance still find one frame; the layer shares the main chart's
+    dataset. Its axis draws ticks from the explicit scale domain and ``minor_values``, not from
+    mark rows. Filtering here prevents transparent axis-host marks from appearing in the exported
+    SVG. Removing them after rendering could also delete the user's opacity-encoded data marks and
+    make the SVG incomplete. The mark's ``opacity=0`` provides a fallback.
     """
     minor_axis = alt.Axis(
         values=minor_values,
@@ -142,14 +141,14 @@ def _minor_tick_layer(
         tickSize=minor_tick_size,
         orient="bottom" if axis == "x" else "left",
     )
-    layer = alt.Chart(df).transform_filter("false").mark_point(opacity=0)
+    layer = alt.Chart(data).transform_filter("false").mark_point(opacity=0)
     if axis == "y":
         return layer.encode(y=alt.Y(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
     return layer.encode(x=alt.X(f"{field}:Q", title=None, scale=scale, axis=minor_axis))
 
 
 def _log_minor_layer(
-    df,
+    data,
     field: str,
     axis: str,
     exp_min: int,
@@ -164,7 +163,7 @@ def _log_minor_layer(
         n_divs = nMinor + 1
         minor_values = [base ** (e + k / n_divs) for e in range(exp_min, exp_max) for k in range(1, n_divs)]
     scale = alt.Scale(type="log", base=base, domain=[base**exp_min, base**exp_max])
-    return _minor_tick_layer(df, field, axis, minor_values, scale, minor_tick_size)
+    return _minor_tick_layer(data, field, axis, minor_values, scale, minor_tick_size)
 
 
 def _derive_exp(df, field: str, base: int = 10) -> tuple[int, int]:
@@ -179,8 +178,8 @@ def _infer_field(chart, axis: str) -> str | None:
 
     Reads ``chart.encoding.<axis>._kwds["shorthand"]`` (the ``.field`` accessor returns a
     ``_PropertySetter`` descriptor, not the value) and strips the ``:Q`` type suffix.
-    Returns ``None`` when the field can't be recovered — a ``LayerChart`` (no top-level
-    encoding), a missing/complex channel, or an aggregate/expression shorthand — so the
+    Returns ``None`` when the field can't be recovered – a ``LayerChart`` (no top-level
+    encoding), a missing/complex channel, or an aggregate/expression shorthand – so the
     caller falls back to requiring an explicit ``field=``.
     """
     enc = getattr(chart, "encoding", alt.Undefined)
@@ -189,13 +188,13 @@ def _infer_field(chart, axis: str) -> str | None:
     if not isinstance(shorthand, str):
         return None
     name = shorthand.split(":")[0]
-    # Reject aggregates/expressions (e.g. "mean(x)", "count()") — not a plain column.
+    # Reject aggregates/expressions (e.g. "mean(x)", "count()") – not a plain column.
     return name if name and "(" not in name else None
 
 
 def add_log_ticks(
     chart: alt.Chart | alt.LayerChart,
-    df,
+    data: "pl.DataFrame | pd.DataFrame",
     field: str | None = None,
     *,
     axis: str = "y",
@@ -218,7 +217,7 @@ def add_log_ticks(
     The main chart's scale domain is unaffected.
 
     For ``base=10`` the minor ticks are placed at the 2×–9× integer
-    multiples within each decade — the conventional scientific log tick
+    multiples within each decade – the conventional scientific log tick
     pattern. For other bases (e.g. ``base=2``) ticks are placed at
     ``nMinor`` equally-spaced positions (in log space) per interval,
     defaulting to one tick at the geometric midpoint per octave.
@@ -238,7 +237,7 @@ def add_log_ticks(
     ----------
     chart:
         The chart to add minor ticks to.
-    df:
+    data:
         DataFrame (Polars or Pandas) used for the main chart.
     field:
         Column name of the log-scale field. When ``axis`` is ``'x'`` or
@@ -261,9 +260,9 @@ def add_log_ticks(
         interval). Use ``3`` for quarter-interval ticks.
     expMin:
         Lowest exponent (in the given ``base``) for the single-axis
-        case. Auto-derived from ``df[field].min()`` when ``None``.
+        case. Auto-derived from ``data[field].min()`` when ``None``.
     expMax:
-        Highest exponent. Auto-derived from ``df[field].max()`` when
+        Highest exponent. Auto-derived from ``data[field].max()`` when
         ``None``.
     xField:
         Column name for the x log-scale field (``axis='both'`` only).
@@ -276,24 +275,24 @@ def add_log_ticks(
     minorTickSize:
         Length of minor ticks in pixels. Defaults to half the active
         theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when
-        the default ``tickSize=3`` is in effect).
+        the default ``tickSize=3.0`` is in effect).
 
     Examples
     --------
     ::
 
-        # log10 y-axis — exp range auto-derived
-        chart = ds.add_log_ticks(chart, df, "value")
+        # log10 y-axis – exp range auto-derived
+        chart = ds.add_log_ticks(chart, data, "value")
 
         # log2 x-axis (e.g. fold-change on a volcano plot)
-        chart = ds.add_log_ticks(chart, df, "fc", axis="x", base=2)
+        chart = ds.add_log_ticks(chart, data, "fc", axis="x", base=2)
 
         # log2 with 3 minor ticks per octave
-        chart = ds.add_log_ticks(chart, df, "fc", axis="x", base=2, nMinor=3)
+        chart = ds.add_log_ticks(chart, data, "fc", axis="x", base=2, nMinor=3)
 
         # both axes log-scaled
         chart = ds.add_log_ticks(
-            chart, df, axis="both", xField="fc", yField="pvalue"
+            chart, data, axis="both", xField="fc", yField="pvalue"
         )
     """
     if axis not in ("x", "y", "both"):
@@ -302,19 +301,19 @@ def add_log_ticks(
     if minorTickSize is None:
         minorTickSize = _opt("tickSize") / 2
 
-    df = ensure_polars(df)
+    data = _ensure_polars(data)
 
     if axis == "both":
         if xField is None or yField is None:
             raise ValueError("axis='both' requires xField and yField.")
-        x_lo, x_hi = _derive_exp(df, xField, base)
-        y_lo, y_hi = _derive_exp(df, yField, base)
+        x_lo, x_hi = _derive_exp(data, xField, base)
+        y_lo, y_hi = _derive_exp(data, yField, base)
         x_lo = xExpMin if xExpMin is not None else x_lo
         x_hi = xExpMax if xExpMax is not None else x_hi
         y_lo = yExpMin if yExpMin is not None else y_lo
         y_hi = yExpMax if yExpMax is not None else y_hi
-        x_layer = _log_minor_layer(df, xField, "x", x_lo, x_hi, minorTickSize, base, nMinor)
-        y_layer = _log_minor_layer(df, yField, "y", y_lo, y_hi, minorTickSize, base, nMinor)
+        x_layer = _log_minor_layer(data, xField, "x", x_lo, x_hi, minorTickSize, base, nMinor)
+        y_layer = _log_minor_layer(data, yField, "y", y_lo, y_hi, minorTickSize, base, nMinor)
         return alt.layer(chart, x_layer, y_layer).resolve_axis(x="independent", y="independent")
 
     if field is None:
@@ -324,23 +323,21 @@ def add_log_ticks(
             f"field is required when axis='{axis}' (could not infer it from the chart's "
             f"{axis} encoding; pass field= explicitly for a LayerChart or aggregate encoding)."
         )
-    lo, hi = _derive_exp(df, field, base)
+    lo, hi = _derive_exp(data, field, base)
     lo = expMin if expMin is not None else lo
     hi = expMax if expMax is not None else hi
-    minor_layer = _log_minor_layer(df, field, axis, lo, hi, minorTickSize, base, nMinor)
+    minor_layer = _log_minor_layer(data, field, axis, lo, hi, minorTickSize, base, nMinor)
     if axis == "y":
         return alt.layer(chart, minor_layer).resolve_axis(y="independent")
     else:
         return alt.layer(chart, minor_layer).resolve_axis(x="independent")
 
 
-# ---------------------------------------------------------------------------
-# Power / sqrt-scale minor ticks
-# ---------------------------------------------------------------------------
+# Power and sqrt-scale minor ticks
 
 
 def _pow_minor_layer(
-    df,
+    data,
     field: str,
     axis: str,
     major_values: list[float],
@@ -363,12 +360,12 @@ def _pow_minor_layer(
         exponent=exponent,
         domain=[float(min(major_values)), float(max(major_values))],
     )
-    return _minor_tick_layer(df, field, axis, minor_values, scale, minor_tick_size)
+    return _minor_tick_layer(data, field, axis, minor_values, scale, minor_tick_size)
 
 
 def add_pow_ticks(
     chart: alt.Chart | alt.LayerChart,
-    df,
+    data: "pl.DataFrame | pd.DataFrame",
     field: str | None = None,
     *,
     axis: str = "y",
@@ -388,7 +385,7 @@ def add_pow_ticks(
     The main chart's scale domain is unaffected.
 
     Minor ticks are placed at positions that are equally spaced in the
-    power-transformed (visual) space — i.e. they appear visually uniform
+    power-transformed (visual) space – i.e. they appear visually uniform
     on screen regardless of where the major ticks fall in data space.
     The formula for minor tick ``k`` of ``nMinor`` between major ticks
     ``a`` and ``b`` is::
@@ -396,7 +393,7 @@ def add_pow_ticks(
         val = (a**exp + k / (nMinor + 1) * (b**exp - a**exp)) ** (1 / exp)
 
     ``majorValues`` must match the values passed to the main chart's
-    ``axis.values`` — the minor layer uses them to infer interval
+    ``axis.values`` – the minor layer uses them to infer interval
     boundaries and to set the independent scale domain.
 
     Use ``exponent=0.5`` (the default) for a square-root axis
@@ -418,7 +415,7 @@ def add_pow_ticks(
     ----------
     chart:
         The chart to add minor ticks to.
-    df:
+    data:
         DataFrame (Polars or Pandas) used for the main chart.
     field:
         Column name of the power-scaled field. Required when ``axis``
@@ -435,7 +432,7 @@ def add_pow_ticks(
     majorValues:
         Ordered list of major tick data values for the single-axis
         case. Must match the ``values=`` passed to the main chart's
-        ``alt.Axis``. Required — cannot be auto-derived.
+        ``alt.Axis``. Required – cannot be auto-derived.
     nMinor:
         Number of minor ticks between each pair of major ticks.
         Defaults to ``4`` (divides each interval into five equal
@@ -443,7 +440,7 @@ def add_pow_ticks(
     minorTickSize:
         Length of minor ticks in pixels. Defaults to half the active
         theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when
-        the default ``tickSize=3`` is in effect).
+        the default ``tickSize=3.0`` is in effect).
     xField:
         Column name for the x power-scaled field (``axis='both'``
         only).
@@ -462,7 +459,7 @@ def add_pow_ticks(
         # sqrt y-axis (exponent=0.5 is the default)
         major_values = [0, 1, 4, 9, 16, 25]
         chart = (
-            alt.Chart(df)
+            alt.Chart(data)
             .mark_point()
             .encode(
                 y=alt.Y("value:Q",
@@ -471,17 +468,17 @@ def add_pow_ticks(
                 )
             )
         )
-        chart = ds.add_pow_ticks(chart, df, "value", majorValues=major_values)
+        chart = ds.add_pow_ticks(chart, data, "value", majorValues=major_values)
 
         # quadratic x-axis
         chart = ds.add_pow_ticks(
-            chart, df, "x_val", axis="x", exponent=2,
+            chart, data, "x_val", axis="x", exponent=2,
             majorValues=[0, 1, 2, 3, 4, 5],
         )
 
         # both axes power-scaled (same exponent)
         chart = ds.add_pow_ticks(
-            chart, df, axis="both",
+            chart, data, axis="both",
             xField="x_val", yField="value",
             xMajorValues=[0, 1, 4, 9], yMajorValues=[0, 1, 4, 9, 16, 25],
         )
@@ -494,7 +491,7 @@ def add_pow_ticks(
     if minorTickSize is None:
         minorTickSize = _opt("tickSize") / 2
 
-    df = ensure_polars(df)
+    data = _ensure_polars(data)
 
     if axis == "both":
         if xField is None or yField is None:
@@ -503,8 +500,8 @@ def add_pow_ticks(
             raise ValueError("axis='both' requires xMajorValues and yMajorValues.")
         if len(xMajorValues) < 2 or len(yMajorValues) < 2:
             raise ValueError("majorValues must contain at least two values.")
-        x_layer = _pow_minor_layer(df, xField, "x", xMajorValues, minorTickSize, exponent, nMinor)
-        y_layer = _pow_minor_layer(df, yField, "y", yMajorValues, minorTickSize, exponent, nMinor)
+        x_layer = _pow_minor_layer(data, xField, "x", xMajorValues, minorTickSize, exponent, nMinor)
+        y_layer = _pow_minor_layer(data, yField, "y", yMajorValues, minorTickSize, exponent, nMinor)
         return alt.layer(chart, x_layer, y_layer).resolve_axis(x="independent", y="independent")
 
     if field is None:
@@ -513,7 +510,7 @@ def add_pow_ticks(
         raise ValueError("majorValues is required for add_pow_ticks.")
     if len(majorValues) < 2:
         raise ValueError("majorValues must contain at least two values.")
-    minor_layer = _pow_minor_layer(df, field, axis, majorValues, minorTickSize, exponent, nMinor)
+    minor_layer = _pow_minor_layer(data, field, axis, majorValues, minorTickSize, exponent, nMinor)
     if axis == "y":
         return alt.layer(chart, minor_layer).resolve_axis(y="independent")
     else:

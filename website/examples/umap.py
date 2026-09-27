@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=180, chartHeight=170)
+ds.theme(width=180, height=170)
 
 rng = np.random.default_rng(5)
 types = ["T cells", "B cells", "NK", "Monocytes", "Dendritic", "Platelets"]
@@ -36,10 +36,8 @@ points = (
     .properties(view=alt.ViewConfig(stroke=None))
 )
 
-cent = df.group_by("cell type").agg(
-    pl.col("UMAP1").mean().alias("cx"), pl.col("UMAP2").mean().alias("cy")
-)
-label_layer = ds.add_labels(
+cent = df.group_by("cell type").agg(pl.col("UMAP1").mean().alias("cx"), pl.col("UMAP2").mean().alias("cy"))
+label_layer = ds.labels(
     cent,
     "cx",
     "cy",
@@ -50,4 +48,3 @@ label_layer = ds.add_labels(
 )
 
 chart = points + label_layer
-

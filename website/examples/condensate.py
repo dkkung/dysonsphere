@@ -7,7 +7,7 @@ from dysonsphere.palettes import colors
 # A real fluorescence micrograph (1000x1000 px, 0.0271 µm/px), its GFP intensity recolored with
 # the focus LUT (true-black floor for imaging) and served as an image; the colorbar is a
 # matching focus color scale.
-ds.theme(chartWidth=170, chartHeight=170, closed=True, viewPadding=False)
+ds.theme(width=170, height=170, closed=True, viewPadding=False)
 
 FOV = 1000 * 0.027083  # 27.08 µm field of view
 

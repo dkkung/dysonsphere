@@ -5,9 +5,9 @@ from scipy.ndimage import gaussian_filter
 
 import dysonsphere as ds
 
-# Continuous color defaults to australis - the viridis-analogue journey.
+# Use australis explicitly for its magenta-blue-cyan-green journey.
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=150, chartHeight=150, heatmapPalette="australis", closed=True, viewPadding=False)
+ds.theme(width=150, height=150, heatmapPalette="australis", closed=True, viewPadding=False)
 
 rng = np.random.default_rng(11)
 N = 90

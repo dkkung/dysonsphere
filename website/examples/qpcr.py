@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=215, chartHeight=160)
+ds.theme(width=215, height=160)
 
 rng = np.random.default_rng(7)
 genes = ["GAPDH", "IL6", "TNF", "IL1B", "CXCL10"]
@@ -30,10 +30,16 @@ bars = base.mark_bar().encode(
 err = base.mark_errorbar(extent="stderr").encode(y=alt.Y("expr:Q", title=""))
 
 # Real within-gene vehicle-vs-LPS test - one bracket per gene, GAPDH (housekeeping) comes out ns.
-sig = ds.add_comparisons(
-    df, "gene", "expr", xOffsetCol="condition",
-    categories=genes, xOffsetSort=["Vehicle", "LPS"],
-    test="ttest_ind", labelStyle="asterisks", bracketStyle="drop",
+sig = ds.stats.comparisons(
+    df,
+    "gene",
+    "expr",
+    xOffset="condition",
+    categories=genes,
+    xOffsetSort=["Vehicle", "LPS"],
+    test="ttest_ind",
+    labelStyle="asterisks",
+    bracketStyle="drop",
 )
 
 chart = bars + err + sig

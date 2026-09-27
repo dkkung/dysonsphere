@@ -1,32 +1,344 @@
 import json
 import math
 import re
+import struct
 import textwrap
 import xml.etree.ElementTree as ET
-from typing import Any
+from typing import Any, cast
 
 import altair as alt
 import polars as pl
 import pytest
 
-from dysonsphere.export import (
+from dysonsphere._svg_geometry import (
+    _TRANSLATE,
     _align_grid_to_content,
+    _decorate_rule_segments,
+    _flip_ticks_inward,
+    _layer_axes_below_marks,
+    _rule_cap_options,
+    _simplify_svg,
+    _sink_border_below_shade,
+)
+from dysonsphere._svg_typography import (
     _fix_font_for_illustrator,
     _fix_subscript_labels,
     _fix_superscript_labels,
-    _flip_ticks_inward,
     _illustrator_font_family,
     _italicize_stat_symbols,
-    _layer_axes_below_marks,
-    _simplify_svg,
-    _sink_border_below_shade,
+    _switch_greek_font,
     _typeset_scripts,
-    save,
 )
+from dysonsphere.annotations import _rule_cap_marker
+from dysonsphere.export import save
 from dysonsphere.theme import theme
 from dysonsphere.utils import _apply_spec_fixes, _suppress_nice
 
 NS = "http://www.w3.org/2000/svg"
+
+
+class TestRuleCaps:
+    @staticmethod
+    def _arrow_tip(path):
+        match = re.match(r"M([\d.e+-]+),([\d.e+-]+)L", path)
+        assert match is not None
+        return tuple(map(float, match.groups()))
+
+    @staticmethod
+    def _arrow_dimensions(path):
+        points = [tuple(map(float, point)) for point in re.findall(r"(?:M|L)([\d.e+-]+),([\d.e+-]+)", path)]
+        assert len(points) == 3
+        tip, left, right = points
+        base_midpoint = ((left[0] + right[0]) / 2, (left[1] + right[1]) / 2)
+        return math.dist(tip, base_midpoint), math.dist(left, right)
+
+    @staticmethod
+    def _tree(start_cap=None, end_cap=None, start_gap=0, end_gap=0, *, length=100, stroke_width=1):
+        marker = _rule_cap_marker(start_cap, end_cap, start_gap, end_gap)
+        root = ET.fromstring(
+            f'<svg xmlns="{NS}"><g><g class="mark-rule role-mark">'
+            f'<line aria-label="{marker}" transform="translate(0,0)" x2="{length}" y2="0" stroke="#123456" '
+            f'stroke-width="{stroke_width}" opacity="0.4"/></g></g></svg>'
+        )
+        _decorate_rule_segments(root)
+        return root
+
+    def test_both_arrows_apply_tip_gap_and_shorten_shaft(self):
+        root = self._tree("arrow", "arrow", 3, 3)
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("transform") == "translate(7,0)"  # 3 px daylight + 4 px arrow depth
+        assert line.get("x2") == "86"
+        caps = list(root.iter(f"{{{NS}}}path"))
+        assert len(caps) == 2
+        assert all(cap.get("fill") == "#123456" and cap.get("opacity") == "0.4" for cap in caps)
+        paths = {cap.get("d", "") for cap in caps}
+        assert any(path.startswith("M3,0L") for path in paths)
+        assert any(path.startswith("M97,0L") for path in paths)
+        assert all(self._arrow_dimensions(path) == pytest.approx((4.0, 4.8)) for path in paths)
+
+    @pytest.mark.parametrize(("stroke_width", "depth"), [(0.25, 2.0), (0.5, math.sqrt(8)), (1, 4.0), (4, 8.0)])
+    def test_arrow_dimensions_follow_square_root_stroke_scaling(self, stroke_width, depth):
+        root = self._tree("arrow", None, stroke_width=stroke_width)
+        cap = next(element for element in root.iter(f"{{{NS}}}path") if element.get("class") == "ds-rule-cap")
+        assert self._arrow_dimensions(cap.get("d", "")) == pytest.approx((depth, 1.2 * depth))
+
+    def test_zero_width_arrow_has_no_cap_artifact(self):
+        root = self._tree("arrow", None, stroke_width=0)
+        assert not [element for element in root.iter() if element.get("class") == "ds-rule-cap"]
+
+    @pytest.mark.parametrize("cls", ["__dsrulecap_", "__dsrulecap_bad", "__dsrulecap_1_zz", "__dsrulecap_1_ff"])
+    def test_malformed_user_class_is_ignored(self, cls):
+        assert _rule_cap_options(cls) is None
+
+    def test_capless_custom_gaps_shorten_to_exact_clearance(self):
+        root = self._tree(start_gap=5, end_gap=10)
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("transform") == "translate(5,0)"
+        assert line.get("x2") == "85"
+        assert not list(root.iter(f"{{{NS}}}path"))
+
+    @pytest.mark.parametrize(("cap", "tag"), [("circle", "circle"), ("square", "path")])
+    @pytest.mark.parametrize(("stroke_width", "size"), [(0.25, 4), (1, 4), (4, 16)])
+    def test_circle_and_square_outer_edge_and_style(self, cap, tag, stroke_width, size):
+        root = self._tree(cap, None, 3, 0, stroke_width=stroke_width)
+        shape = next(root.iter(f"{{{NS}}}{tag}"))
+        assert shape.get("class") == "ds-rule-cap"
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("transform") == f"translate({3 + size},0)"
+
+    def test_mixed_caps_use_each_shapes_extent(self):
+        root = self._tree("arrow", "circle", 3, 3)
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("transform") == "translate(7,0)"
+        assert line.get("x2") == "86"
+
+    def test_short_segment_hides_shaft_and_keeps_caps(self):
+        root = self._tree("arrow", "arrow", 3, 3, length=9)
+        assert next(root.iter(f"{{{NS}}}line")).get("display") == "none"
+        assert not list(root.iter(f"{{{NS}}}path"))
+
+    def test_huge_gap_omits_whole_segment_without_retreating_past_target(self):
+        root = self._tree("arrow", "arrow", 100, 3, length=20)
+        assert next(root.iter(f"{{{NS}}}line")).get("display") == "none"
+        assert not list(root.iter(f"{{{NS}}}path"))
+
+    def test_coincident_segment_is_unchanged(self):
+        root = self._tree("arrow", "arrow", 3, 3, length=0)
+        line = next(root.iter(f"{{{NS}}}line"))
+        assert line.get("display") == "none"
+        assert not list(root.iter(f"{{{NS}}}path"))
+
+    def test_export_reversed_nonsquare_independent_facets(self, tmp_path):
+        import dysonsphere as ds
+        from dysonsphere.annotations import _automatic_marker_gap
+
+        theme(width=180, height=90, viewPadding=False)
+        df = pl.DataFrame({"g": ["a", "a", "b", "b"], "x": [2, 8, 2, 8], "y": [3, 9, 3, 9]})
+        base = (
+            alt.Chart(df)
+            .mark_point()
+            .encode(
+                x=alt.X("x:Q", scale=alt.Scale(domain=[0, 10], reverse=True)),
+                y=alt.Y("y:Q", scale=alt.Scale(domain=[0, 10])),
+            )
+        )
+        decorated = ds.rule(x=2, y=3, x2=8, y2=9, startCap="arrow", endCap="arrow", data=df)
+        chart = (base + decorated).facet(column="g:N").resolve_scale(x="independent", y="independent")
+        save(chart, tmp_path / "facets", format="svg", saveMetadata=False)
+        svg = (tmp_path / "facets.svg").read_text()
+        assert svg.count('class="ds-rule-cap"') == 4
+        # Local rendered coordinates: reversed x maps 2->144 and 8->36 in 180 px; y maps
+        # 3->63 and 9->9 in 90 px. Every start tip is exactly the shared automatic gap inward along
+        # that screen vector, proving direction/aspect come from rendered SVG geometry, not data slope.
+        rendered_root = ET.fromstring(svg)
+        tips = [
+            self._arrow_tip(el.get("d", ""))
+            for el in rendered_root.iter()
+            if el.get("class") == "ds-rule-cap" and el.tag.endswith("path")
+        ]
+        ux, uy = -108 / math.hypot(108, 54), -54 / math.hypot(108, 54)
+        gap = _automatic_marker_gap()
+        expected = [(144 + ux * gap, 63 + uy * gap), (36 - ux * gap, 9 - uy * gap)]
+        assert all(any(math.dist(tip, want) < 1e-6 for tip in tips) for want in expected)
+
+        zero = ds.rule(x=2, y=3, x2=8, y2=9, startCap="arrow", endCap="arrow", startGap=0, endGap=0)
+        zero_chart = (
+            alt.Chart(df.head(2))
+            .mark_point()
+            .encode(
+                x=alt.X("x:Q", scale=alt.Scale(domain=[0, 10], reverse=True)),
+                y=alt.Y("y:Q", scale=alt.Scale(domain=[0, 10])),
+            )
+            + zero
+        )
+        save(zero_chart, tmp_path / "zero", format="svg", saveMetadata=False)
+        zero_svg = (tmp_path / "zero.svg").read_text()
+        zero_root = ET.fromstring(zero_svg)
+        zero_tips = [
+            self._arrow_tip(el.get("d", ""))
+            for el in zero_root.iter()
+            if el.get("class") == "ds-rule-cap" and el.tag.endswith("path")
+        ]
+        assert any(math.dist(tip, (144, 63)) < 1e-6 for tip in zero_tips)
+        assert any(math.dist(tip, (36, 9)) < 1e-6 for tip in zero_tips)
+
+    def test_markers_scope_only_their_rule_marks(self, tmp_path):
+        import dysonsphere as ds
+
+        theme()
+        df = pl.DataFrame({"x": [0.0, 10.0], "y": [0.0, 10.0]})
+        native_rule = alt.Chart(df).mark_rule(color="green").encode(x="x:Q", y="y:Q", x2="y:Q", y2="x:Q")
+        native_line = alt.Chart(df).mark_line(color="blue").encode(x="x:Q", y="y:Q")
+        arrows = ds.rule(y=[2, 4], label=["a", "b"], startCap="arrow")
+        circle = ds.rule(x=6, startCap="circle")
+        repeated = ds.rule(x=1, y=8, x2=3, y2=9, endCap="square")
+        chart = native_rule + native_line + arrows + circle + repeated + repeated
+        save(chart, tmp_path / "scoped", format="svg", saveMetadata=False)
+        root = ET.fromstring((tmp_path / "scoped.svg").read_text())
+        caps = [el for el in root.iter() if el.get("class") == "ds-rule-cap"]
+        assert len(caps) == 5  # two list rules, one circle, and the same square-rule object twice
+        # Native neighboring marks retain their renderer geometry and colors.
+        assert any(el.get("stroke") == "green" and el.get("display") is None for el in root.iter())
+        assert any(el.get("stroke") == "blue" and el.get("display") is None for el in root.iter())
+
+    def test_json_load_roundtrip_reapplies_caps(self, tmp_path):
+        import dysonsphere as ds
+
+        theme()
+        chart = ds.rule(x=1, y=1, x2=9, y2=8, startCap="arrow", endCap="square")
+        save(chart, tmp_path / "original", format=["json", "svg"], saveMetadata=False)
+        loaded = ds.load(tmp_path / "original.json")
+        save(cast(Any, loaded), tmp_path / "loaded", format="svg", saveMetadata=False)
+        assert (tmp_path / "loaded.svg").read_text().count('class="ds-rule-cap"') == 2
+
+    def test_cap_marker_does_not_leak_internal_data(self, tmp_path):
+        import dysonsphere as ds
+
+        theme()
+        df = pl.DataFrame({"x": [1.0, 9.0], "y": [2.0, 8.0]})
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        chart = base + ds.rule(x=1, y=2, x2=9, y2=8, startCap="arrow", endGap=4)
+        save(chart, tmp_path / "data", format="json")
+        recovered = ds.metadata.read(tmp_path / "data.json", what="data")
+        assert recovered.equals(df)
+
+    def test_fresh_equivalent_cap_builds_have_stable_spec_checksum(self):
+        import dysonsphere as ds
+        from dysonsphere.metadata import _spec_checksum
+
+        first = ds.rule(x=1, y=2, x2=8, y2=9, startCap="arrow", endGap=4).to_dict()
+        second = ds.rule(x=1, y=2, x2=8, y2=9, startCap="arrow", endGap=4).to_dict()
+        assert first == second
+        assert _spec_checksum(first) == _spec_checksum(second)
+
+    def test_export_caps_preserve_rule_opacity_and_stroke_opacity(self, tmp_path):
+        import dysonsphere as ds
+
+        theme()
+        chart = ds.rule(x=1, y=1, x2=9, y2=8, startCap="circle", opacity=0).configure_rule(strokeOpacity=0.25)
+        save(chart, tmp_path / "opacity", format="svg", saveMetadata=False)
+        root = ET.fromstring((tmp_path / "opacity.svg").read_text())
+        cap = next(el for el in root.iter() if el.get("class") == "ds-rule-cap")
+        assert cap.get("opacity") == "0"
+        assert cap.get("fill-opacity") == "0.25"
+
+
+class TestLabelConnectorCaps:
+    @staticmethod
+    def _translate(transform):
+        match = _TRANSLATE.match(transform)
+        assert match is not None
+        return tuple(map(float, match.groups()))
+
+    @staticmethod
+    def _dense_labels(connector_cap=None, *, connector_gap=None, connector_opacity=None):
+        import dysonsphere as ds
+
+        df = pl.DataFrame(
+            {
+                "x": [5.0, 5.05, 4.95, 5.0, 5.1, 4.9],
+                "y": [5.0, 5.0, 5.0, 5.05, 4.95, 5.1],
+                "label": ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"],
+            }
+        )
+        kwargs = {
+            "xDomain": (0.0, 10.0),
+            "yDomain": (0.0, 10.0),
+            "alwaysShowConnectors": True,
+            "connectorCap": connector_cap,
+            "connectorGap": connector_gap,
+            "connectorOpacity": connector_opacity,
+        }
+        return df, ds.labels(df, "x", "y", "label", **kwargs)  # ty: ignore[invalid-argument-type]
+
+    def test_export_arrow_tip_is_existing_connector_start_no_double_gap(self, tmp_path):
+        theme(width=140, height=100, viewPadding=False, axisWidth=0.5)
+        _, plain = self._dense_labels(connector_gap=0)
+        _, arrow = self._dense_labels("arrow", connector_gap=0)
+        save(plain, tmp_path / "plain", format="svg", saveMetadata=False)
+        save(arrow, tmp_path / "arrow", format="svg", saveMetadata=False)
+        plain_root = ET.fromstring((tmp_path / "plain.svg").read_text())
+        arrow_root = ET.fromstring((tmp_path / "arrow.svg").read_text())
+        plain_starts = {
+            self._translate(line.get("transform", ""))
+            for line in plain_root.iter(f"{{{NS}}}line")
+            if line.get("stroke") == "black" and _TRANSLATE.match(line.get("transform", ""))
+        }
+        tips = [
+            TestRuleCaps._arrow_tip(cap.get("d", "")) for cap in arrow_root.iter() if cap.get("class") == "ds-rule-cap"
+        ]
+        assert tips
+        assert all(any(math.dist(tip, start) < 1e-9 for start in plain_starts) for tip in tips)
+        dimensions = [
+            TestRuleCaps._arrow_dimensions(cap.get("d", ""))
+            for cap in arrow_root.iter()
+            if cap.get("class") == "ds-rule-cap"
+        ]
+        assert all(dimension == pytest.approx((math.sqrt(8), 1.2 * math.sqrt(8))) for dimension in dimensions)
+
+    def test_connector_arrow_preserves_color_opacity_and_roundtrip_data(self, tmp_path):
+        import dysonsphere as ds
+
+        theme(width=140, height=100)
+        df, arrows = self._dense_labels("arrow", connector_opacity=0.35)
+        base = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        chart = (base + arrows).configure_rule(strokeOpacity=0.4)
+        save(chart, tmp_path / "labels", format=["svg", "json"])
+        root = ET.fromstring((tmp_path / "labels.svg").read_text())
+        caps = [element for element in root.iter() if element.get("class") == "ds-rule-cap"]
+        assert caps and all(cap.get("opacity") == "0.35" and cap.get("fill-opacity") == "0.4" for cap in caps)
+        loaded = ds.load(tmp_path / "labels.json")
+        save(cast(Any, loaded), tmp_path / "loaded", format="svg", saveMetadata=False)
+        assert 'class="ds-rule-cap"' in (tmp_path / "loaded.svg").read_text()
+        assert ds.metadata.read(tmp_path / "labels.json", what="data").equals(df)
+
+    def test_forced_arrow_connector_moves_to_a_valid_seat(self, tmp_path):
+        theme(width=100, height=100)
+        df = pl.DataFrame({"x": [5.0], "y": [5.0], "label": ["a"]})
+        import dysonsphere as ds
+
+        chart = ds.labels(df, "x", "y", "label", connectorCap="arrow", alwaysShowConnectors=True)
+        save(chart, tmp_path / "short", format="svg", saveMetadata=False)
+        svg = (tmp_path / "short.svg").read_text()
+        assert ">a</text>" in svg
+        # Forced placement chooses a position with room for the requested arrow.
+        assert 'class="ds-rule-cap"' in svg
+
+
+def test_png_ppi_scales_from_svg_72_units_per_inch(tmp_path):
+    theme()
+    chart = alt.Chart({"values": [{"x": 0, "y": 0}, {"x": 1, "y": 1}]}).mark_point().encode(x="x:Q", y="y:Q")
+    stem = tmp_path / "font_scale"
+    save(chart, stem, format=["svg", "png"], ppi=1200, saveMetadata=False)
+
+    svg = (tmp_path / "font_scale.svg").read_text(encoding="utf-8")
+    width_match = re.search(r'<svg[^>]+width="([\d.]+)"', svg)
+    assert width_match is not None
+    svg_width = float(width_match.group(1))
+    png = (tmp_path / "font_scale.png").read_bytes()
+    png_width = struct.unpack(">I", png[16:20])[0]
+    assert png_width == int(svg_width * 1200 / 72)
+    assert 'font-size="6px"' in svg
 
 
 def _write(tmp_path, name, content):
@@ -93,24 +405,24 @@ class TestSave:
         df = pl.DataFrame({"g": ["A", "B"] * (n // 2), "v": [float(i) for i in range(n)]})
         return alt.Chart(df).mark_point().encode(x="g:N", y="v:Q")
 
-    def test_max_rows_blocks_large_data(self, big_chart, tmp_path):
-        # every format hits the cap (rendering inlines the data), with a clear error
+    def test_default_allows_large_data(self, big_chart, tmp_path):
+        save(big_chart, str(tmp_path / "big"), format="json", background=["light"])
+        assert (tmp_path / "big.json").exists()
+
+    def test_explicit_max_rows_blocks_large_data(self, big_chart, tmp_path):
+        # Every format resolves through to_dict(), so an explicit cap applies to each one.
         for fmt in ("json", "png", "svg"):
-            with pytest.raises(ValueError, match="maxRows"):
-                save(big_chart, str(tmp_path / "big"), format=fmt, background=["light"])
+            with pytest.raises(ValueError, match="maxRows=5000"):
+                save(big_chart, str(tmp_path / "big"), format=fmt, background=["light"], maxRows=5000)
 
     def test_max_rows_raised_allows_large_data(self, big_chart, tmp_path):
         save(big_chart, str(tmp_path / "big"), format="json", maxRows=10000, background=["light"])
         assert (tmp_path / "big.json").exists()
 
-    def test_override_max_rows_allows_large_data(self, big_chart, tmp_path):
-        save(big_chart, str(tmp_path / "big"), format="json", overrideMaxRows=True, background=["light"])
-        assert (tmp_path / "big.json").exists()
-
     def test_max_rows_restores_transformer(self, big_chart, tmp_path):
         before = alt.data_transformers.active
         with pytest.raises(ValueError):
-            save(big_chart, str(tmp_path / "big"), format="json", background=["light"])  # errors mid-save
+            save(big_chart, str(tmp_path / "big"), format="json", background=["light"], maxRows=5000)
         assert alt.data_transformers.active == before  # transformer restored even on error
 
     def test_layer_chart(self, tmp_path):
@@ -281,9 +593,9 @@ class TestHtmlExport:
         assert (tmp_path / "out.html").exists() and (tmp_path / "out.json").exists()
 
     def test_html_does_not_apply_inward_ticks(self, tmp_path):
-        # inwardTicks is a static-SVG feature; the HTML must NOT carry a negative tickSize
+        # Inward tick direction is a static-SVG feature; HTML must NOT carry a negative tickSize
         # (the negative-tickSize trick renders inconsistently in the browser's Vega build).
-        theme(inwardTicks=True)
+        theme(tickDirection="in")
         df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
         save(chart, str(tmp_path / "out"), format="html", background=["light"])
@@ -302,17 +614,17 @@ class TestShow:
 
         obj = show(simple_chart)
         assert type(obj).__name__ == "HTML"  # IPython.display.HTML
-        assert obj.data.startswith("<svg")  # bare markup, no XML prolog to confuse the HTML parser
+        assert cast(str, obj.data).startswith("<svg")  # bare markup, no XML prolog to confuse the HTML parser
 
     def test_runs_full_pipeline_inward_ticks(self):
-        # show()'s whole point: the preview matches save() output. With inwardTicks the preview
+        # show()'s whole point: the preview matches save() output. With inward ticks the preview
         # SVG must have inward ticks (proving _flip_ticks_inward ran) - Altair's raw render wouldn't.
         from dysonsphere.export import show
 
-        theme(inwardTicks=True)
+        theme(tickDirection="in")
         df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
-        svg = show(chart).data
+        svg = cast(str, show(chart).data)
         y2s = [float(m) for m in re.findall(r'y2="(-?[\d.]+)"', svg) if 0 < abs(float(m)) < 20]
         assert y2s and all(v < 0 for v in y2s)  # inward
 
@@ -321,7 +633,7 @@ class TestShow:
 
         df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0]})
         obj = show(lambda: alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q"))
-        assert "<svg" in obj.data
+        assert "<svg" in cast(str, obj.data)
 
     def test_writes_no_file(self, simple_chart, tmp_path, monkeypatch):
         from dysonsphere.export import show
@@ -348,7 +660,7 @@ class TestShow:
         prev = alt.data_transformers.active
         alt.data_transformers.enable("vegafusion")
         try:
-            svg = show(simple_chart).data
+            svg = cast(str, show(simple_chart).data)
             assert "<svg" in svg
             assert alt.data_transformers.active == "vegafusion"  # restored
         finally:
@@ -362,12 +674,13 @@ class TestShow:
         with pytest.raises(ValueError, match="maxRows=5"):
             show(chart, maxRows=5)
 
-    def test_override_max_rows_allows_large_data(self):
+    def test_default_allows_large_data(self):
         from dysonsphere.export import show
 
-        df = pl.DataFrame({"x": [float(i) for i in range(20)], "y": [float(i) for i in range(20)]})
+        n = 5001
+        df = pl.DataFrame({"x": range(n), "y": range(n)})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
-        assert "<svg" in show(chart, maxRows=5, overrideMaxRows=True).data
+        assert "<svg" in cast(str, show(chart).data)
 
     def test_inherits_theme_transparent(self, simple_chart):
         # show() used to force transparent=True, so a darkmode theme previewed white-on-nothing
@@ -375,13 +688,13 @@ class TestShow:
         from dysonsphere.export import show
 
         theme(darkmode=True, transparent=False)
-        assert re.search(r'<rect width="\d+" height="\d+" fill="black"', show(simple_chart).data)
+        assert re.search(r'<rect width="\d+" height="\d+" fill="black"', cast(str, show(simple_chart).data))
 
     def test_theme_transparent_true_has_no_background(self, simple_chart):
         from dysonsphere.export import show
 
         theme(darkmode=True, transparent=True)
-        assert not re.search(r'<rect width="\d+" height="\d+" fill=', show(simple_chart).data)
+        assert not re.search(r'<rect width="\d+" height="\d+" fill=', cast(str, show(simple_chart).data))
 
     def test_does_not_mutate_theme_options(self, simple_chart):
         # show() renders straight at the theme's values - it must set nothing to restore
@@ -409,18 +722,85 @@ class TestShow:
 
 
 class TestGradientLegendTitles:
-    """Gradient-legend titles stay at Vega's default (horizontal, on top) — the never-released
-    ``legendTitleGradientOrientation`` injection was removed; ``save()`` must not touch legends."""
+    """Gradient-legend titles stay at Vega's default (horizontal, on top)."""
 
     def test_save_does_not_inject_title_orient(self, tmp_path):
         df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "v": [0.1, 0.5, 0.9]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q")
         save(chart, str(tmp_path / "grad"), format=["svg", "json"], background="light")
         spec = json.loads((tmp_path / "grad.json").read_text(encoding="utf-8"))
-        assert "legend" not in spec["encoding"]["color"]
+        assert spec["encoding"]["color"]["legend"]["gradientLength"] == 40
+        assert "titleOrient" not in spec["encoding"]["color"]["legend"]
         svg = (tmp_path / "grad.svg").read_text(encoding="utf-8")
         title = re.search(r"<text[^>]*>v</text>", svg)  # gradient legend title stays horizontal
         assert title and "rotate" not in title.group(0)
+
+    def test_lengths_follow_actual_view_dimensions_and_direction(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        vertical = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q").properties(width=160, height=80)
+        horizontal = vertical.encode(color=alt.Color("v:Q", legend=alt.Legend(orient="bottom")))
+        v_spec = _apply_spec_fixes(vertical.to_dict())
+        h_spec = _apply_spec_fixes(horizontal.to_dict())
+        assert v_spec["encoding"]["color"]["legend"]["gradientLength"] == 30
+        assert h_spec["encoding"]["color"]["legend"]["gradientLength"] == 160
+
+    def test_default_vertical_allocation_includes_title(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q").properties(height=180)
+        spec = _apply_spec_fixes(chart.to_dict())
+        assert spec["encoding"]["color"]["legend"]["gradientLength"] == 80
+
+    def test_native_gradient_direction_precedence(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        unit = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q").properties(width=160, height=80)
+        configured = unit.configure_legend(direction="vertical", gradientDirection="horizontal")
+        spec = _apply_spec_fixes(configured.to_dict())
+        assert spec["encoding"]["color"]["legend"]["gradientLength"] == 160
+
+    @pytest.mark.parametrize(
+        ("title", "expected"),
+        [(None, 40), ("Override", 30), (["First", "Second"], 24)],
+    )
+    def test_native_legend_title_controls_reserved_space(self, title, expected):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        chart = (
+            alt.Chart(df)
+            .mark_point()
+            .encode(x="x:Q", y="y:Q", color=alt.Color("v:Q", title="Encoding", legend=alt.Legend(title=title)))
+            .properties(width=160, height=80)
+        )
+        spec = _apply_spec_fixes(chart.to_dict())
+        assert spec["encoding"]["color"]["legend"]["gradientLength"] == expected
+
+    def test_configured_symbol_legend_is_not_sized_as_gradient(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q")
+        raw_spec = chart.to_dict()
+        raw_spec["config"]["legend"]["type"] = "symbol"
+        spec = _apply_spec_fixes(raw_spec)
+        assert "legend" not in spec["encoding"]["color"]
+        assert "gradientLength" not in spec["config"]["legend"]
+
+    def test_factor_facets_and_explicit_overrides(self):
+        theme(legendGradientLength=0.5)
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9], "g": ["a", "b"]})
+        unit = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q").properties(width=120, height=100)
+        facet_spec = _apply_spec_fixes(unit.facet(column="g:N").to_dict())
+        assert facet_spec["spec"]["encoding"]["color"]["legend"]["gradientLength"] == 40
+
+        field = unit.encode(color=alt.Color("v:Q", legend=alt.Legend(gradientLength=37)))
+        assert _apply_spec_fixes(field.to_dict())["encoding"]["color"]["legend"]["gradientLength"] == 37
+        configured = unit.configure_legend(gradientLength=41)
+        configured_spec = _apply_spec_fixes(configured.to_dict())
+        assert configured_spec["config"]["legend"]["gradientLength"] == 41
+        assert "legend" not in configured_spec["encoding"]["color"]
+
+    def test_native_gradient_thickness_overrides_theme(self):
+        df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0], "v": [0.1, 0.9]})
+        unit = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q", color="v:Q")
+        field = unit.encode(color=alt.Color("v:Q", legend=alt.Legend(gradientThickness=8)))
+        assert field.to_dict()["encoding"]["color"]["legend"]["gradientThickness"] == 8
+        assert unit.configure_legend(gradientThickness=9).to_dict()["config"]["legend"]["gradientThickness"] == 9
 
 
 # ── save() transparency ──────────────────────────────────────────────────────
@@ -527,7 +907,7 @@ class TestExactTickPositions:
         svg = (tmp_path / "lg.svg").read_text(encoding="utf-8")
         # minor ticks are half the theme tickSize (1.5); majors are 3
         minors = sorted(
-            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="1.5"', svg)
+            float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="1\.5"', svg)
         )
         majors = sorted(
             {float(m.group(1)) for m in re.finditer(r'<line transform="translate\(([\d.]+),0\)"[^/]*y2="3"', svg)}
@@ -651,7 +1031,7 @@ class TestFlipTicksInward:
         assert next(root.iter(f"{{{NS}}}line")).get("y2") == "100"
 
     def test_save_with_inward_ticks_points_ticks_in(self, tmp_path):
-        theme(inwardTicks=True)
+        theme(tickDirection="in")
         df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
         save(chart, str(tmp_path / "out"), format=["svg"], background=["light"])
@@ -722,9 +1102,9 @@ class TestFlipTicksInward:
                     return float(m.group(1))
             raise AssertionError("no x-axis label found")
 
-        theme(inwardTicks=True, closed=True)
+        theme(tickDirection="in", closed=True)
         save(chart, str(tmp_path / "inward"), format=["svg"], background=["light"])
-        theme(inwardTicks=False, closed=True)
+        theme(tickDirection="out", closed=True)
         save(chart, str(tmp_path / "outward"), format=["svg"], background=["light"])
         tick_size = alt.theme.options["tickSize"]
         assert x_label_y(str(tmp_path / "inward.svg")) == pytest.approx(
@@ -822,7 +1202,7 @@ class TestScaffoldingMarks:
         svg = (tmp_path / "out.svg").read_text(encoding="utf-8")
         assert 'opacity="0"' not in svg  # no scaffolding marks leaked
         assert "<line" in svg  # minor ticks still drawn
-        assert ds.read(str(tmp_path / "out.json"), what="data").shape == (20, 2)  # one user frame, intact
+        assert ds.metadata.read(str(tmp_path / "out.json"), what="data").shape == (20, 2)  # one user frame, intact
 
     def test_transparent_data_marks_are_preserved(self, tmp_path):
         # The crux of the fix: a user's own opacity-encoded (fully transparent) DATA marks must
@@ -924,9 +1304,9 @@ class TestFixSuperscriptLabels:
         assert text_el.text == "P = 1.94×10"
         tspan = text_el.find(f"{{{NS}}}tspan")
         assert tspan is not None
-        # no font-size on the <text>, so the exponent scales to the theme fontSize (7): 7*2/3, -7*5/12
-        assert tspan.get("dy") == "-2.92"
-        assert tspan.get("font-size") == "4.67"
+        # no font-size on the <text>, so the exponent scales to the theme fontSize (6): 6*2/3, -6*5/12
+        assert tspan.get("dy") == "-2.5"
+        assert tspan.get("font-size") == "4"
         assert tspan.text == "−14"
 
     def test_power_notation_single_digit(self):
@@ -954,10 +1334,10 @@ class TestFixSuperscriptLabels:
     def test_fixer_typesets_every_generator_superscript(self):
         # Guard against reopening the log-label bug: the SINGLE fixer must convert EVERY Unicode
         # superscript that ANY generator emits (p-value labels, log-axis labels, table columns -
-        # all funnel through utils._SUP / inference._superscript), so no fragile glyph survives
+        # all funnel through utils._SUP / stats._superscript), so no fragile glyph survives
         # into the font-rendered SVG. If a future generator emits a superscript form the fixer's
         # pattern misses, a fragile char is left in the text and this fails.
-        from dysonsphere.inference import _format_pvalue, _superscript
+        from dysonsphere.stats import _format_pvalue, _superscript
         from dysonsphere.utils import _SUP
 
         labels = [
@@ -1081,6 +1461,101 @@ class TestFixSubscriptLabels:
         assert "".join(text_el.itertext()) == "qx = 103"  # reading order preserved, connectors gone
 
 
+class TestSwitchGreekFont:
+    @staticmethod
+    def _mixed_chart():
+        data = pl.DataFrame({"dose": [1, 2], "response": [2, 3], "group": ["χ²", "η²"]})
+        return (
+            alt.Chart(data, title=["TNF-α", "ρ response"])
+            .mark_point()
+            .encode(
+                x=alt.X("dose:Q", title="Dose (µM)"),
+                y=alt.Y("response:Q", title="β response"),
+                color=alt.Color("group:N", title="Greek / Latin 12"),
+            )
+        )
+
+    def test_save_show_default_opt_out_and_html_boundary(self, tmp_path):
+        from dysonsphere.export import show
+
+        chart = self._mixed_chart()
+        theme()
+        save(chart, tmp_path / "default", format=["svg", "html"], background="light", saveMetadata=False)
+        svg = (tmp_path / "default.svg").read_text(encoding="utf-8")
+        html = (tmp_path / "default.html").read_text(encoding="utf-8")
+        shown = cast(str, show(chart).data)
+        for corrected in (svg, shown):
+            assert 'class="ds-greek-font" font-family="Symbol"' in corrected
+            assert "TNF-" in corrected and "Greek / Latin 12" in corrected
+            assert "HelveticaNeue" in corrected
+        assert "ds-greek-font" not in html
+
+        theme(fontGreek=None)
+        save(chart, tmp_path / "disabled", format="svg", background="light", saveMetadata=False)
+        disabled = (tmp_path / "disabled.svg").read_text(encoding="utf-8")
+        assert "ds-greek-font" not in disabled and "TNF-α" in disabled
+
+    def test_png_converter_receives_corrected_svg(self, tmp_path, monkeypatch):
+        import vl_convert
+
+        received: list[str] = []
+        real_converter = vl_convert.svg_to_png
+
+        def recording_converter(svg: str, **kwargs):
+            received.append(svg)
+            return real_converter(svg, **kwargs)
+
+        monkeypatch.setattr(vl_convert, "svg_to_png", recording_converter)
+        theme()
+        save(self._mixed_chart(), tmp_path / "greek", format="png", background="light", saveMetadata=False)
+        assert (tmp_path / "greek.png").exists()
+        assert len(received) == 1 and 'class="ds-greek-font" font-family="Symbol"' in received[0]
+
+    @pytest.mark.parametrize("saved_font", ["Journal Greek", None])
+    def test_json_load_restores_greek_font_and_custom_reexports(self, saved_font, tmp_path):
+        theme(fontGreek=saved_font)
+        save(self._mixed_chart(), tmp_path / "source", format="json", background="light")
+        theme(fontGreek="Other Greek")
+        from dysonsphere.export import load
+
+        loaded = load(tmp_path / "source.json")
+        assert alt.theme.options["fontGreek"] == saved_font
+        if saved_font is not None:
+            stem = tmp_path / "restored"
+            save(cast(Any, loaded), stem, format="svg", background="light", saveMetadata=False)
+            assert f'font-family="{saved_font}"' in stem.with_suffix(".svg").read_text(encoding="utf-8")
+
+    def test_unicode_coverage_and_exclusions(self):
+        label = "TNF-α ρ χ²/η² Άλφα α\u0301 ϑ µ μ Ⲁ · + 12"
+        root = ET.fromstring(f'<svg xmlns="{NS}"><text aria-label="{label}">{label}</text></svg>')
+        _switch_greek_font(root, "Journal Greek")
+        text = root.find(f"{{{NS}}}text")
+        assert text is not None
+        runs = [run for run in text.iter(f"{{{NS}}}tspan") if run.get("class") == "ds-greek-font"]
+        assert [run.text for run in runs] == ["α", "ρ", "χ", "η", "Άλφα", "α\u0301", "ϑ", "μ"]
+        assert all(run.get("font-family") == "Journal Greek" for run in runs)
+        assert "".join(text.itertext()) == label
+        assert text.get("aria-label") == label
+
+    def test_preserves_existing_runs_styles_tails_and_is_idempotent(self):
+        root = ET.fromstring(
+            f'<svg xmlns="{NS}"><text transform="rotate(30)">ρ &amp; '
+            '<tspan dy="-2.5" font-size="4">2</tspan> + '
+            '<tspan font-style="italic">α</tspan> TNF-β</text></svg>'
+        )
+        _switch_greek_font(root, "Symbol")
+        _switch_greek_font(root, "Symbol")
+        text = root.find(f"{{{NS}}}text")
+        assert text is not None
+        assert "".join(text.itertext()) == "ρ & 2 + α TNF-β"
+        assert text.get("transform") == "rotate(30)"
+        assert len([run for run in text.iter(f"{{{NS}}}tspan") if run.get("class") == "ds-greek-font"]) == 3
+        assert next(run for run in text.iter(f"{{{NS}}}tspan") if run.text == "2").get("dy") == "-2.5"
+        italic = next(run for run in text.iter(f"{{{NS}}}tspan") if run.get("font-style") == "italic")
+        greek = italic.find(f"{{{NS}}}tspan")
+        assert greek is not None and greek.text == "α"
+
+
 class TestItalicizeStatSymbols:
     def _root_with_text(self, content: str) -> ET.Element:
         escaped = content.replace("&", "&amp;").replace("<", "&lt;")
@@ -1181,7 +1656,7 @@ class TestItalicizeStatSymbols:
             assert self._italic_runs(root) == [], label
 
     def test_after_superscript_fixer(self):
-        # pipeline order: superscript fixer splits the exponent out first; the P (still in
+        # processing order: superscript fixer splits the exponent out first; the P (still in
         # .text) and any symbols in the exponent tspan's TAIL must still be found
         root = self._root_with_text("r = 0.9, P = 3.03×10⁻¹⁴, y = 0.8x + 0.2")
         _fix_superscript_labels(root)
@@ -1224,7 +1699,7 @@ class TestItalicizeStatSymbols:
                 "y": [1.0, 2.0, 3.0, 2.5, 1.5, 2.2, 4.0, 5.0, 4.5, 5.5, 4.8, 5.2],
             }
         )
-        chart = ds.mark_strip(df, "g", "y", ["a", "b"]) + ds.add_comparisons(
+        chart = ds.mark_strip(df, "g", "y", ["a", "b"]) + ds.stats.comparisons(
             df, "g", "y", pairs=[("a", "b")], test="mannwhitneyu"
         )
         save(chart, str(tmp_path / "italic"), format="svg", background=["light"])
@@ -1288,15 +1763,15 @@ class TestFixFontForIllustrator:
 
 
 class TestShadeBehindAxes:
-    """add_shade draws a background - it must never paint over the axes or the frame."""
+    """shade draws a background - it must never paint over the axes or the frame."""
 
     def _chart(self, closed):
         cats = ["a", "b", "c", "d"]
         df = pl.DataFrame({"g": cats, "v": [5.0, 6.0, 4.0, 7.0]})
-        theme(closed=closed, chartWidth=200, chartHeight=200)
+        theme(closed=closed, width=200, height=200)
         import dysonsphere as ds
 
-        return ds.add_shade(categories=cats) + alt.Chart(df).mark_bar().encode(
+        return ds.shade(categories=cats) + alt.Chart(df).mark_bar().encode(
             alt.X("g:N", title="g"), alt.Y("v:Q", title="v")
         )
 
@@ -1409,7 +1884,7 @@ class TestSuppressNice:
 
     def test_svg_and_json_agree(self, tmp_path):
         """The two spec resolutions in save() must not drift apart."""
-        theme(closed=True, chartWidth=300, chartHeight=300)
+        theme(closed=True, width=300, height=300)
         save(self._chart(), str(tmp_path / "fig"), format=["svg", "json"], background="light")
         spec = json.loads((tmp_path / "fig.json").read_text())
         assert spec["encoding"]["y"]["scale"]["nice"] is False
@@ -1419,7 +1894,7 @@ class TestSuppressNice:
 
     def test_removes_negative_tick_on_non_negative_data(self, tmp_path):
         """A padded, niced domain invents a -1 tick under data that never goes below zero."""
-        theme(closed=True, chartWidth=300, chartHeight=300)
+        theme(closed=True, width=300, height=300)
         save(self._chart(), str(tmp_path / "fig"), format="svg", background="light")
         labels = re.findall(r"<text[^>]*>([^<]*)</text>", (tmp_path / "fig.svg").read_text())
         assert "\u22121" not in labels

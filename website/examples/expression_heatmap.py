@@ -7,8 +7,8 @@ import polars as pl
 import dysonsphere as ds
 from dysonsphere.palettes import colors
 
-# bandPadding=0 makes the band scales' cells sit flush (config.scale.bandPaddingInner/Outer)
-ds.theme(chartWidth=165, chartHeight=180, closed=True, viewPadding=0, bandPadding=0)
+# Zero rect and outer padding makes the heatmap cells sit flush with one another and the plot.
+ds.theme(width=165, height=180, closed=True, viewPadding=0, rectPadding=0, outerPadding=0)
 
 rng = np.random.default_rng(4)
 n_rep = 6  # replicates per condition
@@ -40,7 +40,7 @@ chart = (
     .mark_rect()
     .encode(
         x=alt.X("sample:N", title=None, sort=samples),
-        # gene symbols are italicized by convention; cells sit flush via theme(bandPadding=0)
+        # gene symbols are italicized by convention; cells sit flush via zero rect/outer padding
         y=alt.Y("gene:N", title=None, sort=genes, axis=alt.Axis(labelFontStyle="italic")),
         color=alt.Color("z:Q", title="z-score", scale=alt.Scale(range=colors["redsblues"], domain=[-2, 2])),
     )

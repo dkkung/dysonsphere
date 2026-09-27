@@ -134,6 +134,12 @@ export function typesetScripts(root: ParentNode): void {
 const ITALIC_STAT =
 	/(?<![A-Za-z])(?:P(?=\s*[=<≈])|[FHA](?=\()|W(?=\s*=)|r(?=²?\s*=)|n(?=\s*=)|y(?=\s*=)|t(?=-test)|[Pp](?=[ \-]value))|(?<=Mann-Whitney )U(?![A-Za-z])|(?<=[\d.])x(?=\s*[+\-−]\s*\d)/g;
 
+/** The same detectors used by the SVG correction passes, available before embedding. */
+export function needsTextCorrections(text: string): boolean {
+	ITALIC_STAT.lastIndex = 0;
+	return planScripts(text).length > 0 || ITALIC_STAT.test(text);
+}
+
 /**
  * Italicize Latin statistical symbols (`P n F H A W r y x t U`) in every `<text>` of the
  * rendered chart(s) under `root`. Run AFTER `fixSuperscripts` (both split text into tspans;
@@ -199,7 +205,7 @@ export function alignGridToContent(root: ParentNode, spec: { config?: { axis?: {
 /**
  * Client-side port of `export._flip_ticks_inward()`: negate the non-zero `x2`/`y2` of every
  * axis-tick line so ticks point INTO the plot. Like the superscript fixer, the library applies
- * this only at save() time; the site opts in per chart (theming's inwardTicks example) since
+ * this only at save() time; the site opts in per chart (theming's inward-tick example) since
  * the rendered spec carries no flag for it.
  *
  * Two passes, mirroring the library: Pass 1 pulls each axis's labels + title toward the view by

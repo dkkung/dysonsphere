@@ -20,6 +20,6 @@ chart = ds.mark_table(
     df,
     columnFormat={"reads": "si", "q30": ".1f", "mapped": ".1f", "dup": ".1f"},
     headerLabels={"sample": "Sample", "reads": "Reads", "q30": "Q30 %", "mapped": "Mapped %", "dup": "Dup %"},
-    cellColor={"mapped": "greens"},
+    cellPalette={"mapped": "greens"},
     strokes="all",
 )

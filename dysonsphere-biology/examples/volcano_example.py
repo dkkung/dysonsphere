@@ -23,11 +23,11 @@ pvalue = np.where(np.abs(log2fc) > 1.5, base**3, base)
 
 df = pl.DataFrame({"gene": [f"G{i}" for i in range(n)], "log2fc": log2fc, "pvalue": pvalue})
 
-ds.theme(chartWidth=125, chartHeight=80)
+ds.theme(width=125, height=80)
 
 out = Path(__file__).parent / "volcano_example"
 ds.save(
-    lambda: ds.biology.volcano(df, geneCol="gene", label=6),
+    lambda: ds.biology.volcano(df, labels="gene", subset=6),
     str(out),
     format=["png"],
     background="light",

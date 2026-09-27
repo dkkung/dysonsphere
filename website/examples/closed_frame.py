@@ -1,11 +1,12 @@
 import altair as alt
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 # closed=True draws a full frame around the plot (all four spines).
 ds.theme(closed=True)
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
 
 chart = (
     alt.Chart(cars)

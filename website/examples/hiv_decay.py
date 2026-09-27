@@ -13,7 +13,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=215, chartHeight=180)
+ds.theme(width=215, height=180)
 
 rng = np.random.default_rng(5)
 days = np.array([0, 1, 2, 3, 4, 5, 6, 7], dtype=float)
@@ -39,15 +39,25 @@ thalf_mean = float(np.mean(halves))
 
 # viral load is exponential in time, i.e. linear in log10 - so fit in log space and label the
 # axis back as powers of ten
-yaxis = alt.Axis(values=[4, 5, 6], labelExpr="'10' + ['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸','⁹'][round(datum.value)]", title="HIV RNA (copies/mL)")
-scatter = alt.Chart(df).mark_point(filled=True, size=22).encode(
-    x=alt.X("day:Q", title="Days after starting therapy", scale=alt.Scale(domain=[-0.3, 7.3], nice=False)),
-    y=alt.Y("log_vl:Q", axis=yaxis, scale=alt.Scale(domain=[3.35, 6.15], nice=False)),  # explicit title keeps the CI field out of the axis
-    color=alt.Color("patient:N", title=None),
+yaxis = alt.Axis(
+    values=[4, 5, 6],
+    labelExpr="'10' + ['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸','⁹'][round(datum.value)]",
+    title="HIV RNA (copies/mL)",
+)
+scatter = (
+    alt.Chart(df)
+    .mark_point(filled=True, size=22)
+    .encode(
+        x=alt.X("day:Q", title="Days after starting therapy", scale=alt.Scale(domain=[-0.3, 7.3], nice=False)),
+        y=alt.Y(
+            "log_vl:Q", axis=yaxis, scale=alt.Scale(domain=[3.35, 6.15], nice=False)
+        ),  # explicit title keeps the CI field out of the axis
+        color=alt.Color("patient:N", title=None),
+    )
 )
 
 # one OLS fit + confidence band per patient (position=None hides the r readout)
-fits = ds.add_correlation(df, "day", "log_vl", groupCol="patient", ci=True, position=None)
-label = ds.add_text(f"first-phase t½ ≈ {thalf_mean:.1f} days", position="topRight")
+fits = ds.stats.correlation(df, "day", "log_vl", groupBy="patient", ci=True, position=None)
+label = ds.text(f"first-phase t½ ≈ {thalf_mean:.1f} days", position="topRight")
 
 chart = scatter + fits + label

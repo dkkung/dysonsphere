@@ -71,7 +71,7 @@ def build(path: Path, dark: bool) -> dict:
         if chart is None:
             raise SystemExit(f"{path}: does not define a variable named 'chart'")
         spec = _apply_spec_fixes(chart.to_dict())
-        ds.clear_stats()
+        ds.stats.clear_stats()
         return spec
 
     if path.stem in PLAIN_EXAMPLES:
@@ -111,7 +111,7 @@ def build(path: Path, dark: bool) -> dict:
     # save()/show() apply - otherwise a live chart ticks differently from the exported figure.
     spec = _apply_spec_fixes(chart.to_dict())
     # The stats registry is per-process; clear between examples so records never cross charts.
-    ds.clear_stats()
+    ds.stats.clear_stats()
     return spec
 
 

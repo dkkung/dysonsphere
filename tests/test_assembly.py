@@ -24,7 +24,7 @@ class TestAssembleSizing:
 
     def test_derived_options_recompute_at_the_member_size(self):
         # The reason assemble re-runs theme() instead of poking alt.theme.options: markSize and
-        # the corner/arc radii derive from min(chartWidth, chartHeight) and must follow the member.
+        # the corner/arc radii derive from min(width, height) and must follow the member.
         theme()
         seen = []
 
@@ -44,7 +44,7 @@ class TestAssembleSizing:
         assert (second["width"], second["height"]) == (60, 40)
 
     def test_bare_builder_uses_the_theme_size(self):
-        theme(chartWidth=123, chartHeight=77)
+        theme(width=123, height=77)
         spec = assemble([_chart, (_chart, 60, 40)]).to_dict()
         assert "width" not in spec["hconcat"][0], "no stamp - it inherits config.view"
         assert spec["hconcat"][1]["width"] == 60
@@ -70,11 +70,29 @@ class TestAssembleSizing:
 
         with pytest.raises(RuntimeError):
             assemble([(boom, 999, 999)])
-        assert _opt("chartWidth") == 100
+        assert _opt("width") == 100
+
+    def test_restores_complete_theme_state_on_exception(self):
+        from dysonsphere.palettes import colors
+        from dysonsphere.theme import _active_args
+
+        custom = ["#123456", "#abcdef"]
+        theme(darkmode=True, transparent=False, palette=custom, fontSize=9)
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        before_colors = dict(colors)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            assemble([(lambda: (_ for _ in ()).throw(RuntimeError("boom")), 999, 999)])
+
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+        assert colors == before_colors
+        theme()
 
     def test_preserves_explicitly_set_theme_args(self):
         # assemble rebuilds from theme()'s call args, so a caller's explicit settings survive.
-        theme(chartWidth=300, fontSize=9)
+        theme(width=300, fontSize=9)
         seen = {}
 
         def build():
@@ -83,7 +101,7 @@ class TestAssembleSizing:
 
         assemble([(build, None, 200)])
         assert seen["fontSize"] == 9
-        assert _opt("chartWidth") == 300 and _opt("fontSize") == 9
+        assert _opt("width") == 300 and _opt("fontSize") == 9
         theme()
 
 
@@ -172,9 +190,9 @@ class TestFigureLabels:
         theme()
         default = assemble([(_chart, 60, 40, "a")]).to_dict()["title"]
         assert (default["dx"], default["dy"]) == (-5, 0), "held off the chart like axisOffset"
-        one = assemble([(_chart, 60, 40, "a")], labelPadding=3).to_dict()["title"]
+        one = assemble([(_chart, 60, 40, "a")], labelOffset=3).to_dict()["title"]
         assert (one["dx"], one["dy"]) == (3, 3)
-        two = assemble([(_chart, 60, 40, "a")], labelPadding=(-4, 2)).to_dict()["title"]
+        two = assemble([(_chart, 60, 40, "a")], labelOffset=(-4, 2)).to_dict()["title"]
         assert (two["dx"], two["dy"]) == (-4, 2)
 
     def test_chart_keeps_its_own_title(self):
@@ -203,7 +221,7 @@ class TestDictMembers:
         assert _no_marker(as_dict) == _no_marker(as_tuple)
 
     def test_only_chart_is_required(self):
-        theme(chartWidth=123)
+        theme(width=123)
         spec = assemble([{"chart": _chart}]).to_dict()
         assert "width" not in spec, "no stamp - it inherits config.view"
         theme()
@@ -288,8 +306,8 @@ class TestProvenance:
     def test_figure_markers_are_not_the_statistics_channel(self):
         # sharing the statistics prefix would both feed junk hashes to the record scan and get
         # the markers stripped from written output, which broke ds.load() parity
+        from dysonsphere._statistics import _MARKER_PREFIX
         from dysonsphere.assembly import _FIGURE_PREFIX
-        from dysonsphere.statistics import _MARKER_PREFIX
 
         assert not _FIGURE_PREFIX.startswith(_MARKER_PREFIX)
 
@@ -304,8 +322,126 @@ class TestProvenance:
         ds.save(figure, str(tmp_path / "fig"), format="json", background="light")
         spec = json.loads((tmp_path / "fig.json").read_text())
         assert "__dsfigure_label_" in json.dumps(spec)
-        reloaded = ds.load(str(tmp_path / "fig.json"), raw=True)
+        reloaded = ds.load(str(tmp_path / "fig.json"), output="spec")
         assert "__dsfigure_label_" in json.dumps(reloaded)
+
+
+class TestAssemblyExportMode:
+    @staticmethod
+    def _figure(seen=None):
+        # A sized outer builder invokes assemble() while its temporary theme is active,
+        # producing genuinely nested temporary-theme scopes.
+        def inner_chart():
+            if seen is not None:
+                seen.append(("inner", _opt("width"), _opt("height"), _opt("markSize"), _opt("darkmode")))
+            return _chart()
+
+        def outer_builder():
+            if seen is not None:
+                seen.append(("outer", _opt("width"), _opt("height"), _opt("markSize"), _opt("darkmode")))
+            return assemble([(inner_chart, 80, 50)])
+
+        return assemble([(outer_builder, 120, 70)])
+
+    @pytest.mark.parametrize("original_darkmode", [False, True])
+    @pytest.mark.parametrize("backgrounds", [["light", "dark"], ["dark", "light"]])
+    def test_save_variants_keep_requested_mode_and_restore_state(
+        self, tmp_path, monkeypatch, original_darkmode, backgrounds
+    ):
+        import json
+        import re
+
+        from PIL import Image
+
+        import dysonsphere as ds
+        from dysonsphere.palettes import colors
+        from dysonsphere.theme import _active_args
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            '[ocean]\ncategoryPalette = "local"\n[palettes]\nlocal = ["#123456", "#abcdef"]\n'
+        )
+        theme(style="ocean", darkmode=original_darkmode, transparent=True, tickDirection="in")
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        before_colors = dict(colors)
+        ds.save(
+            lambda: self._figure(),
+            tmp_path / "assembled",
+            format=["svg", "png", "json"],
+            background=backgrounds,
+            transparent=False,
+            ppi=72,
+        )
+
+        for mode, ink, page in (("light", "black", (255, 255, 255)), ("dark", "white", (0, 0, 0))):
+            stem = tmp_path / f"assembled_{mode}"
+            spec = json.loads(stem.with_suffix(".json").read_text())
+            assert spec["usermeta"]["dysonsphere"]["theme"]["darkmode"] is (mode == "dark")
+            assert spec["usermeta"]["dysonsphere"]["theme"]["tickDirection"] == "in"
+            assert spec["config"]["axis"]["labelColor"] == ink
+            svg = stem.with_suffix(".svg").read_text()
+            assert re.search(rf'<text[^>]*fill="{ink}"[^>]*>[12]</text>', svg), "axis tick ink must match the mode"
+            assert spec["config"]["range"]["category"] == ["#123456", "#abcdef"]
+            with Image.open(stem.with_suffix(".png")) as image:
+                assert image.convert("RGB").getpixel((0, 0)) == page
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+        assert colors == before_colors
+
+    def test_show_uses_active_mode_and_keeps_sized_geometry(self):
+        import re
+        from typing import cast
+
+        import dysonsphere as ds
+
+        theme(darkmode=True, transparent=False)
+        before = dict(alt.theme.options)
+        seen = []
+        svg = cast(str, ds.show(lambda: self._figure(seen)).data)
+        assert 'fill="white"' in svg
+        assert re.search(r'<rect width="\d+" height="\d+" fill="black"', svg)
+        assert seen == [("outer", 120, 70, 7.0, True), ("inner", 80, 50, 5.0, True)]
+        assert alt.theme.options == before
+
+    def test_transparent_save_keeps_alpha_and_dark_metadata(self, tmp_path):
+        import json
+
+        from PIL import Image
+
+        import dysonsphere as ds
+
+        theme(darkmode=False)
+        ds.save(lambda: self._figure(), tmp_path / "transparent", format=["png", "json"], background="dark")
+        spec = json.loads((tmp_path / "transparent.json").read_text())
+        assert spec["usermeta"]["dysonsphere"]["theme"]["darkmode"] is True
+        with Image.open(tmp_path / "transparent.png") as image:
+            assert image.convert("RGBA").getchannel("A").getpixel((0, 0)) == 0
+
+    def test_save_builder_error_restores_complete_theme_state(self, tmp_path):
+        import dysonsphere as ds
+        from dysonsphere.palettes import colors
+        from dysonsphere.theme import _active_args
+
+        theme(darkmode=False, transparent=True, categoryPalette=["#123456", "#abcdef"])
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        before_colors = dict(colors)
+
+        def fail():
+            return assemble([(lambda: (_ for _ in ()).throw(RuntimeError("boom")), 120, 70)])
+
+        with pytest.raises(RuntimeError, match="boom"):
+            ds.save(fail, tmp_path / "error", format="json", background="dark")
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+        assert colors == before_colors
+
+    def test_sized_builder_before_explicit_theme_restores_empty_options(self, monkeypatch):
+        monkeypatch.setattr(alt.theme, "options", {})
+        figure = assemble([(_chart, 80, 50)])
+        assert figure._kwds["width"] == 80
+        assert alt.theme.options == {}
 
 
 class TestBlankSlots:
@@ -356,7 +492,7 @@ class TestBlankSlots:
 
         theme()
         ds.save(assemble([(None, 120, 80), (_chart, 60, 40)]), str(tmp_path / "fig"), format="json")
-        frame = ds.read(str(tmp_path / "fig.json"), what="data")
+        frame = ds.metadata.read(str(tmp_path / "fig.json"), what="data")
         assert list(frame.columns) == ["g", "v"], "the blank must not surface as a user frame"
 
 

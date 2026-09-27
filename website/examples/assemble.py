@@ -36,10 +36,10 @@ activity = pl.DataFrame({"expression": expression, "activity": 0.8 * expression 
 
 def time_course():
     x = alt.X("hour:Q", title="Time (h)", scale=alt.Scale(domain=[0, 48]))
-    color = alt.Color("dose:N", sort=DOSES, title=None, scale=alt.Scale(range=ds.palette("ds_cat_3", 3)))
+    color = alt.Color("dose:N", sort=DOSES, title=None, scale=alt.Scale(range=ds.palette("cat1", 3)))
     base = alt.Chart(course)
     return (
-        ds.add_shade(positions=[(0, 12)], axis="x", opacity=0.5)
+        ds.shade(positions=[(0, 12)], axis="x", opacity=0.5)
         + base.mark_line().encode(x=x, y=alt.Y("mean(viability):Q", title="Viability (%)"), color=color)
         + base.mark_errorbar(extent="stderr").encode(x=x, y=alt.Y("viability:Q", title=""), detail="dose:N")
         + base.mark_point(filled=True).encode(x=x, y=alt.Y("mean(viability):Q", title=""), color=color)
@@ -54,8 +54,8 @@ def endpoint_quant():
         DOSES,
         xTitle=None,
         yTitle="Viability at 48 h (%)",
-        palette=ds.palette("ds_cat_2", 3),
-    ) + ds.add_comparisons(
+        palette=ds.palette("cat3", 3),
+    ) + ds.stats.comparisons(
         endpoint,
         "dose",
         "viability",
@@ -86,10 +86,10 @@ def activity_fit():
         .encode(
             x=alt.X("expression:Q", title="Expression"),
             y=alt.Y("activity:Q", title="Activity"),
-            color=alt.Color("activity:Q", title=None, legend=None, scale=alt.Scale(range=ds.palette("ds_div_1", 9))),
+            color=alt.Color("activity:Q", title=None, legend=None, scale=alt.Scale(range=ds.palette("div4", 9))),
         )
     )
-    return points + ds.add_correlation(activity, "expression", "activity", position="topLeft")
+    return points + ds.stats.correlation(activity, "expression", "activity", position="topLeft")
 
 
 chart = ds.assemble(

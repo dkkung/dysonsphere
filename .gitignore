@@ -1,25 +1,8 @@
-# Compiled source #
-###################
-*.com
-*.class
-*.dll
-*.exe
-*.o
-*.so
-
-# Logs and databases #
-######################
-*.log
-*.sql
-*.sqlite
-
-# Cache files #
-###############
+# cache
 __pycache__
 *.pyc
 
-# OS generated files #
-######################
+# OS-generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -28,38 +11,23 @@ __pycache__
 ehthumbs.db
 Thumbs.db
 
-# Notes / scratchpads #
-#########
-*rule*.md
-*thoughts.md
-*notes.md
-*planning.md
-*plans.md
-*scratch*
-
-# Virtual environments #
-########################
+# virtual environments
 .venv
 *venv
 pipenv
 *conda*
 
-# Raw data files #
-##################
-*.tif
-*.tiff
-*.nd2
-
-# Project-specific #
+# project-specific
+/*.md
+!/README.md
+!/CHANGELOG.md
+demo_output/
 *.png
 *.svg
 *.json
 *.html
-!docs/*.png
-!docs/*.html
 !docs/logo.svg
 !docs/logo_with_text.svg
 !website/**/*.json
 !website/**/*.svg
 !website/**/*.png
-website/logo/double-dysonsphere/**

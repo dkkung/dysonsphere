@@ -8,7 +8,7 @@ import dysonsphere as ds
 
 from dysonsphere.palettes import colors
 
-ds.theme(chartWidth=150, chartHeight=150, xDomain=False, yDomain=False, axisOffset=0, viewPadding=0)
+ds.theme(width=150, height=150, xDomain=False, yDomain=False, axisOffset=0, viewPadding=0)
 
 rng = np.random.default_rng(8)
 feats = ["Age", "BMI", "SBP", "Glucose", "HbA1c", "LDL", "HDL"]

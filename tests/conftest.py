@@ -3,14 +3,14 @@ import tempfile
 
 import pytest
 
-from dysonsphere.statistics import _REPORTS
+from dysonsphere._statistics import _REPORTS
 
 
 @pytest.fixture(autouse=True)
 def _clear_report_queue():
-    """Isolate the add_comparisons() report registry between tests.
+    """Isolate the comparisons() report registry between tests.
 
-    add_comparisons() queues a report on every call (for export metadata); without
+    comparisons() queues a report on every call (for export metadata); without
     clearing it, reports from one test leak into another test's ds.save() output.
     """
     _REPORTS.clear()

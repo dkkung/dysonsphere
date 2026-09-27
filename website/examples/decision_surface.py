@@ -8,7 +8,7 @@ import dysonsphere as ds
 from dysonsphere.palettes import colors
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=175, chartHeight=150, closed=True, viewPadding=False)
+ds.theme(width=175, height=150, closed=True, viewPadding=False)
 
 rng = np.random.default_rng(0)
 n = 120
@@ -66,7 +66,7 @@ scatter = (
         # saturated corners, and the paler stops stop telling the two classes apart
         color=alt.Color(
             "class:N",
-            scale=alt.Scale(range=[colors["ds_div_3"][3], colors["ds_div_3"][9]]),
+            scale=alt.Scale(range=[colors["div1"][3], colors["div1"][9]]),
             legend=None,
         ),
     )

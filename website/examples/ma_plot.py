@@ -7,7 +7,7 @@ import polars as pl
 import dysonsphere as ds
 
 alt.data_transformers.enable("default", max_rows=None)
-ds.theme(chartWidth=190, chartHeight=165)
+ds.theme(width=190, height=165)
 
 rng = np.random.default_rng(11)
 n = 4000
@@ -22,8 +22,14 @@ M = rng.normal(0.0, spread)
 # each target (A, M) so the hit sits where a real DE gene would.
 genes: list[str | None] = [None] * n
 de = {
-    "MYC": (11.6, 2.9), "CCND1": (10.1, 2.4), "VEGFA": (8.7, 2.0), "FN1": (12.6, 2.5),
-    "CDKN1A": (9.4, -2.7), "BAX": (7.9, -2.2), "GADD45A": (9.0, -2.4), "SESN2": (10.9, -1.9),
+    "MYC": (11.6, 2.9),
+    "CCND1": (10.1, 2.4),
+    "VEGFA": (8.7, 2.0),
+    "FN1": (12.6, 2.5),
+    "CDKN1A": (9.4, -2.7),
+    "BAX": (7.9, -2.2),
+    "GADD45A": (9.0, -2.4),
+    "SESN2": (10.9, -1.9),
 }
 for name, (a, m) in de.items():
     i = int(np.argmin((A - a) ** 2 + M**2))
@@ -49,9 +55,9 @@ points = (
     )
 )
 
-zero = ds.add_rule(0.0)  # M = 0: no change
-thresh = ds.add_rule([-1.0, 1.0], strokeDash=True)  # 2-fold-change guides
+zero = ds.rule(y=0.0)  # M = 0: no change
+thresh = ds.rule(y=[-1.0, 1.0], strokeDash=True)  # 2-fold-change guides
 
-gene_labels = ds.add_labels(df, "A", "M", "gene", labels=df["gene"].is_not_null(), fontStyle="italic")
+gene_labels = ds.labels(df, "A", "M", "gene", subset=df["gene"].is_not_null(), fontStyle="italic")
 
 chart = points + zero + thresh + gene_labels

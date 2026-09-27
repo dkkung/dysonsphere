@@ -1,21 +1,29 @@
 import altair as alt
-import dysonsphere as ds
 from vega_datasets import data
 
+import dysonsphere as ds
+
 # The three-part readout is wide - give it a wider canvas.
-ds.theme(chartWidth=150)
+ds.theme(width=150)
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
 
-scatter = alt.Chart(cars).mark_point().encode(
-    x=alt.X("Horsepower:Q"),
-    y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon"),
+scatter = (
+    alt.Chart(cars)
+    .mark_point()
+    .encode(
+        x=alt.X("Horsepower:Q"),
+        y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon"),
+    )
 )
 
 # Compose the readout from independent parts: coefficient="both" shows r and r-squared,
 # includePvalue adds P. The default (coefficient="r") shows just r = ...; verbose=True is a
 # shortcut that turns all of them on plus the fit equation.
-chart = scatter + ds.add_correlation(
-    cars, "Horsepower", "Miles_per_Gallon",
-    coefficient="both", includePvalue=True,
+chart = scatter + ds.stats.correlation(
+    cars,
+    "Horsepower",
+    "Miles_per_Gallon",
+    coefficient="both",
+    includePvalue=True,
 )

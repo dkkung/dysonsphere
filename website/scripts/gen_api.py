@@ -18,26 +18,22 @@ import griffe
 from griffe import ParameterKind
 
 # (module name, page title, sidebar order, one-line description)
-# Alphabetical by page title (the sidebar order mirrors it), with one deliberate
-# exception: Extensions precedes Extension authoring (discovery before the SDK).
+# Alphabetical by page title (the sidebar order mirrors it).
 MODULES = [
     ("annotations", "Annotations", 1, "Composable annotation layers: reference lines, text, shading, point labels."),
-    ("labels", "Display labels", 2, "Map raw data values to display labels on axes, legends, and headers."),
-    ("discovery", "Extensions", 3, "Discover and load installed dysonsphere extensions."),
-    ("ext", "Extension authoring", 4, "The stable primitive surface for extension authors (dysonsphere.ext)."),
+    ("display_labels", "Display labels", 2, "Map raw data values to display labels on axes, legends, and headers."),
+    ("ext", "Extensions", 3, "Discover extensions and use the extension-author API (dysonsphere.ext)."),
     ("marks", "Marks", 5, "Composite marks: strip and violin plots."),
     ("assembly", "Assembling figures", 6, "Compose several charts into one figure, each at its own size."),
     ("multilabel", "Multilabels", 7, "Attach a multilabel annotation table below a chart."),
     ("nonlinear", "Nonlinear axes", 8, "Minor ticks and typeset labels for log and power axes."),
     ("palettes", "Palettes", 9, "Perceptually uniform palettes and Adobe Illustrator swatch export."),
-    ("metadata", "Reading exports", 10, "Read embedded metadata, statistics, reports, and data back out of exports."),
+    ("metadata", "Reading exports", 10, "Read exports, verify figures, and compute data checksums."),
     ("export", "Saving & loading", 11, "Export charts to files and rebuild them from the Vega-Lite JSON."),
-    ("inference", "Statistical annotations", 12, "Pairwise/omnibus comparisons and correlation layers."),
-    ("statistics", "Statistics registry", 13, "Statistics report queue management."),
+    ("stats", "Statistics", 12, "Pairwise/omnibus comparisons, correlation layers, and report queue management."),
     ("table", "Tables", 14, "Render a DataFrame as a publication-styled table."),
-    ("theme", "Theming", 15, "Register the dysonsphere Altair theme and scaffold config files."),
+    ("theme", "Theming", 15, "Register the dysonsphere Altair theme and create config files."),
     ("transforms", "Transforms", 16, "Data transforms for jittered and beeswarm x-offsets."),
-    ("utils", "Utilities", 17, "Shared helpers: DataFrame handling, counts, band geometry, checksums."),
 ]
 
 # Extension modules documented from a separate distribution's package (not part of core's
@@ -56,7 +52,7 @@ EXTENSION_MODULES = [
 EXT_OUT = Path("website/src/content/docs/extensions")
 
 # Signatures longer than this render one-parameter-per-line instead of on a single line, so
-# wide APIs (theme, add_comparisons, ...) never force horizontal scrolling.
+# wide APIs (theme, stats.comparisons, ...) never force horizontal scrolling.
 ONE_LINE_LIMIT = 76
 
 OUT = Path("website/src/content/docs/reference")
@@ -65,9 +61,8 @@ OUT = Path("website/src/content/docs/reference")
 def public_functions(mod):
     """Public functions of this module, in source order.
 
-    Includes deliberate re-exports (aliases listed in the module's ``__all__``, e.g. the whole
-    ``dysonsphere.ext`` surface, which re-exports private core primitives under public names) -
-    plain imports are skipped, since they are documented in their home module.
+    Includes re-exports listed in ``__all__``, such as the ``dysonsphere.ext`` helpers and
+    ``stats.clear_stats`` from ``_statistics``. Other imports are documented in their own modules.
     """
     exports = set(mod.exports or [])
     fns = []
@@ -83,7 +78,7 @@ def public_functions(mod):
                 continue
         if obj.kind.value == "function":
             fns.append((name, obj))
-    fns.sort(key=lambda pair: (pair[1].lineno or 0))
+    fns.sort(key=lambda pair: pair[1].lineno or 0)
     return fns
 
 
@@ -171,9 +166,24 @@ def render_page(mod, title: str, order: int, description: str) -> str:
     # The module docstring introduces the page (ext.py's carries the whole authoring contract).
     if mod.docstring:
         out += [mod.docstring.value.strip(), ""]
+    if mod.name == "palettes":
+        out += [
+            "Use `ds.palette(...)` to select colors. This ordinary root function is implemented in",
+            "`palettes.py`; the catalogue and other helpers live at `ds.palettes.colors`,",
+            "`ds.palettes.categorical(...)`, and `ds.palettes.export_swatches(...)`.",
+            "`ds.palettes.accents` is a read-only mapping of named emphasis colors resolved from the",
+            "active light/dark theme at lookup time; it is not part of the palette catalogue.",
+            "",
+        ]
+    elif mod.name == "metadata":
+        out += [f"Access these helpers through `ds.{mod.name}`.", ""]
     for name, f in fns:
         out.append(f"## `{name}`")
         out.append("")
+        if mod.name in {"ext", "metadata", "palettes"}:
+            root_names = {"extensions", "load_extension", "palette"}
+            public_path = f"ds.{name}" if name in root_names else f"ds.{mod.name}.{name}"
+            out += [f"Call as `{public_path}(...)`.", ""]
         out += ["```python", format_signature(f, name), "```", ""]
         out += render_docstring(f)
     return "\n".join(out).rstrip() + "\n"

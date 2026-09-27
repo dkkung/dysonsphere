@@ -1,0 +1,26 @@
+---
+import accents from '../generated/accents.json';
+---
+
+<div class="accents not-content" aria-label="Named accent colors for the current theme">
+	{accents.map((accent) => (
+		<article class="accent" style={`--accent-light:${accent.light};--accent-dark:${accent.dark}`}>
+			<h3>{accent.name}</h3>
+			<span class="accent__swatch" aria-hidden="true"></span>
+			<code class="accent__hex accent__hex--light">{accent.light}</code>
+			<code class="accent__hex accent__hex--dark">{accent.dark}</code>
+		</article>
+	))}
+</div>
+
+<style>
+	.accents { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 1rem; }
+	.accent { display: grid; grid-template-rows: auto 4rem auto; gap: .4rem; margin: 0; text-align: center; }
+	.accent h3 { margin: 0; font-size: .9rem; font-weight: 600; }
+	.accent__swatch { display: block; background: var(--accent-light); border-radius: .2rem; }
+	.accent__hex { color: inherit; background: transparent; padding: 0; font-size: .75rem; }
+	.accent__hex--dark { display: none; }
+	:global([data-theme='dark']) .accent__swatch { background: var(--accent-dark); }
+	:global([data-theme='dark']) .accent__hex--light { display: none; }
+	:global([data-theme='dark']) .accent__hex--dark { display: block; }
+</style>

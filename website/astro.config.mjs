@@ -75,12 +75,17 @@ export default defineConfig({
 		starlight({
 			title: 'dysonsphere',
 			favicon: '/favicon.svg',
-			logo: { src: './src/assets/dysonsphere_logo.svg', replacesTitle: false },
+			logo: {
+				dark: './logo/dysonsphere-brand/svg/dysonsphere-icon-mono-white.svg',
+				light: './logo/dysonsphere-brand/svg/dysonsphere-icon-mono-black.svg',
+				alt: '', // The adjacent visible title names the site; the icon is decorative.
+				replacesTitle: false,
+			},
 			components: {
 				SiteTitle: './src/components/SiteTitle.astro',
 			},
 			description:
-				'An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.',
+				'An Altair theme and chart-utility library with perceptually uniform palettes and consistent defaults.',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/dkkung/dysonsphere' }],
 			// Injected raw because the CSS pipeline minifies `-webkit-text-size-adjust` away
 			// (it assumes the unprefixed property covers every target - Safari supports only the
@@ -97,9 +102,8 @@ export default defineConfig({
 				'./src/styles/theme.css',
 			],
 			expressiveCode: {
-				// geist-australis (custom, defined above): grayscale scaffold + australis accents.
-				// The ground comes from --ds-code-bg (theme.css) so code cells share one surface
-				// with the CodeMirror editors; the theme only supplies token colors.
+				// Code blocks and CodeMirror share --ds-code-bg from theme.css.
+				// The geist-australis themes supply token colors only.
 				themes: [geistAustralisDark, geistAustralisLight],
 				styleOverrides: {
 					borderRadius: '0.65rem',
@@ -122,6 +126,7 @@ export default defineConfig({
 						{ label: 'Theming', slug: 'guides/theming' },
 						{ label: 'Global theme overrides', slug: 'guides/configuration' },
 						{ label: 'Palettes', slug: 'guides/palettes' },
+						{ label: 'Accents', slug: 'guides/accents' },
 						{
 							label: 'Marks & transforms',
 							items: [
@@ -183,6 +188,28 @@ export default defineConfig({
 							items: [
 								{ label: 'Overview', slug: 'extensions/biology' },
 								{ label: 'volcano()', slug: 'extensions/volcano' },
+							],
+						},
+					],
+				},
+				{
+					label: 'Agent skills',
+					items: [
+						{ label: 'README.md', slug: 'agent-skills' },
+						{
+							label: 'dysonsphere/',
+							items: [
+								{ label: 'SKILL.md', slug: 'agent-skills/dysonsphere' },
+								{
+									label: 'references/',
+									items: [
+										{ label: 'plotting.md', slug: 'agent-skills/references/plotting' },
+										{ label: 'statistics.md', slug: 'agent-skills/references/statistics' },
+										{ label: 'utilities.md', slug: 'agent-skills/references/utilities' },
+										{ label: 'nonlinear.md', slug: 'agent-skills/references/nonlinear' },
+										{ label: 'export.md', slug: 'agent-skills/references/export' },
+									],
+								},
 							],
 						},
 					],

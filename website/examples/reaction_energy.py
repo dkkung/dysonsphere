@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=240, chartHeight=150, axisOffset=0)
+ds.theme(width=240, height=150, axisOffset=0)
 
 # control points along the reaction coordinate: R -> TS1 -> Int -> TS2 -> P
 xk = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
@@ -31,12 +31,11 @@ line = (
 )
 
 ann = (
-    ds.add_text("Reactants", x=0.0, y=-2.5, offsetX=4, align="left")
-    + ds.add_text("TS1", x=1.0, y=18.0)
-    + ds.add_text("Intermediate", x=2.0, y=3.0)
-    + ds.add_text("TS2", x=3.0, y=13.5)
-    + ds.add_text("Product", x=4.0, y=-10.5, align="right")
+    ds.text("Reactants", x=0.0, y=-2.5, offsetX=4, align="left")
+    + ds.text("TS1", x=1.0, y=18.0)
+    + ds.text("Intermediate", x=2.0, y=3.0)
+    + ds.text("TS2", x=3.0, y=13.5)
+    + ds.text("Product", x=4.0, y=-10.5, align="right")
 )
 
 chart = line + ann
-

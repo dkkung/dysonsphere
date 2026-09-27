@@ -1,21 +1,30 @@
 import altair as alt
-import dysonsphere as ds
 from vega_datasets import data
 
-# The verbose omnibus label is long - widen the canvas so it fits.
-ds.theme(chartWidth=200)
+import dysonsphere as ds
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+# The verbose omnibus label is long - widen the canvas so it fits.
+ds.theme(width=200)
+
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 origins = ["Europe", "Japan", "USA"]
 
-box = alt.Chart(cars).mark_boxplot().encode(
-    x=alt.X("Origin:N", sort=origins, title=None),
-    y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon"),
-    color=alt.Color("Origin:N"),
+box = (
+    alt.Chart(cars)
+    .mark_boxplot()
+    .encode(
+        x=alt.X("Origin:N", sort=origins, title=None),
+        y=alt.Y("Miles_per_Gallon:Q", title="Miles per gallon"),
+        color=alt.Color("Origin:N"),
+    )
 )
 
-chart = box + ds.add_comparisons(
-    cars, "Origin", "Miles_per_Gallon",
+chart = box + ds.stats.comparisons(
+    cars,
+    "Origin",
+    "Miles_per_Gallon",
     [("Europe", "USA"), ("Japan", "USA")],
-    test="kruskal", omnibusVerbose=True, categories=origins,
+    test="kruskal",
+    omnibusVerbose=True,
+    categories=origins,
 )

@@ -2,7 +2,7 @@ import altair as alt
 import dysonsphere as ds
 from vega_datasets import data
 
-ds.theme(chartWidth=124)
+ds.theme(width=124)
 
 stocks = data.stocks()
 

@@ -1,5 +1,226 @@
 # Changelog
 
+## [4.0.0] - 2026-09-26
+
+### New features
+
+- Added `theme(legendTickCount=4)` to suggest a positive tick count for quantitative legends.
+- Added `categoryPaletteDarkmode`, `divergingPaletteDarkmode`, `heatmapPaletteDarkmode`,
+  `ordinalPaletteDarkmode`, and `rampPaletteDarkmode` theme controls. Non-None dark-mode ranges
+  override their regular per-type palettes only in dark mode. Light/dark defaults are `cat1`/`cat2`
+  for category, `div1`/`div2` for diverging, `viridis`/`viridis` for heatmap and ramp, and
+  `greys`/`greys` for ordinal.
+- Added a built-in `small` theme style with a 70 x 70 pixel canvas and `fontSize=5`.
+- Added a static ten-color accent-derived default `cat1`, reusing `greys` alongside independent,
+  perceptually uniform `cat1_blues`, `cat1_greens`, `cat1_purples`, and `cat1_teals` ramps.
+- Added the purple-to-teal default `div1` and a pink-to-blue `div3` companion for `cat3`.
+- Added a portable core Dysonsphere agent skill with plotting, statistics, and export references,
+  executable examples with verified composite-panel scales, and installation guidance for Claude Code,
+  Codex, and OpenCode. Guidance covers focused input validation, explanatory captions, and checks of
+  actual rendered output. Examples preserve default SVG + JSON exports, with separate inspection
+  previews at default raster quality.
+- Added default `theme(fontGreek="Symbol")` switching for Unicode Greek letters in editable SVG
+  text, rasterized PNG, and `show()` output. Set `fontGreek=None` to disable it or name a custom
+  installed font.
+- Added `grays` spellings for every native palette containing `greys` (including `grays2`,
+  `warmgrays`, and `graysblues`) across palette, theme, custom-mark, table, biology, configuration,
+  and swatch-export paths.
+- Added the read-only `ds.palettes.accents` mapping for theme-aware, named single-element emphasis
+  colors. It remains separate from categorical and continuous palette selection.
+
+### Changes
+
+- Volcano plots now inherit point opacity from the active theme unless `markOpacity` is passed,
+  instead of applying a fixed `0.85` opacity.
+- Statistical comparison metadata now preserves `unadjustedPvalue` alongside the reported `pvalue`,
+  their computed, supplied, or intrinsically adjusted origin, and the effective generic correction-family size.
+  Further generic correction of intrinsically adjusted Games-Howell or Nemenyi results records its actual input.
+- Simplified documentation, docstrings, and inline comments; replaced unnecessary engineering jargon.
+- **Breaking:** Theme dash controls now use Altair-style names: `gridStrokeDash`, `lineStrokeDash`,
+  `ruleStrokeDash`, and the shared `strokeDash` pattern replace `dashedGrid`, `dashedLine`,
+  `dashedRule`, and `dashedWidth` without aliases. Defaults and rendered behavior are unchanged.
+- Dark-mode heatmap and ramp ranges now default to `viridis`, matching light mode so background
+  variants retain the same continuous color mapping. `australis` remains available explicitly.
+- **Breaking:** `ds.save()` and `ds.show()` now allow any number of rows by default with
+  `maxRows=None`; set an integer to apply an explicit per-dataframe cap. Removed the redundant
+  `overrideMaxRows` parameter; omit it or pass `maxRows=None` for unlimited processing.
+- **Breaking:** Removed `boxplotOutliers` from `theme()` and configuration files. Boxplot outliers remain
+  hidden by default; native per-chart Altair outlier overrides remain available.
+- Renumbered the prior `cat1`/`div1` family to `cat2`/`div2` and the prior `cat2`/`div2` family
+  to `cat4`/`div4`, including their categorical hue ramps, without aliases. `cat3` retains its colors.
+- The omitted, unconfigured `markFill` default now uses `#DBDBDB` in light mode and `#9D9D9D` in
+  dark mode. Explicit and configured fills remain fixed, and circle defaults remain black/white.
+
+- **Breaking:** Plot dimensions now use `width` and `height` throughout the public API.
+  `theme(chartWidth=..., chartHeight=...)`, the matching configuration keys,
+  `add_multilabel(chartWidth=...)`, and `stats.comparisons(chartWidth=...)` are replaced by
+  `theme(width=..., height=...)`, `add_multilabel(width=...)`, and `stats.comparisons(width=...)`
+  without aliases.
+- Continuous color legends now track their owning panel dimensions by default. The new
+  `theme(legendGradientLength=None)` default uses half-height vertical and full-width horizontal
+  allocation; a positive numeric value scales either full panel span. Meanwhile,
+  `theme(legendGradientThickness=5)` independently sets thickness in pixels. Explicit native
+  gradient lengths and thicknesses win. Continuous legends require rendering through `ds.save()`
+  or `ds.show()`; bare Altair/notebook rendering may fail on the unresolved sizing marker.
+- Rule segments support optional arrow, circle, and square endpoint caps plus pixel clearances.
+  Arrowhead depth scales gently as `4 * sqrt(strokeWidth)` pixels (2 px at the default 0.25 px
+  stroke); circle and square cap sizes are unchanged.
+  Decorations follow resolved SVG geometry across diagonal rules, reversed scales, and facets in
+  `save()`/`show()` SVG and PNG output; bare Altair and interactive HTML retain the underlying rule.
+  Omitted cap gaps use the existing theme-derived point-label connector clearance.
+- Point-label connectors support `connectorCap="arrow"`, pointing toward each target while reusing
+  the existing connector gap without changing label placement or text-end clearance.
+- Point labels now use a bounded geometry-aware placement search. Labels use portable character-aware
+  width estimates, centered text, and boundary-sliding straight connectors. Placement accounts for
+  standard linear-scale zero inclusion and view padding, and scores point, text, and connector
+  collisions while preferring shorter leaders. Small layouts can take longer because routing checks
+  more geometry; limiting candidate positions reduces the work for larger layouts. `save()` and
+  `show()` place labels again against visible sibling symbols, straight lines and rules, rectangles,
+  and fixed text across layered and concatenated charts.
+- Forced point-label connectors now reserve their complete marker/text clearances instead of shrinking
+  gaps into nearby marks. Bare connectors attach to tighter typographic estimates while conservative
+  padding remains in collision detection; filled labels continue to attach at the actual chip edge.
+
+- **Breaking:** `rule()` now uses explicit keyword coordinates (`x`, `y`, `x2`, and `y2`) for
+  horizontal, vertical, bounded, and diagonal segments. Equation rules accept `slope`, an optional
+  `intercept`, and a required numeric `span`; the former positional `value` and `axis` API is removed.
+
+- **Breaking:** `load(raw=True)` is replaced by `load(output="spec")`. The explicit output name
+  distinguishes untouched Vega-Lite dictionary access from the default editable Altair chart reconstruction.
+- Current-version JSON exports now preserve statistical records with their owning chart components
+  across `load()` and re-export, while regenerating report prose, provenance, and export identity.
+  Re-export now fails closed if a loaded record's saved analytical panel context changed; presentation
+  edits and intact panel composition remain supported. Lookup transforms, runtime parameters and
+  selections, external data, and non-deterministic expressions are conservatively unsupported.
+
+- The default theme now defaults to `fontSize=6` instead of `fontSize=7`.
+- **Breaking:** palette names no longer use `mpl_` or `cmocean_` prefixes; upstream suffix spelling
+  and case are preserved. Native names are lowercase, and qualitative sets are now `cat1`, `cat2`,
+  and `cat3` (the former `ds_cat_3`, `ds_cat_1`, and `ds_cat_2`, respectively). Its constituent
+  ramps are correspondingly `cat1_blues`, `cat1_greens`, `cat1_purples`, and `cat1_teals`.
+  The coordinated diverging palettes are `div1` (formerly `ds_div_3`) and `div2` (formerly
+  `ds_div_1`), and the former `cat_*` constituents of `cat2` now use `cat2_*`. `cmocean_gray` is
+  removed, `greyslavender` is corrected to the family-consistent `greyslavenders`, and the
+  `neongreens`, `neongreens2`, and `neongreens3` ramps and all 24 diverging palettes derived from
+  them are removed. Native `gnbu`/`ylgnbu` are now `greenblue`/`yellowgreenblue` without aliases;
+  imported `GnBu`/`YlGnBu` retain their upstream names. `bluerlagoon` and `bluestlagoon` are removed,
+  while `bluelagoon` and `lagoon` remain. Categorical and ramp defaults, sampling, and surviving
+  family order are unchanged.
+- Matplotlib's 12 discrete category palettes now contain their complete upstream color lists rather
+  than nine-stop samples: `Accent` (8), `Dark2` (8), `Paired` (12), `Pastel1` (9), `Pastel2` (8),
+  `Set1` (9), `Set2` (8), `Set3` (12), `tab10` (10), `tab20` (20), `tab20b` (20), and `tab20c` (20).
+  These lists exactly match Matplotlib 3.11.1; continuous Matplotlib and cmocean palettes remain unchanged.
+- Volcano plots now inherit gained/lost colors from the active theme's diverging range instead of
+  defaulting to the fixed `div2` endpoints (formerly `ds_div_1`). Their separate darkmode-aware
+  neutral color remains, with three discrete legend entries and a neutral swatch matching the points.
+- **Breaking:** `theme(inwardTicks=...)` is replaced by `theme(tickDirection="in" | "out")` with
+  default `"out"`; the old keyword and TOML key are removed without an alias.
+- **Breaking:** `theme()` now has explicit typed keyword-only styling options (`style` remains positional)
+  and validates direct and TOML values atomically. Removed `secondaryFontSize` and `smallestFontSize`; use the
+  positive, fractional `fontSize` control directly. Theme export defaults are validated when set.
+- **Breaking:** deprecated `theme(bandPadding=...)`, `axisOffset=None`, `markMedianStroke`, shade
+  `xCol`, and multilabel `yPadding` are removed. Use the mark-specific padding options and current
+  signatures instead.
+- Dataframe boundaries now accept pandas/Polars DataFrames only; KDE and point-label coordinates
+  reject missing or non-finite observations without changing valid rows. Report readers/writers and
+  biology image loading accept `pathlib.Path` values.
+- KDE marks and quasirandom transforms now reject finite but numerically unusable estimates with
+  column/group context; quasirandom singleton, constant, and empty-input fallbacks are preserved.
+- Palette sampling requires `n` to be a nonnegative integer, including rejecting booleans and integral
+  floats; `n=0` and inclusive oversampling behavior are preserved.
+- `mark_strip()` and `mark_violin()` accept registered palette names and a separate `fill` for
+  fixed colors. Fixed fill suppresses their category-color legend without changing summary marks.
+- **Breaking:** use `fill` instead of the violin's former literal-color `palette` shorthand.
+  Explicit nonempty palette lists remain supported.
+- **Breaking:** tabular inputs use `data`; plot mappings use `x` and `y`. Grouped comparisons use
+  `xOffset`, correlation uses `groupBy`, and axis-independent dataframe operations use `column`.
+- **Breaking:** point labels and volcano plots use `labels` for the content column and `subset`
+  for selection. Volcano fields are `log2fc` and `pvalue`, with `nonDifferentialColor` for neutral points.
+- **Breaking:** violin box controls are `boxplotWidth` and `boxplotMedianColor`; table palettes are
+  `stripePalette` and `cellPalette`; multilabel placement uses `labelPosition` and `lineOrientation`;
+  figure labels use `labelOffset`; blot image gaps use `stripSpacing`. Standalone report writing
+  uses `saveReport`, distinct from figure export.
+- Optional controls for transforms, palette helpers, save/show, and verification are keyword-only.
+  Former parameter names are not accepted. Defaults, calculations, rendered output, and stored
+  record fields are unchanged by this signature migration.
+- **Breaking:** export inspection and checksums now live under `ds.metadata`; palette data,
+  categorical construction, and swatch export live under `ds.palettes`. Their old root names are
+  removed. `ds.palette()`, `ds.save()`, `ds.show()`, and `ds.load()` remain at the top level;
+  behavior and stored metadata are unchanged.
+- **Breaking:** the shared dataframe, count, and band-geometry helpers are private implementation
+  details in `utils.py`; `ds.utils` is no longer a supported public namespace and its former public
+  helper names are removed. Core behavior and stored metadata are unchanged.
+- **Breaking:** annotation constructors are now `ds.rule()`, `ds.text()`, `ds.shade()`, and
+  `ds.labels()`. Offset transforms are `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, and
+  `ds.transforms.quasirandom()`. Former `add_*` spellings are removed without aliases;
+  generated data and rendering are unchanged by the namespace move.
+- Display-label helpers moved from `dysonsphere.labels` to `dysonsphere.display_labels` to avoid
+  shadowing the new `ds.labels()` constructor. `ds.label_expr()` is unchanged.
+- **Breaking:** statistical annotations now use `ds.stats.comparisons()` and `ds.stats.correlation()`;
+  clear retained records with `ds.stats.clear_stats()`. The former top-level functions and
+  `dysonsphere.inference` / `dysonsphere.statistics` modules are removed, without aliases.
+  Calculations, rendering, and embedded metadata are unchanged by the namespace move.
+
+### Fixes
+
+- Centered the documentation homepage hero and links on the full desktop page while keeping
+  the visible sidebar clear; other docs pages retain their layout.
+- Updated the website's transitive TOML parser to a patched release for GHSA-7w5x-hrqm-74c2.
+- Chart Studio now applies its browser SVG inward-tick correction when the executed chart's resolved
+  theme records `tickDirection="in"`.
+- Beeswarm and quasirandom transforms support multiple grouping columns on all supported Polars
+  versions, including the Polars 1.33 runtime used by Chart Studio.
+- Fixed subtitle font sizing and error-band border stroke opacity/width theme wiring.
+- Inner band padding now accepts the renderer-supported endpoint `1`; shared pixel geometry matches
+  D3's centered zero-width singleton behavior instead of dividing by zero.
+- Volcano top-N and significant label selection now identifies rows positionally, so duplicate
+  display labels cannot expand the selected set or pull in non-differential points.
+- Violin category-axis ticks now use the silhouette's rect-band geometry in every inner mode,
+  including with nondefault mark padding and figure-wide band-padding configuration.
+- Verification now includes failed cross-figure comparisons in `.ok`, while unavailable checks remain
+  neutral. Extension provenance tags preserve statistical markers and remain unique in composed charts.
+- Updated the documentation-site build dependencies to patched Astro, Sharp, and transitive versions.
+- Sized and nested `assemble()` builders now preserve the light/dark mode selected by `save()` and
+  `show()` while recomputing size-dependent geometry, without changing or leaking active theme state.
+- Tables preserve source rows and recovered data when missing or non-finite cells serialize as
+  `null`; those cells render blank while zero remains visible. Formatting validates known input
+  columns, supports d3 formats for strings and booleans, and uses corrected precision and width
+  estimates.
+- Plot category orders and grouped `xOffsetSort` require observed values exactly once while
+  preserving sequence order; count helpers still allow subsets, duplicates, and zero-count entries.
+- Multilabel row selection rejects duplicate or unknown rows while per-row mappings validate all
+  supplied groups, including groups omitted from the displayed order.
+- Statistical annotations now reject missing/non-finite used values and undefined required results,
+  ignore unused fields, validate supplied p-values and correction-family sizes, and preserve final
+  supplied comparisons without inventing tests, effects, or corrections. Zero p-values render as
+  bounds; positive subnormal values remain valid in records and scientific-notation labels.
+- Grouped comparisons and correlation now validate unsupported option shapes consistently and retain
+  grouped label, color, and line-style behavior across dispatch paths.
+
+### Internal
+
+- Removed root project contracts and agent guidance from version control, and ignored new root-level Markdown files
+  except `README.md` and `CHANGELOG.md`.
+- Normalized private statistical result fields and Python column aliases to snake_case without changing public or
+  serialized names.
+- Standardized intermediate statistical metadata keys to match their camelCase exported fields without changing
+  calculations or exported values.
+- Renamed the private `_placement.py` module to `_label_placement.py` to make its label-specific scope explicit.
+- Aligned display-label, label-placement, and statistical chart test filenames with their implementation modules.
+- Consolidated optional-extension discovery, provenance markers, and the extension-author API in
+  `dysonsphere.ext`, removing the separate internal discovery module while preserving public paths.
+- Removed redundant full-example point-label rendering tests, retaining focused geometry and export regressions.
+- Split private SVG geometry/layering and typography helpers out of `export.py` while preserving the
+  shared `save()`/`show()` correction pipeline and output behavior.
+- Regenerated maintained website chart specifications and API references against the v4 source.
+- Website development can opt Chart Studio into a locally served candidate core wheel with
+  `PUBLIC_DYSONSPHERE_WHEEL_URL`; production builds continue to install dysonsphere from PyPI.
+- Retire root plotting/build scripts, the Illustrator wrapper, and the old `docs/` gallery.
+  Maintained examples and generators live under `website/`; palette recipes live at
+  `scripts/print_palettes.py`. Keep the two README logos at their existing URLs.
+- Move the numerical engine and report registry to `_statistics.py`, separate from the public `stats.py` wrappers.
+- Document the durable API design rules in `API.md`.
+
 ## [3.14.0] - 2026-09-06
 
 ### New features

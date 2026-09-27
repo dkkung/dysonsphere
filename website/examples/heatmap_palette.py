@@ -1,12 +1,13 @@
 import altair as alt
-import dysonsphere as ds
 from vega_datasets import data
 
+import dysonsphere as ds
+
 # Per-type palettes: heatmapPalette styles only continuous heatmaps, leaving the
-# categorical palette untouched. Any name from ds.colors works.
+# categorical palette untouched. Any name from ds.palettes.colors works.
 ds.theme(heatmapPalette="cosmos")
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
 
 chart = (
     alt.Chart(cars)

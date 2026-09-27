@@ -1,0 +1,26 @@
+---
+title: "Exporting figures"
+description: "Save, render, inspect, and troubleshoot Dysonsphere figures."
+---
+
+import { Code } from '@astrojs/starlight/components';
+import source from '../../../../../../skills/dysonsphere/references/export.md?raw';
+
+Use this reference when saving a figure, producing light and dark variants, checking a renderer, or
+inspecting an existing export.
+
+It covers:
+
+- choosing SVG, PNG, JSON, HTML, or `ds.show()` for the requested output;
+- extensionless output stems, default deliverables, overwrite behavior, and raster inspection;
+- rebuilding charts whose colors and geometry depend on a light or dark background;
+- troubleshooting rows, clipped labels, category colors, panel scales, and typography in the
+  requested output;
+- metadata, inlined data, provenance, `ds.metadata.read()`, `ds.metadata.verify()`, and `ds.load()`.
+
+Check the saved or rendered output after building a chart, not just its specification.
+The reference includes a standalone example that builds both background variants.
+
+## Markdown source
+
+<Code code={source} lang="markdown" title="export.md" />

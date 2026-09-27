@@ -1,12 +1,11 @@
 ---
-title: "Global theme overrides"
-description: "Persistent theme configuration - config file locations, merge order, named styles, custom palettes, and the full key reference."
+title: "Theme configuration"
+description: "`dysonsphere.toml` file locations, merge order, named styles, custom palettes, and valid keys."
 ---
 
-Everything `ds.theme()` accepts as a keyword can also live in a **`dysonsphere.toml`** config
-file, so a project (or your whole machine) keeps its look without repeating arguments in every
-notebook. This page is the complete reference for the file: where it lives, how values merge,
-named styles, custom palettes, and every valid key. To put one together interactively, use the
+Values accepted by `ds.theme()` can also be stored in a **`dysonsphere.toml`** file and reused
+across notebooks and projects. This page describes file locations, merge order, named styles,
+custom palettes, and valid keys. To create a file interactively, use the
 [dysonsphere.toml generator](/config-generator/).
 
 ## Creating a config file
@@ -33,9 +32,14 @@ The scaffold looks like this:
 
 [default]
 
+[small]
+width = 70
+height = 70
+fontSize = 5
+
 [notebook]
-chartWidth = 900
-chartHeight = 900
+width = 900
+height = 900
 darkmode = true
 fontSize = 18
 transparent = true
@@ -61,16 +65,16 @@ When both exist, the project file's values win over the user-wide file's, key by
 
 ## Merge order
 
-Values are merged in ascending priority - later sources override earlier ones, **key by key**:
+Values are merged in ascending priority, with later sources overriding earlier ones **key by key**:
 
 1. dysonsphere's built-in defaults
 2. `[default]` from the config file(s)
-3. the built-in preset named by `style=` (e.g. `notebook`)
+3. the built-in preset named by `style=` (e.g. `small` or `notebook`)
 4. the `[style]` section of the same name from the config file(s)
 5. explicit `ds.theme(...)` keyword arguments
 
-So a call decides last, a named style beats `[default]`, and the config file beats the built-ins.
-A worked example:
+Explicit keyword arguments override configured styles, configured style sections override built-in
+presets, and named styles override `[default]` values.
 
 ```toml
 [default]
@@ -78,8 +82,8 @@ palette = "greens"
 fontSize = 8
 
 [poster]
-chartWidth = 300
-chartHeight = 220
+width = 300
+height = 220
 fontSize = 14
 ```
 
@@ -94,51 +98,59 @@ Only the keys present in a section are applied; everything else keeps its defaul
 
 ## Named styles
 
-Any table in the file other than `[default]` and `[palettes]` is a **style**, selected with
-`ds.theme(style="name")`. Styles are how you keep several looks on tap - a print figure, a
-poster, a slide deck:
+Any table other than `[default]` and `[palettes]` is a **style**, selected with
+`ds.theme(style="name")`. Use styles for different outputs, such as print figures, posters, or
+slides:
 
 ```toml
 [print]
-chartWidth = 100        # publication scale (the default)
-chartHeight = 100
+width = 100        # publication scale (the default)
+height = 100
 
 [slides]
-chartWidth = 260
-chartHeight = 180
+width = 260
+height = 180
 fontSize = 12
 markSize = 25
 ```
 
-The built-in `"notebook"` preset works with no config file at all; a `[notebook]` section in your
-config customises it (your keys override the preset's, per the merge order). Asking for a style
-that is neither built-in nor in any config file raises a `ValueError` naming it.
+The built-in `"small"` and `"notebook"` presets work with no config file at all; matching sections
+in your config customise them (your keys override the preset's, per the merge order). Asking for a
+style that is neither built-in nor in any config file raises a `ValueError` naming it.
 
 ## Custom palettes
 
-The `[palettes]` table registers custom palettes alongside the built-in catalogue - each value a
-non-empty list of hex strings. They become available everywhere a palette name works:
-`ds.palette("brand")`, `ds.theme(palette="brand")`, or any per-type key
-(`heatmapPalette = "brand"`).
+The `[palettes]` table registers custom palettes alongside the built-in catalogue. Each value is a
+non-empty list of hex strings. Custom palettes are available wherever a palette name is accepted,
+including `ds.palette("brand")`, `ds.theme(palette="brand")`, and per-type keys such as
+`heatmapPalette = "brand"` or `heatmapPaletteDarkmode = "brand"`.
 
 ```toml
 [palettes]
 brand = ["#0B3954", "#1B5F7E", "#2E86AB", "#63A8C7", "#A8CFE0", "#E8F1F5"]
 ```
 
-Sequential dysonsphere palettes carry 12 stops and diverging ones 13 (a neutral midpoint), but
-custom palettes may be any length. Two notes:
+Sequential native palettes have 12 stops; diverging palettes have 13, including a neutral midpoint.
+Custom palettes may have any length.
 
-- Custom palettes are re-registered on each `ds.theme()` call and vanish cleanly when the config
-  file does - `ds.colors` is restored to the built-in catalogue first.
-- Overriding a built-in base hue (say `blues`) does **not** ripple into the derived
-  `categorical` palette, which is fixed at import time. Override `categorical` itself - or set
-  `categoryPalette` - to recolor categories.
+- Defining either spelling of a native grey-family palette (for example, `greys2`/`grays2` or
+  `warmgreys`/`warmgrays`) overrides both names. If both occur in one file, their lists must be
+  identical; user and project file precedence still applies.
+- Each `ds.theme()` call restores `ds.palettes.colors` to the built-in catalogue before registering
+  custom palettes. A custom palette is removed when it is no longer present in the configuration.
+- Overriding a built-in base hue such as `blues` does **not** update the derived `categorical`
+  palette, which is fixed at import time. Override `categorical` itself or set `categoryPalette` to
+  recolor categories.
 
 ## Validation
 
 The file is checked eagerly on every `ds.theme()` call: an unknown key in any section raises a
-`ValueError` immediately, naming the key. Typos never silently do nothing.
+`ValueError` immediately, naming the key. Unknown keys are not ignored. Direct keywords and
+TOML/style values use the same validation before theme or palette state changes: boolean switches
+do not accept `0`/`1`, numbers must be finite, dimensions and `fontSize` are positive, applicable
+sizes/gaps are nonnegative, opacity and inner band padding are in `[0, 1]`, and `sigFigs` is a
+positive integer. Dash arrays may be empty (solid) or odd-length but contain only finite,
+nonnegative numbers. Palette values remain names/schemes or nonempty lists of color strings.
 
 ## Key reference
 
@@ -148,8 +160,8 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `chartWidth` | `100` | Plot area width in px (publication scale; scale up for screens) |
-| `chartHeight` | `100` | Plot area height in px |
+| `width` | `100` | Plot area width in px (publication scale; scale up for screens) |
+| `height` | `100` | Plot area height in px |
 | `darkmode` | `false` | Invert ink (axes, text, medians) to white for dark backgrounds |
 | `transparent` | `false` | No chart background fill (notebook/web embedding) |
 | `chartFill` | auto | Chart background when not transparent; auto = white, black in darkmode |
@@ -160,9 +172,8 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | Key | Default | What it does |
 | --- | --- | --- |
 | `font` | Helvetica Neue (with fallbacks) | Font family for all chart text |
-| `fontSize` | `7` | Primary size (axis titles, labels, annotations) in pt |
-| `secondaryFontSize` | derived | Auxiliary tier, `fontSize - 1` (floored at `smallestFontSize`) |
-| `smallestFontSize` | `5` | Floor for the secondary tier; `true` shrinks the whole plot to the floor |
+| `fontGreek` | `Symbol` | Greek-letter font in corrected SVG/PNG/show output; `None` disables |
+| `fontSize` | `6` | Positive, fractional publication point size for chart text |
 | `fontStyle` | `normal` | CSS font style (`italic`, ...) |
 | `fontWeight` | `400` | CSS font weight |
 
@@ -170,17 +181,18 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `axisOffset` | `tickSize * 1.5` | Detached-axis gap in px (Prism style); `0` reattaches |
+| `axisOffset` | `false` (`0`) | Signed axis displacement in px; `true` derives `tickSize * 1.5` |
 | `axisWidth` | `0.25` | Stroke width of axis lines, ticks, and grid |
-| `closed` | auto | Draw all four spines (a boxed frame); auto = on with `inwardTicks`/`viewFill` |
-| `inwardTicks` | `false` | Point ticks into the plot (physics style); implies `closed` |
+| `closed` | auto | Draw all four spines; auto = on with `tickDirection="in"` or `viewFill` |
+| `tickDirection` | `"out"` | Tick direction: `"in"` implies `closed`; `"out"` is ordinary |
 | `ticks` | `true` | Master tick visibility |
-| `tickSize` | `3` | Tick length in px |
+| `tickSize` | `3.5` | Tick length in px |
 | `xAxis` / `yAxis` | `true` | Hide an axis's domain line and ticks (labels stay) |
 | `xDomain` / `yDomain` | `true` | Domain line visibility per axis |
 | `xTicks` / `yTicks` | `true` | Tick visibility per axis |
 | `xLabels` / `yLabels` | `true` | Label visibility per axis (independent of `xAxis`/`yAxis`) |
 | `xLabelAngle` / `yLabelAngle` | `0` | Label rotation in degrees; alignment derived from the sign |
+| `viewPadding` | derived | Continuous-scale inset in px on open and closed plots; `false`/`0` disables |
 
 ### Grid
 
@@ -188,21 +200,19 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | --- | --- | --- |
 | `grid` | `false` | Draw grid lines |
 | `gridColor` | light grey | Grid line color |
-| `dashedGrid` | `false` | Dash the grid (uses `dashedWidth`) |
+| `gridStrokeDash` | `false` | Dash the grid (uses `strokeDash`) |
 
 ### Marks
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `markSize` | derived | Master mark size; most mark-type sizes derive from it |
-| `markFill` | light grey | Default fill (boxplot boxes via the bar config, bars, ...) |
+| `markSize` | derived | Master sizing basis; symbol area and composite linear dimensions derive from it |
+| `markFill` | mode-aware grey | Omitted default: `#DBDBDB` light / `#9D9D9D` dark; an explicit value stays fixed |
 | `markFillOpacity` | `1` | Fill opacity |
 | `markStroke` | `black` | Mark outline color |
 | `markStrokeOpacity` | `1` | Outline opacity |
 | `markStrokeWidth` | `axisWidth` | Outline width; error bar and boxplot strokes derive from it |
 | `markMedianFill` | `black` | Boxplot median bar fill |
-| `markMedianStroke` | `black` | Boxplot median outline color (when a stroke is enabled) |
-| `boxplotOutliers` | `false` | Show boxplot outlier glyphs; `true` sizes them from `markSize` |
 | `cornerRadius` | `false` | Round bar tips/rects/arcs; `true` derives px from chart size |
 | `strokeCap` | `round` | Line cap for axis/tick/grid/rule strokes |
 | `barPadding` | `0.1` | Gap between bars, as a fraction of the band step |
@@ -216,9 +226,9 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `dashedRule` | `true` | Dash `mark_rule` (reference lines) |
-| `dashedLine` | `false` | Dash `mark_line` |
-| `dashedWidth` | `[2, 2]` | The dash pattern used wherever dashing is on |
+| `ruleStrokeDash` | `true` | Dash `mark_rule` (reference lines) |
+| `lineStrokeDash` | `false` | Dash `mark_line` |
+| `strokeDash` | `[2, 2]` | The dash pattern used wherever dashing is on |
 
 ### Legend
 
@@ -227,17 +237,32 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | `legend` | `true` | Master legend visibility |
 | `legendOffset` | `tickSize * 1.5` | Gap between legend and plot |
 | `legendStroke` | `false` | Outline legend symbols at `axisWidth` |
+| `legendColumnPadding` | `4` | Horizontal gap between legend entries in px |
+| `legendRowPadding` | `2` | Vertical gap between legend entries in px |
+| `legendTickCount` | `None` | Suggested positive tick count for quantitative legends; automatic when unset |
+
+`ds.theme(legendTickCount=4)` forwards the suggestion to Vega-Lite's native legend settings.
 
 ### Color
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `palette` | categorical | Master palette: name or list; overrides every per-type key |
-| `categoryPalette` | derived | Categorical (nominal) scale range |
-| `divergingPalette` | built-in | Diverging scale scheme |
-| `heatmapPalette` | built-in | Heatmap scale scheme |
-| `ordinalPalette` | `greys` | Ordinal scale scheme |
-| `rampPalette` | built-in | Sequential ramp scheme |
+| `palette` | `None` | Master palette: name or list; overrides every per-type key in both modes |
+| `categoryPalette` | `cat1` light / `cat2` dark | Categorical (nominal) scale range |
+| `categoryPaletteDarkmode` | `None` | Dark-mode categorical override; otherwise the regular range applies |
+| `divergingPalette` | `div1` light / `div2` dark | Diverging scale scheme |
+| `divergingPaletteDarkmode` | `None` | Dark-mode diverging override; otherwise the regular range applies |
+| `heatmapPalette` | `viridis` | Heatmap scale scheme in both modes |
+| `heatmapPaletteDarkmode` | `None` | Dark-mode heatmap override; otherwise the regular range applies |
+| `ordinalPalette` | `greys` in both modes | Ordinal scale scheme |
+| `ordinalPaletteDarkmode` | `None` | Dark-mode ordinal override; otherwise the regular range applies |
+| `rampPalette` | `viridis` | Sequential ramp scheme in both modes |
+| `rampPaletteDarkmode` | `None` | Dark-mode ramp override; otherwise the regular range applies |
+
+In dark mode, a non-`None` `*PaletteDarkmode` value wins over its matching regular value. In
+light mode, dark-mode keys are ignored. A regular per-type value therefore applies in both modes
+when its dark-mode key is `None`. The master `palette` is `None` by default and wins over every
+per-type value in both modes, including dark-mode overrides.
 
 ### Statistics & saving
 
@@ -248,6 +273,6 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | `saveBackground` | `"light"` | Default `ds.save()` background variant(s) (`light`, `dark`, or both) |
 
 :::tip
-`dashedWidth`, `axisOffset`, `secondaryFontSize`, and `markSize` show as *derived* because their
-defaults are computed from other keys at `theme()` time - set them explicitly to pin a value.
+`markSize` shows as *derived* because its default is computed from the chart dimensions at
+`theme()` time - set it explicitly to pin a value.
 :::

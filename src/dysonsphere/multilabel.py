@@ -1,14 +1,16 @@
 import math
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
 import polars as pl
 
-from .theme import _opt
-from .utils import _internal_data, band_geometry, count_n
+if TYPE_CHECKING:
+    import pandas as pd
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+from .theme import _opt
+from .utils import _band_geometry, _count_n, _internal_data
+
+# Public names re-exported by dysonsphere.
 __all__ = ["add_multilabel"]
 
 
@@ -20,23 +22,22 @@ def _multilabel_layer(
     style: str = "plusminus",
     rowStyles: dict[str, str] | list[str] | None = None,
     labelAlign: str = "left",
-    labelPadding: int = 0,
+    labelPadding: float = 0,
     symbol: str = "circle",
-    symbolSize: int | None = None,
+    symbolSize: float | None = None,
     palette: list[str] | None = None,
     strokeWidth: float | None = None,
     connectingLine: bool = True,
     orientation: str = "vertical",
-    yPadding: float | None = None,
-    chartWidth: int | None = None,
-    fontSize: int | None = None,
+    width: float | None = None,
+    fontSize: float | None = None,
     rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
     rowValueAngle: int | float | dict[str, Any] | list[Any] | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
     labelMap: dict[str, Any] | None = None,
-    categoryLabelAngle: int = -45,
-    categoryLabelHeight: int | None = None,
+    categoryLabelAngle: float = -45,
+    categoryLabelHeight: float | None = None,
     span: dict[str | None, list[str]] | list[dict[str | None, list[str]]] | None = None,
     spanBracketStyle: str = "line",
     spanLabelPosition: str = "bottom",
@@ -58,7 +59,7 @@ def _multilabel_layer(
     -----
     **Row label alignment.** Row labels are rendered as explicit ``mark_text`` marks
     (not as y-axis labels) so they share the exact same y coordinate as the content
-    marks. Vega-Lite's axis label rendering pipeline does not guarantee pixel-perfect
+    marks. Vega-Lite's axis label rendering does not guarantee pixel-perfect
     alignment with ``mark_text`` even when both use ``baseline="middle"``, so the y
     axis is suppressed and labels are placed via ``alt.value(x)`` instead.
 
@@ -68,7 +69,7 @@ def _multilabel_layer(
     The identity scale puts the content marks in the same coordinate space as the span
     and category-label marks, which position with ``alt.value``.
 
-    **``align="center"``** is required on all ``mark_text`` content marks — the mark
+    **``align="center"``** is required on all ``mark_text`` content marks – the mark
     rotates about its own anchor, so any other alignment swings a rotated row's text
     off its category tick.
 
@@ -83,7 +84,7 @@ def _multilabel_layer(
         )
 
     **hconcat label overflow.** Row label marks are positioned outside the declared
-    ``width`` (at ``x < 0`` or ``x > chartWidth``). Vega-Lite does not clip them by
+    ``width`` (at ``x < 0`` or ``x > width``). Vega-Lite does not clip them by
     default and does not reserve space for them in auto-layout. In an ``hconcat``,
     labels from one panel can bleed into adjacent panels; add explicit ``spacing``
     or outer padding to compensate.
@@ -93,7 +94,7 @@ def _multilabel_layer(
     ::
 
         CATEGORIES = ["Ctrl", "Group A", "Group B", "Group C"]
-        ds.theme(chartWidth=300)
+        ds.theme(width=300)
         chart = ds.mark_strip(df, "group", "value", CATEGORIES)
         ann = ds._multilabel_layer(
             {
@@ -108,11 +109,14 @@ def _multilabel_layer(
     """
     from .palettes import colors
 
-    row_order = order if order is not None else list(groups.keys())
+    row_order = list(order) if order is not None else list(groups.keys())
 
     unknown_rows = [label for label in row_order if label not in groups]
     if unknown_rows:
         raise ValueError(f"order names row(s) {unknown_rows} that are not in groups. Rows are {list(groups)}.")
+    duplicate_rows = [label for i, label in enumerate(row_order) if label in row_order[:i]]
+    if duplicate_rows:
+        raise ValueError(f"order contains duplicate row label(s) {duplicate_rows}.")
 
     for label in row_order:
         if len(groups[label]) != len(categories):
@@ -125,23 +129,26 @@ def _multilabel_layer(
     if style not in ("plusminus", "text", "symbol"):
         raise ValueError(f"style must be 'plusminus', 'text', or 'symbol', got {style!r}")
     if labelAlign not in ("left", "right"):
-        raise ValueError(f"labelAlign must be 'left' or 'right', got {labelAlign!r}")
+        raise ValueError(f"labelPosition must be 'left' or 'right', got {labelAlign!r}")
     if orientation not in ("vertical", "horizontal"):
-        raise ValueError(f"orientation must be 'vertical' or 'horizontal', got {orientation!r}")
+        raise ValueError(f"lineOrientation must be 'vertical' or 'horizontal', got {orientation!r}")
     if spanBracketStyle not in ("line", "bracket"):
         raise ValueError(f"spanBracketStyle must be 'line' or 'bracket', got {spanBracketStyle!r}")
     if spanLabelPosition not in ("top", "bottom"):
         raise ValueError(f"spanLabelPosition must be 'top' or 'bottom', got {spanLabelPosition!r}")
 
-    # Normalise rowStyles to a dict so the rest of the code has a single code path.
+    # Normalize rowStyles to a dict.
     if isinstance(rowStyles, list):
         if len(rowStyles) != len(row_order):
             raise ValueError(f"rowStyles list has {len(rowStyles)} entries but there are {len(row_order)} rows.")
         rowStyles = dict(zip(row_order, rowStyles))
+    elif isinstance(rowStyles, dict):
+        unknown = [label for label in rowStyles if label not in groups]
+        if unknown:
+            raise ValueError(f"rowStyles has unknown row label(s) {unknown}. Rows are {list(groups)}.")
 
-    # Per-row style resolution: rowStyles overrides global style; non-bool values always
-    # force "text" regardless. Check isinstance(v, bool) before isinstance(v, int) because
-    # bool subclasses int.
+    # Per-row styles override the global style. Check bool before int because bool is an int
+    # subclass; non-bool values use text style.
     def _row_style(label: str) -> str:
         s = (rowStyles or {}).get(label, style)
         if s not in ("plusminus", "text", "symbol"):
@@ -155,8 +162,8 @@ def _multilabel_layer(
     text_rows = [r for r in row_order if row_styles[r] == "text"]
     symbol_rows = [r for r in row_order if row_styles[r] == "symbol"]
 
-    if chartWidth is None:
-        chartWidth = _opt("chartWidth")
+    if width is None:
+        width = _opt("width")
     if fontSize is None:
         fontSize = _opt("fontSize")
 
@@ -164,7 +171,7 @@ def _multilabel_layer(
         if isinstance(v, bool):
             return "+" if v else "−"
         s = str(v)
-        # A lone ASCII hyphen is a "not applicable" placeholder - render it as the same
+        # A lone ASCII hyphen is a "not applicable" placeholder – render it as the same
         # typographic minus a plusminus row uses, so the two match within one table.
         return "−" if s == "-" else s
 
@@ -174,9 +181,9 @@ def _multilabel_layer(
             return {}
         if isinstance(value, dict):
             mapping = cast(dict[str, Any], value)
-            unknown = [k for k in mapping if k not in row_order]
+            unknown = [k for k in mapping if k not in groups]
             if unknown:
-                raise ValueError(f"{name} has unknown row label(s) {unknown}. Rows are {row_order}.")
+                raise ValueError(f"{name} has unknown row label(s) {unknown}. Rows are {list(groups)}.")
             return dict(mapping)
         if isinstance(value, (list, tuple)):
             seq = cast(list[Any], value)
@@ -188,7 +195,7 @@ def _multilabel_layer(
     angle_map = _per_row(rowValueAngle, "rowValueAngle")
 
     def _cell_angles(label: str) -> list[float]:
-        """One angle per category - a row's entry may be a scalar or a per-cell list."""
+        """One angle per category – a row's entry may be a scalar or a per-cell list."""
         entry = angle_map.get(label)
         if isinstance(entry, (list, tuple)):
             seq = cast(list[Any], entry)
@@ -207,7 +214,7 @@ def _multilabel_layer(
     height_map = _per_row(rowHeight, "rowHeight")
 
     def _auto_row_height(label: str) -> float:
-        # Each cell needs the height of its own rotated bounding box - the same estimate
+        # Each cell needs the height of its own rotated bounding box – the same estimate
         # the category-label row uses, with 0.6 em as the mean glyph advance. The row takes
         # the tallest, so an upright cell never shrinks the row a rotated one needs.
         tallest = 0.0
@@ -283,8 +290,8 @@ def _multilabel_layer(
     x_enc = alt.X(
         "__category:N",
         sort=categories,
-        # Pin the domain (not just sort) so `resolve_scale(x="shared")` can't re-sort the
-        # merged x domain alphabetically - the same shared-scale union fix as `domain=row_order`
+        # Pin the domain (not only sort) so `resolve_scale(x="shared")` can't re-sort the
+        # merged x domain alphabetically – the same shared-scale union fix as `domain=row_order`
         # on the y scale below. Without it the chart's x renders in a different order than its
         # (unshared) colour scale, so category colours stop matching their bars.
         scale=alt.Scale(domain=categories),
@@ -304,7 +311,7 @@ def _multilabel_layer(
     angle_enc = alt.Angle("__angle:Q", scale=None)
 
     if labelAlign == "right":
-        label_x = alt.value(chartWidth + labelPadding)
+        label_x = alt.value(width + labelPadding)
     else:
         label_x = alt.value(-labelPadding)
     label_text_align = "left" if labelAlign == "right" else "right"
@@ -317,10 +324,10 @@ def _multilabel_layer(
 
     layers: list[Any] = [row_labels]
 
-    # --- plusminus rows ---
+    # Plus/minus rows
     if plusminus_rows:
         pm_df = marks_df.filter(pl.col("__label").is_in(plusminus_rows))
-        # align="center" keeps rotated text centered on its category - the mark rotates
+        # align="center" keeps rotated text centered on its category – the mark rotates
         # about its own anchor, so any other alignment swings it off the tick.
         layers.append(
             alt.Chart(_internal_data(pm_df))
@@ -328,7 +335,7 @@ def _multilabel_layer(
             .encode(x=x_enc, y=y_enc, angle=angle_enc, text=alt.Text("__value:N"))
         )
 
-    # --- text rows ---
+    # Text rows
     if text_rows:
         text_df = marks_df.filter(pl.col("__label").is_in(text_rows))
         layers.append(
@@ -337,10 +344,9 @@ def _multilabel_layer(
             .encode(x=x_enc, y=y_enc, angle=angle_enc, text=alt.Text("__value:N"))
         )
 
-    # --- symbol rows ---
+    # Symbol rows
     if symbol_rows:
-        # Colours are resolved at call time from alt.theme.options so that darkmode
-        # variants are correct. Use a callable with ds.save() to rebuild per variant.
+        # Colors are fixed at construction. Use a callable with ds.save() to rebuild for each background.
         darkmode = _opt("darkmode")
         if darkmode:
             positive_color = "white"
@@ -423,7 +429,7 @@ def _multilabel_layer(
                     )
         else:  # vertical
             # Emit two rows per segment (start + end) so mark_line can connect them
-            # using only __label — avoiding a second ordinal field on the shared y
+            # using only __label – avoiding a second ordinal field on the shared y
             # scale, which would corrupt paddingInner and shift row spacing.
             for i, cat in enumerate(categories):
                 run = []
@@ -474,7 +480,7 @@ def _multilabel_layer(
             if orientation == "horizontal":
                 lines = (
                     alt.Chart(_internal_data(lines_df))
-                    # strokeDash=[0, 0] overrides the theme's dashedRule=True default.
+                    # strokeDash=[0, 0] overrides the theme's ruleStrokeDash=True default.
                     .mark_rule(strokeWidth=strokeWidth, strokeDash=[0, 0])
                     .encode(
                         x=alt.X("__x_start:N", sort=categories),
@@ -520,7 +526,7 @@ def _multilabel_layer(
         if spanTickHeight is None:
             spanTickHeight = _opt("tickSize")
 
-        geo = band_geometry(len(categories), chartWidth)
+        geo = _band_geometry(len(categories), width)
         axisWidth_val = _opt("axisWidth")
         darkmode_val = _opt("darkmode")
         span_color = "white" if darkmode_val else "black"
@@ -566,7 +572,7 @@ def _multilabel_layer(
             x2 = geo.centers[i_end] + geo.step * 0.30
             x_mid = (x1 + x2) / 2
 
-            # Rule — alt.value() for all positions so no :Q scale is added to the layer
+            # Use alt.value() for each position so the layer does not add a :Q scale.
             layers.append(
                 alt.Chart(_one_row)
                 .mark_rule(color=span_color, strokeWidth=axisWidth_val, strokeDash=[0, 0])
@@ -626,7 +632,7 @@ def _multilabel_layer(
 
     return cast(
         alt.LayerChart,
-        alt.layer(*layers).properties(width=chartWidth, height=chart_h, view={"fill": None, "stroke": None}),
+        alt.layer(*layers).properties(width=width, height=chart_h, view={"fill": None, "stroke": None}),
     )
 
 
@@ -635,33 +641,32 @@ def add_multilabel(
     groups: dict[str, list[Any]] | None = None,
     categories: list[str] | None = None,
     *,
-    spacing: int = 0,
+    spacing: float = 0,
     showSampleSize: bool = False,
-    df=None,
-    xCol: str | None = None,
+    data: "pl.DataFrame | pd.DataFrame | None" = None,
+    x: str | None = None,
     sampleSizeIndex: int = 0,
     sampleSizeLabel: str = "n =",
     order: list[str] | None = None,
     style: str = "plusminus",
     rowStyles: dict[str, str] | list[str] | None = None,
-    labelAlign: str = "left",
-    labelPadding: int = 0,
+    labelPosition: str = "left",
+    labelPadding: float = 0,
     symbol: str = "circle",
-    symbolSize: int | None = None,
+    symbolSize: float | None = None,
     palette: list[str] | None = None,
     strokeWidth: float | None = None,
     connectingLine: bool = True,
-    orientation: str = "vertical",
-    yPadding: float | None = None,
-    chartWidth: int | None = None,
-    fontSize: int | None = None,
+    lineOrientation: str = "vertical",
+    width: float | None = None,
+    fontSize: float | None = None,
     rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
     rowValueAngle: int | float | dict[str, Any] | list[Any] | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
     labelMap: dict[str, Any] | None = None,
-    categoryLabelAngle: int = -45,
-    categoryLabelHeight: int | None = None,
+    categoryLabelAngle: float = -45,
+    categoryLabelHeight: float | None = None,
     span: dict[str | None, list[str]] | list[dict[str | None, list[str]]] | None = None,
     spanBracketStyle: str = "line",
     spanLabelPosition: str = "bottom",
@@ -673,9 +678,9 @@ def add_multilabel(
     Compose a chart with a grid annotation table, replacing its x-axis labels.
 
     Accepts ``alt.Chart`` or ``alt.LayerChart`` (e.g. a strip+boxplot layer), and also a
-    concatenated chart - ``_strip_x_labels`` recurses into ``vconcat``/``hconcat`` panels, so a
+    concatenated chart – ``_strip_x_labels`` recurses into ``vconcat``/``hconcat`` panels, so a
     stack of panels sharing one x-layout (e.g. ``ds.biology.western_blot``'s image strips) gets
-    the table below the whole stack. A ``vconcat`` is the sensible case; a table under an
+    the table below the whole stack. A ``vconcat`` is the usual case; a table under an
     ``hconcat`` of differently-x'd panels composes but rarely aligns meaningfully.
     Strips x-axis labels and ticks from ``chart``, builds a condition table via
     :func:`_multilabel_layer`, and returns
@@ -691,7 +696,7 @@ def add_multilabel(
         The main Altair chart (any type: ``Chart``, ``LayerChart``, etc.).
     groups:
         ``{row_label: [value, ...]}`` mapping, one value per category. Defaults
-        to ``{}`` — omit entirely when only ``showSampleSize`` or
+        to ``{}`` – omit entirely when only ``showSampleSize`` or
         ``categoryLabel`` is needed.
     categories:
         Ordered list of x-axis categories matching the main chart. Defaults to
@@ -702,13 +707,13 @@ def add_multilabel(
         Defaults to ``0`` so the annotation sits flush below the axis line.
     showSampleSize:
         When ``True``, injects a per-category sample size row computed from
-        ``df``. Requires ``df`` and ``xCol``. The row always renders as
+        ``data``. Requires ``data`` and ``x``. The row always renders as
         ``"text"`` regardless of the global ``style`` setting.
-    df:
+    data:
         Source DataFrame (Polars or Pandas) for counting samples per category.
         Only used when ``showSampleSize=True``.
-    xCol:
-        Column name in ``df`` used for x-axis grouping.
+    x:
+        Column name in ``data`` used for x-axis grouping.
         Only used when ``showSampleSize=True``.
     sampleSizeIndex:
         Insertion index among the ``groups`` rows, using ``list.insert()``
@@ -721,13 +726,14 @@ def add_multilabel(
         ``order`` to place the row yourself.
     order:
         Row display order (top to bottom). Defaults to ``dict`` insertion order.
-        Every label must be a key of ``groups``; listing only some of them displays
-        only those rows.
+        Every listed label must be a key of ``groups`` and must occur only once; listing only some
+        rows displays only those rows. Per-row mapping options are checked against all keys in
+        ``groups``, including rows omitted from ``order``.
     style:
         Global default style for all rows. ``"plusminus"`` renders ``True`` as ``+``
         and ``False`` as ``−``. ``"symbol"`` renders ``True`` as a filled mark and
         ``False`` as an unfilled mark, with a connecting rule between consecutive
-        ``True`` values (direction set by ``orientation``). The mark shape is
+        ``True`` values (direction set by ``lineOrientation``). The mark shape is
         controlled by ``symbol``. ``"text"`` renders raw group values as
         center-aligned strings and is forced automatically per row when any value in
         that row is non-bool. Override per row with ``rowStyles``.
@@ -738,7 +744,7 @@ def add_multilabel(
         same values as ``style``. Non-bool rows always render as ``"text"``
         regardless of this setting. Connecting rules only span between ``"symbol"``
         rows; rows of other styles between symbol rows are skipped in run detection.
-    labelAlign:
+    labelPosition:
         ``"left"`` (default) places row labels to the left of the grid with
         right-aligned text. ``"right"`` places them to the right with left-aligned text.
     labelPadding:
@@ -761,16 +767,13 @@ def add_multilabel(
     connectingLine:
         When ``True`` (default), draws a rule spanning each consecutive run of
         ``True`` values (``"symbol"`` style only). Set to ``False`` to show
-        symbols only. Direction is controlled by ``orientation``.
-    orientation:
+        symbols only. Direction is controlled by ``lineOrientation``.
+    lineOrientation:
         Direction of the connecting rule. ``"vertical"`` (default) draws a rule
         down each column spanning consecutive ``True`` rows. ``"horizontal"``
         draws a rule across each row spanning consecutive ``True`` columns.
-    yPadding:
-        Accepted but inert. Rows are positioned in pixel space, so there is no band
-        step to pad; use ``rowHeight`` to space rows apart.
-    chartWidth:
-        Width of the annotation chart in pixels. Inherits ``chartWidth`` from
+    width:
+        Width of the annotation chart in pixels. Inherits ``width`` from
         ``ds.theme()`` when not set.
     fontSize:
         Font size for ``"text"`` style symbols and row labels. Inherits ``fontSize``
@@ -782,7 +785,7 @@ def add_multilabel(
         Auto-sizing gives an unrotated row ``10`` px and a rotated row the height of
         its rotated text bounding box (never less than ``10``).
     rowValueAngle:
-        Rotation of the row's values in degrees, in every style — the text of a
+        Rotation of the row's values in degrees, in every style – the text of a
         ``"text"`` or ``"plusminus"`` row, and the marks of a ``"symbol"`` row.
         Accepts a single number applied to every row, a ``dict`` mapping row labels to
         angles, or a ``list`` of angles in row-display order. Defaults to ``0``
@@ -790,10 +793,10 @@ def add_multilabel(
         top-to-bottom. Values rotate about their own center, so they stay centered on
         the category, and rotated rows grow to fit their tallest rotated cell unless
         ``rowHeight`` pins them. Row labels are never rotated. Rotating the default
-        ``"circle"`` symbol has no visible effect; use a shape with orientation, such
+        ``"circle"`` symbol has no visible effect; use a shape with lineOrientation, such
         as ``symbol="triangle-up"``.
 
-        A single row's angle may itself be a ``list`` — one angle per x-axis category —
+        A single row's angle may itself be a ``list`` – one angle per x-axis category –
         to rotate only some cells, e.g. standing dose values on end while leaving the
         ``-`` placeholders of the untreated controls upright::
 
@@ -816,7 +819,7 @@ def add_multilabel(
     labelMap:
         ``{raw_value: label}`` mapping applied to the category-label row (plain lookup;
         the data and band positions keep the raw values). List labels are space-joined
-        here - use the mark constructors' ``labelMap`` for true multi-line axis labels.
+        here – use the mark constructors' ``labelMap`` for true multi-line axis labels.
     span:
         Dict mapping span label → list of categories, or a list of such
         single-entry dicts (one per span). The span extends from the lowest
@@ -848,7 +851,7 @@ def add_multilabel(
     --------
     ::
 
-        chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+        chart = ds.mark_strip(data, "group", "value", CATEGORIES)
 
         # Full multilabel with sample sizes and category labels
         composed = ds.add_multilabel(
@@ -857,15 +860,16 @@ def add_multilabel(
             categories=CATEGORIES,
             style="symbol",
             showSampleSize=True,
-            df=df,
-            xCol="group",
+            data=data,
+            x="group",
             categoryLabel=True,
         )
         ds.save(composed, "my_plot")
 
-        # Sample sizes only — no groups needed
-        ds.add_multilabel(chart, categories=CATEGORIES, showSampleSize=True, df=df, xCol="group")
+        # Sample sizes only – no groups needed
+        ds.add_multilabel(chart, categories=CATEGORIES, showSampleSize=True, data=data, x="group")
     """
+    x_col = x
     import copy
 
     if groups is None:
@@ -874,19 +878,19 @@ def add_multilabel(
         categories = []
 
     if showSampleSize:
-        if df is None or xCol is None:
-            raise ValueError("showSampleSize=True requires both 'df' and 'xCol'.")
-        # The injected row shares the groups dict, so a same-named row of the caller's would
-        # be silently replaced - by the counts, or by their own values, depending on `order`.
+        if data is None or x_col is None:
+            raise ValueError("showSampleSize=True requires both 'data' and 'x'.")
+        # The injected row shares the groups dict. Reject a matching caller row because
+        # inserting the counts could otherwise replace either row's values, depending on `order`.
         if sampleSizeLabel in groups:
             raise ValueError(
                 f"groups already has a row labelled {sampleSizeLabel!r}, which is the label "
                 f"showSampleSize=True adds. Rename that row, or pass sampleSizeLabel= to use "
                 f"a different label for the sample size row."
             )
-        counts = count_n(df, xCol, categories)
+        counts = _count_n(data, x_col, categories)
         # Pin each list to its row labels before the n-row joins groups, or the entries
-        # shift by one. The basis is the DISPLAY order, matching how _multilabel_layer
+        # shift by one. The basis is the display order, matching how _multilabel_layer
         # zips a list, and the length is checked here because that check sees a dict.
         list_order = order or list(groups.keys())
 
@@ -900,9 +904,9 @@ def add_multilabel(
         rowValueAngle = _pin(rowValueAngle, "rowValueAngle")
         rowHeight = _pin(rowHeight, "rowHeight")
         # Explicitly force the n-row to text style regardless of the global
-        # style setting (e.g. "symbol") — counts always render as plain text.
+        # style setting (e.g. "symbol") – counts always render as plain text.
         rowStyles = {**(_pin(rowStyles, "rowStyles") or {}), sampleSizeLabel: "text"}
-        # An explicit order omits the injected row, so seat it at sampleSizeIndex - after the
+        # An explicit order omits the injected row, so insert it at sampleSizeIndex after
         # list normalization above, whose lengths count the caller's own rows.
         if order and sampleSizeLabel not in order:
             order = [*order[:sampleSizeIndex], sampleSizeLabel, *order[sampleSizeIndex:]]
@@ -913,16 +917,16 @@ def add_multilabel(
     modified = copy.deepcopy(chart)
 
     def _strip_x_labels(node: alt.SchemaBase) -> None:
-        # _kwds is used directly because `.axis` on alt.X returns a _PropertySetter
-        # descriptor, not the stored value — reading it would not give the Axis object.
+        # Read _kwds directly because `.axis` on alt.X returns a _PropertySetter
+        # descriptor, not the stored value; accessing it does not return the Axis object.
         if isinstance(node, alt.Chart):
             enc = node._kwds.get("encoding", alt.Undefined)
             if enc is not alt.Undefined:
                 x = enc._kwds.get("x", alt.Undefined)
                 if x is not alt.Undefined and isinstance(x, alt.X):
                     axis = x._kwds.get("axis", alt.Undefined)
-                    # An explicit axis=None means the layer HIDES its axis (e.g.
-                    # mark_violin's internal pixel-x layers) - leave it hidden.
+                    # An explicit axis=None means the layer hides its axis (e.g.
+                    # mark_violin's internal pixel-x layers); keep that axis hidden.
                     # Replacing it with Axis(labels=False) re-enables the domain
                     # line and ticks (a phantom axis above the chart).
                     if axis is alt.Undefined:
@@ -946,16 +950,15 @@ def add_multilabel(
         order=order,
         style=style,
         rowStyles=rowStyles,
-        labelAlign=labelAlign,
+        labelAlign=labelPosition,
         labelPadding=labelPadding,
         symbol=symbol,
         symbolSize=symbolSize,
         palette=palette,
         strokeWidth=strokeWidth,
         connectingLine=connectingLine,
-        orientation=orientation,
-        yPadding=yPadding,
-        chartWidth=chartWidth,
+        orientation=lineOrientation,
+        width=width,
         fontSize=fontSize,
         rowHeight=rowHeight,
         rowValueAngle=rowValueAngle,

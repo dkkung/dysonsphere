@@ -3,11 +3,10 @@
 
 Writes two build inputs for ConfigGenerator.astro:
 
-- ``website/src/generated/default_config.toml`` - the exact file ``ds.create_config()``
-  scaffolds (the honest starting point for edits).
+- ``website/src/generated/default_config.toml`` - the template written by ``ds.create_config()``.
 - ``website/src/generated/theme_defaults.json`` - the ``ds.theme()`` parameter cheat sheet:
   every ``_BUILTIN_DEFAULTS`` key with its default rendered as a TOML value (``null`` for the
-  ``None`` sentinels that are derived at theme() time).
+  ``None`` markers that are resolved at theme() time).
 
 Run from the repo/worktree root:
 
@@ -25,24 +24,30 @@ from dysonsphere.theme import _BUILTIN_DEFAULTS
 
 OUT = Path("website/src/generated")
 
-# One-line hints for the derived (None-default) sentinels, so the cheat sheet can say what
+# One-line hints for the derived (None-default) markers, so the cheat sheet can say what
 # "auto" resolves to instead of showing nothing.
 AUTO_HINTS = {
-    "axisOffset": "auto: tickSize * 1.5",
+    "axisOffset": "true: tickSize * 1.5",
     "chartFill": "auto: white / black by darkmode",
-    "closed": "auto: True when inwardTicks or viewFill",
+    "closed": 'auto: True when tickDirection = "in" or viewFill',
     "legendOffset": "auto: tickSize * 1.5",
-    "markSize": "auto: min(chartWidth, chartHeight) / 10",
+    "legendTickCount": "auto: Vega-Lite chooses legend ticks",
+    "markSize": "auto: min(width, height) / 10",
+    "markFill": "when omitted: #DBDBDB light / #9D9D9D dark",
     "markStrokeWidth": "auto: axisWidth",
-    "secondaryFontSize": "auto: fontSize - 1 (floored)",
-    "palette": "auto: per-type defaults",
-    "categoryPalette": "auto: categorical",
-    "divergingPalette": "auto: built-in default",
-    "heatmapPalette": "auto: built-in default",
-    "ordinalPalette": "auto: greys",
-    "rampPalette": "auto: built-in default",
+    "palette": "auto: per-type defaults; master override",
+    "categoryPalette": "auto: cat1 light / cat2 dark",
+    "categoryPaletteDarkmode": "darkmode-only override",
+    "divergingPalette": "auto: div1 light / div2 dark",
+    "divergingPaletteDarkmode": "darkmode-only override",
+    "heatmapPalette": "auto: viridis",
+    "heatmapPaletteDarkmode": "darkmode-only override",
+    "ordinalPalette": "auto: greys in both modes",
+    "ordinalPaletteDarkmode": "darkmode-only override",
+    "rampPalette": "auto: viridis",
+    "rampPaletteDarkmode": "darkmode-only override",
     "viewFill": "auto: none",
-    "viewPadding": "auto: min(chartWidth, chartHeight) / 20 (closed plots)",
+    "viewPadding": "auto: min(width, height) / 20",
 }
 
 
@@ -65,13 +70,8 @@ def main() -> None:
     (OUT / "default_config.toml").write_text(toml_text, encoding="utf-8")
     print(f"wrote {OUT / 'default_config.toml'}  ({len(toml_text.splitlines())} lines)")
 
-    params = [
-        {"key": k, "default": toml_value(v), "hint": AUTO_HINTS.get(k)}
-        for k, v in _BUILTIN_DEFAULTS.items()
-    ]
-    (OUT / "theme_defaults.json").write_text(
-        json.dumps(params, indent=1, ensure_ascii=False), encoding="utf-8"
-    )
+    params = [{"key": k, "default": toml_value(v), "hint": AUTO_HINTS.get(k)} for k, v in _BUILTIN_DEFAULTS.items()]
+    (OUT / "theme_defaults.json").write_text(json.dumps(params, indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"wrote {OUT / 'theme_defaults.json'}  ({len(params)} parameters)")
 
 

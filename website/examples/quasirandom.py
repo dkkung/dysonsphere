@@ -1,15 +1,16 @@
 import altair as alt
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 
-# add_quasirandom() spreads points by local density (a van der Corput sequence weighted by a KDE)
-# for a symmetric, reproducible swarm - avoiding the lopsided tightly-packed rows add_beeswarm can
+# ds.transforms.quasirandom() spreads points by local density (a van der Corput sequence weighted by a KDE)
+# for a symmetric, reproducible swarm - avoiding the lopsided tightly-packed rows ds.transforms.beeswarm can
 # show. The trade is that it does not guarantee non-overlap.
-cars = ds.add_quasirandom(cars, "Miles_per_Gallon", groupBy=["Origin"])
+cars = ds.transforms.quasirandom(cars, "Miles_per_Gallon", groupBy=["Origin"])
 
 # Pin a symmetric xOffset domain so offset 0 sits exactly on the tick (the same guarantee
 # mark_strip gives you) - without it, Vega-Lite centres the tick on the offset range's midpoint.

@@ -1,18 +1,22 @@
 ---
 title: Marks
-description: Composite marks - strip, violin, boxplot, and a publication-styled table.
+description: Composite marks for strip plots, violins, boxplots, and tables.
 ---
 
 import Example from '../../../components/Example.astro';
 
-dysonsphere's composite marks return native Altair layers, so you compose them with `+` and keep
-Altair's full API. The jitter, beeswarm, and quasirandom offsets they use are also available as
+dysonsphere's composite marks return native Altair layers that you can combine with `+` and other
+Altair chart methods. Their jitter, beeswarm, and quasirandom offsets are also available as
 standalone [transforms](/guides/transforms/).
+
+For strip and violin marks, `categories` sets display order and must contain each observed group
+exactly once. Filter the dataframe first when plotting a subset of groups.
 
 ## Strip plot
 
-`mark_strip()` draws a categorical scatter with a median tick and optional mean error bars. Points
-are jittered by default.
+`mark_strip()` draws a categorical scatter with a summary. By default, the summary is the group
+mean with SEM error bars; `errorbars=False` selects the median instead. Points are jittered by
+default.
 
 <Example name="strip" alt="Strip plot of miles per gallon by car origin" />
 
@@ -34,27 +38,60 @@ embedded boxplot), or `None` (silhouette only); `innerColor` restyles the lines:
 
 <Example name="violin" alt="Violin plot of horsepower by car origin" />
 
-Remove the outline with `stroke=None`, and end the violin sharply at the observed data extremes
-with `trim=True`; `bandwidth` tunes the KDE smoothness:
+Remove the outline with `stroke=None`, and trim the violin tails at the observed data extremes
+with `trim=True`; `bandwidth` controls KDE smoothness:
 
 <Example name="violin_styled" alt="Styled violin plot with a custom palette, no outline, and trimmed tails" />
 
+### Palettes and fixed fills
+
+`mark_strip()` and `mark_violin()` both return an `alt.LayerChart`. Use `palette=` for category
+colors: it accepts a registered palette name (including a loaded custom palette) or a nonempty
+list of colors. A name uses the full registered list; it is not resampled. With `palette=None`,
+colors inherit the theme's category range.
+
+Use `fill=` for one literal color instead:
+
+```python
+palette_strip = ds.mark_strip(data, "group", "value", categories, palette=["#4C78A8", "#F58518"])
+fixed_violin = ds.mark_violin(data, "group", "value", categories, fill="#888888", legend=True)
+```
+
+`palette` and `fill` cannot both be non-`None`; inheriting the theme palette is not a conflict.
+With a fixed fill, only the category-color legend is hidden, even when `legend=True`. Axes, other
+legends, summaries, and violin inner styles remain. The literal fill stays the same in light and
+dark mode.
+
 ## Boxplot
 
-Plain Altair marks inherit the theme too. `mark_boxplot()` gets grey boxes, a single-stroke median,
-and rounded whisker caps out of the box; `boxplotOutliers=False` hides outlier points.
+Plain Altair marks also inherit the theme. `mark_boxplot()` uses grey boxes, a single-stroke median,
+and rounded whisker caps. Outlier points are hidden by default. Use Altair's native
+`mark_boxplot(outliers={"size": 5})` override to show or style them per chart.
 
 <Example name="boxplot" alt="Boxplot of miles per gallon by car origin" />
 
 ## Table
 
-`mark_table()` renders a DataFrame as a publication-styled table - a composable Altair layer, not a
-picture. Columns are formatted per-column (reusing the same scientific / power / SI notations as the
-rest of the library, typeset with real superscripts); a numeric column can be shaded by value with
-`cellColor`; and `strokes` picks which rules to draw (`"outer"`, `"header"`, `"rows"`, `"cols"`,
-`"grid"` for the interior, or `"all"` for every rule). Numeric columns are right-aligned by default
-so figures line up on the decimal; everything else is left. The source DataFrame is never mutated, so
-`ds.read(what="data")` recovers it exactly - and every cell background is its own rect, so you can
-recolour individual cells in Illustrator.
+`mark_table()` renders a DataFrame as a composable Altair layer. Columns support scientific, power,
+and SI notation, with superscripts typeset in the output. Use `cellPalette` to shade a numeric
+column by value. Numeric columns are right-aligned by default; other columns are left-aligned.
 
-<Example name="table" alt="Styled results table with per-column formatting and a value-shaded column" />
+`strokes` selects which table rules to draw:
+
+- `"outer"` draws the outside border; `"header"` draws the header rule.
+- `"rows"` or `"cols"` draws row or column rules; `"grid"` draws interior rules.
+- `"all"` draws every rule.
+
+The source DataFrame is not mutated, so `ds.metadata.read(what="data")` recovers the inlined data.
+Each cell background is a separate rect, which allows individual cells to be recolored in
+Illustrator.
+
+Missing or non-finite values become `null` and render as blank cells without dropping rows; zero
+remains `0`. Named numeric notations reject non-missing strings. Explicit d3 formats use Vega's
+formatter and may format strings, including padded `c` values. Booleans accept numeric formats, and
+all-missing columns stay blank.
+
+Widths are estimates, not a second Python formatter; use `columnWidths=` for exact control.
+Formatting maps validate input columns, while `headerLabels` remains a permissive display map.
+
+<Example name="table" alt="Styled results table with per-column formatting" />

@@ -11,13 +11,19 @@
 //                                 column schema as JSON (used by Chart Studio). Because the file
 //                                 exists in the FS, the emitted `pl.read_csv("file.csv")` snippet
 //                                 runs verbatim - shown code and executed code are the same.
-//   _read_export(name)          - ds.read(name, what="metadata") on a saved JSON/SVG/PNG already
+//   _read_export(name)          - ds.metadata.read(name, what="metadata") on a saved JSON/SVG/PNG already
 //                                 written into the FS (the studio's export-import tools); the
 //                                 JS side also exposes a raw FS writeFile for those uploads.
 // Site render args (darkmode / transparent) are applied just before serializing,
 // never shown in user code.
 
 const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v314.0.2/full/';
+// Local candidate wheels are an explicit dev-only override. Production builds always install
+// dysonsphere from PyPI, even if a PUBLIC_DYSONSPHERE_WHEEL_URL happens to be present.
+const DYSONSPHERE_INSTALL_TARGET =
+	import.meta.env.DEV && import.meta.env.PUBLIC_DYSONSPHERE_WHEEL_URL
+		? import.meta.env.PUBLIC_DYSONSPHERE_WHEEL_URL
+		: 'dysonsphere';
 
 export interface DsRuntime {
 	runChart(code: string, dark: boolean): string;
@@ -26,7 +32,7 @@ export interface DsRuntime {
 	writeFile(name: string, data: Uint8Array | string): void;
 	/** Bundle a vega_datasets table into the FS as <name>.csv; returns the schema JSON. */
 	loadDataset(name: string): string;
-	/** ds.read(name, what="metadata") -> the embedded dysonsphere block as a JSON string. */
+	/** ds.metadata.read(name, what="metadata") -> the embedded dysonsphere block as a JSON string. */
 	readExport(name: string): string;
 	/** Palette names of the INSTALLED library (the PyPI release, which can lag the site). */
 	listPalettes(): string[];
@@ -94,14 +100,14 @@ def _run_chart(code, dark):
     if ch is None:
         raise RuntimeError("Define a variable named 'chart' (a dysonsphere/Altair chart).")
     spec = ch.to_dict()
-    ds.clear_stats()  # statistics records are per-run; never leak across renders
+    ds.stats.clear_stats()  # statistics records are per-run; never leak across renders
     return json.dumps(spec)
 
 def _read_export(name):
     # The embedded dysonsphere block (provenance/statistics/theme/report) from a saved
-    # JSON, SVG, or PNG - ds.read parses all three; the file was written into the FS first.
+    # JSON, SVG, or PNG - ds.metadata.read parses all three; the file was written into the FS first.
     import dysonsphere as ds
-    block = ds.read(name, what="metadata")
+    block = ds.metadata.read(name, what="metadata")
     if not block:
         raise RuntimeError("No dysonsphere metadata block found in this file.")
     return json.dumps(block, ensure_ascii=False)
@@ -132,9 +138,8 @@ def _load_table(name, text, format):
 def _load_dataset(name):
     # Bundle a vega_datasets classic into the FS as <name>.csv, so the emitted
     # pl.read_csv("<name>.csv") line runs exactly as shown.
-    import dysonsphere as ds
     from vega_datasets import data
-    df = ds.ensure_polars(getattr(data, name)())
+    df = pl.from_pandas(getattr(data, name)())
     df.write_csv(f"{name}.csv")
     _studio_tables[f"{name}.csv"] = df
     return _schema_json(df)
@@ -158,11 +163,14 @@ export function getRuntime(): Promise<DsRuntime> {
 		// fails outright. Install dysonsphere without deps and pull the importable ones
 		// explicitly; vl_convert is imported lazily only when save() renders, which the studio
 		// never does. vega-datasets so example snippets (the classic datasets) run unchanged.
+		// Pass the URL through Pyodide globals rather than interpolating it into Python source.
+		pyodide.globals.set('_dysonsphere_install_target', DYSONSPHERE_INSTALL_TARGET);
 		await pyodide.runPythonAsync(`
 import micropip
 await micropip.install(["altair", "numpy", "polars", "pyarrow", "scipy", "vega-datasets"])
-await micropip.install("dysonsphere", deps=False)
+await micropip.install(_dysonsphere_install_target, deps=False)
 `);
+		pyodide.globals.delete('_dysonsphere_install_target');
 
 		await pyodide.runPythonAsync(PY_BOOTSTRAP);
 		// Bridge the release gap: palettes the site knows but the installed PyPI release
@@ -171,7 +179,7 @@ await micropip.install("dysonsphere", deps=False)
 		// call - so the Studio renders them exactly like built-ins until the release
 		// catches up, and the dropdown pruning keeps them.
 		const installed = new Set<string>(
-			JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.colors))')),
+			JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.palettes.colors))')),
 		);
 		const missing = (sitePalettes as { name: string; colors: string[] }[]).filter((p) => !installed.has(p.name));
 		if (missing.length) {
@@ -197,7 +205,7 @@ await micropip.install("dysonsphere", deps=False)
 			loadDataset: (name: string) => loadDatasetPy(name) as string,
 			readExport: (name: string) => readExportPy(name) as string,
 			listPalettes: () =>
-				JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.colors))')),
+				JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.palettes.colors))')),
 		};
 	})();
 	bootPromise.catch(() => {

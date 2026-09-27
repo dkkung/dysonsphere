@@ -2,8 +2,8 @@
 // Homepage-only typewriter for the hero title: a thin-bar caret types the first word,
 // pauses, then types the second inside a contrasting chip - then "rolls" backwards
 // (backspace deletion) to a blank slate and cycles through the word stops
-// (dysonsphere -> publication ready -> uniform palettes -> declarative plotting ->
-// plot provenance -> ...), forever. Progressive enhancement - the static h1 text stays
+// (dysonsphere -> statistical annotations -> uniform palettes -> declarative plotting ->
+// chart metadata -> ...), forever. Progressive enhancement - the static h1 text stays
 // for no-JS/SEO and screen readers read the plain product name via aria-label (the
 // animated spans are aria-hidden). Plays for everyone by explicit user decision (no
 // prefers-reduced-motion skip). Scoped to the homepage by construction: only the
@@ -12,7 +12,7 @@
 // The FIRST stop keeps its eclipse chips (theme-flipping, via CSS). Every later stop draws
 // its two chip backgrounds from ONE dysonsphere palette (both from the same palette, never
 // mixed) - a light stop with ink text + a dark stop with paper text. The build precomputes,
-// per NATIVE palette (mpl_/cmocean_ excluded), the max-Oklab-separation legible [inkBg, paperBg]
+// per native palette (ported palettes excluded), the max-Oklab-separation legible [inkBg, paperBg]
 // pair; the client picks a palette at random each stop (never repeating the last).
 import palettes from '../generated/palettes.json';
 
@@ -40,8 +40,8 @@ const dist = (a: string, b: string) => {
 	return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]);
 };
 // [inkBg, paperBg] per native palette that has a stop readable under ink AND under paper (AA)
-const chipPairs = (palettes as { name: string; colors: string[] }[])
-	.filter((p) => !/^(mpl_|cmocean_)/.test(p.name))
+const chipPairs = (palettes as { name: string; source: string; colors: string[] }[])
+	.filter((p) => p.source === 'dysonsphere')
 	.map((p) => {
 		const light = p.colors.filter((c) => contrast(c, INK) >= 4.5);
 		const dark = p.colors.filter((c) => contrast(c, PAPER) >= 4.5);
@@ -101,10 +101,10 @@ const chipPairs = (palettes as { name: string; colors: string[] }[])
 	// [plain word, chipped word] stops - run together with no space, like dysonsphere.
 	const STOPS: Array<[string, string]> = [
 		['dyson', 'sphere'],
-		['publication', 'ready'],
+		['statistical', 'annotations'],
 		['uniform', 'palettes'],
 		['declarative', 'plotting'],
-		['plot', 'provenance'],
+		['chart', 'metadata'],
 	];
 
 	function run() {

@@ -1,11 +1,12 @@
 """Tests for dysonsphere_biology.western_blot - image loading, stacking, and the condition table.
 
 Uses in-memory PIL images (no fixture files). Covers the entry-point resolution, the stroke /
-padding controls, multi-strip stacking, and that the generated image sidecar is tagged internal.
+padding controls, multi-strip stacking, and that the generated image data is tagged internal.
 """
 
 import base64
 import io
+from pathlib import Path
 
 import altair as alt
 import dysonsphere_biology as dsbio
@@ -56,8 +57,8 @@ def test_single_vs_multiple_images():
 
 
 def test_aspect_preserved():
-    # a 60x12 image at chartWidth W renders at height W*12/60 = W/5
-    ds.theme(chartWidth=200)
+    # a 60x12 image at theme width W renders at height W*12/60 = W/5
+    ds.theme(width=200)
     unit = _image_units(ds.biology.western_blot(_img(60, 12), categories=["x", "y"]).to_dict())[0]
     assert unit["height"] == pytest.approx(200 * 12 / 60)
     assert unit["width"] == 200
@@ -85,7 +86,7 @@ class TestStroke:
 
 
 def test_padding_sets_stack_spacing():
-    spec = ds.biology.western_blot([_img(), _img()], categories=["x", "y"], padding=5).to_dict()
+    spec = ds.biology.western_blot([_img(), _img()], categories=["x", "y"], stripSpacing=5).to_dict()
     stack = spec["vconcat"][0]  # the image stack is the first child; the table is second
     assert stack["spacing"] == 5
 
@@ -102,8 +103,14 @@ def test_accepts_data_uri():
     assert len(_image_units(ds.biology.western_blot(uri, categories=["x", "y"]).to_dict())) == 1
 
 
+def test_accepts_pathlib_image(tmp_path):
+    path = Path(tmp_path) / "blot.png"
+    _img().save(path)
+    assert len(_image_units(ds.biology.western_blot(path, categories=["x", "y"]).to_dict())) == 1
+
+
 def test_image_sidecar_tagged_internal():
-    # The image URI frame is generated, not user data - it must carry the internal sentinel so
+    # The image URI frame is generated, not user data - it must carry the internal marker so
     # read(what="data") never returns it as a phantom user frame.
     spec = ds.biology.western_blot(_img(), categories=["x", "y"]).to_dict()
     data = _image_units(spec)[0]["data"]
@@ -113,7 +120,7 @@ def test_image_sidecar_tagged_internal():
 
 def test_tagged_for_provenance():
     # ext.tag_extension marks the figure so save() records dysonsphere-biology's version.
-    from dysonsphere.discovery import _used_extensions
+    from dysonsphere.ext import _used_extensions
 
     spec = ds.biology.western_blot(_img(), categories=["x", "y"]).to_dict()
     assert "biology" in _used_extensions(spec)

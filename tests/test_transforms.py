@@ -7,15 +7,15 @@ from dysonsphere.transforms import (
     _beeswarm_offsets,
     _quasirandom_offsets,
     _van_der_corput,
-    add_beeswarm,
-    add_jitter,
-    add_quasirandom,
+    beeswarm,
+    jitter,
+    quasirandom,
 )
 
 
 @pytest.fixture(autouse=True)
 def default_theme():
-    theme(chartWidth=200, chartHeight=200)
+    theme(width=200, height=200)
 
 
 @pytest.fixture
@@ -63,60 +63,100 @@ class TestBeeswarmOffsets:
         assert len(set(x)) > 1
 
 
-class TestAddJitter:
+class TestJitter:
     def test_adds_offset_column(self, group_df):
-        result = add_jitter(group_df)
+        result = jitter(group_df)
         assert "jitter_x" in result.columns
 
     def test_output_length_unchanged(self, group_df):
-        result = add_jitter(group_df)
+        result = jitter(group_df)
         assert len(result) == len(group_df)
 
     def test_custom_column_name(self, group_df):
-        result = add_jitter(group_df, outCol="my_jitter")
+        result = jitter(group_df, outCol="my_jitter")
         assert "my_jitter" in result.columns
 
     def test_spread_controls_width(self, group_df):
-        tight = add_jitter(group_df, spread=0.5, seed=0)
-        wide = add_jitter(group_df, spread=20.0, seed=0)
+        tight = jitter(group_df, spread=0.5, seed=0)
+        wide = jitter(group_df, spread=20.0, seed=0)
         assert tight["jitter_x"].abs().max() < wide["jitter_x"].abs().max()  # ty: ignore[unsupported-operator]
 
 
-class TestAddBeeswarm:
+class TestBeeswarm:
     def test_adds_offset_column(self, group_df):
-        result = add_beeswarm(group_df, yCol="value", groupBy=["group"])
+        result = beeswarm(group_df, column="value", groupBy=["group"])
         assert "beeswarm_x" in result.columns
 
     def test_output_length_unchanged(self, group_df):
-        result = add_beeswarm(group_df, yCol="value", groupBy=["group"])
+        result = beeswarm(group_df, column="value", groupBy=["group"])
         assert len(result) == len(group_df)
 
     def test_custom_column_name(self, group_df):
-        result = add_beeswarm(group_df, yCol="value", groupBy=["group"], outCol="my_swarm")
+        result = beeswarm(group_df, column="value", groupBy=["group"], outCol="my_swarm")
         assert "my_swarm" in result.columns
 
+    def test_multiple_grouping_columns_preserve_rows(self):
+        data = pl.DataFrame({"group": ["B", "A", "B", "A"], "condition": [2, 1, 1, 2], "value": [4.0, 1.0, 3.0, 2.0]})
+        result = beeswarm(data, column="value", groupBy=["group", "condition"])
+        assert result.select(data.columns).equals(data)
 
-class TestAddQuasirandom:
+
+class TestQuasirandom:
     def test_adds_offset_column(self, group_df):
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"])
+        result = quasirandom(group_df, column="value", groupBy=["group"])
         assert "quasirandom_x" in result.columns
 
     def test_output_length_unchanged(self, group_df):
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"])
+        result = quasirandom(group_df, column="value", groupBy=["group"])
         assert len(result) == len(group_df)
 
     def test_custom_column_name(self, group_df):
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"], outCol="my_q")
+        result = quasirandom(group_df, column="value", groupBy=["group"], outCol="my_q")
         assert "my_q" in result.columns
 
     def test_rows_map_back_in_order(self, group_df):
-        # the offset must line up with its own row after the group_by/sort round-trip
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"])
+        # the offset must line up with its own row after group_by/sort processing
+        result = quasirandom(group_df, column="value", groupBy=["group"])
         assert result["value"].to_list() == group_df["value"].to_list()
 
+    def test_multiple_grouping_columns_preserve_rows(self):
+        data = pl.DataFrame(
+            {
+                "row": [3, 0, 2, 1, 4, 5],
+                "group": ["B", "A", "B", "A", "A", "A"],
+                "condition": [2, 1, 1, 2, 1, 1],
+                "value": [4.0, 1.0, 3.0, 2.0, 1.5, 2.5],
+            }
+        )
+        result = quasirandom(data, column="value", groupBy=["group", "condition"])
+        assert result.select(data.columns).equals(data)
+
     def test_width_and_bandwidth_accepted(self, group_df):
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"], width=20.0, bandwidth=0.5)
+        result = quasirandom(group_df, column="value", groupBy=["group"], width=20.0, bandwidth=0.5)
         assert "quasirandom_x" in result.columns and len(result) == len(group_df)
+
+    @pytest.mark.parametrize("value", [float("nan"), None, float("inf"), float("-inf")])
+    def test_kde_rejects_missing_or_nonfinite_observations(self, value):
+        data = pl.DataFrame({"group": ["A", "A", "B"], "value": [1.0, value, 3.0]})
+        with pytest.raises(ValueError, match="quasirandom KDE column 'value'.*group 'A'"):
+            quasirandom(data, column="value", groupBy=["group"])
+
+    @pytest.mark.parametrize("values", [[1e308, 1e308 - 1e292, 1e308 - 2e292]])
+    def test_kde_rejects_finite_but_numerically_unusable_values(self, values):
+        data = pl.DataFrame({"group": ["A"] * len(values), "value": values})
+        with pytest.raises(ValueError, match="quasirandom KDE column 'value'.*group 'A'"):
+            quasirandom(data, column="value", groupBy=["group"])
+
+    def test_constant_and_singleton_groups_keep_fallback(self):
+        constant = pl.DataFrame({"group": ["A"] * 4, "value": [5.0] * 4})
+        singleton = pl.DataFrame({"group": ["A"], "value": [5.0]})
+        assert len(quasirandom(constant, column="value", groupBy=["group"])) == 4
+        assert quasirandom(singleton, column="value", groupBy=["group"])["quasirandom_x"].to_list() == [0.0]
+
+    def test_empty_input_preserves_existing_grouped_apply_error(self):
+        data = pl.DataFrame({"group": pl.Series([], dtype=pl.String), "value": pl.Series([], dtype=pl.Float64)})
+        with pytest.raises(pl.exceptions.ComputeError, match="empty"):
+            quasirandom(data, column="value", groupBy=["group"])
 
 
 class TestVanDerCorput:
@@ -168,3 +208,26 @@ class TestQuasirandomOffsets:
         core = np.abs(x[:40]).max()
         tail = np.abs(x[40:]).max()
         assert core > tail
+
+    @pytest.mark.parametrize(
+        ("y", "expected"),
+        [
+            ([0.0, 5e-11, 1e-10], [0.0, -1.2615662610100802, 1.2615662610100802]),
+            ([1e-320, 2e-320, 3e-320], [0.0, -3.7846987830302403, 3.7846987830302403]),
+        ],
+    )
+    def test_nonconstant_tiny_ranges_keep_uniform_fallback(self, y, expected):
+        assert _quasirandom_offsets(np.array(y)) == pytest.approx(expected)
+
+    def test_nonpositive_density_normalizer_is_rejected(self, monkeypatch):
+        import dysonsphere.transforms as transforms
+
+        class ZeroDensityKDE:
+            covariance = np.array([[1.0]])
+
+            def __call__(self, values):
+                return np.zeros(len(values))
+
+        monkeypatch.setattr(transforms, "gaussian_kde", lambda values, bw_method=None: ZeroDensityKDE())
+        with pytest.raises(ValueError, match="invalid density normalizer"):
+            _quasirandom_offsets(np.array([0.0, 1.0]), column="signal", group="A")

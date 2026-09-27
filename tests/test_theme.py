@@ -1,8 +1,11 @@
-from typing import Any
+import hashlib
+import json
+from typing import Any, cast
 
 import altair as alt
 import pytest
 
+from dysonsphere.palettes import colors
 from dysonsphere.theme import (
     _dysonsphere_theme,
     _load_style_overrides,
@@ -21,8 +24,8 @@ def reset_theme():
 class TestThemeDefaults:
     def test_options_populated(self):
         opts = alt.theme.options
-        assert "chartWidth" in opts
-        assert "chartHeight" in opts
+        assert "width" in opts
+        assert "height" in opts
         assert "axisWidth" in opts
         assert "markSize" in opts
         assert "markStrokeWidth" in opts
@@ -42,16 +45,210 @@ class TestThemeDefaults:
         assert "HelveticaNeue" in families
         assert families[-1] == "sans-serif"
 
+    def test_default_font_size(self):
+        theme()
+        assert alt.theme.options["fontSize"] == 6
+
+    def test_greek_font_default_custom_and_opt_out(self):
+        assert alt.theme.options["fontGreek"] == "Symbol"
+        theme(fontGreek="Journal Greek")
+        assert alt.theme.options["fontGreek"] == "Journal Greek"
+        theme(fontGreek=None)
+        assert alt.theme.options["fontGreek"] is None
+        theme()
+        assert alt.theme.options["fontGreek"] == "Symbol"
+
+    @pytest.mark.parametrize("value", ["", "   "])
+    def test_greek_font_rejects_blank_atomically(self, value):
+        theme(fontGreek="Before")
+        before = dict(alt.theme.options)
+        with pytest.raises(ValueError, match="fontGreek"):
+            theme(fontGreek=value)
+        assert alt.theme.options == before
+
+    @pytest.mark.parametrize("value", [False, 3, ["Symbol"]])
+    def test_greek_font_rejects_wrong_type_atomically(self, value):
+        theme(fontGreek="Before")
+        before = dict(alt.theme.options)
+        with pytest.raises(TypeError, match="fontGreek"):
+            theme(fontGreek=value)
+        assert alt.theme.options == before
+
+    def test_greek_font_config_and_keyword_precedence(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            '[default]\nfontGreek = "Default Greek"\n[paper]\nfontGreek = "Style Greek"\n', encoding="utf-8"
+        )
+        theme("paper")
+        assert alt.theme.options["fontGreek"] == "Style Greek"
+        theme("paper", fontGreek=None)
+        assert alt.theme.options["fontGreek"] is None
+
+    def test_old_greek_font_name_is_rejected(self, tmp_path, monkeypatch):
+        with pytest.raises(TypeError, match="greekFont"):
+            cast(Any, theme)(greekFont="Symbol")
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text('[default]\ngreekFont = "Symbol"\n', encoding="utf-8")
+        with pytest.raises(ValueError, match="greekFont"):
+            theme()
+
+    @pytest.mark.parametrize("section", ["default", "paper"])
+    @pytest.mark.parametrize("value", ['"   "', "3"])
+    def test_malformed_greek_font_config_is_atomic(self, section, value, tmp_path, monkeypatch):
+        theme(fontGreek="Before")
+        before = dict(alt.theme.options)
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(f"[{section}]\nfontGreek = {value}\n", encoding="utf-8")
+        with pytest.raises((TypeError, ValueError), match="fontGreek"):
+            theme("paper" if section == "paper" else None)
+        assert alt.theme.options == before
+
+    def test_default_tick_size(self):
+        theme()
+        assert alt.theme.options["tickSize"] == pytest.approx(3.0)
+        assert _dysonsphere_theme()["config"]["axis"]["tickSize"] == pytest.approx(3.0)
+
+    def test_explicit_tick_size(self):
+        theme(tickSize=2.25)
+        assert alt.theme.options["tickSize"] == pytest.approx(2.25)
+        assert _dysonsphere_theme()["config"]["axis"]["tickSize"] == pytest.approx(2.25)
+
     def test_mark_size_default(self):
-        theme(chartWidth=200, chartHeight=100)
+        theme(width=200, height=100)
         assert alt.theme.options["markSize"] == pytest.approx(10.0)
 
+    def test_mark_fill_default_follows_mode_live(self):
+        from dysonsphere.theme import _opt
+
+        theme(darkmode=False)
+        assert alt.theme.options["markFill"] == "#DBDBDB"
+        assert _opt("markFill") == "#DBDBDB"
+        assert _dysonsphere_theme()["config"]["point"]["fill"] == "#DBDBDB"
+        alt.theme.options["darkmode"] = True
+        assert _opt("markFill") == "#9D9D9D"
+        config = _dysonsphere_theme()["config"]
+        assert config["point"]["fill"] == "#9D9D9D"
+        assert config["bar"]["fill"] == "#9D9D9D"
+        assert config["area"]["fill"] == "#9D9D9D"
+        assert config["arc"]["fill"] == "#9D9D9D"
+        assert config["circle"]["fill"] == "white"
+        theme(darkmode=True)
+        assert alt.theme.options["markFill"] == "#9D9D9D"
+
+    @pytest.mark.parametrize("value", ["#DBDBDB", "#9D9D9D", "tomato"])
+    def test_explicit_mark_fill_is_pinned_across_mode_toggle(self, value):
+        from dysonsphere.theme import _opt
+
+        theme(markFill=value)
+        alt.theme.options["darkmode"] = True
+        assert _opt("markFill") == value
+        assert _dysonsphere_theme()["config"]["point"]["fill"] == value
+
+    def test_configured_mark_fill_is_pinned(self, tmp_path, monkeypatch):
+        from dysonsphere.theme import _opt
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text('[default]\nmarkFill = "#DBDBDB"\n', encoding="utf-8")
+        theme(darkmode=True)
+        assert _opt("markFill") == "#DBDBDB"
+        assert _dysonsphere_theme()["config"]["point"]["fill"] == "#DBDBDB"
+
+    @pytest.mark.parametrize("stops", [["#123456"], ["#123456", "#654321"]])
+    def test_automatic_mark_fill_ignores_custom_greys(self, stops, tmp_path, monkeypatch):
+        from dysonsphere.theme import _opt
+
+        monkeypatch.chdir(tmp_path)
+        values = ", ".join(f'"{value}"' for value in stops)
+        (tmp_path / "dysonsphere.toml").write_text(f"[palettes]\ngreys = [{values}]\n", encoding="utf-8")
+        for darkmode, expected in ((False, "#DBDBDB"), (True, "#9D9D9D"), (False, "#DBDBDB")):
+            theme(darkmode=darkmode)
+            assert _opt("markFill") == expected
+            assert _dysonsphere_theme()["config"]["point"]["fill"] == expected
+
+    def test_all_grey_family_aliases_share_identity_across_modes(self):
+        from dysonsphere.palettes import _PALETTE_ALIASES
+
+        for darkmode in (False, True, False):
+            theme(darkmode=darkmode)
+            assert all(colors[alias] is colors[canonical] for alias, canonical in _PALETTE_ALIASES.items())
+
+    def test_named_style_mark_fill_and_explicit_precedence_are_pinned(self, tmp_path, monkeypatch):
+        from dysonsphere.theme import _opt
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            '[default]\nmarkFill = "#123456"\n[paper]\nmarkFill = "#DBDBDB"\n', encoding="utf-8"
+        )
+        theme("paper", darkmode=True)
+        assert _opt("markFill") == "#DBDBDB"
+        theme("paper", darkmode=True, markFill="#9D9D9D")
+        assert _opt("markFill") == "#9D9D9D"
+
+    def test_callable_export_resolves_default_fill_and_accents_per_background(self, tmp_path):
+        import dysonsphere as ds
+
+        theme(darkmode=False)
+
+        def chart():
+            data = alt.Data(values=[{"x": 1, "y": 1}])
+            default = alt.Chart(data).mark_point(filled=True, size=100).encode(x="x:Q", y="y:Q")
+            accent = alt.Chart(data).mark_circle(color=ds.palettes.accents["blue"], size=25).encode(x="x:Q", y="y:Q")
+            return default + accent
+
+        ds.save(
+            chart,
+            tmp_path / "mode-fill",
+            format="svg",
+            background=["light", "dark"],
+            transparent=False,
+            saveMetadata=False,
+        )
+        light = (tmp_path / "mode-fill_light.svg").read_text()
+        dark = (tmp_path / "mode-fill_dark.svg").read_text()
+        assert "#DBDBDB" in light and "#28287D" in light
+        assert "#9D9D9D" in dark and "#7783DB" in dark
+        assert alt.theme.options["darkmode"] is False
+
+    @pytest.mark.parametrize(
+        ("overrides", "expected", "automatic"),
+        [
+            ({"markFill": "tomato"}, "tomato", False),
+            ({"darkmode": True}, "#9D9D9D", True),
+            ({"darkmode": True, "markFill": "#DBDBDB"}, "#DBDBDB", False),
+        ],
+    )
+    def test_temporary_fill_overrides_and_mode_are_resolved_and_restored(self, overrides, expected, automatic):
+        from dysonsphere.theme import _active_args, _opt, _temporary_theme
+
+        theme()
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        with _temporary_theme(overrides):
+            assert alt.theme.options["markFill"] == expected
+            assert _opt("markFill") == expected
+            assert alt.theme.options["_markFillAuto"] is automatic
+            with _temporary_theme({"width": 240}):
+                assert _opt("markFill") == expected
+                assert alt.theme.options["_markFillAuto"] is automatic
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+
+    def test_temporary_theme_preserves_dark_palette_overrides(self):
+        from dysonsphere.theme import _temporary_theme
+
+        theme(darkmode=False, categoryPalette=["light"], categoryPaletteDarkmode=["dark"])
+        before_options = dict(alt.theme.options)
+        with _temporary_theme({"darkmode": True, "width": 240}):
+            assert _dysonsphere_theme()["config"]["range"]["category"] == ["dark"]
+        assert alt.theme.options == before_options
+        assert _dysonsphere_theme()["config"]["range"]["category"] == ["light"]
+
     def test_mark_size_uses_min_dimension(self):
-        theme(chartWidth=50, chartHeight=200)
+        theme(width=50, height=200)
         assert alt.theme.options["markSize"] == pytest.approx(5.0)
 
     def test_circle_size_default(self):
-        theme(chartWidth=100, chartHeight=100)
+        theme(width=100, height=100)
         # config.circle.size is markSize / 8 (markSize = min(w, h) * 0.1 = 10 here).
         assert _dysonsphere_theme()["config"]["circle"]["size"] == pytest.approx(1.25)
 
@@ -102,30 +299,6 @@ class TestThemeDefaults:
         theme(transparent=True)
         assert _dysonsphere_theme()["background"] is None
 
-    def test_secondary_font_size_default(self):
-        theme()  # fontSize=7
-        assert alt.theme.options["secondaryFontSize"] == 6  # fontSize - 1
-
-    def test_secondary_font_size_scales(self):
-        theme(fontSize=12)
-        assert alt.theme.options["secondaryFontSize"] == 11
-
-    def test_secondary_font_size_explicit(self):
-        theme(fontSize=12, secondaryFontSize=8)
-        assert alt.theme.options["secondaryFontSize"] == 8
-
-    def test_secondary_font_size_floored_at_smallest(self):
-        theme(fontSize=5)  # fontSize - 1 = 4, but floored to smallestFontSize (5)
-        assert alt.theme.options["secondaryFontSize"] == 5
-
-    def test_secondary_font_size_escape_hatch_below_floor(self):
-        theme(fontSize=3)  # fontSize < smallest → floor bypassed, tier follows the base
-        assert alt.theme.options["secondaryFontSize"] == 2  # max(1, 3 - 1)
-
-    def test_smallest_font_size_default(self):
-        theme()
-        assert alt.theme.options["smallestFontSize"] == 5  # fixed floor, not derived
-
     def test_sig_figs_default(self):
         theme()
         assert alt.theme.options["sigFigs"] == 3
@@ -144,21 +317,14 @@ class TestThemeDefaults:
         assert alt.theme.options["saveFormat"] == "png"  # stored as-is; save() normalizes
         assert alt.theme.options["saveBackground"] == ["light", "dark"]
 
-    def test_smallest_font_size_custom_int(self):
-        theme(smallestFontSize=4)
-        assert alt.theme.options["smallestFontSize"] == 4
-        assert alt.theme.options["fontSize"] == 7  # int does not minimize
+    def test_font_size_accepts_positive_fraction(self):
+        theme(fontSize=9.333)
+        assert alt.theme.options["fontSize"] == pytest.approx(9.333)
 
-    def test_smallest_font_size_true_minimizes_and_floors_secondary(self):
-        theme(smallestFontSize=True)
-        assert alt.theme.options["fontSize"] == 5  # base dropped to the floor
-        assert alt.theme.options["secondaryFontSize"] == 5  # tier floored too, not 4
-        assert alt.theme.options["smallestFontSize"] == 5
-
-    def test_smallest_font_size_false_is_retrievable_int(self):
-        theme(smallestFontSize=False)
-        assert alt.theme.options["smallestFontSize"] == 5
-        assert alt.theme.options["fontSize"] == 7  # no minimize
+    @pytest.mark.parametrize("removed", ["secondaryFontSize", "smallestFontSize"])
+    def test_removed_font_options_are_rejected(self, removed):
+        with pytest.raises(TypeError, match=removed):
+            cast(Any, theme)(**{removed: 5})
 
     def test_options_reset_on_each_call(self):
         theme(grid=True)
@@ -203,6 +369,143 @@ class TestLegendPadding:
         assert alt.theme.options["legendRowPadding"] == 2
 
 
+class TestLegendGradientLength:
+    def test_default_and_override(self):
+        theme()
+        assert alt.theme.options["legendGradientLength"] is None
+        theme(legendGradientLength=0.75)
+        assert alt.theme.options["legendGradientLength"] == 0.75
+
+    def test_explicit_none_restores_orientation_aware_default(self):
+        theme(legendGradientLength=None)
+        assert alt.theme.options["legendGradientLength"] is None
+
+    @pytest.mark.parametrize("value", [True, False, 0, -1, float("inf"), float("nan")])
+    def test_requires_positive_finite_number(self, value):
+        error = TypeError if isinstance(value, bool) else ValueError
+        with pytest.raises(error, match="legendGradientLength"):
+            theme(legendGradientLength=value)
+
+
+class TestLegendTickCount:
+    @staticmethod
+    def _chart(legend=alt.Undefined):
+        data = alt.Data(values=[{"x": 0, "v": 0}, {"x": 1, "v": 800}, {"x": 2, "v": 1600}])
+        return (
+            alt.Chart(data)
+            .mark_circle()
+            .encode(x="x:Q", color=alt.Color("v:Q", scale=alt.Scale(domain=[0, 1600]), legend=legend))
+        )
+
+    @staticmethod
+    def _legend_labels(chart, tmp_path):
+        import xml.etree.ElementTree as ET
+
+        import vl_convert as vlc
+
+        from dysonsphere import save
+
+        path = tmp_path / "legend"
+        save(chart, path, format="json", background="light", saveMetadata=False)
+        spec = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        root = ET.fromstring(vlc.vegalite_to_svg(spec))
+        legend = next(el for el in root.iter() if "role-legend" in el.attrib.get("class", "").split())
+        labels = next(el for el in legend.iter() if "role-legend-label" in el.attrib.get("class", "").split())
+        return spec, [el.text for el in labels.iter() if el.tag.endswith("text")]
+
+    def test_default_none_and_reset_leave_native_tick_selection(self, tmp_path):
+        assert alt.theme.options["legendTickCount"] is None
+        assert "tickCount" not in _dysonsphere_theme()["config"]["legend"]
+        baseline, labels = self._legend_labels(self._chart(), tmp_path)
+        assert labels == ["0", "1,600"]
+        theme(legendTickCount=4)
+        theme(legendTickCount=None)
+        assert alt.theme.options["legendTickCount"] is None
+        reset, reset_labels = self._legend_labels(self._chart(), tmp_path)
+        assert "tickCount" not in reset["config"]["legend"]
+        assert reset["config"]["legend"] == baseline["config"]["legend"]
+        assert reset_labels == labels
+
+    def test_positive_count_reaches_renderer_as_a_suggestion(self, tmp_path):
+        theme(legendTickCount=4)
+        assert alt.theme.options["legendTickCount"] == 4
+        assert _dysonsphere_theme()["config"]["legend"]["tickCount"] == 4
+        spec, labels = self._legend_labels(self._chart(), tmp_path)
+        assert spec["config"]["legend"]["tickCount"] == 4
+        assert labels == ["0", "500", "1,000", "1,500"]
+
+    @pytest.mark.parametrize("value", [True, False, "4", 0, -1, float("inf"), float("nan")])
+    def test_rejects_invalid_count_without_changing_theme(self, value):
+        theme(legendTickCount=4)
+        before = dict(alt.theme.options)
+        error = TypeError if isinstance(value, (bool, str)) else ValueError
+        with pytest.raises(error, match="legendTickCount"):
+            theme(legendTickCount=value)
+        assert alt.theme.options == before
+
+    def test_toml_style_keyword_precedence_and_reset(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            "[default]\nlegendTickCount = 4\n[small]\nlegendTickCount = 6\n", encoding="utf-8"
+        )
+        theme()
+        assert alt.theme.options["legendTickCount"] == 4
+        theme("small")
+        assert alt.theme.options["legendTickCount"] == 6
+        theme("small", legendTickCount=2.5)
+        assert _dysonsphere_theme()["config"]["legend"]["tickCount"] == 2.5
+        theme("small", legendTickCount=None)
+        assert "tickCount" not in _dysonsphere_theme()["config"]["legend"]
+        theme()
+        assert alt.theme.options["legendTickCount"] == 4
+
+    def test_per_chart_count_and_explicit_values_override_theme(self, tmp_path):
+        theme(legendTickCount=8)
+        counted, counted_labels = self._legend_labels(self._chart(alt.Legend(tickCount=3)), tmp_path)
+        assert counted["encoding"]["color"]["legend"]["tickCount"] == 3
+        assert counted_labels == ["0", "500", "1,000", "1,500"]
+        valued, value_labels = self._legend_labels(self._chart(alt.Legend(values=[0, 500, 1500])), tmp_path)
+        assert valued["encoding"]["color"]["legend"]["values"] == [0, 500, 1500]
+        assert value_labels == ["0", "500", "1,500"]
+
+    def test_saved_theme_reapplies_count_on_load(self, tmp_path):
+        import dysonsphere as ds
+
+        theme(legendTickCount=4)
+        path = tmp_path / "legend"
+        ds.save(self._chart(), path, format="json", background="light")
+        saved = path.with_suffix(".json")
+        assert ds.metadata.read(saved, what="metadata")["theme"]["legendTickCount"] == 4
+        theme(legendTickCount=None)
+        ds.load(saved)
+        assert alt.theme.options["legendTickCount"] == 4
+        assert _dysonsphere_theme()["config"]["legend"]["tickCount"] == 4
+
+
+class TestLegendGradientThickness:
+    @staticmethod
+    def _thickness():
+        return _dysonsphere_theme()["config"]["legend"]["gradientThickness"]
+
+    def test_default_and_override(self):
+        theme()
+        assert alt.theme.options["legendGradientThickness"] == 5
+        assert self._thickness() == 5
+        theme(legendGradientThickness=7.5)
+        assert alt.theme.options["legendGradientThickness"] == 7.5
+        assert self._thickness() == 7.5
+
+    @pytest.mark.parametrize("value", [True, False, 0, -1, float("inf"), float("nan")])
+    def test_requires_positive_finite_number(self, value):
+        error = TypeError if isinstance(value, bool) else ValueError
+        with pytest.raises(error, match="legendGradientThickness"):
+            theme(legendGradientThickness=value)
+
+    def test_independent_of_mark_and_chart_dimensions(self):
+        theme(width=300, height=40, markSize=80)
+        assert self._thickness() == 5
+
+
 class TestRangePalettes:
     def _range(self, kind):
         # Raw range value: a bare array for `category` (positional), {"scheme": ...} otherwise.
@@ -217,11 +520,31 @@ class TestRangePalettes:
         theme()
         assert self._range("category") == categorical(1)  # bare array, positional
         assert self._scheme("ordinal") == colors["greys"]
-        assert self._scheme("diverging") == colors["ds_div_3"]  # the ds_3 family diverging (purple<->teal)
+        assert self._scheme("diverging") == colors["div1"]
         # continuous defaults: viridis - its mid-range stays separable when values are
         # scattered rather than smoothly graded (an RNA-seq matrix, not a density map)
-        assert self._scheme("heatmap") == colors["mpl_viridis"]
-        assert self._scheme("ramp") == colors["mpl_viridis"]
+        assert self._scheme("heatmap") == colors["viridis"]
+        assert self._scheme("ramp") == colors["viridis"]
+
+        theme(darkmode=True)
+        assert self._range("category") == colors["cat2"]
+        assert self._scheme("ordinal") == colors["greys"]
+        assert self._scheme("diverging") == colors["div2"]
+        assert self._scheme("heatmap") == colors["viridis"]
+        assert self._scheme("ramp") == colors["viridis"]
+
+    @pytest.mark.parametrize(
+        ("darkmode", "digest"),
+        [
+            (False, "9207afe1535ef2daca42434d28cdb5267e148af8c343d05628ba19c902cae1be"),
+            (True, "92f22343bbe5ac3adeda22b515b3b58bcde2ffb287b6e2458b14674754fc56a7"),
+        ],
+    )
+    def test_complete_default_range_baseline(self, darkmode, digest):
+        theme(darkmode=darkmode)
+        ranges = _dysonsphere_theme()["config"]["range"]
+        actual = hashlib.sha256(json.dumps(ranges, separators=(",", ":")).encode()).hexdigest()
+        assert actual == digest
 
     def test_category_is_bare_array(self):
         # nominal scales map positionally, so category must NOT be {"scheme": ...}
@@ -233,26 +556,103 @@ class TestRangePalettes:
 
         theme(categoryPalette="reds")
         assert self._range("category") == colors["reds"]
-        assert self._scheme("diverging") == colors["ds_div_3"]  # others untouched
+        assert self._scheme("diverging") == colors["div1"]  # others untouched
 
     def test_per_type_override_raw_list(self):
         theme(rampPalette=["#ffffff", "#000000"])
         assert self._scheme("ramp") == ["#ffffff", "#000000"]
 
     def test_per_type_vega_scheme_passthrough(self):
+        theme(heatmapPalette="bluegreen")
+        assert self._scheme("heatmap") == "bluegreen"
+
+    def test_registered_name_takes_precedence_over_vega_scheme(self):
         theme(heatmapPalette="viridis")
-        assert self._scheme("heatmap") == "viridis"
+        assert self._scheme("heatmap") == colors["viridis"]
 
     def test_category_vega_scheme_passthrough(self):
         # a Vega scheme *name* for category still needs the {"scheme": ...} wrapper
         theme(categoryPalette="tableau10")
         assert self._range("category") == {"scheme": "tableau10"}
 
-    def test_global_palette_wins_over_per_type(self):
+    @pytest.mark.parametrize(
+        ("kind", "regular", "darkmode"),
+        [
+            ("category", "categoryPalette", "categoryPaletteDarkmode"),
+            ("diverging", "divergingPalette", "divergingPaletteDarkmode"),
+            ("heatmap", "heatmapPalette", "heatmapPaletteDarkmode"),
+            ("ordinal", "ordinalPalette", "ordinalPaletteDarkmode"),
+            ("ramp", "rampPalette", "rampPaletteDarkmode"),
+        ],
+    )
+    def test_darkmode_palette_override(self, kind, regular, darkmode):
+        kwargs: dict[str, Any] = {regular: ["light"], darkmode: ["dark"]}
+        theme(darkmode=False, **kwargs)
+        light = self._range(kind)
+        theme(darkmode=True, **kwargs)
+        dark = self._range(kind)
+        light_value = light if kind == "category" else light["scheme"]
+        dark_value = dark if kind == "category" else dark["scheme"]
+        assert light_value == ["light"]
+        assert dark_value == ["dark"]
+
+    @pytest.mark.parametrize(
+        ("kind", "regular", "darkmode"),
+        [
+            ("category", "categoryPalette", "categoryPaletteDarkmode"),
+            ("diverging", "divergingPalette", "divergingPaletteDarkmode"),
+            ("heatmap", "heatmapPalette", "heatmapPaletteDarkmode"),
+            ("ordinal", "ordinalPalette", "ordinalPaletteDarkmode"),
+            ("ramp", "rampPalette", "rampPaletteDarkmode"),
+        ],
+    )
+    def test_regular_palette_is_shared_when_darkmode_override_is_none(self, kind, regular, darkmode):
+        kwargs: dict[str, Any] = {regular: ["light"], darkmode: None}
+        theme(darkmode=False, **kwargs)
+        light = self._range(kind)
+        theme(darkmode=True, **kwargs)
+        dark = self._range(kind)
+        assert light == dark
+
+    @pytest.mark.parametrize(
+        ("kind", "darkmode"),
+        [
+            ("category", "categoryPaletteDarkmode"),
+            ("diverging", "divergingPaletteDarkmode"),
+            ("heatmap", "heatmapPaletteDarkmode"),
+            ("ordinal", "ordinalPaletteDarkmode"),
+            ("ramp", "rampPaletteDarkmode"),
+        ],
+    )
+    def test_darkmode_palette_is_ignored_in_light_mode(self, kind, darkmode):
+        cast(Any, theme)(darkmode=False, **{darkmode: ["dark"]})
+        light = self._range(kind)
+        cast(Any, theme)(darkmode=True, **{darkmode: ["dark"]})
+        dark = self._range(kind)
+        expected_light = {
+            "category": colors["cat1"],
+            "diverging": colors["div1"],
+            "heatmap": colors["viridis"],
+            "ordinal": colors["greys"],
+            "ramp": colors["viridis"],
+        }[kind]
+        assert light == expected_light if kind == "category" else light["scheme"] == expected_light
+        assert dark == ["dark"] if kind == "category" else dark["scheme"] == ["dark"]
+
+    @pytest.mark.parametrize("darkmode", [False, True])
+    def test_global_palette_wins_over_per_type_and_dark_override(self, darkmode):
         from dysonsphere.palettes import colors
 
-        theme(palette="greens", categoryPalette="reds")
+        theme(
+            darkmode=darkmode,
+            palette="greens",
+            categoryPalette="reds",
+            categoryPaletteDarkmode="blues",
+            divergingPaletteDarkmode="pinks",
+        )
         assert self._range("category") == colors["greens"]
+        for kind in ("diverging", "heatmap", "ordinal", "ramp"):
+            assert self._scheme(kind) == colors["greens"]
 
     def test_global_palette_still_fills_all(self):
         from dysonsphere.palettes import colors
@@ -272,6 +672,67 @@ class TestRangePalettes:
         theme()  # reset custom palette state
         assert self._range("category") == categorical(1)
 
+    @pytest.mark.parametrize(
+        ("canonical", "alias", "spelling"),
+        [
+            ("greys", "grays", "greys"),
+            ("greys2", "grays2", "grays2"),
+            ("warmgreys", "warmgrays", "warmgrays"),
+            ("greysblues3", "graysblues3", "greysblues3"),
+        ],
+    )
+    def test_custom_grey_family_spelling_synchronizes_alias(self, canonical, alias, spelling, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            f'[palettes]\n{spelling} = ["#111111", "#222222"]\n', encoding="utf-8"
+        )
+        theme(ordinalPalette=alias)
+        assert colors[canonical] is colors[alias]
+        assert colors[canonical] == ["#111111", "#222222"]
+        (tmp_path / "dysonsphere.toml").unlink()
+        theme()
+        assert colors[canonical] is colors[alias]
+        assert colors[canonical] != ["#111111", "#222222"]
+
+    def test_equal_greys_spellings_allowed_and_conflict_is_atomic(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        config = tmp_path / "dysonsphere.toml"
+        config.write_text('[palettes]\ngreys = ["#111111"]\ngrays = ["#111111"]\n', encoding="utf-8")
+        theme()
+        before_options = dict(alt.theme.options)
+        before_greys = colors["greys"]
+        config.write_text('[palettes]\ngreys = ["#111111"]\ngrays = ["#222222"]\n', encoding="utf-8")
+        with pytest.raises(ValueError, match="Conflicting palette definitions.*grays.*greys"):
+            theme()
+        assert alt.theme.options == before_options
+        assert colors["greys"] is before_greys
+        assert colors["grays"] is before_greys
+
+    def test_custom_greys_does_not_regenerate_diverging_family(self, tmp_path, monkeypatch):
+        built_in_diverging = list(colors["greysblues"])
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text('[palettes]\ngrays = ["#111111"]\n', encoding="utf-8")
+        theme()
+        assert colors["greys"] == ["#111111"]
+        assert colors["greysblues"] == built_in_diverging
+        assert colors["graysblues"] is colors["greysblues"]
+
+    @pytest.mark.parametrize(
+        ("user_name", "project_name"), [("greysblues", "graysblues"), ("graysblues", "greysblues")]
+    )
+    def test_project_spelling_override_wins_over_user(self, user_name, project_name, tmp_path, monkeypatch):
+        user_dir = tmp_path / "user" / "dysonsphere"
+        user_dir.mkdir(parents=True)
+        (user_dir / "dysonsphere.toml").write_text(f'[palettes]\n{user_name} = ["#111111"]\n', encoding="utf-8")
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "dysonsphere.toml").write_text(f'[palettes]\n{project_name} = ["#222222"]\n', encoding="utf-8")
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "user"))
+        monkeypatch.chdir(project_dir)
+        theme()
+        assert colors["greysblues"] is colors["graysblues"]
+        assert colors["greysblues"] == ["#222222"]
+
     def test_per_type_via_toml(self, tmp_path, monkeypatch):
         from dysonsphere.palettes import colors
 
@@ -280,27 +741,77 @@ class TestRangePalettes:
         theme()
         assert self._scheme("diverging") == colors["greensblues"]
 
+    def test_darkmode_per_type_via_toml(self, tmp_path, monkeypatch):
+        from dysonsphere.palettes import colors
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(
+            """[default]
+categoryPalette = "reds"
+categoryPaletteDarkmode = "blues"
+divergingPalette = "greensblues"
+divergingPaletteDarkmode = "pinksblues"
+heatmapPalette = "ember"
+heatmapPaletteDarkmode = "cosmos"
+ordinalPalette = "greys"
+ordinalPaletteDarkmode = "blues"
+rampPalette = "viridis"
+rampPaletteDarkmode = "magma"
+""",
+            encoding="utf-8",
+        )
+        theme(darkmode=False)
+        assert self._range("category") == colors["reds"]
+        assert self._scheme("diverging") == colors["greensblues"]
+        assert self._scheme("heatmap") == colors["ember"]
+        assert self._scheme("ordinal") == colors["greys"]
+        assert self._scheme("ramp") == colors["viridis"]
+        theme(darkmode=True)
+        assert self._range("category") == colors["blues"]
+        assert self._scheme("diverging") == colors["pinksblues"]
+        assert self._scheme("heatmap") == colors["cosmos"]
+        assert self._scheme("ordinal") == colors["blues"]
+        assert self._scheme("ramp") == colors["magma"]
+
 
 class TestInwardTicks:
     def test_off_by_default(self):
         theme()
-        assert alt.theme.options["inwardTicks"] is False
-        assert alt.theme.options["closed"] is False  # no viewFill, no inwardTicks
+        assert alt.theme.options["tickDirection"] == "out"
+        assert alt.theme.options["closed"] is False  # no viewFill and outward ticks
 
     def test_defaults_closed(self):
         # inward ticks need a closed (non-offset) axis, so closed defaults True with them
-        theme(inwardTicks=True)
+        theme(tickDirection="in")
         assert alt.theme.options["closed"] is True
 
     def test_explicit_closed_false_wins(self):
-        theme(inwardTicks=True, closed=False)
+        theme(tickDirection="in", closed=False)
         assert alt.theme.options["closed"] is False
 
     def test_tick_size_stays_positive(self):
         # inward is applied as an SVG post-process (not a negative config tickSize),
         # so the tick-position fixers still see the outward geometry they expect.
-        theme(inwardTicks=True)
+        theme(tickDirection="in")
         assert _dysonsphere_theme()["config"]["axis"]["tickSize"] == alt.theme.options["tickSize"]
+
+    @pytest.mark.parametrize(("value", "error"), [("sideways", ValueError), (True, TypeError), (False, TypeError)])
+    def test_invalid_direction_is_atomic(self, value, error):
+        theme(width=123)
+        before = dict(alt.theme.options)
+        with pytest.raises(error, match="tickDirection"):
+            cast(Any, theme)(tickDirection=value)
+        assert alt.theme.options == before
+
+    def test_removed_inward_ticks_keyword_is_rejected(self):
+        with pytest.raises(TypeError, match="inwardTicks"):
+            cast(Any, theme)(inwardTicks=True)
+
+    def test_removed_inward_ticks_toml_key_is_rejected(self, tmp_path, monkeypatch):
+        (tmp_path / "dysonsphere.toml").write_text("[default]\ninwardTicks = true\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(ValueError, match="inwardTicks"):
+            theme()
 
 
 class TestThemeRegistration:
@@ -313,7 +824,196 @@ class TestThemeRegistration:
 
     def test_unknown_kwarg_raises(self):
         with pytest.raises(TypeError, match="unexpected keyword argument"):
-            theme(notAParam=42)  # type: ignore[call-arg]
+            cast(Any, theme)(notAParam=42)
+
+    def test_all_options_have_explicit_keyword_only_parameters(self):
+        import inspect
+
+        from dysonsphere.theme import _BUILTIN_DEFAULTS
+
+        params = inspect.signature(theme).parameters
+        assert set(params) == {"style", *_BUILTIN_DEFAULTS}
+        assert params["style"].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+        assert all(param.kind is inspect.Parameter.KEYWORD_ONLY for name, param in params.items() if name != "style")
+        assert repr(params["fontSize"].default) == "<omitted>"
+
+    def test_option_order_preserves_alphabetical_and_grouped_settings(self):
+        import inspect
+
+        from dysonsphere.theme import _BUILTIN_DEFAULTS
+
+        keys = list(_BUILTIN_DEFAULTS)
+        assert list(inspect.signature(theme).parameters) == ["style", *keys]
+        padding = ["barPadding", "groupPadding", "outerPadding", "rectPadding", "subgroupPadding", "tickPadding"]
+        palettes = [
+            "palette",
+            "categoryPalette",
+            "categoryPaletteDarkmode",
+            "divergingPalette",
+            "divergingPaletteDarkmode",
+            "heatmapPalette",
+            "heatmapPaletteDarkmode",
+            "ordinalPalette",
+            "ordinalPaletteDarkmode",
+            "rampPalette",
+            "rampPaletteDarkmode",
+        ]
+        for group in (padding, palettes):
+            start = keys.index(group[0])
+            assert keys[start : start + len(group)] == group
+        ungrouped = [key for key in keys if key not in padding + palettes]
+        assert ungrouped == sorted(ungrouped, key=str.casefold)
+
+    def test_style_remains_positional(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        theme("small")
+        assert alt.theme.options["width"] == 70
+
+
+class TestThemeValidation:
+    @pytest.mark.parametrize("removed", ["chartWidth", "chartHeight"])
+    def test_removed_dimension_kwargs_are_rejected(self, removed):
+        with pytest.raises(TypeError, match=removed):
+            cast(Any, theme)(**{removed: 120})
+
+    @pytest.mark.parametrize("removed", ["dashedGrid", "dashedLine", "dashedRule", "dashedWidth"])
+    def test_removed_dash_kwargs_are_rejected(self, removed):
+        with pytest.raises(TypeError, match=removed):
+            cast(Any, theme)(**{removed: True})
+
+    @pytest.mark.parametrize("removed", ["dashedGrid", "dashedLine", "dashedRule", "dashedWidth"])
+    def test_removed_dash_toml_keys_are_rejected(self, removed, tmp_path, monkeypatch):
+        (tmp_path / "dysonsphere.toml").write_text(f"[default]\n{removed} = true\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(ValueError, match=removed):
+            theme()
+
+    @pytest.mark.parametrize(
+        ("key", "value", "error"),
+        [
+            ("width", 0, ValueError),
+            ("height", float("inf"), ValueError),
+            ("fontSize", -1, ValueError),
+            ("fontSize", True, TypeError),
+            ("darkmode", 1, TypeError),
+            ("markFillOpacity", 1.1, ValueError),
+            ("markStrokeOpacity", float("nan"), ValueError),
+            ("barPadding", 1.1, ValueError),
+            ("outerPadding", -0.1, ValueError),
+            ("markSize", -1, ValueError),
+            ("strokeCap", "projecting", ValueError),
+            ("fontStyle", "bold", ValueError),
+            ("sigFigs", True, TypeError),
+            ("saveFormat", [], ValueError),
+            ("saveFormat", 1, TypeError),
+            ("saveFormat", "pdf", ValueError),
+            ("saveBackground", "sepia", ValueError),
+            ("strokeDash", [2, float("inf")], ValueError),
+            ("strokeDash", [True], TypeError),
+            ("palette", [], TypeError),
+            ("palette", "", ValueError),
+            ("categoryPalette", "   ", ValueError),
+            ("fontWeight", [], TypeError),
+            ("fontWeight", {}, TypeError),
+            ("fontWeight", 0.5, ValueError),
+            ("fontWeight", 1000.1, ValueError),
+        ],
+    )
+    def test_invalid_direct_values_are_atomic(self, key, value, error):
+        from dysonsphere.palettes import colors
+        from dysonsphere.theme import _active_args
+
+        theme(width=123, palette="reds")
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        before_colors = dict(colors)
+        with pytest.raises(error):
+            cast(Any, theme)(**{key: value})
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+        assert dict(colors) == before_colors
+
+    @pytest.mark.parametrize("dash", [[], [0], [2], [2, 1, 3]])
+    def test_dash_sequences_allow_solid_and_odd_forms(self, dash):
+        theme(strokeDash=dash)
+        assert alt.theme.options["strokeDash"] == dash
+
+    def test_dash_switches_apply_shared_pattern(self):
+        theme(gridStrokeDash=True, lineStrokeDash=True, ruleStrokeDash=False, strokeDash=[4, 2])
+        config = _dysonsphere_theme()["config"]
+        assert config["axis"]["gridDash"] == [4, 2]
+        assert config["line"]["strokeDash"] == [4, 2]
+        assert config["rule"]["strokeDash"] == [0, 0]
+
+    def test_signed_offsets_and_angles_and_explicit_zero(self):
+        theme(axisOffset=-2, legendOffset=-3, xLabelAngle=-45, yLabelAngle=30, viewPadding=0)
+        assert alt.theme.options["axisOffset"] == -2
+        assert alt.theme.options["legendOffset"] == -3
+        assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
+
+    @pytest.mark.parametrize("offset", ["axisOffset", "legendOffset"])
+    def test_derived_offset_overflow_is_atomic(self, offset):
+        from dysonsphere.theme import _active_args
+
+        theme(width=123)
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        kwargs = {"tickSize": 1.3e308, offset: True if offset == "axisOffset" else None}
+        with pytest.raises(ValueError, match=f"{offset} must be finite"):
+            cast(Any, theme)(**kwargs)
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+
+    @pytest.mark.parametrize("weight", [1, 347.5, 1000])
+    def test_numeric_font_weights_supported_by_renderer(self, weight):
+        import vl_convert as vlc
+
+        theme(fontWeight=weight)
+        chart = alt.Chart({"values": [{"x": 1}]}).mark_text(text="weight")
+        svg = vlc.vegalite_to_svg(chart.to_dict())
+        assert f'font-weight="{weight}"' in svg
+
+    def test_invalid_toml_value_is_atomic(self, tmp_path, monkeypatch):
+        from dysonsphere.palettes import colors
+        from dysonsphere.theme import _active_args
+
+        theme(width=123, palette="reds")
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        before_colors = dict(colors)
+        (tmp_path / "dysonsphere.toml").write_text(
+            '[default]\nfontSize = 0\n[palettes]\nlocal = ["red", "navy"]\n', encoding="utf-8"
+        )
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(ValueError, match="fontSize"):
+            theme()
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+        assert dict(colors) == before_colors
+
+    def test_explicit_none_overrides_toml_value(self, tmp_path, monkeypatch):
+        (tmp_path / "dysonsphere.toml").write_text('[default]\nchartFill = "pink"\n', encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        theme(chartFill=None)
+        assert alt.theme.options["chartFill"] is None
+
+    @pytest.mark.parametrize("removed", ["secondaryFontSize", "smallestFontSize"])
+    def test_removed_font_options_are_rejected_in_toml(self, removed, tmp_path, monkeypatch):
+        (tmp_path / "dysonsphere.toml").write_text(f"[default]\n{removed} = 5\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(ValueError, match=removed):
+            theme()
+
+    @pytest.mark.parametrize("removed", ["chartWidth", "chartHeight"])
+    def test_removed_dimension_options_are_rejected_in_toml(self, removed, tmp_path, monkeypatch):
+        (tmp_path / "dysonsphere.toml").write_text(f"[default]\n{removed} = 120\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(ValueError, match=removed):
+            theme()
+
+    def test_named_css_colors_are_allowed_in_palette_lists(self):
+        theme(categoryPalette=["navy", "rebeccapurple"])
+        assert _dysonsphere_theme()["config"]["range"]["category"] == ["navy", "rebeccapurple"]
 
 
 class TestStyleLoading:
@@ -363,16 +1063,32 @@ class TestStyleLoading:
 
     def test_builtin_style_no_config_file(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
+        theme("small")
+        assert alt.theme.options["width"] == 70
+        assert alt.theme.options["height"] == 70
+        assert alt.theme.options["fontSize"] == 5
+        assert alt.theme.options["markSize"] == 7
+        assert alt.theme.options["viewPadding"] == pytest.approx(3.5)
+
+    def test_notebook_builtin_is_unchanged(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
         overrides = _load_style_overrides("notebook")
-        assert overrides["fontSize"] == 18
-        assert overrides["chartWidth"] == 900
+        assert overrides == {"width": 900, "height": 900, "darkmode": True, "fontSize": 18, "transparent": True}
 
     def test_config_overrides_builtin_style(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "dysonsphere.toml").write_text("[notebook]\nfontSize = 9\n", encoding="utf-8")
         overrides = _load_style_overrides("notebook")
         assert overrides["fontSize"] == 9
-        assert overrides["chartWidth"] == 900  # from built-in preset
+        assert overrides["width"] == 900  # from built-in preset
+
+    def test_small_preserves_style_and_explicit_precedence(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text("[default]\nfontSize = 9\n[small]\nheight = 80\n", encoding="utf-8")
+        theme("small", width=75)
+        assert alt.theme.options["width"] == 75
+        assert alt.theme.options["height"] == 80
+        assert alt.theme.options["fontSize"] == 5
 
 
 class TestCreateConfig:
@@ -384,9 +1100,24 @@ class TestCreateConfig:
         create_config(tmp_path)
         content = (tmp_path / "dysonsphere.toml").read_text()
         assert "[nih]" not in content
+        assert "[small]" in content
         assert "[notebook]" in content
+        assert content.index("[default]") < content.index("[small]") < content.index("[notebook]")
         assert "[presentation]" not in content  # removed as a built-in preset in v3.0
         assert "[my_style]" in content
+
+    def test_small_values_roundtrip(self, tmp_path, monkeypatch):
+        import tomllib
+
+        create_config(tmp_path)
+        path = tmp_path / "dysonsphere.toml"
+        with open(path, "rb") as file:
+            config = tomllib.load(file)
+        assert config["small"] == {"width": 70, "height": 70, "fontSize": 5}
+
+        monkeypatch.chdir(tmp_path)
+        theme("small")
+        assert {key: alt.theme.options[key] for key in config["small"]} == config["small"]
 
     def test_does_not_overwrite(self, tmp_path):
         existing = tmp_path / "dysonsphere.toml"
@@ -453,16 +1184,16 @@ class TestCornerRadius:
         assert "cornerRadius" not in spec["config"]["rect"]
 
     def test_true_resolves_to_min_dimension_over_100(self):
-        theme(chartWidth=200, chartHeight=300, cornerRadius=True)
+        theme(width=200, height=300, cornerRadius=True)
         assert alt.theme.options["cornerRadius"] == pytest.approx(2.0)
 
     def test_true_applies_corner_radius_end_to_bar(self):
-        theme(chartWidth=100, chartHeight=100, cornerRadius=True)
+        theme(width=100, height=100, cornerRadius=True)
         spec = _dysonsphere_theme()
         assert spec["config"]["bar"]["cornerRadiusEnd"] == pytest.approx(1.0)
 
     def test_true_applies_corner_radius_to_rect(self):
-        theme(chartWidth=100, chartHeight=100, cornerRadius=True)
+        theme(width=100, height=100, cornerRadius=True)
         spec = _dysonsphere_theme()
         assert spec["config"]["rect"]["cornerRadius"] == pytest.approx(1.0)
 
@@ -474,7 +1205,7 @@ class TestCornerRadius:
         assert spec["config"]["rect"]["cornerRadius"] == pytest.approx(3.0)
 
     def test_true_applies_corner_radius_to_boxplot_box(self):
-        theme(chartWidth=100, chartHeight=100, cornerRadius=True)
+        theme(width=100, height=100, cornerRadius=True)
         spec = _dysonsphere_theme()
         assert spec["config"]["boxplot"]["box"]["cornerRadius"] == pytest.approx(1.0)
 
@@ -484,7 +1215,7 @@ class TestCornerRadius:
         assert "cornerRadius" not in spec["config"]["boxplot"]["box"]
 
     def test_true_applies_corner_radius_to_arc(self):
-        theme(chartWidth=100, chartHeight=100, cornerRadius=True)
+        theme(width=100, height=100, cornerRadius=True)
         spec = _dysonsphere_theme()
         assert spec["config"]["arc"]["cornerRadius"] == pytest.approx(1.0)
 
@@ -494,12 +1225,12 @@ class TestCornerRadius:
         assert "cornerRadius" not in spec["config"]["arc"]
 
     def test_arc_inner_radius_scales_with_chart_size(self):
-        theme(chartWidth=100, chartHeight=100)
+        theme(width=100, height=100)
         spec = _dysonsphere_theme()
         assert spec["config"]["arc"]["innerRadius"] == pytest.approx(25.0)
 
     def test_arc_inner_radius_uses_smaller_dimension(self):
-        theme(chartWidth=80, chartHeight=200)
+        theme(width=80, height=200)
         spec = _dysonsphere_theme()
         assert spec["config"]["arc"]["innerRadius"] == pytest.approx(20.0)
 
@@ -519,6 +1250,41 @@ class TestTitleConfig:
         theme()
         spec = _dysonsphere_theme()
         assert spec["config"]["title"]["frame"] == "group"
+
+    def test_subtitle_uses_numeric_font_size_in_render(self):
+        import re
+
+        import vl_convert as vlc
+
+        theme(fontSize=9.333)
+        chart = (
+            alt.Chart({"values": [{"x": 1}]})
+            .mark_point()
+            .encode(x="x:Q")
+            .properties(title={"text": "Main", "subtitle": "Sub"})
+        )
+        svg = vlc.vegalite_to_svg(chart.to_dict())
+        subtitle = re.search(r'<text[^>]+font-size="([^"]+)"[^>]*>Sub</text>', svg)
+        assert subtitle is not None
+        assert float(subtitle.group(1).removesuffix("px")) == pytest.approx(9.333)
+
+
+class TestErrorbandConfig:
+    def test_border_stroke_properties_render_in_the_correct_fields(self):
+        import re
+
+        import vl_convert as vlc
+
+        theme(markStrokeWidth=3, markStrokeOpacity=0.25)
+        chart = (
+            alt.Chart({"values": [{"x": 0, "y": 1}, {"x": 0, "y": 3}, {"x": 1, "y": 2}, {"x": 1, "y": 4}]})
+            .mark_errorband(extent="ci")
+            .encode(x="x:Q", y="y:Q")
+        )
+        svg = vlc.vegalite_to_svg(chart.to_dict())
+        borders = re.findall(r'<path[^>]+opacity="0"[^>]*/>', svg)
+        assert borders
+        assert all('stroke-opacity="0.25"' in border and 'stroke-width="3"' in border for border in borders)
 
 
 class TestTickConfig:
@@ -643,7 +1409,7 @@ class TestIdentityScalesPinPadding:
 
 class TestViewPadding:
     # theme(viewPadding=...) -> config.scale.continuousPadding on every plot.
-    # float | bool like cornerRadius/boxplotOutliers: True (default) -> 5% of the smaller
+    # float | bool like cornerRadius: True (default) -> 5% of the smaller
     # chart dimension, False -> flush, a float -> that many pixels. Vega-Lite nice-rounds
     # the padded domain, so the request only lands exactly where the domain is explicit.
 
@@ -652,12 +1418,12 @@ class TestViewPadding:
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 5.0  # 100 x 100
 
     def test_default_true_tracks_the_smaller_dimension(self):
-        theme(closed=True, chartWidth=400, chartHeight=200)
+        theme(closed=True, width=400, height=200)
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 10.0
 
     def test_resolved_value_is_readable_from_theme_options(self):
         # resolved in _compute_derived like markSize, so it is baked into exports
-        theme(closed=True, chartWidth=200, chartHeight=200)
+        theme(closed=True, width=200, height=200)
         assert alt.theme.options["viewPadding"] == 10.0
 
     def test_false_is_flush(self):
@@ -668,11 +1434,21 @@ class TestViewPadding:
         theme(closed=True, viewPadding=8)
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 8
 
-    def test_axis_offset_none_is_a_deprecated_alias_for_true(self):
-        theme(axisOffset=None)  # pre-3.14 spelling - remove with the alias at 4.0.0
-        assert alt.theme.options["axisOffset"] == 4.5
+    def test_axis_offset_none_is_rejected(self):
+        from dysonsphere.palettes import colors
+        from dysonsphere.theme import _active_args
+
+        theme(palette="reds")
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        before_colors = dict(colors)
+        with pytest.raises(ValueError, match="axisOffset=None"):
+            cast(Any, theme)(axisOffset=None, palette="blues")
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+        assert dict(colors) == before_colors
         theme(axisOffset=True)
-        assert alt.theme.options["axisOffset"] == 4.5
+        assert alt.theme.options["axisOffset"] == pytest.approx(4.5)
         theme()
         assert alt.theme.options["axisOffset"] == 0
 
@@ -684,15 +1460,15 @@ class TestViewPadding:
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 8
 
     def test_applies_under_inward_ticks(self):
-        theme(inwardTicks=True)  # implies closed
+        theme(tickDirection="in")  # implies closed
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 5.0
 
     def test_internal_scales_pinned_against_padding(self):
-        # violin x:Q and add_labels' pinned scales carry padding=0 so viewPadding cannot
+        # violin x:Q and labels' pinned scales carry padding=0 so viewPadding cannot
         # compress their pixel math
         import polars as pl
 
-        from dysonsphere.annotations import add_labels
+        from dysonsphere.annotations import labels
         from dysonsphere.marks import mark_violin
 
         theme(closed=True)
@@ -701,14 +1477,14 @@ class TestViewPadding:
         vx = next(lyr for lyr in violin["layer"] if lyr["encoding"]["x"].get("field") == "__x")
         assert vx["encoding"]["x"]["scale"]["padding"] == 0
 
-        # add_labels deliberately does NOT pin padding: its geometry is pixel offsets from each
+        # labels deliberately does NOT pin padding: its geometry is pixel offsets from each
         # marker, so viewPadding insets marker and label together and alignment survives. Forcing
         # padding=0 here would override the user's viewPadding on the shared scale.
         pts = pl.DataFrame({"x": [1.0, 2, 3], "y": [1.0, 2, 3], "n": ["a", "b", "c"]})
-        labels = add_labels(pts, "x", "y", "n").to_dict()
+        labels_spec = labels(pts, "x", "y", "n").to_dict()
         scales = [
             lyr["encoding"][ch]["scale"]
-            for lyr in labels["layer"]
+            for lyr in labels_spec["layer"]
             for ch in ("x", "y")
             if isinstance(lyr.get("encoding", {}).get(ch), dict) and "scale" in lyr["encoding"][ch]
             if isinstance(lyr["encoding"][ch]["scale"], dict) and "domain" in lyr["encoding"][ch]["scale"]
@@ -778,53 +1554,69 @@ class TestBandPaddingByMark:
 
 
 class TestDeprecatedAliases:
-    # bandPadding was split by mark type in v3.11; the alias maps it silently and is
-    # removed at v4.0.0. It set BOTH the inner and outer band padding, so it expands to
-    # the two keys that now carry them.
+    # bandPadding was split by mark type in v3.11 and is removed at v4.0.0.
 
-    def test_kwarg_alias_maps_to_both_keys(self):
-        theme(bandPadding=0.25)
-        assert alt.theme.options["barPadding"] == 0.25
-        assert alt.theme.options["outerPadding"] == 0.25
+    def test_kwarg_alias_is_rejected(self):
+        with pytest.raises(TypeError, match="bandPadding"):
+            cast(Any, theme)(bandPadding=0.25)
 
-    def test_explicit_new_key_wins_over_alias(self):
-        theme(bandPadding=0.25, barPadding=0.4)
-        assert alt.theme.options["barPadding"] == 0.4
-        assert alt.theme.options["outerPadding"] == 0.25
+    def test_mark_median_stroke_is_rejected(self):
+        with pytest.raises(TypeError, match="markMedianStroke"):
+            cast(Any, theme)(markMedianStroke="black")
 
-    def test_alias_does_not_leak_into_options(self):
-        theme(bandPadding=0.25)
-        assert "bandPadding" not in alt.theme.options
+    def test_removed_aliases_do_not_change_theme_state(self):
+        theme(width=123)
+        before = dict(alt.theme.options)
+        with pytest.raises(TypeError, match="bandPadding"):
+            cast(Any, theme)(bandPadding=0.25)
+        assert alt.theme.options == before
 
-    def test_toml_alias_accepted(self, tmp_path, monkeypatch):
+    def test_toml_alias_is_rejected(self, tmp_path, monkeypatch):
         (tmp_path / "dysonsphere.toml").write_text("[default]\nbandPadding = 0.3\n")
         monkeypatch.chdir(tmp_path)
-        theme()
-        assert alt.theme.options["barPadding"] == 0.3
-        assert alt.theme.options["outerPadding"] == 0.3
+        with pytest.raises(ValueError, match="bandPadding"):
+            theme()
 
-    def test_baked_theme_from_older_export_still_loads(self):
-        # every v1-v3 export bakes bandPadding into its theme block; ds.load(applyTheme=True)
-        # replays it through theme(**block), so the alias keeps those files readable
-        baked: dict[str, Any] = {"bandPadding": 0.1, "chartWidth": 120}
-        theme(**baked)
-        assert alt.theme.options["barPadding"] == 0.1
-        assert alt.theme.options["chartWidth"] == 120
+    def test_baked_theme_from_older_export_rejects_removed_alias(self):
+        with pytest.raises(TypeError, match="bandPadding"):
+            cast(Any, theme)(bandPadding=0.1, width=120)
 
 
 class TestBoxplotOutliers:
     def test_false_default_hides_outliers(self):
         theme()
         assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == 0
+        assert "boxplotOutliers" not in alt.theme.options
 
-    def test_true_resolves_to_mark_size_over_10(self):
-        theme(markSize=12, boxplotOutliers=True)
-        assert alt.theme.options["boxplotOutliers"] == pytest.approx(1.2)
-        assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == pytest.approx(1.2)
+    def test_removed_keyword_is_rejected_atomically(self):
+        theme(width=123)
+        before = dict(alt.theme.options)
+        with pytest.raises(TypeError, match="boxplotOutliers"):
+            cast(Any, theme)(boxplotOutliers=True)
+        assert alt.theme.options == before
 
-    def test_explicit_size_used_as_is(self):
-        theme(boxplotOutliers=5)
-        assert _dysonsphere_theme()["config"]["boxplot"]["outliers"]["size"] == 5
+    @pytest.mark.parametrize("section", ["default", "my_style"])
+    def test_removed_config_key_is_rejected(self, section, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "dysonsphere.toml").write_text(f"[{section}]\nboxplotOutliers = true\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="boxplotOutliers"):
+            theme(None if section == "default" else "my_style")
+
+    def test_native_per_chart_override_remains_available(self):
+        import re
+
+        from dysonsphere import show
+
+        theme()
+        data = {"values": [{"g": "a", "v": value} for value in [1, 2, 2, 3, 20]]}
+        default = alt.Chart(data).mark_boxplot().encode(x="g:N", y="v:Q")
+        custom = alt.Chart(data).mark_boxplot(outliers={"size": 49}).encode(x="g:N", y="v:Q")
+
+        pattern = r'<path aria-label="g: a; v: 20"[^>]* d="([^"]*)"'
+        default_outlier = re.search(pattern, cast(str, show(default).data), re.S)
+        custom_outlier = re.search(pattern, cast(str, show(custom).data), re.S)
+        assert default_outlier is not None and default_outlier.group(1) == "M0,0"
+        assert custom_outlier is not None and custom_outlier.group(1) != "M0,0"
 
 
 # ── _opt() theme-option accessor ─────────────────────────────────────────────
@@ -843,19 +1635,19 @@ class TestOptAccessor:
         alt.theme.options = {}  # no theme() called
         try:
             assert _opt("barPadding") == 0.1
-            assert _opt("chartWidth") == 100
+            assert _opt("width") == 100
         finally:
             theme()
 
     def test_fallback_resolves_derived_defaults(self):
         # the raw builtin for markSize/axisOffset is None (a derive-at-theme-time
-        # sentinel); the fallback must expose the DERIVED value, not the sentinel
+        # marker); the fallback must expose the derived value, not the marker
         from dysonsphere.theme import _opt
 
         alt.theme.options = {}
         try:
             assert _opt("markSize") == 10.0  # min(100, 100) * 0.1
-            assert _opt("axisOffset") == 0  # flush by default; True would give tickSize 3 * 1.5
+            assert _opt("axisOffset") == 0  # flush by default; True derives from tickSize
             assert _opt("markStrokeWidth") == 0.25  # axisWidth
             assert _opt("closed") is False
         finally:

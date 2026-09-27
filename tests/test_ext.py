@@ -1,10 +1,10 @@
-"""Tests for the public extension-author primitive surface (dysonsphere/ext.py).
+"""Tests for the public extension API (dysonsphere/ext.py).
 
 Beyond asserting the re-exports are the real internal objects, `test_dogfood_composite_*`
-build a mini composite annotation exactly as an extension (e.g. dysonsphere-biology's volcano)
-would - scatter over the user's frame plus a GENERATED label sidecar tagged via
-`ext.internal_data` - and verify the surface actually delivers first-class behavior:
-`read(what="data")` filters the sidecar, `opt` drives styling, the union types the return.
+build a small composite annotation like an extension (for example, dysonsphere-biology's volcano)
+would - scatter over the user's frame plus generated label data tagged via `ext.internal_data` -
+and verify the API matches core chart behavior: `read(what="data")` filters the generated data,
+`opt` drives styling, and the union types the return.
 """
 
 import altair as alt
@@ -12,7 +12,6 @@ import polars as pl
 
 import dysonsphere as ds
 from dysonsphere import ext
-from dysonsphere.discovery import _tag_extension
 from dysonsphere.export import _AltairChart
 from dysonsphere.theme import _opt
 from dysonsphere.utils import _INTERNAL_COL, _internal_data
@@ -23,13 +22,32 @@ def test_reexports_are_the_internal_objects():
     assert ext.opt is _opt
     assert ext.internal_data is _internal_data
     assert ext.AltairChart is _AltairChart
-    assert ext.tag_extension is _tag_extension
+    assert ext.tag_extension.__module__ == "dysonsphere.ext"
 
 
 def test_all_is_minimal():
     # Guard the surface: it grows only when a consumer justifies it (see ext.py docstring).
     # tag_extension was added for the volcano's provenance self-tagging.
     assert set(ext.__all__) == {"AltairChart", "internal_data", "opt", "tag_extension"}
+
+
+def test_biology_first_import_preserves_namespace_and_chart_type_identity():
+    """The extension can import first without a cycle or root helper leakage."""
+    import subprocess
+    import sys
+
+    code = """
+import dysonsphere_biology
+import dysonsphere as ds
+from dysonsphere import export, ext
+assert ext.AltairChart is export._AltairChart
+assert callable(ds.extensions) and callable(ds.load_extension)
+assert ds.extensions is ext.extensions and ds.load_extension is ext.load_extension
+assert not hasattr(ds, "discovery")
+for name in ("AltairChart", "internal_data", "opt", "tag_extension"):
+    assert not hasattr(ds, name)
+"""
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_ext_namespaced_not_polluting_top_namespace():
@@ -42,14 +60,14 @@ def test_ext_namespaced_not_polluting_top_namespace():
 def test_opt_reads_theme_option():
     ds.theme()
     assert ext.opt("markSize") == _opt("markSize")
-    assert isinstance(ext.opt("chartWidth"), (int, float))
+    assert isinstance(ext.opt("width"), (int, float))
 
 
 def _volcano_like(df):
-    """A composite an extension author might write, built only on the public surface."""
+    """A composite an extension author might write, built only on the public API."""
     ds.theme()
     points = alt.Chart(df).mark_circle().encode(x="log2fc:Q", y="neglog10p:Q")
-    # Top hits get text labels - a GENERATED sidecar frame, so it must be tagged.
+    # Top hits get text labels from generated data, so it must be tagged.
     hits = df.filter(pl.col("neglog10p") > 2.0).select(["log2fc", "neglog10p", "gene"])
     labels = (
         alt.Chart(ext.internal_data(hits))
@@ -73,7 +91,7 @@ def _volcano_df():
 def test_dogfood_composite_builds():
     chart = _volcano_like(_volcano_df())
     assert isinstance(chart, alt.LayerChart)
-    # The sidecar carries the sentinel column; the user frame does not.
+    # Generated data carries the internal marker column; the user frame does not.
     spec = chart.to_dict()
     datasets = spec.get("datasets", {})
     tagged = [name for name, rows in datasets.items() if rows and _INTERNAL_COL in rows[0]]
@@ -85,7 +103,7 @@ def test_dogfood_read_filters_generated_sidecar(tmp_path):
     ds.theme()
     out = tmp_path / "volcano"
     ds.save(lambda: _volcano_like(df), str(out), format="json")
-    frame = ds.read(str(out) + ".json", what="data")
-    # Only the user's frame comes back - the tagged label sidecar is filtered out.
+    frame = ds.metadata.read(str(out) + ".json", what="data")
+    # Only the user's frame comes back; tagged label data is filtered out.
     assert set(frame.columns) == {"gene", "log2fc", "neglog10p"}
     assert frame.height == df.height

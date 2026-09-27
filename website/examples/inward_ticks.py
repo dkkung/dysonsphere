@@ -1,12 +1,13 @@
 import altair as alt
-import dysonsphere as ds
 from vega_datasets import data
 
-# inwardTicks=True points tick marks into the plot (physics-journal style);
-# it also defaults the frame to closed.
-ds.theme(inwardTicks=True)
+import dysonsphere as ds
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
+# tickDirection="in" points tick marks into the plot (physics-journal style);
+# it also defaults the frame to closed.
+ds.theme(tickDirection="in")
+
+cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
 
 chart = (
     alt.Chart(cars)

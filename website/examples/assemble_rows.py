@@ -7,17 +7,11 @@ import dysonsphere as ds
 ds.theme()
 rng = np.random.default_rng(11)
 
-coverage = pl.DataFrame(
-    {"pos": np.arange(0, 400), "depth": np.abs(np.cumsum(rng.normal(0, 1, 400))) + 5}
-)
+coverage = pl.DataFrame({"pos": np.arange(0, 400), "depth": np.abs(np.cumsum(rng.normal(0, 1, 400))) + 5})
 
 GENOTYPES = ["WT", "het", "null"]
 pheno = pl.DataFrame(
-    [
-        {"genotype": g, "value": float(rng.normal(m, 1.4))}
-        for g, m in zip(GENOTYPES, (8.0, 6.4, 3.1))
-        for _ in range(14)
-    ]
+    [{"genotype": g, "value": float(rng.normal(m, 1.4))} for g, m in zip(GENOTYPES, (8.0, 6.4, 3.1)) for _ in range(14)]
 )
 
 decades = pl.DataFrame({"conc": [10.0**e for e in range(-3, 3)], "signal": [2, 9, 26, 58, 83, 94]})
@@ -35,7 +29,7 @@ def coverage_track():
 
 
 def phenotype_strip():
-    return ds.mark_strip(pheno, "genotype", "value", GENOTYPES, xTitle=None, yTitle="Score") + ds.add_comparisons(
+    return ds.mark_strip(pheno, "genotype", "value", GENOTYPES, xTitle=None, yTitle="Score") + ds.stats.comparisons(
         pheno, "genotype", "value", reference="WT", test="ttest_ind", categories=GENOTYPES, labelStyle="asterisks"
     )
 
@@ -62,7 +56,7 @@ def motility_fit():
         .mark_point(filled=True)
         .encode(x=alt.X("area:Q", title="Area (µm^2)"), y=alt.Y("speed:Q", title="Speed (µm/min)"))
     )
-    return points + ds.add_correlation(motility, "area", "speed", position="topRight")
+    return points + ds.stats.correlation(motility, "area", "speed", position="topRight")
 
 
 # The track's 372 px is chosen so its rendered width matches the row beneath it: that row

@@ -5,7 +5,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=124, chartHeight=124)
+ds.theme(width=124, height=124)
 
 
 def bump(x, y, mx, my, s):
@@ -14,7 +14,7 @@ def bump(x, y, mx, my, s):
 
 # Gaussian-mixture density surface. Cells carry explicit edges (x/x2) on linear axes so the
 # domain ends exactly on the -3 and 3 ticks; each cell overhangs by 0.02 units to cover the
-# sub-pixel antialiasing seam.
+# sub-pixel antialiasing gap.
 N = 30
 step = 6 / N
 cells = []

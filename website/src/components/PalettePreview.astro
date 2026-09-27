@@ -71,14 +71,14 @@ const firstPalette = palettes[0].name;
 </div>
 
 <script>
-	import vegaEmbed from 'vega-embed';
-	import { chartNaturalSize, scaleChart } from '../lib/scaleChart';
+	import { chartView, clearChart, embedChart } from '../lib/embedChart';
+	import { chartNaturalSize, scaleChart, watchChartResolution } from '../lib/scaleChart';
 
 	const BASE = import.meta.env.BASE_URL;
 	const specCache = new Map<string, Promise<any>>();
-	const views = new WeakMap<HTMLElement, { finalize: () => void }>();
-	// Natural (unzoomed) svg width per chart; the applied zoom is the minimum shared fit.
+	// Natural widths per chart; the applied zoom is the minimum shared fit.
 	const naturals = new Map<HTMLElement, number>();
+	let rowObserver: ResizeObserver | undefined;
 
 	let current: { name: string; kind: string; colors: string[] } = {
 		name: '', // seeded from the first swatch in the palette browser (see boot)
@@ -104,51 +104,48 @@ const firstPalette = palettes[0].name;
 		return Array.from({ length: n }, (_, i) => colors[Math.round((i * (colors.length - 1)) / (n - 1))]);
 	}
 
-	async function renderOne(el: HTMLElement) {
+	function renderOne(el: HTMLElement) {
 		const name = el.dataset.preview;
 		if (!name || !current.colors.length) return;
 		const theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-		const spec = structuredClone(await fetchSpec(name, theme));
-		spec.config ??= {};
-		spec.config.range ??= {};
-		if (el.dataset.role === 'heatmap') {
-			spec.config.range.heatmap = { scheme: current.colors };
-			// Point/line marks draw continuous color from the ramp range (heatmap covers
-			// only rect marks) - patch both so the scatter recolors too.
-			spec.config.range.ramp = { scheme: current.colors };
-		} else {
-			const n = Number(el.dataset.n || '6');
-			spec.config.range.category = sample(current.colors, n, current.kind);
-		}
-		views.get(el)?.finalize();
-		el.innerHTML = '';
-		views.set(el, await vegaEmbed(el, spec, { actions: false, renderer: 'svg', background: 'transparent' }));
-		// Record the natural width and re-derive the shared zoom (see applyZoom).
-		const natural = chartNaturalSize(el);
-		if (natural) {
-			naturals.set(el, natural.width);
-			applyZoom();
-		}
+		// Capture selection now, before a queued async fetch can observe a later choice.
+		const selection = { ...current, colors: [...current.colors] };
+		void embedChart(el, async () => {
+			const spec = structuredClone(await fetchSpec(name, theme));
+			spec.config ??= {};
+			spec.config.range ??= {};
+			if (el.dataset.role === 'heatmap') {
+				spec.config.range.heatmap = { scheme: selection.colors };
+				spec.config.range.ramp = { scheme: selection.colors };
+			} else {
+				const n = Number(el.dataset.n || '6');
+				spec.config.range.category = sample(selection.colors, n, selection.kind);
+			}
+			return spec;
+		}, { actions: false, afterRender: () => {
+			const natural = chartNaturalSize(el);
+			if (natural) {
+				naturals.set(el, natural.width);
+				applyZoom();
+			}
+		} }).catch(console.error);
 	}
 
 	// Auto-fit: scale the charts to fill the column. The scale is SHARED (the minimum fit
 	// across the charts) so every chart renders at the same
 	// scale - a per-chart fit made the narrower ones look blown up; the chart sources are
-	// authored to near-equal natural widths so the shared fit still fills the column. The row
-	// is measured, not the container (its own zoom would skew it), and a ResizeObserver
+	// authored to near-equal natural widths so the shared fit still fills the column. Each
+	// grid cell's fixed width is measured, never its zoomed Canvas/SVG, and a ResizeObserver
 	// re-derives the zoom whenever the row's width settles - on first load the charts can
 	// render before styles/layout do (a dev-server reload showed them small until the next
 	// re-render), so sizing must react to layout, not assume it.
 	function applyZoom() {
 		const row = document.querySelector<HTMLElement>('.palprev__row');
 		if (!row || !naturals.size) return;
-		const rowWidth = row.getBoundingClientRect().width;
-		if (rowWidth <= 0) return;
-		const fits = [...naturals.values()].map((n) => rowWidth / n);
+		if (row.getBoundingClientRect().width <= 0) return;
+		const fits = [...naturals].map(([el, n]) => el.clientWidth / n);
 		const shared = Math.min(Math.max(Math.min(...fits), 1.2), 3.4);
-		for (const el of naturals.keys()) {
-			scaleChart(el, shared);
-		}
+		for (const el of naturals.keys()) scaleChart(el, shared, chartView(el));
 	}
 
 	function renderAll() {
@@ -220,9 +217,14 @@ const firstPalette = palettes[0].name;
 	function boot() {
 		// A page swap replaces the chart elements: drop stale ones so they can't skew the
 		// shared-minimum zoom, and re-fit whenever the (new) row's layout width changes.
+		rowObserver?.disconnect();
+		for (const el of naturals.keys()) clearChart(el);
 		naturals.clear();
 		const row = document.querySelector<HTMLElement>('.palprev__row');
-		if (row) new ResizeObserver(() => applyZoom()).observe(row);
+		if (row) {
+			rowObserver = new ResizeObserver(() => applyZoom());
+			rowObserver.observe(row);
+		}
 		// Seed from the FIRST swatch in the palette browser (baked data, no extra fetch) so the
 		// default selection always follows whatever leads the generated palette list.
 		if (!current.colors.length) {
@@ -250,6 +252,12 @@ const firstPalette = palettes[0].name;
 	document.addEventListener('ds-palette-select', ((ev: CustomEvent) => select(ev.detail)) as EventListener);
 	boot();
 	document.addEventListener('astro:page-load', boot);
+	document.addEventListener('astro:before-swap', () => {
+		rowObserver?.disconnect();
+		for (const el of naturals.keys()) clearChart(el);
+		naturals.clear();
+	});
+	watchChartResolution(applyZoom);
 	new MutationObserver(renderAll).observe(document.documentElement, {
 		attributes: true,
 		attributeFilter: ['data-theme'],

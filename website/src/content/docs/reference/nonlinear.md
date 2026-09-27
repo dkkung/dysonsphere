@@ -78,7 +78,7 @@ Pass the return value directly to ``alt.Axis(labelExpr=...)``.
 ```python
 def add_log_ticks(
     chart: alt.Chart | alt.LayerChart,
-    df,
+    data: pl.DataFrame | pd.DataFrame,
     field: str | None = None,
     *,
     axis: str = 'y',
@@ -121,20 +121,20 @@ and ``vconcat`` layouts.
 **Parameters**
 
 - **`chart`** (`alt.Chart | alt.LayerChart`) - The chart to add minor ticks to.
-- **`df`** - DataFrame (Polars or Pandas) used for the main chart.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - DataFrame (Polars or Pandas) used for the main chart.
 - **`field`** (`str | None`) - Column name of the log-scale field. When ``axis`` is ``'x'`` or ``'y'`` and this is ``None``, it is inferred from the chart's matching encoding shorthand (``chart.encoding.x`` / ``.y``); pass it explicitly for a ``LayerChart`` (no top-level encoding) or an aggregate/expression encoding, where inference is not possible. Omit when ``axis='both'`` and use ``xField`` / ``yField`` instead.
 - **`axis`** (`str`) - ``'x'``, ``'y'`` (default), or ``'both'``. When ``'both'``, ``xField`` and ``yField`` must be provided.
 - **`base`** (`int`) - Logarithm base matching the axis scale. Defaults to ``10``. Use ``2`` for log2 axes (e.g. volcano plots, fold-change axes). Any integer ≥ 2 is accepted.
 - **`nMinor`** (`int`) - Number of minor ticks per major interval for non-base-10 scales. Ignored when ``base=10`` (which always uses the 2×–9× pattern). Defaults to ``1`` (one tick at the geometric midpoint per interval). Use ``3`` for quarter-interval ticks.
-- **`expMin`** (`int | None`) - Lowest exponent (in the given ``base``) for the single-axis case. Auto-derived from ``df[field].min()`` when ``None``.
-- **`expMax`** (`int | None`) - Highest exponent. Auto-derived from ``df[field].max()`` when ``None``.
+- **`expMin`** (`int | None`) - Lowest exponent (in the given ``base``) for the single-axis case. Auto-derived from ``data[field].min()`` when ``None``.
+- **`expMax`** (`int | None`) - Highest exponent. Auto-derived from ``data[field].max()`` when ``None``.
 - **`xField`** (`str | None`) - Column name for the x log-scale field (``axis='both'`` only).
 - **`yField`** (`str | None`) - Column name for the y log-scale field (``axis='both'`` only).
 - **`xExpMin`** (`int | None`) - Exponent overrides for the x axis (``axis='both'`` only).
 - **`xExpMax`** (`int | None`) - Exponent overrides for the x axis (``axis='both'`` only).
 - **`yExpMin`** (`int | None`) - Exponent overrides for the y axis (``axis='both'`` only).
 - **`yExpMax`** (`int | None`) - Exponent overrides for the y axis (``axis='both'`` only).
-- **`minorTickSize`** (`float | None`) - Length of minor ticks in pixels. Defaults to half the active theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when the default ``tickSize=3`` is in effect).
+- **`minorTickSize`** (`float | None`) - Length of minor ticks in pixels. Defaults to half the active theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when the default ``tickSize=3.0`` is in effect).
 
 **Examples**
 
@@ -142,17 +142,17 @@ and ``vconcat`` layouts.
 ::
 
     # log10 y-axis — exp range auto-derived
-    chart = ds.add_log_ticks(chart, df, "value")
+    chart = ds.add_log_ticks(chart, data, "value")
 
     # log2 x-axis (e.g. fold-change on a volcano plot)
-    chart = ds.add_log_ticks(chart, df, "fc", axis="x", base=2)
+    chart = ds.add_log_ticks(chart, data, "fc", axis="x", base=2)
 
     # log2 with 3 minor ticks per octave
-    chart = ds.add_log_ticks(chart, df, "fc", axis="x", base=2, nMinor=3)
+    chart = ds.add_log_ticks(chart, data, "fc", axis="x", base=2, nMinor=3)
 
     # both axes log-scaled
     chart = ds.add_log_ticks(
-        chart, df, axis="both", xField="fc", yField="pvalue"
+        chart, data, axis="both", xField="fc", yField="pvalue"
     )
 ```
 
@@ -161,7 +161,7 @@ and ``vconcat`` layouts.
 ```python
 def add_pow_ticks(
     chart: alt.Chart | alt.LayerChart,
-    df,
+    data: pl.DataFrame | pd.DataFrame,
     field: str | None = None,
     *,
     axis: str = 'y',
@@ -211,13 +211,13 @@ and ``vconcat`` layouts.
 **Parameters**
 
 - **`chart`** (`alt.Chart | alt.LayerChart`) - The chart to add minor ticks to.
-- **`df`** - DataFrame (Polars or Pandas) used for the main chart.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - DataFrame (Polars or Pandas) used for the main chart.
 - **`field`** (`str | None`) - Column name of the power-scaled field. Required when ``axis`` is ``'x'`` or ``'y'``; omit when ``axis='both'`` and use ``xField`` / ``yField`` instead.
 - **`axis`** (`str`) - ``'x'``, ``'y'`` (default), or ``'both'``. When ``'both'``, ``xField``, ``yField``, ``xMajorValues``, and ``yMajorValues`` must all be provided.
 - **`exponent`** (`float`) - Power exponent matching the axis scale. Defaults to ``0.5`` (square root). Use ``2`` for a quadratic axis, etc. Must be non-zero.
 - **`majorValues`** (`list[float] | None`) - Ordered list of major tick data values for the single-axis case. Must match the ``values=`` passed to the main chart's ``alt.Axis``. Required — cannot be auto-derived.
 - **`nMinor`** (`int`) - Number of minor ticks between each pair of major ticks. Defaults to ``4`` (divides each interval into five equal visual segments).
-- **`minorTickSize`** (`float | None`) - Length of minor ticks in pixels. Defaults to half the active theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when the default ``tickSize=3`` is in effect).
+- **`minorTickSize`** (`float | None`) - Length of minor ticks in pixels. Defaults to half the active theme's ``tickSize`` (``tickSize / 2``; typically ``1.5`` when the default ``tickSize=3.0`` is in effect).
 - **`xField`** (`str | None`) - Column name for the x power-scaled field (``axis='both'`` only).
 - **`yField`** (`str | None`) - Column name for the y power-scaled field (``axis='both'`` only).
 - **`xMajorValues`** (`list[float] | None`) - Major tick values for the x axis (``axis='both'`` only).
@@ -231,7 +231,7 @@ and ``vconcat`` layouts.
     # sqrt y-axis (exponent=0.5 is the default)
     major_values = [0, 1, 4, 9, 16, 25]
     chart = (
-        alt.Chart(df)
+        alt.Chart(data)
         .mark_point()
         .encode(
             y=alt.Y("value:Q",
@@ -240,17 +240,17 @@ and ``vconcat`` layouts.
             )
         )
     )
-    chart = ds.add_pow_ticks(chart, df, "value", majorValues=major_values)
+    chart = ds.add_pow_ticks(chart, data, "value", majorValues=major_values)
 
     # quadratic x-axis
     chart = ds.add_pow_ticks(
-        chart, df, "x_val", axis="x", exponent=2,
+        chart, data, "x_val", axis="x", exponent=2,
         majorValues=[0, 1, 2, 3, 4, 5],
     )
 
     # both axes power-scaled (same exponent)
     chart = ds.add_pow_ticks(
-        chart, df, axis="both",
+        chart, data, axis="both",
         xField="x_val", yField="value",
         xMajorValues=[0, 1, 4, 9], yMajorValues=[0, 1, 4, 9, 16, 25],
     )

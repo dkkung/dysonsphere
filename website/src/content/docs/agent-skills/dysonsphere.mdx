@@ -1,0 +1,32 @@
+---
+title: "Dysonsphere skill"
+description: "Workflow guidance for creating, refining, and checking scientific figures."
+---
+
+import { Code } from '@astrojs/starlight/components';
+import source from '../../../../../skills/dysonsphere/SKILL.md?raw';
+
+The `dysonsphere` skill describes how to create, edit, and troubleshoot scientific figures with Dysonsphere and Altair.
+
+## Behavior
+
+- **Project setup:** follow project instructions and the existing data and plotting
+  workflow before choosing code or dependencies.
+- **Study design:** identify observational units, grouping, pairing, comparisons, and
+  interval meanings before adding statistical or visual claims.
+- **Chart construction:** use Altair charts with Dysonsphere themes, palettes,
+  composite marks, annotations, and composition where they fit the task.
+- **Verification:** execute the figure, render it through `ds.save()` or `ds.show()`, inspect the
+  finished output, and report assumptions, checks, and output paths.
+
+The skill points to [plotting.md](/agent-skills/references/plotting/) for chart design,
+[statistics.md](/agent-skills/references/statistics/) for statistical annotations,
+[utilities.md](/agent-skills/references/utilities/) for tables and offsets,
+[nonlinear.md](/agent-skills/references/nonlinear/) for nonlinear axes, and
+[export.md](/agent-skills/references/export/) for output and inspection.
+
+It also instructs the agent to preserve data and analytical meaning, keep filters and transformations explicit, and stop when the requested figure is correct and readable.
+
+## Markdown source
+
+<Code code={source} lang="markdown" title="SKILL.md" />

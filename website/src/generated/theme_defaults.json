@@ -1,17 +1,12 @@
 [
  {
   "key": "axisOffset",
-  "default": null,
-  "hint": "auto: tickSize * 1.5"
+  "default": "false",
+  "hint": "true: tickSize * 1.5"
  },
  {
   "key": "axisWidth",
   "default": "0.25",
-  "hint": null
- },
- {
-  "key": "boxplotOutliers",
-  "default": "false",
   "hint": null
  },
  {
@@ -20,19 +15,9 @@
   "hint": "auto: white / black by darkmode"
  },
  {
-  "key": "chartHeight",
-  "default": "100",
-  "hint": null
- },
- {
-  "key": "chartWidth",
-  "default": "100",
-  "hint": null
- },
- {
   "key": "closed",
   "default": null,
-  "hint": "auto: True when inwardTicks or viewFill"
+  "hint": "auto: True when tickDirection = \"in\" or viewFill"
  },
  {
   "key": "cornerRadius",
@@ -45,33 +30,18 @@
   "hint": null
  },
  {
-  "key": "dashedGrid",
-  "default": "false",
-  "hint": null
- },
- {
-  "key": "dashedLine",
-  "default": "false",
-  "hint": null
- },
- {
-  "key": "dashedRule",
-  "default": "true",
-  "hint": null
- },
- {
-  "key": "dashedWidth",
-  "default": "[2, 2]",
-  "hint": null
- },
- {
   "key": "font",
   "default": "\"Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif\"",
   "hint": null
  },
  {
+  "key": "fontGreek",
+  "default": "\"Symbol\"",
+  "hint": null
+ },
+ {
   "key": "fontSize",
-  "default": "7",
+  "default": "6",
   "hint": null
  },
  {
@@ -95,8 +65,13 @@
   "hint": null
  },
  {
-  "key": "inwardTicks",
+  "key": "gridStrokeDash",
   "default": "false",
+  "hint": null
+ },
+ {
+  "key": "height",
+  "default": "100",
   "hint": null
  },
  {
@@ -105,9 +80,29 @@
   "hint": null
  },
  {
+  "key": "legendColumnPadding",
+  "default": "4",
+  "hint": null
+ },
+ {
+  "key": "legendGradientLength",
+  "default": null,
+  "hint": null
+ },
+ {
+  "key": "legendGradientThickness",
+  "default": "5",
+  "hint": null
+ },
+ {
   "key": "legendOffset",
   "default": null,
   "hint": "auto: tickSize * 1.5"
+ },
+ {
+  "key": "legendRowPadding",
+  "default": "2",
+  "hint": null
  },
  {
   "key": "legendStroke",
@@ -115,9 +110,19 @@
   "hint": null
  },
  {
+  "key": "legendTickCount",
+  "default": null,
+  "hint": "auto: Vega-Lite chooses legend ticks"
+ },
+ {
+  "key": "lineStrokeDash",
+  "default": "false",
+  "hint": null
+ },
+ {
   "key": "markFill",
   "default": "\"#DBDBDB\"",
-  "hint": null
+  "hint": "when omitted: #DBDBDB light / #9D9D9D dark"
  },
  {
   "key": "markFillOpacity",
@@ -130,14 +135,9 @@
   "hint": null
  },
  {
-  "key": "markMedianStroke",
-  "default": "\"black\"",
-  "hint": null
- },
- {
   "key": "markSize",
   "default": null,
-  "hint": "auto: min(chartWidth, chartHeight) / 10"
+  "hint": "auto: min(width, height) / 10"
  },
  {
   "key": "markStroke",
@@ -187,32 +187,62 @@
  {
   "key": "palette",
   "default": null,
-  "hint": "auto: per-type defaults"
+  "hint": "auto: per-type defaults; master override"
  },
  {
   "key": "categoryPalette",
   "default": null,
-  "hint": "auto: categorical"
+  "hint": "auto: cat1 light / cat2 dark"
+ },
+ {
+  "key": "categoryPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "divergingPalette",
   "default": null,
-  "hint": "auto: built-in default"
+  "hint": "auto: div1 light / div2 dark"
+ },
+ {
+  "key": "divergingPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "heatmapPalette",
   "default": null,
-  "hint": "auto: built-in default"
+  "hint": "auto: viridis"
+ },
+ {
+  "key": "heatmapPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "ordinalPalette",
   "default": null,
-  "hint": "auto: greys"
+  "hint": "auto: greys in both modes"
+ },
+ {
+  "key": "ordinalPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
  },
  {
   "key": "rampPalette",
   "default": null,
-  "hint": "auto: built-in default"
+  "hint": "auto: viridis"
+ },
+ {
+  "key": "rampPaletteDarkmode",
+  "default": null,
+  "hint": "darkmode-only override"
+ },
+ {
+  "key": "ruleStrokeDash",
+  "default": "true",
+  "hint": null
  },
  {
   "key": "saveBackground",
@@ -225,23 +255,23 @@
   "hint": null
  },
  {
-  "key": "secondaryFontSize",
-  "default": null,
-  "hint": "auto: fontSize - 1 (floored)"
- },
- {
   "key": "sigFigs",
   "default": "3",
   "hint": null
  },
  {
-  "key": "smallestFontSize",
-  "default": "5",
+  "key": "strokeCap",
+  "default": "\"round\"",
   "hint": null
  },
  {
-  "key": "strokeCap",
-  "default": "\"round\"",
+  "key": "strokeDash",
+  "default": "[2, 2]",
+  "hint": null
+ },
+ {
+  "key": "tickDirection",
+  "default": "\"out\"",
   "hint": null
  },
  {
@@ -251,7 +281,7 @@
  },
  {
   "key": "tickSize",
-  "default": "3",
+  "default": "3.0",
   "hint": null
  },
  {
@@ -267,7 +297,12 @@
  {
   "key": "viewPadding",
   "default": "true",
-  "hint": "auto: min(chartWidth, chartHeight) / 20 (closed plots)"
+  "hint": "auto: min(width, height) / 20"
+ },
+ {
+  "key": "width",
+  "default": "100",
+  "hint": null
  },
  {
   "key": "xAxis",

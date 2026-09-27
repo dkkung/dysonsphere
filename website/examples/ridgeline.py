@@ -6,7 +6,7 @@ import polars as pl
 
 import dysonsphere as ds
 
-ds.theme(chartWidth=200, chartHeight=180)
+ds.theme(width=200, height=180)
 
 rng = np.random.default_rng(9)
 months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"]
