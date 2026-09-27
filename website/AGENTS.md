@@ -240,20 +240,19 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   `axisOffset` and renders dragged toward the axis; the fixer translates each line back so the
   grid spans the plot content. The offset is read from the spec's baked `config.axis.offset`
   (closed plots bake 0 -> skipped). Chart.astro and the Studio call it after every vegaEmbed.
-- **Chart size - scale the `<svg>`, NEVER with CSS `zoom`.** Charts are authored at dysonsphere's
-  publication defaults (100x100 px, small fonts/marks), so the site scales the whole render up.
-  `src/lib/scaleChart.ts` does it by writing `width`/`height` on the `<svg>` (which carries a
-  viewBox, so it scales natively and the layout box follows); `--ds-chart-zoom` in theme.css is
-  still the tuning knob, read as a custom property so the per-context overrides (landing hero 2.6,
-  palette preview's shared fit) keep working. The natural size always comes from the **viewBox**,
-  never the current width attribute, so re-fitting is idempotent - Studio re-fits from a
-  ResizeObserver and would otherwise compound. Call `scaleChart(el)` after every vegaEmbed, or
-  `fitChartToWidth(el, px)` for size-matched comparisons. **Do NOT go back to `zoom`:** Firefox
-  mis-maps SVG gradients inside a zoomed subtree, so every continuous legend rendered a sliver of
-  its ramp (an australis colour bar came out green->cyan with no purple or blue) while the marks
-  beside it stayed correct - it looks like a spec bug and reproduces in no other engine.
-  `transform: scale()` renders correctly but does not reserve layout space. All three embed sites
-  (Chart, Studio, PalettePreview) use the helper.
+- **Chart rendering and size.** `src/lib/embedChart.ts` is shared by Chart, Studio, and
+  PalettePreview. It serializes embeds per element, discards stale requests, and finalizes views on
+  replacement or navigation. `chartRenderer.ts` selects Canvas for charts whose labels and
+  structure need no SVG-only correction; inward ticks, detached grids, figure labels, and text
+  needing script or statistical-symbol typesetting stay SVG. Unknown generated or external labels
+  also stay SVG. `chartCanvas.ts` registers the Vega Canvas renderer and handler: it draws at site
+  zoom times device pixel ratio while preserving chart-space picking and screen-space tooltips.
+  `scaleChart.ts` fits Canvas before drawing and refreshes it when browser resolution changes; SVG
+  uses the viewBox's natural size and explicit width/height. Both paths keep the `--ds-chart-zoom`
+  control, and repeated fits do not compound. Do not use CSS `zoom`: Firefox mis-maps SVG
+  gradients inside a zoomed subtree; `transform: scale()` does not reserve layout space.
+  Run `node --test src/lib/chartRenderer.test.mjs` from `website/` to check renderer selection,
+  interactions, stale embeds, and sizing.
 - **Export menu** is hover/focus-only (opacity in theme.css, `!important` since vega-embed injects
   its own styles at runtime). The menu still exports the true, unscaled 100x100 spec.
 - **Dark mode.** Each chart ships light + dark specs (`darkmode=False/True`, `transparent=True`);
