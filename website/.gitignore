@@ -12,8 +12,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Project-specific #
-# Root contracts and agent guidance are maintained locally.
+# project-specific
 /*.md
 !/README.md
 !/CHANGELOG.md
@@ -22,5 +21,5 @@ pnpm-debug.log*
 .env
 .env.production
 
-# macOS-specific files
+# OS files
 .DS_Store
