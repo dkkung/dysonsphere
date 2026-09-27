@@ -253,15 +253,8 @@ const paletteGroups = [
 </div>
 
 <script>
-	import vegaEmbed from 'vega-embed';
-	import {
-		alignFigureLabels,
-		alignGridToContent,
-		flipTicksInward,
-		italicizeStatSymbols,
-		typesetScripts,
-	} from '../lib/fixSuperscripts';
-	import { chartNaturalSize, scaleChart } from '../lib/scaleChart';
+	import { chartView, clearChart, embedChart } from '../lib/embedChart';
+	import { chartNaturalSize, scaleChart, watchChartResolution } from '../lib/scaleChart';
 	import { EditorView, basicSetup } from 'codemirror';
 	import { keymap } from '@codemirror/view';
 	import { python } from '@codemirror/lang-python';
@@ -327,6 +320,7 @@ high,100,26.4,6`;
 		let sourcePending = false;
 		let sourceFailed = false;
 		let runtimeBooted = false;
+		let renderGeneration = 0;
 
 		const setStatus = (msg: string, kind = '') => {
 			statusEl.textContent = msg;
@@ -711,8 +705,7 @@ high,100,26.4,6`;
 		// Fit the render to the panel: the site-wide 3.5x chart zoom overflows once a legend
 		// or a wide canvas grows the chart - cap the zoom so the whole figure stays in view.
 		function fitChartZoom() {
-			// The natural size comes from the viewBox, so re-fitting never compounds (this runs
-			// on every resize, and scaleChart writes the svg's width/height).
+			// The natural size is independent of zoom, so repeated fitting never compounds.
 			const natural = chartNaturalSize(chartEl);
 			if (!natural) return;
 			// Measure the PARENT panel: the chart div itself is (re)classed .vega-embed and can
@@ -720,25 +713,30 @@ high,100,26.4,6`;
 			const panel = chartEl.parentElement?.getBoundingClientRect().width ?? 0;
 			const avail = panel - 34; // chart padding + panel border
 			if (avail <= 0) return;
-			scaleChart(chartEl, Math.min(3.5, Math.max(1, avail / natural.width)));
+			scaleChart(chartEl, Math.min(3.5, Math.max(1, avail / natural.width)), chartView(chartEl));
 		}
-		new ResizeObserver(() => fitChartZoom()).observe(chartEl);
+		const chartObserver = new ResizeObserver(fitChartZoom);
+		chartObserver.observe(chartEl);
+		const stopResolution = watchChartResolution(fitChartZoom);
+		document.addEventListener('astro:before-swap', () => {
+			chartObserver.disconnect();
+			stopResolution();
+			renderGeneration++;
+			clearChart(chartEl);
+		}, { once: true });
 
 		async function renderSpec(code: string) {
 			if (!runtime) return;
+			const id = ++renderGeneration;
 			setStatus('Rendering…');
 			try {
 				const spec = JSON.parse(runtime.runChart(code, isDark()));
-				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
-				alignGridToContent(chartEl, spec);
-				alignFigureLabels(chartEl);
-				if (spec.usermeta?.dysonsphere?.theme?.tickDirection === 'in') flipTicksInward(chartEl);
-				typesetScripts(chartEl);
-				italicizeStatSymbols(chartEl);
-				fitChartZoom();
+				await embedChart(chartEl, spec, { actions: true, flipBeforeText: true, afterRender: fitChartZoom });
+				if (id !== renderGeneration) return;
 				clearError();
 				setStatus('', 'ok');
 			} catch (e) {
+				if (id !== renderGeneration) return;
 				setStatus('Error', 'err');
 				showError(e);
 				console.error(e);

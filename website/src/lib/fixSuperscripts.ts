@@ -134,6 +134,12 @@ export function typesetScripts(root: ParentNode): void {
 const ITALIC_STAT =
 	/(?<![A-Za-z])(?:P(?=\s*[=<≈])|[FHA](?=\()|W(?=\s*=)|r(?=²?\s*=)|n(?=\s*=)|y(?=\s*=)|t(?=-test)|[Pp](?=[ \-]value))|(?<=Mann-Whitney )U(?![A-Za-z])|(?<=[\d.])x(?=\s*[+\-−]\s*\d)/g;
 
+/** The same detectors used by the SVG correction passes, available before embedding. */
+export function needsTextCorrections(text: string): boolean {
+	ITALIC_STAT.lastIndex = 0;
+	return planScripts(text).length > 0 || ITALIC_STAT.test(text);
+}
+
 /**
  * Italicize Latin statistical symbols (`P n F H A W r y x t U`) in every `<text>` of the
  * rendered chart(s) under `root`. Run AFTER `fixSuperscripts` (both split text into tspans;
