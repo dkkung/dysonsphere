@@ -149,6 +149,40 @@ test('shared embed serializes updates, discards stale requests and finalizes nav
 	assert.equal(chartView(el), undefined);
 });
 
+test('Studio embed flips inward ticks from the resolved theme', async () => {
+	const tick = {
+		attributes: { x2: '0', y2: '3' },
+		getAttribute(key) { return this.attributes[key]; },
+		setAttribute(key, value) { this.attributes[key] = value; },
+	};
+	const axis = {
+		querySelector: () => tick,
+		querySelectorAll: () => [],
+	};
+	const el = {
+		isConnected: true,
+		replaceChildren() {},
+		querySelectorAll(selector) {
+			if (selector === 'svg g.mark-group.role-axis') return [axis];
+			if (selector === 'svg g[class*="role-axis-tick"] line') return [tick];
+			return [];
+		},
+	};
+	const resolved = { usermeta: { dysonsphere: { theme: { tickDirection: 'in' } } } };
+	let renderer;
+	await embedChart(el, resolved, {
+		actions: true,
+		flipBeforeText: true,
+		embed: async (_el, _spec, options) => {
+			renderer = options.renderer;
+			return { view: {}, finalize() {} };
+		},
+	});
+	assert.equal(renderer, 'svg');
+	assert.equal(tick.attributes.y2, '-3');
+	clearChart(el);
+});
+
 test('shared sizing is idempotent for SVG, Canvas and Studio width fitting', () => {
 	globalThis.window = { devicePixelRatio: 2 };
 	globalThis.getComputedStyle = () => ({ getPropertyValue: () => '3.5' });

@@ -161,10 +161,9 @@ class TestPackageNamespace:
         assert f"{algorithm}_x" in result.columns
 
     def test_studio_applies_inward_ticks_from_resolved_theme(self):
-        studio = Path(__file__).resolve().parents[1] / "website/src/components/Studio.astro"
-        source = studio.read_text(encoding="utf-8")
-        assert "spec.usermeta?.dysonsphere?.theme?.tickDirection === 'in'" in source
-        assert "flipTicksInward(chartEl)" in source
+        website = Path(__file__).resolve().parents[1] / "website/src"
+        studio = (website / "components/Studio.astro").read_text(encoding="utf-8")
+        assert "embedChart(chartEl, spec, { actions: true, flipBeforeText: true" in studio
 
     def test_studio_candidate_wheel_is_dev_only_and_passed_safely(self):
         runtime = Path(__file__).resolve().parents[1] / "website/src/lib/runtime.ts"
