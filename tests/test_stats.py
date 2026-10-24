@@ -57,6 +57,27 @@ class TestFormatPvalue:
     def test_p_one_strips_trailing_zeros(self):
         assert _format_pvalue(1.0) == "P = 1"
 
+    @pytest.mark.parametrize(
+        "pvalue,sigfigs,expected",
+        [
+            (0.98, 1, "P > 0.9"),
+            (0.998, 2, "P > 0.99"),
+            (0.9998, 3, "P > 0.999"),
+            (0.99998, 4, "P > 0.9999"),
+            (math.nextafter(1.0, 0.0), 15, "P > 0.999999999999999"),
+            (math.nextafter(1.0, 0.0), 16, "P = 0.9999999999999999"),
+        ],
+    )
+    def test_near_one_bound_follows_precision(self, pvalue, sigfigs, expected):
+        assert _format_pvalue(pvalue, sigfigs) == expected
+
+    def test_near_one_bound_only_when_rounding_would_produce_one(self):
+        assert _format_pvalue(0.999) == "P = 0.999"
+        assert _format_pvalue(0.9992) == "P = 0.999"
+        assert _format_pvalue(math.nextafter(0.9995, 0.0)) == "P = 0.999"
+        assert _format_pvalue(0.9995) == "P > 0.999"
+        assert _format_pvalue(math.nextafter(0.9995, 1.0)) == "P > 0.999"
+
     def test_p_zero(self):
         assert _format_pvalue(0.0) == "P < 0.001"
 
@@ -79,6 +100,31 @@ class TestFormatPvalue:
 
 
 class TestFormatPvalueNotation:
+    @pytest.mark.parametrize("symbol", [True, False])
+    @pytest.mark.parametrize(
+        "notation,ordinary,bound,one",
+        [
+            (None, "0.999", "0.999", "1"),
+            ("scientific", "9.99×10⁻¹", "9.99×10⁻¹", "1×10⁰"),
+            ("e", "9.99e-01", "9.99e-01", "1e+00"),
+        ],
+    )
+    def test_near_one_bounds_preserve_notation_and_symbol(self, symbol, notation, ordinary, bound, one):
+        lead = "P " if symbol else ""
+        eq = "= " if symbol else ""
+        assert _format_pvalue(0.9992, notation=notation, symbol=symbol) == f"{lead}{eq}{ordinary}"
+        assert _format_pvalue(0.9998, notation=notation, symbol=symbol) == f"{lead}> {bound}"
+        assert _format_pvalue(1.0, notation=notation, symbol=symbol) == f"{lead}{eq}{one}"
+
+    @pytest.mark.parametrize("sigfigs,pvalue,mantissa", [(1, 0.98, "9"), (2, 0.998, "9.9"), (4, 0.99998, "9.999")])
+    def test_near_one_scientific_bounds_follow_precision(self, sigfigs, pvalue, mantissa):
+        assert _format_pvalue(pvalue, sigfigs, "scientific") == f"P > {mantissa}×10⁻¹"
+        assert _format_pvalue(pvalue, sigfigs, "e") == f"P > {mantissa}e-01"
+
+    @pytest.mark.parametrize("pvalue", [0.9992, 0.9998, 1.0])
+    def test_near_one_power_notation_remains_approximate(self, pvalue):
+        assert _format_pvalue(pvalue, notation="power") == "P ≈ 10⁰"
+
     def test_scientific(self):
         assert _format_pvalue(0.023, 2, "scientific") == "P = 2.3×10⁻²"
 
@@ -736,11 +782,19 @@ class TestSigFigs:
         lbl = self._label(comparisons(group_df, "g", "v", [("A", "B")], pvalues=[0.4789], sigFigs=4))
         assert lbl == "P = 0.4789"
 
+    def test_near_one_bound_uses_theme_or_call_precision(self, group_df):
+        theme(width=200, height=200, sigFigs=2)
+        assert self._label(comparisons(group_df, "g", "v", [("A", "B")], pvalues=[0.998])) == "P > 0.99"
+        layer = comparisons(group_df, "g", "v", [("A", "B")], pvalues=[0.998], sigFigs=3)
+        assert self._label(layer) == "P = 0.998"
+
     def test_report_independent_of_theme_sigfigs(self):
         # theme sigFigs=2, but the report stays at its fixed 3 sig figs
         theme(width=200, height=200, sigFigs=2)
         assert st._fmt_p(0.47891234) == "= 0.479"
         assert st._fmt(0.47891234) == "0.479"
+        assert st._fmt_p(0.998) == "= 0.998"
+        assert st._fmt_p(0.9998) == "> 0.999"
 
 
 class TestNotationDict:
@@ -1232,6 +1286,13 @@ class TestReportRegistry:
 
 
 class TestReportPValues:
+    @pytest.mark.parametrize(
+        "pvalue,expected",
+        [(0.999, "= 0.999"), (0.9992, "= 0.999"), (0.9998, "> 0.999"), (1.0, "= 1")],
+    )
+    def test_near_one_report_values(self, pvalue, expected):
+        assert st._fmt_p(pvalue) == expected
+
     def test_fmt_p_readable_decimal(self):
         assert st._fmt_p(0.032) == "= 0.032"
 
@@ -1496,6 +1557,12 @@ class TestCorrelationLabel:
 
     def test_include_pvalue(self):
         assert "P " in self._label(self._pearson(), includePvalue=True)
+
+    @pytest.mark.parametrize("pvalue,expected", [(0.9992, "P = 0.999"), (0.9998, "P > 0.999"), (1.0, "P = 1")])
+    def test_near_one_correlation_pvalue(self, pvalue, expected):
+        result = self._pearson()
+        result["pvalue"] = pvalue
+        assert self._label(result, includePvalue=True).endswith(expected)
 
     def test_include_equation(self):
         assert ", y = " in self._label(self._pearson(), coefficient="both", includeEquation=True)

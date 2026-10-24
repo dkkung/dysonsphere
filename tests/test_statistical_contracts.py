@@ -61,6 +61,23 @@ def test_zero_pvalue_bound_survives_svg_rendering(tmp_path):
     assert "P = 0" not in svg
 
 
+@pytest.mark.parametrize("pvalue,expected", [(0.9992, "P = 0.999"), (0.9998, "P > 0.999"), (1.0, "P = 1")])
+def test_near_one_display_preserves_exported_values(tmp_path, pvalue, expected):
+    import json
+
+    data = _df().filter(pl.col("g").is_in(["A", "B"]))
+    chart = alt.Chart(data).mark_point().encode(x="g:N", y="v:Q") + comparisons(
+        data, "g", "v", [("A", "B")], pvalues=[pvalue]
+    )
+    save(chart, str(tmp_path / "near_one"), format=["svg", "json"], background=["light"])
+    svg = (tmp_path / "near_one.svg").read_text()
+    assert expected.replace(">", "&gt;") in svg
+    metadata = json.loads((tmp_path / "near_one.json").read_text())["usermeta"]["dysonsphere"]
+    record = metadata["statistics"][0]
+    assert record["comparisons"]["pairs"][0]["pvalue"] == pvalue
+    assert expected in st._render_report(record)
+
+
 @pytest.mark.parametrize("pvalue", [0.0, np.nextafter(0.0, 1.0)])
 @pytest.mark.parametrize("notation", [None, "scientific", "e", "power"])
 @pytest.mark.parametrize("label_style", ["p", "value", "asterisks"])

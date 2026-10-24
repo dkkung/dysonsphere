@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 from ._statistics import (
     _clamp_p,
+    _pvalue_upper_bound,
     _validate_computed_pvalue,
     _validate_family_size,
     _validate_group_ids,
@@ -80,16 +81,24 @@ def _format_pvalue(p: float, sigFigs: int = 3, notation: str | None = None, symb
         if notation == "e":
             return f"{lead}< {mantissa}e{exp:+03d}"
         return f"{lead}< {mantissa}×10{_superscript(exp)}"
-    if notation is None:
-        if p < 0.001:
-            return f"{lead}< 0.001"
-        return f"{lead}{eq}{p:.{sigFigs}g}"
     if notation == "power":
         exp = round(math.log10(p))
         return f"{lead}≈ 10{_superscript(exp)}"
-    # scientific / e share the mantissa (at `sigFigs` sig figs) and exponent. Python's e-format
-    # handles values below the normal range, unlike ``p / 10**exp``.
-    mantissa, exp = _scientific_parts(p, sigFigs)
+    bound = _pvalue_upper_bound(p, sigFigs)
+    if notation is None:
+        if p < 0.001:
+            return f"{lead}< 0.001"
+        if bound is not None:
+            return f"{lead}> {bound}"
+        return f"{lead}{eq}{p:.{sigFigs}g}"
+    if bound is not None:
+        nines = bound[2:]
+        mantissa = nines[0] + (f".{nines[1:]}" if len(nines) > 1 else "")
+        exp = -1
+        eq = "> "
+    else:
+        # Python's e-format handles subnormal values without underflowing arithmetic.
+        mantissa, exp = _scientific_parts(p, sigFigs)
     if notation == "scientific":
         return f"{lead}{eq}{mantissa}×10{_superscript(exp)}"
     if notation == "e":
@@ -1708,6 +1717,10 @@ def comparisons(
         ``P = 4.3×10⁻¹⁴`` and ``P = 0.68`` at two figures. Trailing zeros are stripped.
         ``None`` (default) reads the theme's ``sigFigs`` (default ``3``). Plain notation
         floors at a fixed ``P < 0.001``; ``'power'`` is unaffected (integer exponent).
+        Values below 1 that would round to 1 instead use a bound in the selected notation,
+        e.g. ``P > 0.999`` at three figures or ``P > 9.9e-01`` at two. A returned value of 1
+        retains equality. Readable reports apply the same safeguard at their fixed three
+        significant figures; numerical records keep their full precision.
         Positive subnormal p-values are supported; a computed zero is shown as a bound in every
         notation using the minimum normal positive float stored in the report record.
     notation:
