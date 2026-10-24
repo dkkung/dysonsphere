@@ -117,6 +117,13 @@ precision.
 Zero p-values are displayed as bounds in every notation, using the minimum normal positive float
 as the record bound; they are not reported as exact zero. Positive subnormal p-values remain valid.
 
+Values below 1 that would round to 1 instead use a bound at the requested precision:
+`0.9998` becomes `P > 0.999` at three significant figures, while `0.9992` stays `P = 0.999`.
+Scientific and e-notation retain their format, such as `P > 9.99×10⁻¹` or `P > 9.99e-01`.
+A returned value of 1 retains equality; approximate power notation is unchanged.
+Readable reports use the same safeguard at their fixed three significant figures. Numerical
+records retain their full precision.
+
 <Example name="comparisons_notation" alt="Comparison bracket with scientific-notation p-value" />
 
 ### Per-pair control

@@ -844,17 +844,30 @@ def _fmt(x: float | None) -> str:
     return "n/a" if x is None else f"{x:.{_REPORT_SIGFIGS}g}"
 
 
+def _pvalue_upper_bound(p: float, sigfigs: int) -> str | None:
+    """Return a near-one display bound only when a value below 1 would round to 1."""
+    if 0.0 < p < 1.0 and f"{p:.{sigfigs}g}" == "1":
+        # Build the decimal text directly so the bound cannot itself round up to 1.
+        return "0." + "9" * max(sigfigs, 1)
+    return None
+
+
 def _fmt_p(p: float) -> str:
-    """Format a report p-value at 3 significant figures – never floored.
+    """Format a report p-value at 3 significant figures, without a fixed lower cutoff.
 
     ``%g`` keeps ordinary p-values as decimals (``= 0.032``) and switches
-    tiny ones to e-notation (``= 1.22e-11``) automatically. This is the record
-    format and is independent of the on-plot label style (``notation``/``sigFigs``).
+    tiny ones to e-notation (``= 1.22e-11``) automatically. Report precision
+    is independent of the on-plot label style (``notation``/``sigFigs``).
+    Values below 1 that would round to 1 use ``> 0.999``; a returned value of 1
+    retains equality. Numerical records are unchanged by this formatting.
     The clamp value (see ``_clamp_p``) is rendered with ``<`` because the true
     value is genuinely below float precision.
     """
     if p == sys.float_info.min:
         return f"< {sys.float_info.min:.{_REPORT_SIGFIGS}g}"
+    bound = _pvalue_upper_bound(p, _REPORT_SIGFIGS)
+    if bound is not None:
+        return f"> {bound}"
     return f"= {p:.{_REPORT_SIGFIGS}g}"
 
 

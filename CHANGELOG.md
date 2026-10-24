@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.1] - Unreleased
+
+### Bug fixes
+
+- P-values below 1 that would round to 1 now display a precision-aware bound, such as `P > 0.999`.
+
 ## [4.0.0] - 2026-09-26
 
 ### New features
