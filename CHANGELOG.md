@@ -8,6 +8,7 @@
 
 ### Bug fixes
 
+- PNG and TIFF exports now preserve the intended font family instead of using Illustrator font aliases.
 - P-values below 1 that would round to 1 now display a precision-aware bound, such as `P > 0.999`.
 - Strip and violin plots now handle punctuation in column names without renaming exported data.
 - Display-label mappings now escape line breaks safely.

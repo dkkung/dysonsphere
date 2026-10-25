@@ -56,7 +56,9 @@ def _resolve_choice(value, default, valid: tuple[str, ...], name: str) -> list[s
     return _validate_choice(raw, valid, name)
 
 
-def _render_fixed_svg(base_obj, svg_path: str, *, resolved_spec: dict[str, Any] | None = None) -> str:
+def _render_fixed_svg(
+    base_obj, svg_path: str, *, resolved_spec: dict[str, Any] | None = None, illustrator_fonts: bool = True
+) -> str:
     """Render an Altair object to *svg_path* and return the corrected SVG string.
 
     The theme's ``tickRound: false`` and ``tickOffset: 0`` keep tick positions aligned with marks
@@ -65,6 +67,8 @@ def _render_fixed_svg(base_obj, svg_path: str, *, resolved_spec: dict[str, Any] 
     correction modifies the shared ElementTree, which is written once at the end. The authoritative
     ordering constraints are documented in DESIGN.md.
     The caller sets up the theme (e.g. ``transparent``) and manages the output file.
+    Raster consumers disable ``illustrator_fonts`` to retain CSS family names that vl-convert
+    can resolve, while sharing all geometry and typography corrections.
 
     Rendering goes through the resolved spec dict (``to_dict()`` + ``vlc.vegalite_to_svg`` -
     the same engine/spec ``base_obj.save()`` uses).
@@ -88,7 +92,8 @@ def _render_fixed_svg(base_obj, svg_path: str, *, resolved_spec: dict[str, Any] 
     greek_font = _opt("fontGreek")
     if greek_font is not None:
         _switch_greek_font(root, greek_font)
-    _fix_font_for_illustrator(root)
+    if illustrator_fonts:
+        _fix_font_for_illustrator(root)
     svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
     Path(svg_path).write_text(svg, encoding="utf-8")
     return svg
@@ -132,6 +137,8 @@ def save(
     super/subscripts you type (``"H₂O"``, ``"t₀"``) and log/p-value exponents are normalized to
     smaller, shifted text characters. Script digits and letters become ASCII; the superscript minus
     becomes Unicode U+2212, so rendering does not depend on Unicode superscript/subscript glyphs.
+    Saved SVGs rewrite font names for Illustrator; PNG and TIFF retain the original CSS font-family
+    stack so the raster renderer can select the intended installed family.
 
     Parameters
     ----------
@@ -375,13 +382,19 @@ def save(
                     render_spec.pop("background", None)
                 # Intermediate SVGs must not overwrite an existing, unrequested output file.
                 with tempfile.TemporaryDirectory() as d:
-                    svg_content = _render_fixed_svg(base_obj, str(Path(d) / "render.svg"), resolved_spec=render_spec)
-                # A lambda replacement keeps backslashes/braces in the JSON literal (not regex).
-                _inserts = metadata._svg_inserts(_usermeta_json, _report_sections, description)
-                if _inserts:
-                    svg_content = re.sub(r"(<svg[^>]*>)", lambda m: m.group(1) + _inserts, svg_content, count=1)
+                    svg_content = _render_fixed_svg(
+                        base_obj, str(Path(d) / "render.svg"), resolved_spec=render_spec, illustrator_fonts=False
+                    )
                 if "svg" in _formats:
-                    Path(_path(bg, "svg")).write_text(svg_content, encoding="utf-8")
+                    # Apply Illustrator's font naming only to the saved SVG, not to raster input.
+                    svg_root = ET.fromstring(svg_content)
+                    _fix_font_for_illustrator(svg_root)
+                    saved_svg = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(svg_root, encoding="unicode")
+                    _inserts = metadata._svg_inserts(_usermeta_json, _report_sections, description)
+                    if _inserts:
+                        # Insert after serialization to retain the metadata's CDATA channel.
+                        saved_svg = re.sub(r"(<svg[^>]*>)", lambda m: m.group(1) + _inserts, saved_svg, count=1)
+                    Path(_path(bg, "svg")).write_text(saved_svg, encoding="utf-8")
                 if "png" in _formats or "tiff" in _formats:
                     png_bytes = vlc.svg_to_png(svg_content, ppi=ppi)
                     if "png" in _formats:

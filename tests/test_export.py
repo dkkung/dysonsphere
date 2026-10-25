@@ -1752,6 +1752,27 @@ class TestFixFontForIllustrator:
         tspan = root.find(f".//{{{NS}}}tspan")
         assert tspan is not None and tspan.get("font-family") is None and tspan.get("font-style") == "italic"
 
+    def test_raster_input_keeps_css_stack_while_saved_svg_uses_postscript(self, tmp_path, simple_chart, monkeypatch):
+        import vl_convert
+
+        received: list[str] = []
+        converter = vl_convert.svg_to_png
+
+        def record(svg, **kwargs):
+            received.append(svg)
+            return converter(svg, **kwargs)
+
+        monkeypatch.setattr(vl_convert, "svg_to_png", record)
+        save(simple_chart, tmp_path / "fig", format=["svg", "png", "tiff"], saveMetadata=False)
+        assert len(received) == 1
+        raster_root = ET.fromstring(received[0])
+        raster_families = {el.get("font-family") for el in raster_root.iter() if el.get("font-family")}
+        assert raster_families == {self.THEME_STACK}
+        svg_root = ET.parse(tmp_path / "fig.svg").getroot()
+        saved_families = {el.get("font-family") for el in svg_root.iter() if el.get("font-family")}
+        assert saved_families == {self.FIXED}
+        assert (tmp_path / "fig.png").exists() and (tmp_path / "fig.tiff").exists()
+
     def test_save_svg_uses_postscript_primary_theme_option_unchanged(self, tmp_path, simple_chart):
         out = str(tmp_path / "fig")
         save(simple_chart, out, format="svg", background="light")

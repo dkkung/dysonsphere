@@ -49,6 +49,8 @@ left alone so snake_case column names used as default titles are not mangled). U
 super/subscripts you type (``"H₂O"``, ``"t₀"``) and log/p-value exponents are normalized to
 smaller, shifted text characters. Script digits and letters become ASCII; the superscript minus
 becomes Unicode U+2212, so rendering does not depend on Unicode superscript/subscript glyphs.
+Saved SVGs rewrite font names for Illustrator; PNG and TIFF retain the original CSS font-family
+stack so the raster renderer can select the intended installed family.
 
 **Parameters**
 
