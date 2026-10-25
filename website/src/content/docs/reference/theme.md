@@ -137,6 +137,25 @@ A TOML config file can provide persistent per-project or per-user
 overrides. See the README for the config file format and search path.
 Named styles in the config file are selected with ``style=``.
 
+## `is_theme_initialized`
+
+```python
+def is_theme_initialized() -> bool: ...
+```
+
+Return whether Dysonsphere theme settings are currently initialized.
+
+A successful ``ds.theme()`` call initializes settings, including a call with no arguments.
+Importing Dysonsphere or reading fallback defaults through ``ds.ext.opt()`` does not.
+Failed theme calls leave the initialization state unchanged.
+
+This check does not read configuration files, initialize settings, or modify them. It reports
+whether settings are initialized, not which Altair theme is active.
+
+**Returns**
+
+- `bool` - ``True`` if settings are initialized, otherwise ``False``.
+
 ## `create_config`
 
 ```python

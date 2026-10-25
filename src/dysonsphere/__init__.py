@@ -21,6 +21,7 @@ __all__ = [
     "create_config",
     "export",
     "extensions",
+    "is_theme_initialized",
     "label_expr",
     "labels",
     "load",

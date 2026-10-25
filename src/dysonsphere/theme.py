@@ -11,7 +11,7 @@ from ._formats import SAVE_FORMATS as _SAVE_FORMATS
 from .palettes import _DEFAULT_QUALITATIVE_PALETTE, _PALETTE_ALIASES, colors
 
 # Public names re-exported by dysonsphere.
-__all__ = ["theme", "create_config"]
+__all__ = ["theme", "is_theme_initialized", "create_config"]
 
 # Restore the imported palette catalog on each theme() call
 # so config palettes do not accumulate across theme resets.
@@ -536,6 +536,26 @@ def theme(
     colors.update(custom_palettes)
     alt.theme.options = {**p, "tickWidth": p["axisWidth"], "_markFillAuto": mark_fill_auto}
     _ACTIVE_ARGS = {**supplied, **({"style": style} if style is not None else {})}
+
+
+def is_theme_initialized() -> bool:
+    """
+    Return whether Dysonsphere theme settings are currently initialized.
+
+    A successful ``ds.theme()`` call initializes settings, including a call with no arguments.
+    Importing Dysonsphere or reading fallback defaults through ``ds.ext.opt()`` does not.
+    Failed theme calls leave the initialization state unchanged.
+
+    This check does not read configuration files, initialize settings, or modify them. It reports
+    whether settings are initialized, not which Altair theme is active.
+
+    Returns
+    -------
+    bool
+        ``True`` if settings are initialized, otherwise ``False``.
+    """
+    # theme() writes this marker only after validating and resolving its settings.
+    return "_markFillAuto" in alt.theme.options
 
 
 def _compute_derived(p: dict[str, Any]) -> None:

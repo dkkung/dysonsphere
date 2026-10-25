@@ -13,6 +13,20 @@ import darkSource from '../../../../examples/darkmode_dark.py?raw';
 styling. Call it once to apply the theme to all further `Chart` objects. Calling it again re-applies the theme
 to all charts that follow the theme call.
 
+## Checking initialization
+
+For reusable plotting code, check before applying defaults so you do not replace the caller's settings:
+
+```python
+if not ds.is_theme_initialized():
+    ds.theme()
+```
+
+`ds.is_theme_initialized()` returns a boolean without changing settings or reading configuration files.
+Importing Dysonsphere or reading fallback values through `ds.ext.opt()` does not initialize settings;
+a successful `ds.theme()` call does, even without arguments. The check reports initialized settings,
+not Altair's active theme name.
+
 ## Before and after
 
 The same Altair code before and after calling `ds.theme()`:
