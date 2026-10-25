@@ -14,14 +14,35 @@ the [Accents guide](/guides/accents/).
 
 ## Using a palette
 
-`ds.palette(name, n)` returns `n` evenly spaced stops; `start`, `end`, `step`, and `reverse` give
-finer control. Feed the result into any Altair `scale=alt.Scale(range=...)`:
+`ds.palette(name, n)` selects `n` evenly spaced positions from the stored stops, repeating colors
+when `n` exceeds the palette length. `start`, `end`, `step`, and `reverse` give finer control.
+Feed the result into any Altair `scale=alt.Scale(range=...)`:
 
 Names are case-sensitive. Every native name containing `greys` also accepts `grays`, such as
 `grays2`, `warmgrays`, and `graysblues`; the imported palettes `gray` and `Greys` are separate names
 and remain unchanged.
 
 <Example name="palette_slice" alt="Dose-response bars colored with a sliced ember palette" />
+
+## Smooth color tables
+
+For image display or another consumer that needs a dense color table, opt into interpolation:
+
+```python
+lut = ds.palette("focus", n=256, interpolate=True)
+reversed_lut = ds.palette("focus", n=256, interpolate=True, reverse=True)
+```
+
+This returns hex strings by blending adjacent stored stops in Oklab, preserving the exact first
+and last colors. `start` and inclusive `end` select a smaller range; `n` still takes precedence over
+`step`. With no `n`, interpolation does not change the selected stops. `n=0` returns an empty list
+and `n=1` returns the first selected stop.
+
+Interpolated colors are clipped to the sRGB gamut and rounded to 8-bit channels, so duplicates
+can still occur. Imported palettes such as `viridis` interpolate Dysonsphere's stored stops rather
+than reproducing the original upstream table exactly. Custom ramps need six-digit hex stops.
+Use interpolation for ordered ramps, not unrelated categorical colors. Existing calls without
+`interpolate=True` are unchanged.
 
 ## Choosing a colormap
 

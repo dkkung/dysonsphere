@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import shutil
 import struct
@@ -342,6 +343,38 @@ def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE
     return [colors[h][s] for h in hues for s in stops]  # hue-major
 
 
+def _hex_to_oklab(color: str) -> tuple[float, float, float]:
+    """Decode a six-digit sRGB hex stop using the palette-authoring Oklab matrices."""
+    if len(color) != 7 or not color.startswith("#") or any(c not in "0123456789abcdefABCDEF" for c in color[1:]):
+        raise ValueError(f"interpolation requires six-digit hex colors, got {color!r}")
+    rgb = [int(color[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+    r, g, b = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb]
+    l_ = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    m_ = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
+    s_ = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
+    return (
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    )
+
+
+def _interpolate_hex(first: str, last: str, fraction: float) -> str:
+    """Blend adjacent stops in Oklab, then clip and quantize to 8-bit sRGB."""
+    L, a, b = [x + fraction * (y - x) for x, y in zip(_hex_to_oklab(first), _hex_to_oklab(last))]
+    lv = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    rgb = (
+        4.0767416621 * lv - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * lv + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * lv - 0.7034186147 * m + 1.7076147010 * s,
+    )
+    channels = [min(1.0, max(0.0, c)) for c in rgb]
+    channels = [12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055 for c in channels]
+    return "#{:02X}{:02X}{:02X}".format(*(round(c * 255) for c in channels))
+
+
 def palette(
     name: str,
     n: int | None = None,
@@ -350,13 +383,16 @@ def palette(
     end: int | None = None,
     step: int = 1,
     reverse: bool = False,
+    interpolate: bool = False,
 ) -> list[str]:
     """
     Sample colors from a named palette with control over start, stop, and spacing.
 
-    When ``n`` is provided, evenly samples ``n`` colors between ``start`` and
-    ``stop`` (linspace). Otherwise, returns every ``step``-th color from
-    ``start`` to ``stop`` – with default ``step=1`` this returns the full slice.
+    When ``n`` is provided, evenly samples ``n`` positions between ``start`` and
+    ``end`` (inclusive). By default these select the nearest stored stops, repeating
+    colors when oversampling. Set ``interpolate=True`` to blend adjacent stops in Oklab
+    for a smooth color table. Otherwise, returns every ``step``-th color from
+    ``start`` to ``end``; with default ``step=1`` this returns the full slice.
 
     Parameters
     ----------
@@ -375,11 +411,19 @@ def palette(
         Step between color indices. Defaults to 1 (every color).
     reverse:
         If True, reverse the returned list.
+    interpolate:
+        If True and ``n`` is supplied, linearly interpolate adjacent six-digit hex stops
+        in Oklab. Stored stops at integer positions, including endpoints, remain exact.
+        Interpolated colors are clipped to the sRGB gamut and rounded to 8-bit hex strings;
+        quantization can still produce duplicates. With no ``n``, the selected stops are
+        unchanged. ``n=0`` returns an empty list and ``n=1`` returns the first selected stop.
+        Imported palettes use the stored stops, not the original upstream continuous map.
 
     Raises
     ------
     ValueError
-        If ``n`` is negative, boolean, or not an integer.
+        If ``n`` is negative, boolean, or not an integer, or an interpolated stop is not
+        a six-digit hex color.
     KeyError
         If the requested palette name is unknown.
 
@@ -404,6 +448,10 @@ def palette(
     Four evenly-spaced colors, reversed:
 
         palette("YlGnBu", n=4, reverse=True)
+
+    A smooth 256-entry color table for image display:
+
+        palette("focus", n=256, interpolate=True)
     """
     palette = colors[name]
     total = len(palette)
@@ -416,6 +464,16 @@ def palette(
         n = int(n)
         if n < 0:
             raise ValueError(f"n must be a nonnegative integer, got {n!r}")
+        if interpolate and n > 1:
+            result = []
+            for i in range(n):
+                position = start if i == 0 else end if i == n - 1 else start + i * (end - start) / (n - 1)
+                left = math.floor(position)
+                fraction = position - left
+                result.append(
+                    palette[left] if fraction == 0 else _interpolate_hex(palette[left], palette[left + 1], fraction)
+                )
+            return result[::-1] if reverse else result
         if n == 1:
             indices = [start]
         else:
