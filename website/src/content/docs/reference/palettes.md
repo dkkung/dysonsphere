@@ -27,13 +27,13 @@ def categorical(
 
 Qualitative color palette built from a family of base hues.
 
-Every color is drawn from an existing base palette at fixed stops - nothing is
-generated de novo, so retuning a base hue regenerates this palette automatically.
+Every color is selected from an existing base palette at fixed stops, so changes to a
+base hue also change this palette.
 
 **Parameters**
 
-- **`members`** (`int`) - Colors per associated group. - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major** so adjacent categories differ in hue. Canonical families cycle light, mid, then dark and return ``3 * len(hues)`` colors. ``cat2`` uses a curated 10-color sequence; ``cat1`` instead places five dark accent anchors before five lighter companions. The default ``cat1`` flat form is what ``config.range.category`` uses in light mode; the dark-mode default is ``cat2``. - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered **hue-major** - each consecutive block of ``members`` categories is one hue climbing through ``members`` lightness levels. Returns ``len(hues) * members`` colors. Sort your categories so a group's members are adjacent, then pass this as the color scale range. For the canonical ``cat3`` and ``cat4`` families, up to ``4`` members use the classic tier stops (``1, 4, 7, 10``); beyond ``4``, stops spread evenly across ``1``-``10``. ``cat1`` and ``cat2`` instead spread every grouped selection across their per-hue usable windows. In either path, adding members shrinks within-hue contrast; ``5``-``6`` are reasonable at normal mark sizes but larger groups become increasingly ambiguous. If your "members" are actually ordinal (a dose series, timepoints), a sequential slice per group - ``palette("cat1_blues", n=5)`` - usually communicates that better than a categorical palette pretending they're unordered.
-- **`palette`** (`str`) - Which qualitative palette to build. ``"cat1"`` (default) is the static two-tier accent set - grey, blue, green, purple, and teal - with five light-theme accents followed by lighter companions (also stored as ``colors["cat1"]`` and used by the light-mode ``config.range.category`` default). ``"cat2"`` is the saturated cool set, ``"cat3"`` is the legacy four-hue pastel set, and ``"cat4"`` is the muted australis-harmonious set. ``cat2`` differs from the canonical-stop palettes in how its stops are chosen: its flat palette uses explicit stops (not the canonical ``(1, 4, 7)``), and in grouped mode each family spreads across its own usable window rather than a shared ``1``-``10``. That caps it at ``members=6``, set by ``cat2_greens``. ``cat1`` likewise uses per-family stops ``1``-``10`` and is capped at ``members=10``; its flat form remains ten colors.
+- **`members`** (`int`) - Colors per associated group. - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major** so adjacent categories differ in hue. Canonical families cycle light, mid, then dark and return ``3 * len(hues)`` colors. ``cat2`` uses a curated 10-color sequence; ``cat1`` instead places five dark accent anchors before five lighter companions. The default ``cat1`` flat form is what ``config.range.category`` uses in light mode; the dark-mode default is ``cat2``. - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered **hue-major** – each consecutive block of ``members`` categories is one hue across ``members`` lightness levels. Returns ``len(hues) * members`` colors. Sort categories so each group's members are adjacent, then pass this as the color scale range. For the canonical ``cat3`` and ``cat4`` families, up to ``4`` members use the classic tier stops (``1, 4, 7, 10``); beyond ``4``, stops spread evenly across ``1``-``10``. ``cat1`` and ``cat2`` instead spread every grouped selection across their per-hue usable windows. In either path, adding members shrinks within-hue contrast; ``5``-``6`` are reasonable at normal mark sizes but larger groups become increasingly ambiguous. If the categories are ordinal (for example, dose levels or timepoints), a sequential palette slice such as ``palette("cat1_blues", n=5)`` usually communicates their order more clearly than a categorical palette.
+- **`palette`** (`str`) - Which qualitative palette to build. ``"cat1"`` (default) is the static two-tier accent set – grey, blue, green, purple, and teal – with five light-theme accents followed by lighter companions (also stored as ``colors["cat1"]`` and used by the light-mode ``config.range.category`` default). ``"cat2"`` is the saturated cool set, ``"cat3"`` is the legacy four-hue pastel set, and ``"cat4"`` is the muted australis-harmonious set. ``cat2`` differs from the canonical-stop palettes in how its stops are chosen: its flat palette uses explicit stops (not the canonical ``(1, 4, 7)``), and in grouped mode each family spreads across its own usable window rather than a shared ``1``-``10``. That caps it at ``members=6``, set by ``cat2_greens``. ``cat1`` likewise uses per-family stops ``1``-``10`` and is capped at ``members=10``; its flat form remains ten colors.
 
 **Examples**
 
@@ -64,14 +64,17 @@ def palette(
     end: int | None = None,
     step: int = 1,
     reverse: bool = False,
+    interpolate: bool = False,
 ) -> list[str]: ...
 ```
 
 Sample colors from a named palette with control over start, stop, and spacing.
 
-When ``n`` is provided, evenly samples ``n`` colors between ``start`` and
-``stop`` (linspace). Otherwise, returns every ``step``-th color from
-``start`` to ``stop`` — with default ``step=1`` this returns the full slice.
+When ``n`` is provided, evenly samples ``n`` positions between ``start`` and
+``end`` (inclusive). By default these select the nearest stored stops, repeating
+colors when oversampling. Set ``interpolate=True`` to blend adjacent stops in Oklab
+for a smooth color table. Otherwise, returns every ``step``-th color from
+``start`` to ``end``; with default ``step=1`` this returns the full slice.
 
 **Parameters**
 
@@ -81,6 +84,7 @@ When ``n`` is provided, evenly samples ``n`` colors between ``start`` and
 - **`end`** (`int | None`) - Index of the last color to include (inclusive). Defaults to the last index in the palette.
 - **`step`** (`int`) - Step between color indices. Defaults to 1 (every color).
 - **`reverse`** (`bool`) - If True, reverse the returned list.
+- **`interpolate`** (`bool`) - If True and ``n`` is supplied, linearly interpolate adjacent six-digit hex stops in Oklab. Stored stops at integer positions, including endpoints, remain exact. Interpolated colors are clipped to the sRGB gamut and rounded to 8-bit hex strings; quantization can still produce duplicates. With no ``n``, the selected stops are unchanged. ``n=0`` returns an empty list and ``n=1`` returns the first selected stop. Imported palettes use the stored stops, not the original upstream continuous map.
 
 **Examples**
 
@@ -104,6 +108,10 @@ Every second color from index 0 to 6 (returns indices 0, 2, 4, 6):
 Four evenly-spaced colors, reversed:
 
     palette("YlGnBu", n=4, reverse=True)
+
+A smooth 256-entry color table for image display:
+
+    palette("focus", n=256, interpolate=True)
 ```
 
 ## `export_swatches`
@@ -124,10 +132,10 @@ Write a JSX script and an ASE swatch library for Adobe Illustrator to *directory
 
 Produces two files (``name`` defaults to ``"dysonsphere"``):
 
-- ``import_{name}_palettes_to_illustrator.jsx`` — run via
+- ``import_{name}_palettes_to_illustrator.jsx`` – run via
   File > Scripts > Other Script... to load the selected palettes into the active
   document's Swatches panel as named groups.
-- ``{name}.ase`` — Adobe Swatch Exchange file containing the selected palettes as
+- ``{name}.ase`` – Adobe Swatch Exchange file containing the selected palettes as
   named groups. Automatically copied to the Illustrator User Defined Swatches
   folder if it can be detected; otherwise copy it there manually. After restarting
   Illustrator it appears under Open Swatch Library > User Defined > {name}.

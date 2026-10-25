@@ -161,8 +161,9 @@ def test_palette_n_oversampling_keeps_inclusive_endpoints():
 
 @pytest.mark.parametrize("n", [-1, 1.0, True, "4"])
 def test_palette_n_requires_a_nonnegative_integer(n):
-    with pytest.raises(ValueError, match="nonnegative integer"):
-        palette("blues", n=n)
+    for interpolate in (False, True):
+        with pytest.raises(ValueError, match="nonnegative integer"):
+            palette("blues", n=n, interpolate=interpolate)
 
 
 def test_palette_reverse():
@@ -183,6 +184,43 @@ def test_palette_step():
 def test_palette_unknown_key_raises():
     with pytest.raises(KeyError):
         palette("nonexistent_palette_xyz")
+
+
+@pytest.mark.parametrize("name", ["focus", "australis", "borealis", "viridis"])
+def test_palette_interpolation_produces_dense_ramp_without_changing_stops(name):
+    stops = list(colors[name])
+    result = palette(name, n=256, interpolate=True)
+    assert len(result) == 256
+    assert len(set(result)) > 240
+    assert all(HEX_RE.fullmatch(color) for color in result)
+    assert (result[0], result[-1]) == (stops[0], stops[-1])
+    assert colors[name] == stops
+    assert set(palette(name, n=256)) == set(stops)
+
+
+def test_palette_interpolation_selection_controls():
+    result = palette("focus", n=5, start=2, end=4, step=99, interpolate=True)
+    assert result[::2] == colors["focus"][2:5]
+    assert palette("focus", n=5, start=2, end=4, reverse=True, interpolate=True) == result[::-1]
+    assert palette("focus", n=5, start=4, end=2, interpolate=True) == result[::-1]
+    assert palette("focus", n=5, start=-10, end=-8, interpolate=True) == result
+    assert palette("focus", n=0, interpolate=True) == []
+    assert palette("focus", n=1, start=2, interpolate=True) == [colors["focus"][2]]
+    assert palette("focus", n=3, start=2, end=2, interpolate=True) == [colors["focus"][2]] * 3
+    assert palette("focus", n=12, interpolate=True) == colors["focus"]
+    assert palette("focus", start=2, end=8, step=2, interpolate=True) == colors["focus"][2:9:2]
+    assert palette("grays", n=24, interpolate=True) == palette("greys", n=24, interpolate=True)
+
+
+def test_palette_interpolation_blends_in_oklab(monkeypatch):
+    monkeypatch.setitem(colors, "test_ramp", ["#000000", "#ffffff", "#000000"])
+    assert palette("test_ramp", n=5, interpolate=True) == ["#000000", "#636363", "#ffffff", "#636363", "#000000"]
+    monkeypatch.setitem(colors, "test_ramp", ["#FF0000", "#0000FF"])
+    assert palette("test_ramp", n=3, interpolate=True) == ["#FF0000", "#8C53A2", "#0000FF"]
+    monkeypatch.setitem(colors, "test_ramp", ["red", "blue"])
+    assert palette("test_ramp", n=3) == ["red", "red", "blue"]
+    with pytest.raises(ValueError, match="six-digit hex"):
+        palette("test_ramp", n=3, interpolate=True)
 
 
 class TestCategorical:
