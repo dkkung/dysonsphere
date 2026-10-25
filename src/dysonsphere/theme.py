@@ -648,7 +648,8 @@ def _opt(key: str) -> Any:
 
 @alt.theme.register("dysonsphere", enable=True)
 def _dysonsphere_theme() -> dict[str, Any]:
-    opts = dict(alt.theme.options)
+    opts = {key: _opt(key) for key in _BUILTIN_DEFAULTS}  # allow Altair chart serialization before theme() is called
+    opts.update(alt.theme.options)
     if opts.get("_markFillAuto", True):
         opts["markFill"] = _DEFAULT_MARK_FILL_DARK if opts.get("darkmode", False) else _DEFAULT_MARK_FILL_LIGHT
 

@@ -129,6 +129,9 @@ Use only the capability the format supports:
 
 - `ds.metadata.read(path, what="metadata")` returns the metadata block from SVG, PNG, TIFF (`.tiff`/`.tif`), or JSON.
   `what="statistics"` returns structured records; `what="report"` prints and returns report text.
+- `ds.metadata.read(path, what="description")` returns the description text, or `None` when absent,
+  even with `saveMetadata=False`. Empty strings, Unicode, and line endings are preserved. It does not
+  print or verify provenance; structured metadata reading and verification still require metadata.
 - `ds.metadata.read("figure.json", what="data")` recovers inlined data from JSON, not SVG/PNG/TIFF.
   With several user datasets, request `dataset="all"` or the appropriate dataset name. The recovered
   frame may contain transform-derived columns; do not call it a byte-identical source file.

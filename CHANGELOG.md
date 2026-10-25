@@ -5,12 +5,14 @@
 ### New features
 
 - Added `is_theme_initialized()` to check for initialized theme settings without changing them.
+- Added `metadata.read(..., what="description")` to read description text even when metadata is disabled.
 - Added TIFF export with LZW compression, RGB/RGBA output, resolution tags, and embedded metadata.
 - Added `palette(..., interpolate=True)` for smooth color tables sampled from existing stops in Oklab.
 - Added `export.SAVE_FORMATS`, the immutable tuple of supported export format names.
 
 ### Bug fixes
 
+- Altair charts now serialize before `theme()` using built-in defaults without initializing theme settings.
 - PNG and TIFF exports now preserve the intended font family instead of using Illustrator font aliases.
 - P-values below 1 that would round to 1 now display a precision-aware bound, such as `P > 0.999`.
 - Strip and violin plots now handle punctuation in column names without renaming exported data.

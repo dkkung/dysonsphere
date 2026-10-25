@@ -39,18 +39,18 @@ def read(
 ) -> Any: ...
 ```
 
-Read back the metadata (or data) embedded by :func:`save` from a PNG, SVG, TIFF, or JSON.
+Read back descriptions, metadata, or data saved in a PNG, SVG, TIFF, or JSON.
 
 **Parameters**
 
 - **`path`** (`str | Path`) - A dysonsphere-exported ``.png``, ``.svg``, ``.tiff``/``.tif``, or ``.json`` file.
-- **`what`** (`str`) - Which artifact to return: - ``'report'`` (default) – the human-readable report **table** as a ``str``; it is printed to stdout and returned. Joins every section of the ``report`` container (``statistics`` + ``provenance``). Falls back to re-rendering the statistics from the embedded records if the prose wasn't saved (``embedReport=False``). - ``'statistics'`` – the structured **records** (list of dicts, exact floats). - ``'metadata'`` – the whole ``{provenance, statistics, theme, report}`` dict, where ``report`` is the ``{section: text}`` container. - ``'data'`` – the **original data** Altair inlined into the spec (the whole frame, including columns the chart never plotted). **JSON only** (PNG/SVG/TIFF don't carry the data). The form is chosen by ``output``.
+- **`what`** (`str`) - Which artifact to return: - ``'report'`` (default) – the human-readable report **table** as a ``str``; it is printed to stdout and returned. Joins every section of the ``report`` container (``statistics`` + ``provenance``). Falls back to re-rendering the statistics from the embedded records if the prose wasn't saved (``embedReport=False``). - ``'statistics'`` – the structured **records** (list of dicts, exact floats). - ``'metadata'`` – the whole ``{provenance, statistics, theme, report}`` dict, where ``report`` is the ``{section: text}`` container. - ``'description'`` – the user's description text, without printing it. Works even with ``saveMetadata=False`` and returns ``None`` when absent. Empty strings, Unicode, and line endings are preserved. Does not require or verify structured metadata. - ``'data'`` – the **original data** Altair inlined into the spec (the whole frame, including columns the chart never plotted). **JSON only** (PNG/SVG/TIFF don't carry the data). The form is chosen by ``output``.
 - **`saveReport`** (`bool | str | Path`) - Only for ``what='report'``: ``True`` writes the report to a ``.txt`` in the cwd; a path writes to that directory.
 - **`output`** (`str`) - Only for ``what='data'`` – the form to return the data in: ``'polars'`` (default) → ``pl.DataFrame``; ``'pandas'`` → ``pd.DataFrame``; ``'duckdb'`` → a ``DuckDBPyRelation``; ``'records'`` → the raw ``list[dict]`` (no dataframe library needed). ``pandas`` and ``duckdb`` are imported lazily and are not package dependencies.
 
 **Returns**
 
-- `str, list[dict[str, Any]], dict[str, Any], or dataframe-like object` - The result selected by ``what`` and, for ``what='data'``, by ``output`` and ``dataset``.
+- `str, None, list[dict[str, Any]], dict[str, Any], or dataframe-like object` - The result selected by ``what`` and, for ``what='data'``, by ``output`` and ``dataset``.
 
 ## `verify`
 

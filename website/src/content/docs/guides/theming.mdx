@@ -9,9 +9,8 @@ import Chart from '../../../components/Chart.astro';
 import afterSource from '../../../../examples/theme_after.py?raw';
 import darkSource from '../../../../examples/darkmode_dark.py?raw';
 
-`ds.theme()` registers a global Altair theme. Charts built afterwards inherit its palettes and
-styling. Call it once to apply the theme to all further `Chart` objects. Calling it again re-applies the theme
-to all charts that follow the theme call.
+`ds.theme()` configures global Dysonsphere settings. Charts using Dysonsphere's Altair theme inherit
+its palettes and styling. A successful call replaces the previous settings rather than updating them.
 
 ## Checking initialization
 
@@ -26,6 +25,10 @@ if not ds.is_theme_initialized():
 Importing Dysonsphere or reading fallback values through `ds.ext.opt()` does not initialize settings;
 a successful `ds.theme()` call does, even without arguments. The check reports initialized settings,
 not Altair's active theme name.
+
+Before initialization, Altair chart serialization uses derived built-in defaults without reading
+configuration files or initializing settings. Call `ds.theme()` to apply configuration files or named
+styles, and before saving with `ds.save()`.
 
 ## Before and after
 

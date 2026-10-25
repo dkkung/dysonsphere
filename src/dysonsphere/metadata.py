@@ -893,6 +893,44 @@ def _read_png_text(png_bytes: bytes, keyword: str) -> str | None:
     return next((t for kw, t in _iter_png_itxt(png_bytes) if kw == keyword), None)
 
 
+def _read_tiff_envelope(path: str | Path) -> dict[str, Any] | None:
+    """Read the JSON ImageDescription envelope, if present."""
+    from PIL import Image, TiffImagePlugin
+
+    with Image.open(path) as image:
+        if not isinstance(image, TiffImagePlugin.TiffImageFile):
+            raise ValueError(f"expected a TIFF image in {path!r}")
+        text = image.tag_v2.get(270, "")
+    try:
+        envelope = json.loads(text)
+    except (TypeError, ValueError):
+        return None
+    return envelope if isinstance(envelope, dict) else None
+
+
+def _read_description(path: str | Path) -> str | None:
+    """Read the independent description without requiring structured metadata."""
+    p = Path(path)
+    ext = p.suffix.lower()
+    if ext == ".json":
+        description = json.loads(p.read_text(encoding="utf-8")).get("description")
+    elif ext == ".svg":
+        # Preserve line endings in the description instead of normalizing them while reading.
+        svg = p.read_bytes().decode("utf-8")
+        match = re.search(r"<desc>(.*?)</desc>", svg, re.DOTALL)
+        description = html.unescape(match.group(1)) if match else None
+    elif ext == ".png":
+        description = _read_png_text(p.read_bytes(), "Description")
+    elif ext in (".tiff", ".tif"):
+        envelope = _read_tiff_envelope(p)
+        description = envelope.get("description") if envelope is not None else None
+    else:
+        raise ValueError(f"read() supports .png, .svg, .tiff, .tif, or .json files, got {p.suffix!r}")
+    if description is not None and not isinstance(description, str):
+        raise ValueError(f"description must be a string or null in {path!r}")
+    return description
+
+
 def _read_dysonsphere_block(path: str | Path) -> dict[str, Any]:
     """Read the embedded ``usermeta.dysonsphere`` block from a dysonsphere-exported PNG,
     SVG, TIFF, or Vega-Lite JSON (detected by extension), as the unified
@@ -922,17 +960,8 @@ def _read_dysonsphere_block(path: str | Path) -> dict[str, Any]:
         if block is not None and sections:
             block["report"] = sections
     elif ext in (".tiff", ".tif"):
-        from PIL import Image, TiffImagePlugin
-
-        with Image.open(p) as image:
-            if not isinstance(image, TiffImagePlugin.TiffImageFile):
-                raise ValueError(f"expected a TIFF image in {path!r}")
-            text = image.tag_v2.get(270, "")
-        try:
-            envelope = json.loads(text)
-        except (TypeError, ValueError):
-            envelope = None
-        block = envelope.get("dysonsphere") if isinstance(envelope, dict) else None
+        envelope = _read_tiff_envelope(p)
+        block = envelope.get("dysonsphere") if envelope is not None else None
         if not isinstance(block, dict):
             block = None
     else:
@@ -1016,7 +1045,7 @@ def read(
     output: str = "polars",
     dataset: str | None = None,
 ) -> Any:
-    """Read back the metadata (or data) embedded by :func:`save` from a PNG, SVG, TIFF, or JSON.
+    """Read back descriptions, metadata, or data saved in a PNG, SVG, TIFF, or JSON.
 
     Parameters
     ----------
@@ -1033,6 +1062,9 @@ def read(
         - ``'statistics'`` – the structured **records** (list of dicts, exact floats).
         - ``'metadata'`` – the whole ``{provenance, statistics, theme, report}`` dict, where
           ``report`` is the ``{section: text}`` container.
+        - ``'description'`` – the user's description text, without printing it. Works even
+          with ``saveMetadata=False`` and returns ``None`` when absent. Empty strings, Unicode,
+          and line endings are preserved. Does not require or verify structured metadata.
         - ``'data'`` – the **original data** Altair inlined into the spec (the whole frame,
           including columns the chart never plotted). **JSON only** (PNG/SVG/TIFF don't carry the
           data). The form is chosen by ``output``.
@@ -1047,9 +1079,11 @@ def read(
 
     Returns
     -------
-    str, list[dict[str, Any]], dict[str, Any], or dataframe-like object
+    str, None, list[dict[str, Any]], dict[str, Any], or dataframe-like object
         The result selected by ``what`` and, for ``what='data'``, by ``output`` and ``dataset``.
     """
+    if what == "description":
+        return _read_description(path)
     if what == "data":
         return _read_data(path, output, dataset)
     block = _read_dysonsphere_block(path)
@@ -1058,7 +1092,7 @@ def read(
     if what == "statistics":
         return block.get("statistics", [])
     if what != "report":
-        raise ValueError(f"what must be 'report', 'statistics', 'metadata', or 'data', got {what!r}")
+        raise ValueError(f"what must be 'report', 'statistics', 'metadata', 'description', or 'data', got {what!r}")
     report = block.get("report")  # {section: text} container
     if report:
         text = "\n\n".join(report.values())

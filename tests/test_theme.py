@@ -42,6 +42,25 @@ with alt.theme.enable("none", config={"background": "white"}):
 """
         subprocess.run([sys.executable, "-c", code], check=True)
 
+    def test_serialization_before_theme_uses_defaults_without_initializing(self, tmp_path):
+        (tmp_path / "dysonsphere.toml").write_text("[default]\nfontSize = 0\n", encoding="utf-8")
+        code = """
+import altair as alt
+import dysonsphere as ds
+options = dict(alt.theme.options)
+colors = dict(ds.palettes.colors)
+chart = alt.Chart(alt.Data(values=[{"x": 1}])).mark_point().encode(x="x:Q")
+spec = chart.to_dict()
+assert spec["config"]["view"]["continuousWidth"] == 100
+assert spec["config"]["axis"]["labelFontSize"] == 6
+assert spec["config"]["point"]["size"] == 5
+assert spec["config"]["scale"]["continuousPadding"] == 5
+assert alt.theme.options == options
+assert ds.palettes.colors == colors
+assert ds.is_theme_initialized() is False
+"""
+        subprocess.run([sys.executable, "-c", code], check=True, cwd=tmp_path)
+
     @pytest.mark.parametrize("options", [{}, {"fontSize": 8, "width": 120, "markFill": "red"}])
     def test_successful_theme_initializes_without_query_resetting_settings(self, options, monkeypatch):
         monkeypatch.setattr(alt.theme, "options", {})
