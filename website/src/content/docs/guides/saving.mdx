@@ -67,8 +67,12 @@ its dataframe still requires JSON.
 ### Fonts
 
 SVG fonts are referenced by name rather than embedded, so the viewing system uses the named font or an
-available fallback. PNG and TIFF rasterize the glyphs at export time. Set `theme(font="...")` to request another installed family. SVG exports use
-the PostScript name `HelveticaNeue` for Adobe Illustrator.
+available fallback. PNG and TIFF rasterize the glyphs at export time. Set `theme(font="...")` to request
+another installed family.
+
+Saved SVGs use the PostScript name `HelveticaNeue` for Adobe Illustrator. PNG and TIFF use the
+corrected SVG before that font-name rewrite, keeping the original CSS family stack so vl-convert
+can select `Helvetica Neue` when installed. All geometry and typography corrections still apply.
 
 In `show()` and static SVG/PNG/TIFF output, the default `theme(fontGreek="Symbol")` switches only
 Unicode Greek letters to the named font. The text stays unchanged; Latin letters, numbers,

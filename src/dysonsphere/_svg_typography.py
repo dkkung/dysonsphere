@@ -345,11 +345,11 @@ def _illustrator_font_family(value: str) -> str:
 def _fix_font_for_illustrator(root: ET.Element) -> None:
     """Rewrite every ``font-family`` in the SVG to an Illustrator-resolvable form.
 
-    SVG-only (runs in the shared corrected-SVG pipeline, never on the spec) so the theme option, the
-    JSON, and the browser-targeted HTML keep the original CSS fallback stack - only the
-    Illustrator-targeted SVG is rewritten. See :func:`_illustrator_font_family` for the
-    selection rule. Italic statistical-symbol tspans inherit their parent's ``font-family``
-    and therefore use its rewritten value too.
+    Never modifies the spec, so the theme option, JSON, and browser-targeted HTML retain the
+    original CSS fallback stack. Raster export skips this rewrite because vl-convert resolves
+    CSS family names rather than Illustrator's PostScript aliases.
+    See :func:`_illustrator_font_family` for the selection rule.
+    Italic statistical-symbol tspans inherit their parent's ``font-family`` and therefore use its rewritten value too.
     """
     for el in root.iter():
         ff = el.get("font-family")
