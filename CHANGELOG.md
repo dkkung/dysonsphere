@@ -6,7 +6,7 @@
 
 - Added TIFF export with LZW compression, RGB/RGBA output, resolution tags, and embedded metadata.
 - Added `palette(..., interpolate=True)` for smooth color tables sampled from existing stops in Oklab.
-- Added `SAVE_FORMATS`, the immutable tuple of supported export format names.
+- Added `export.SAVE_FORMATS`, the immutable tuple of supported export format names.
 
 ### Bug fixes
 

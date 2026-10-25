@@ -23,7 +23,6 @@ import dysonsphere as ds
 # the package namespace, so attribute access would hand back the wrong object.
 _MODULE_NAMES = [
     "annotations",
-    "export",
     "display_labels",
     "marks",
     "assembly",
@@ -42,9 +41,21 @@ class TestPackageNamespace:
 
     def test_package_all_is_union_of_module_alls(self):
         # __init__.__all__ is written out explicitly (self-documenting); this keeps it in
-        # sync with star-imported modules plus namespaces, not their functions.
+        # sync with star-imported modules plus explicitly selected functions and namespaces.
         union = {name for mod in _MODULES for name in mod.__all__}
-        root_only = {"extensions", "load_extension", "metadata", "palette", "palettes", "stats", "transforms"}
+        root_only = {
+            "export",
+            "extensions",
+            "load",
+            "load_extension",
+            "metadata",
+            "palette",
+            "palettes",
+            "save",
+            "show",
+            "stats",
+            "transforms",
+        }
         assert sorted(ds.__all__) == sorted(union | root_only)
 
     @pytest.mark.parametrize(
@@ -99,16 +110,22 @@ class TestPackageNamespace:
             assert name not in ds.__all__
 
     def test_save_formats_is_public_and_immutable(self):
-        assert isinstance(ds.SAVE_FORMATS, tuple)
-        assert ds.SAVE_FORMATS == ("svg", "png", "tiff", "json", "html")
-        assert "SAVE_FORMATS" in ds.__all__
-        assert importlib.import_module("dysonsphere.export").SAVE_FORMATS is ds.SAVE_FORMATS
-        assert importlib.import_module("dysonsphere.theme")._SAVE_FORMATS is ds.SAVE_FORMATS
+        assert isinstance(ds.export, ModuleType)
+        assert ds.export is importlib.import_module("dysonsphere.export")
+        assert "export" in ds.__all__
+        assert isinstance(ds.export.SAVE_FORMATS, tuple)
+        assert ds.export.SAVE_FORMATS == ("svg", "png", "tiff", "json", "html")
+        assert "SAVE_FORMATS" in ds.export.__all__
+        assert "SAVE_FORMATS" not in ds.__all__
+        assert not hasattr(ds, "SAVE_FORMATS")
+        assert importlib.import_module("dysonsphere.theme")._SAVE_FORMATS is ds.export.SAVE_FORMATS
+        for name in ("save", "show", "load"):
+            assert getattr(ds, name) is getattr(ds.export, name)
         with pytest.raises(TypeError):
-            cast(Any, ds.SAVE_FORMATS)[0] = "pdf"
+            cast(Any, ds.export.SAVE_FORMATS)[0] = "pdf"
 
     def test_every_module_defines_all(self):
-        for mod in [*_MODULES, ds.stats, ds.transforms, ds.metadata, ds.palettes, ds.ext]:
+        for mod in [*_MODULES, ds.export, ds.stats, ds.transforms, ds.metadata, ds.palettes, ds.ext]:
             assert hasattr(mod, "__all__"), f"{mod.__name__} lacks __all__ (would leak its imports)"
 
     def test_internal_utils_are_not_advertised(self):
