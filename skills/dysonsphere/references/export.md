@@ -22,6 +22,8 @@ the output directory for you. Check both `_light`/`_dark` names when requesting 
 SVG plus JSON). If the user does not request formats, use `ds.save(chart, "figure")` rather than
 adding PNG or every supported format. Honor an existing project configuration. Specify `format`
 when the user requests particular deliverables, including PNG when requested.
+For programmatic checks, use the immutable `ds.SAVE_FORMATS` tuple, not private attributes.
+It lists supported names, not active defaults or runtime dependency availability.
 
 If image inspection requires PNG, create a separate temporary preview of the corrected output at
 the library's default raster density. Composite transparent previews against the intended light/dark

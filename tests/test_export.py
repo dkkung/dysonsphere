@@ -30,7 +30,7 @@ from dysonsphere._svg_typography import (
     _typeset_scripts,
 )
 from dysonsphere.annotations import _rule_cap_marker
-from dysonsphere.export import save
+from dysonsphere.export import SAVE_FORMATS, save
 from dysonsphere.theme import theme
 from dysonsphere.utils import _apply_spec_fixes, _suppress_nice
 
@@ -362,6 +362,17 @@ def simple_chart():
 
 
 class TestSave:
+    def test_public_save_formats_match_export_and_theme(self, simple_chart, tmp_path):
+        theme(saveFormat=SAVE_FORMATS)
+        save(simple_chart, tmp_path / "explicit", format=list(SAVE_FORMATS))
+        save(simple_chart, tmp_path / "default")
+        assert {path.name for path in tmp_path.iterdir()} == {
+            f"{stem}.{fmt}" for stem in ("explicit", "default") for fmt in SAVE_FORMATS
+        }
+        with pytest.raises(ValueError, match="format must be one of"):
+            save(simple_chart, tmp_path / "invalid", format="pdf")
+        assert not list(tmp_path.glob("invalid.*"))
+
     def test_light_files_created(self, simple_chart, tmp_path):
         # single background → no suffix; request png explicitly (default is svg+json)
         save(simple_chart, str(tmp_path / "out"), format=["svg", "png"], background=["light"])

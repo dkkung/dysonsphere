@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from IPython.display import HTML
 
 from . import ext, metadata
+from ._formats import SAVE_FORMATS
 from ._svg_geometry import (
     _align_figure_labels,
     _align_grid_to_content,
@@ -37,12 +38,11 @@ from .theme import _opt
 from .utils import _apply_spec_fixes, _json_safe
 
 # Public names re-exported by dysonsphere.
-__all__ = ["save", "show", "load"]
+__all__ = ["SAVE_FORMATS", "save", "show", "load"]
 
 _AltairChart = ext.AltairChart
 
 
-_VALID_FORMATS = ("svg", "png", "tiff", "json", "html")
 _VALID_BACKGROUNDS = ("light", "dark")
 
 
@@ -167,6 +167,9 @@ def save(
         Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled
         in), as a single string or a list. ``None`` (default) uses the theme option
         ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
+        ``dysonsphere.SAVE_FORMATS`` is the immutable tuple of accepted format names,
+        shared with theme validation. It lists supported names, not runtime dependency
+        availability or the active default formats.
 
         ``"tiff"`` writes an 8-bit RGB or RGBA publication figure with lossless LZW
         compression, using the corrected PNG pixels without resampling. Pillow with
@@ -267,7 +270,7 @@ def save(
         raise RuntimeError("ds.theme() must be called before ds.save().")
 
     # Validate format and background before resolving charts.
-    _formats = _resolve_choice(format, _opt("saveFormat"), _VALID_FORMATS, "format")
+    _formats = _resolve_choice(format, _opt("saveFormat"), SAVE_FORMATS, "format")
     _backgrounds = _resolve_choice(background, _opt("saveBackground"), _VALID_BACKGROUNDS, "background")
     if "tiff" in _formats:
         try:

@@ -7,6 +7,7 @@ from typing import Any, Literal, Sequence
 
 import altair as alt
 
+from ._formats import SAVE_FORMATS as _SAVE_FORMATS
 from .palettes import _DEFAULT_QUALITATIVE_PALETTE, _PALETTE_ALIASES, colors
 
 # Public names re-exported by dysonsphere.
@@ -358,7 +359,7 @@ def _validate_options(p: dict[str, Any]) -> None:
         if value is not None and not isinstance(value, str):
             if not isinstance(value, list) or not value or not all(isinstance(item, str) and item for item in value):
                 raise TypeError(f"{key} must be a name, a non-empty list of color strings, or None; got {value!r}")
-    _resolve_choice(p["saveFormat"], ("svg", "png", "tiff", "json", "html"), "saveFormat")
+    _resolve_choice(p["saveFormat"], _SAVE_FORMATS, "saveFormat")
     _resolve_choice(p["saveBackground"], ("light", "dark"), "saveBackground")
 
 

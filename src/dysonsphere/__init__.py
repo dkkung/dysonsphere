@@ -14,6 +14,7 @@ from .theme import *  # noqa: F403
 
 # Limit names exported by package-level star imports to this explicit list.
 __all__ = [
+    "SAVE_FORMATS",
     "add_log_ticks",
     "add_multilabel",
     "add_pow_ticks",
