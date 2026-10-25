@@ -167,7 +167,7 @@ export function getRuntime(): Promise<DsRuntime> {
 		pyodide.globals.set('_dysonsphere_install_target', DYSONSPHERE_INSTALL_TARGET);
 		await pyodide.runPythonAsync(`
 import micropip
-await micropip.install(["altair", "numpy", "polars", "pyarrow", "scipy", "vega-datasets"])
+await micropip.install(["altair", "numpy", "pillow", "polars", "pyarrow", "scipy", "vega-datasets"])
 await micropip.install(_dysonsphere_install_target, deps=False)
 `);
 		pyodide.globals.delete('_dysonsphere_install_target');

@@ -1,6 +1,10 @@
 # Changelog
 
-## [4.0.1] - Unreleased
+## Unreleased
+
+### New features
+
+- Added TIFF export with LZW compression, RGB/RGBA output, resolution tags, and embedded metadata.
 
 ### Bug fixes
 

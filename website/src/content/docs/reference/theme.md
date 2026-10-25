@@ -89,10 +89,10 @@ def theme(
 
 Configure and register the dysonsphere Altair theme.
 
-Every styling option is keyword-only. Omitted options inherit the applicable TOML/default/style value;
-a successful call replaces, rather than updates, the active theme. Explicit ``None`` retains its
-documented meaning for auto-derived fills, frame state, offsets, and mark dimensions.
-``style`` remains an optional positional primary input; every styling option is keyword-only.
+``style`` is an optional positional argument; all styling options are keyword-only. Omitted
+options inherit the applicable TOML/default/style value; a successful call replaces, rather
+than updates, the active theme. Explicit ``None`` retains its documented meaning for
+auto-derived fills, frame state, offsets, and mark dimensions.
 Runtime introspection displays ``<omitted>`` for omitted styling defaults; generated source
 signatures may show the private ``_UNSET`` marker. Neither is a value callers pass.
 
@@ -129,7 +129,7 @@ the categorical range defaults to ``cat1`` in light mode and ``cat2`` in dark mo
 heatmap, ordinal, and ramp default to ``div1``, ``viridis``, ``greys``, and ``viridis`` in light
 mode and ``div2``, ``viridis``, ``greys``, and ``viridis`` in dark mode. The master
 ``palette`` remains None by default and overrides every per-type palette, including dark-mode
-overrides, after source precedence is resolved. ``saveFormat`` accepts svg/png/json/html and
+overrides, after source precedence is resolved. ``saveFormat`` accepts svg/png/tiff/json/html and
 ``saveBackground`` accepts light/dark as a string or nonempty sequence. See the [configuration
 guide](/guides/configuration/) for the complete per-option defaults and scopes.
 

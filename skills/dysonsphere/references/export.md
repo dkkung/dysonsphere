@@ -13,6 +13,7 @@ the output directory for you. Check both `_light`/`_dark` names when requesting 
 | --- | --- |
 | Editable static figure | `format="svg"` through `ds.save()` |
 | Raster figure or inspectable preview | `format="png"` at the default export density |
+| Lossless publication TIFF | `format="tiff"`; use `transparent=False` for opaque RGB |
 | Reconstructable chart and inlined data | `format="json"` |
 | Browser interaction | `format="html"`; not equivalent to corrected static rendering |
 | Accurate notebook preview | `ds.show(chart)`; requires IPython and a compatible display |
@@ -29,14 +30,21 @@ Do not change the example's deliverable formats or add an
 unrequested PNG to the final output set just to satisfy the inspection tool. There is no direct
 PDF format in this API; do not invent one or claim an external conversion has been verified.
 
-SVG/PNG and `show()` use Dysonsphere's corrected static processing. Bare Altair display bypasses it;
+SVG/PNG/TIFF and `show()` use Dysonsphere's corrected static processing. Bare Altair display bypasses it;
 continuous legend sizing markers can even make that display fail. HTML saved with `ds.save()` resolves
 shared specification fixes but does not apply static corrections such as script typography, inward
 ticks, and rule-cap decorations. Inspect the output tier the user actually requested.
 
+TIFF uses the corrected PNG pixels without resampling, LZW compression, and resolution tags set
+from `ppi` in inches. Pillow with libtiff is required. `transparent=False` writes RGB;
+`transparent=True` writes RGBA. RGB requires an opaque rendered background, including any custom
+chart background. This is an 8-bit publication figure, not raw microscopy data or OME-TIFF.
+TIFF's `ImageDescription` contains an ASCII-escaped JSON envelope with `dysonsphere` metadata and
+reports, plus the user's independent `description`. Reading restores Unicode text exactly.
+
 ## Rebuild for light and dark
 
-`background` selects the logical theme variant; `transparent` selects whether the saved SVG/PNG
+`background` selects the logical theme variant; `transparent` selects whether the saved SVG/PNG/TIFF
 includes its background fill. Static output is transparent by default. A transparent dark figure
 can look blank on a white viewer canvas; preview against the intended background before recoloring it.
 
@@ -83,7 +91,7 @@ match the requested mode.
 ## Troubleshoot at the right level
 
 - **Unknown keyword or missing attribute:** check the executing environment's versions, installed
-  signature, and docstring. These examples use Dysonsphere 4.0.0; do not import core private helpers or add
+  signature, and docstring. These examples use Dysonsphere 4.1.0; do not import core private helpers or add
   compatibility code to make a guessed name work.
 - **Large data:** `ds.save()` and `ds.show()` allow any number of rows by default, and every output
   still resolves inlined data during processing. Assess memory, output-size, and privacy implications;
@@ -97,7 +105,7 @@ match the requested mode.
   composition scopes. A parent `.encode()` may not reach a composite mark's internal scales.
   Compare two or more rendered tick values, then inspect the compiled saved spec if needed.
   Use the explicit native-layer recipe in the plotting reference rather than shifting ticks by hand.
-- **Unexpected font/typography:** verify installed fonts and inspect corrected SVG/PNG, not just
+- **Unexpected font/typography:** verify installed fonts and inspect corrected SVG/PNG/TIFF, not just
   browser HTML. Named fonts are not embedded; do not claim portability to a machine without them.
 
 ## Privacy and reproducibility
@@ -117,9 +125,9 @@ ordinary analyses or promise reproducibility across renderer/font changes.
 
 Use only the capability the format supports:
 
-- `ds.metadata.read(path, what="metadata")` returns the metadata block from SVG, PNG, or JSON.
+- `ds.metadata.read(path, what="metadata")` returns the metadata block from SVG, PNG, TIFF (`.tiff`/`.tif`), or JSON.
   `what="statistics"` returns structured records; `what="report"` prints and returns report text.
-- `ds.metadata.read("figure.json", what="data")` recovers inlined data from JSON, not SVG/PNG.
+- `ds.metadata.read("figure.json", what="data")` recovers inlined data from JSON, not SVG/PNG/TIFF.
   With several user datasets, request `dataset="all"` or the appropriate dataset name. The recovered
   frame may contain transform-derived columns; do not call it a byte-identical source file.
 - `ds.load("figure.json")` reconstructs a chart and by default applies the saved theme. It can

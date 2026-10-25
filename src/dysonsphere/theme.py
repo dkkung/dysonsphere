@@ -358,7 +358,7 @@ def _validate_options(p: dict[str, Any]) -> None:
         if value is not None and not isinstance(value, str):
             if not isinstance(value, list) or not value or not all(isinstance(item, str) and item for item in value):
                 raise TypeError(f"{key} must be a name, a non-empty list of color strings, or None; got {value!r}")
-    _resolve_choice(p["saveFormat"], ("svg", "png", "json", "html"), "saveFormat")
+    _resolve_choice(p["saveFormat"], ("svg", "png", "tiff", "json", "html"), "saveFormat")
     _resolve_choice(p["saveBackground"], ("light", "dark"), "saveBackground")
 
 
@@ -480,7 +480,7 @@ def theme(
     heatmap, ordinal, and ramp default to ``div1``, ``viridis``, ``greys``, and ``viridis`` in light
     mode and ``div2``, ``viridis``, ``greys``, and ``viridis`` in dark mode. The master
     ``palette`` remains None by default and overrides every per-type palette, including dark-mode
-    overrides, after source precedence is resolved. ``saveFormat`` accepts svg/png/json/html and
+    overrides, after source precedence is resolved. ``saveFormat`` accepts svg/png/tiff/json/html and
     ``saveBackground`` accepts light/dark as a string or nonempty sequence. See the [configuration
     guide](/guides/configuration/) for the complete per-option defaults and scopes.
 

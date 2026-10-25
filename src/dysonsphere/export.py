@@ -8,6 +8,7 @@ import uuid
 import xml.etree.ElementTree as ET
 from contextlib import ExitStack
 from copy import deepcopy
+from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Literal, cast, overload
 
@@ -41,7 +42,7 @@ __all__ = ["save", "show", "load"]
 _AltairChart = ext.AltairChart
 
 
-_VALID_FORMATS = ("svg", "png", "json", "html")
+_VALID_FORMATS = ("svg", "png", "tiff", "json", "html")
 _VALID_BACKGROUNDS = ("light", "dark")
 
 
@@ -109,7 +110,7 @@ def save(
     """
     Save a chart in one or more formats and background variants.
 
-    Which files are written is controlled by ``format`` (``"svg"``/``"png"``/``"json"``)
+    Which files are written is controlled by ``format`` (``"svg"``/``"png"``/``"tiff"``/``"json"``/``"html"``)
     and ``background`` (``"light"``/``"dark"``), each defaulting to the theme options
     ``saveFormat`` / ``saveBackground``. A background suffix (``_light`` / ``_dark``) is
     added only when multiple backgrounds are rendered – a single-background export
@@ -123,9 +124,9 @@ def save(
     Each background toggles ``darkmode`` for its render, restoring the original after.
 
     Point labels are placed once per background against the complete composed panel before writing
-    any format, so JSON, HTML, SVG, and PNG start with the same obstacle-aware layout.
+    any format, so JSON, HTML, SVG, PNG, and TIFF start with the same obstacle-aware layout.
 
-    Labels are typeset on export (SVG/PNG): a ``^`` marks a superscript (``"x^2"``, ``"10^3"``)
+    Labels are typeset on export (SVG/PNG/TIFF): a ``^`` marks a superscript (``"x^2"``, ``"10^3"``)
     and a double underscore marks a subscript (``"C__t"`` -> C with a subscript t; single ``_`` is
     left alone so snake_case column names used as default titles are not mangled). Unicode
     super/subscripts you type (``"H₂O"``, ``"t₀"``) and log/p-value exponents are normalized to
@@ -147,38 +148,47 @@ def save(
         ``"plots/myplot"``). A bare name saves to the current working
         directory, matching Altair's default behavior.
     ppi:
-        Pixel density for PNG output.
+        Pixel density for PNG and TIFF output. TIFF records this value directly in its
+        horizontal and vertical resolution tags, in pixels per inch.
     description:
         Optional text stored verbatim in the Vega-Lite JSON spec's ``description`` field,
-        the SVG ``<desc>`` element, and the PNG ``iTXt Description`` chunk. It is independent
-        of ``saveMetadata``.
+        the SVG ``<desc>`` element, and the PNG ``iTXt Description`` chunk. TIFF stores it
+        in the ``description`` field of its JSON ``ImageDescription`` envelope. It is
+        independent of ``saveMetadata``.
     format:
-        Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw
+        Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"tiff"``, ``"json"`` (the raw
         Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled
         in), as a single string or a list. ``None`` (default) uses the theme option
         ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
+
+        ``"tiff"`` writes an 8-bit RGB or RGBA publication figure with lossless LZW
+        compression, using the corrected PNG pixels without resampling. Pillow with
+        libtiff support is required and checked before any files are written.
 
         ``"html"`` renders an interactive chart in the browser using Vega. It uses the theme,
         includes metadata when ``saveMetadata`` is enabled, and retains exact tick positions from
         the theme configuration.
         It does not receive Dysonsphere's static SVG processing, including superscript typesetting
         and Illustrator-specific flattening.
-        ``tickDirection="in"`` is not applied to HTML. Static SVG/PNG rendering reverses the
+        ``tickDirection="in"`` is not applied to HTML. Static SVG/PNG/TIFF rendering reverses the
         rendered SVG tick-line geometry; HTML does not use this SVG correction. Negative
         ``tickSize`` values also produce inconsistent axis-label layout across browser Vega builds,
-        so HTML leaves ticks outward. Use ``"svg"`` or ``"png"`` for static output with SVG
+        so HTML leaves ticks outward. Use ``"svg"``, ``"png"``, or ``"tiff"`` for static output with SVG
         post-processing.
     background:
         Which background variant(s) to render: ``"light"`` and/or ``"dark"`` (each toggles
         ``darkmode``), as a single string or a list. ``None`` (default) uses the theme
         option ``saveBackground`` (``"light"``). An empty list or unknown value raises.
     transparent:
-        Whether SVG/PNG rendering requests a transparent background. ``True`` (default)
+        Whether SVG/PNG/TIFF rendering requests a transparent background. ``True`` (default)
         requests transparency unless the chart specifies its own background. ``False`` fills
         an unset background with the theme's ``chartFill`` (white in light mode, black in dark
         mode, unless set explicitly).
-        This applies to SVG/PNG rendering only; the JSON and HTML keep the chart's
-        logical background (the theme option ``transparent``).
+        This applies to SVG/PNG/TIFF rendering only; the JSON and HTML keep the chart's
+        logical background (the theme option ``transparent``). TIFF uses RGB when this
+        is ``False`` and RGBA when ``True``. An explicitly transparent or translucent
+        chart background is incompatible with RGB TIFF; use an opaque background or
+        ``transparent=True`` rather than silently dropping alpha.
     maxRows:
         Optional row cap for each dataframe processed during export. ``None`` (default)
         removes Altair's standard 5000-row cap. Set an integer to reject larger data sources
@@ -202,7 +212,9 @@ def save(
 
         It lands in the Vega-Lite JSON under ``usermeta.dysonsphere`` (merged into any
         ``usermeta`` already on the chart), the SVG ``<metadata id="dysonsphere">`` element
-        (CDATA), and the PNG ``iTXt dysonsphere`` chunk.
+        (CDATA), the PNG ``iTXt dysonsphere`` chunk, and the ``dysonsphere`` member of
+        TIFF's JSON ``ImageDescription`` envelope (tag 270). TIFF uses ASCII-escaped
+        JSON so Unicode descriptions and reports are retained exactly.
 
         ``saveMetadata=False`` suppresses the structured block entirely. The ``description``,
         if supplied, is still written.
@@ -218,7 +230,8 @@ def save(
         If ``True`` (default) and ``saveMetadata`` is on, also embeds the human-readable
         report table (the descriptive and effect-size text from ``stats.comparisons`` /
         ``stats.correlation``) as a ``report``
-        member of ``usermeta.dysonsphere`` in the JSON, and as a dedicated readable
+        member of ``usermeta.dysonsphere`` in the JSON and of the ``dysonsphere`` block
+        in TIFF's JSON envelope, and as a dedicated readable
         channel (real newlines, not escaped JSON) in the SVG
         (``<metadata id="dysonsphere-report">``) and PNG (``iTXt dysonsphere-report``).
         It never touches ``description`` (your text only). Set ``False`` to keep just the
@@ -249,6 +262,13 @@ def save(
     # Validate format and background before resolving charts.
     _formats = _resolve_choice(format, _opt("saveFormat"), _VALID_FORMATS, "format")
     _backgrounds = _resolve_choice(background, _opt("saveBackground"), _VALID_BACKGROUNDS, "background")
+    if "tiff" in _formats:
+        try:
+            from PIL import Image, features
+        except ImportError as e:
+            raise RuntimeError("TIFF export requires Pillow. Install Dysonsphere's dependencies.") from e
+        if not features.check("libtiff"):
+            raise RuntimeError("TIFF export requires Pillow built with libtiff support for LZW compression.")
 
     # Select records by markers on the resolved chart without removing them from the registry.
     # Variants share a timestamp and export identifier but have separate checksums.
@@ -271,7 +291,7 @@ def save(
     def _path(bg: str, ext: str) -> str:
         return str(out.parent / f"{out.name}{'_' + bg if multi else ''}.{ext}")
 
-    _want_render = "svg" in _formats or "png" in _formats
+    _want_render = any(fmt in _formats for fmt in ("svg", "png", "tiff"))
     original_darkmode = _opt("darkmode")
     original_transparent = _opt("transparent")
     # Pin the default transformer because the export pipeline needs a Vega-Lite specification.
@@ -343,7 +363,6 @@ def save(
 
             if _want_render:
                 alt.theme.options["transparent"] = transparent
-                svg_path = _path(bg, "svg")
                 # Reuse the computed layout for all formats; callable charts are built once per
                 # background.
                 render_spec = deepcopy(original_spec)
@@ -354,19 +373,43 @@ def save(
                     render_spec["background"] = physical_spec["background"]
                 else:
                     render_spec.pop("background", None)
-                svg_content = _render_fixed_svg(base_obj, svg_path, resolved_spec=render_spec)
-                # Inject the metadata channels + user <desc> after the opening <svg> tag.  A
-                # lambda replacement keeps backslashes/braces in the JSON literal (not regex).
+                # Intermediate SVGs must not overwrite an existing, unrequested output file.
+                with tempfile.TemporaryDirectory() as d:
+                    svg_content = _render_fixed_svg(base_obj, str(Path(d) / "render.svg"), resolved_spec=render_spec)
+                # A lambda replacement keeps backslashes/braces in the JSON literal (not regex).
                 _inserts = metadata._svg_inserts(_usermeta_json, _report_sections, description)
                 if _inserts:
                     svg_content = re.sub(r"(<svg[^>]*>)", lambda m: m.group(1) + _inserts, svg_content, count=1)
-                    Path(svg_path).write_text(svg_content, encoding="utf-8")
-                if "png" in _formats:
+                if "svg" in _formats:
+                    Path(_path(bg, "svg")).write_text(svg_content, encoding="utf-8")
+                if "png" in _formats or "tiff" in _formats:
                     png_bytes = vlc.svg_to_png(svg_content, ppi=ppi)
-                    png_bytes = metadata._inject_png_block(png_bytes, _usermeta_json, _report_sections, description)
-                    Path(_path(bg, "png")).write_bytes(png_bytes)
-                if "svg" not in _formats:
-                    Path(svg_path).unlink()  # transient – only rendered as the PNG source
+                    if "png" in _formats:
+                        annotated_png = metadata._inject_png_block(
+                            png_bytes, _usermeta_json, _report_sections, description
+                        )
+                        Path(_path(bg, "png")).write_bytes(annotated_png)
+                    if "tiff" in _formats:
+                        envelope = dict(_usermeta or {})
+                        if description is not None:
+                            envelope["description"] = description
+                        # TIFF ASCII tags need escaped JSON to retain Unicode text exactly.
+                        tags = {270: json.dumps(envelope, ensure_ascii=True)} if envelope else {}
+                        with Image.open(BytesIO(png_bytes)) as raster:
+                            if not transparent and "A" in raster.getbands():
+                                if raster.getchannel("A").getextrema()[0] != 255:
+                                    raise ValueError(
+                                        "RGB TIFF output needs an opaque rendered background. "
+                                        "Use an opaque chart background or transparent=True."
+                                    )
+                            with raster.convert("RGBA" if transparent else "RGB") as converted:
+                                converted.save(
+                                    _path(bg, "tiff"),
+                                    format="TIFF",
+                                    compression="tiff_lzw",
+                                    dpi=(ppi, ppi),
+                                    tiffinfo=tags,
+                                )
     except alt.MaxRowsError as e:
         raise ValueError(
             f"the chart has a data source with more than maxRows={maxRows} rows. "

@@ -31,7 +31,7 @@ _PROV_ORDER = [
     "exportIdentifier",
     "dataChecksum",
 ]
-_ENV_ORDER = ["os", "python", "altair", "vl_convert", "dysonsphere", "numpy", "scipy", "polars"]
+_ENV_ORDER = ["os", "python", "altair", "vl_convert", "dysonsphere", "numpy", "scipy", "polars", "pillow"]
 
 
 @pytest.fixture(autouse=True)
