@@ -99,9 +99,9 @@ def test_skill_frontmatter_uses_bounded_standard_fields(portable_skill):
             break
     compatibility = " ".join(compatibility_lines)
     assert 1 <= len(compatibility) <= 500
-    assert "Python 3.11+" in compatibility and "Dysonsphere 4.0.0" in compatibility
+    assert "Python 3.11+" in compatibility and "Dysonsphere 4.1.0" in compatibility
     metadata_index = frontmatter.index("metadata:")
-    assert frontmatter[metadata_index + 1 :] == ['  dysonsphere: "4.0.0"']
+    assert frontmatter[metadata_index + 1 :] == ['  dysonsphere: "4.1.0"']
 
 
 def test_relative_markdown_links_are_internal_and_resolve(portable_skill):

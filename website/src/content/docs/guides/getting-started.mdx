@@ -24,7 +24,8 @@ Requires Python >= 3.11. The following runtime dependencies install with it:
 - [Polars](https://pola.rs/) >= 1.19 - the native `DataFrame` ([pandas](https://pandas.pydata.org/) input is accepted and converted)
 - [NumPy](https://numpy.org/) >= 1.26 - numeric primitives
 - [SciPy](https://scipy.org/) >= 1.11 - the statistics behind `ds.stats.comparisons()` / `ds.stats.correlation()`
-- [vl-convert](https://github.com/vega/vl-convert) >= 1.9 - the SVG/PNG renderer behind `save()`
+- [vl-convert](https://github.com/vega/vl-convert) >= 1.9 - the corrected SVG/raster renderer behind `save()`
+- [Pillow](https://pillow.readthedocs.io/) >= 10.0 - TIFF export and metadata reading
 
 `pandas` and `duckdb` are optional and are only needed for `read(..., output="pandas"/"duckdb")`.
 

@@ -18,8 +18,8 @@ ds.theme()
 ds.save(chart, "figure")
 ```
 
-By default, this writes `figure.svg` and `figure.json`. Set `format=` to `"svg"`, `"png"`, `"json"`,
-or `"html"`, as a string or list. Set `background=` to `"light"`, `"dark"`, or both. When both
+By default, this writes `figure.svg` and `figure.json`. Set `format=` to `"svg"`, `"png"`, `"tiff"`,
+`"json"`, or `"html"`, as a string or list. Set `background=` to `"light"`, `"dark"`, or both. When both
 backgrounds are exported, filenames use `_light` and `_dark` suffixes; a single background uses the
 base filename.
 
@@ -37,18 +37,40 @@ so exports can composite onto a page. The HTML wrapper displays the SVG against 
 background. This avoids the white image canvas that can make a transparent dark-mode figure
 unreadable.
 
-Static SVG and PNG output receives additional processing: `<g>` wrappers are flattened for
+Static SVG, PNG, and TIFF output receives additional processing: `<g>` wrappers are flattened for
 Illustrator, axis and log/power minor ticks are snapped to exact positions, superscripts are
 realigned, and Latin statistical symbols such as *P* and *n* are italicized. Digits, operators, and
 Greek symbols stay upright.
 
+### TIFF publication figures
+
+```python
+ds.save(chart, "figure", format="tiff", transparent=False)
+```
+
+This writes `figure.tiff` with lossless LZW compression, using the corrected PNG pixels without
+resampling. `ppi` controls raster density (default: 1200) and is stored exactly in TIFF's resolution
+tags, in pixels per inch. Pillow with libtiff support is required; Pillow is installed with Dysonsphere.
+
+`transparent=False` produces RGB using the rendered background; `transparent=True` produces RGBA.
+For journal submissions, request `transparent=False`. An explicitly transparent or translucent
+chart background cannot produce an RGB TIFF; choose an opaque chart background or request RGBA.
+TIFF here is an 8-bit rendered figure, not a raw microscopy-data or OME-TIFF export.
+
+The standard `ImageDescription` tag (270) holds an ASCII-escaped JSON envelope: `dysonsphere`
+contains the metadata and report, and `description` retains the user's description separately.
+Unicode is restored when reading the JSON. `saveMetadata=False` omits the `dysonsphere` member but
+still retains a supplied description; `embedReport=False` omits report text, not structured statistics.
+`ds.metadata.read()` and `verify()` accept `.tiff` and `.tif`; reconstructing a chart or recovering
+its dataframe still requires JSON.
+
 ### Fonts
 
-Fonts are referenced by name rather than embedded, so the viewing system uses the named font or an
-available fallback. Set `theme(font="...")` to request another installed family. SVG exports use
+SVG fonts are referenced by name rather than embedded, so the viewing system uses the named font or an
+available fallback. PNG and TIFF rasterize the glyphs at export time. Set `theme(font="...")` to request another installed family. SVG exports use
 the PostScript name `HelveticaNeue` for Adobe Illustrator.
 
-In `show()` and static SVG/PNG output, the default `theme(fontGreek="Symbol")` switches only
+In `show()` and static SVG/PNG/TIFF output, the default `theme(fontGreek="Symbol")` switches only
 Unicode Greek letters to the named font. The text stays unchanged; Latin letters, numbers,
 punctuation, operators, the micro sign (`µ`), and explicit italic runs keep their styling.
 
@@ -62,7 +84,7 @@ compliance.
 ## Embedded metadata
 
 When `saveMetadata=True` (the default), `save()` writes a `dysonsphere` metadata block into every
-output format: JSON, SVG, PNG, and HTML.
+output format: JSON, SVG, PNG, TIFF, and HTML.
 
 - **provenance** - the user, time, chart expression when available, rendering environment, and
   checksums for the specification and captured data.
@@ -203,7 +225,7 @@ ds.metadata.read("figure.json", what="metadata")   # the whole dysonsphere block
 ds.metadata.read("figure.json", what="data")       # the original DataFrame
 ```
 
-`ds.metadata.read()` reads metadata and reports from JSON, SVG, and PNG. Use `what="data"` for JSON
+`ds.metadata.read()` reads metadata and reports from JSON, SVG, PNG, and TIFF. Use `what="data"` for JSON
 only; JSON carries the full data. `what="data"` returns the user's frame. Choose its output type
 with `output=` (`"polars"`, `"pandas"`, `"duckdb"`, or `"records"`).
 
@@ -243,7 +265,7 @@ VerifyResult(
 | `matches` / `groups` | filled only when comparing a list - see below |
 | `.ok` | every check that actually ran passed |
 
-Both checks are tri-state: `None` means the check could not run, not that it failed. SVG and PNG
+Both checks are tri-state: `None` means the check could not run, not that it failed. SVG, PNG, and TIFF
 carry checksums but not the full specification, so `specValid` is `None` for those formats while
 `dataMatches` can still be checked. `.ok` treats `None` as "not a failure." Neither row order nor
 the order of dataframes affects the result.

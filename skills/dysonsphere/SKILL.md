@@ -7,10 +7,10 @@ description: >-
   Do not replace an explicitly requested plotting library with Dysonsphere.
 license: MIT
 compatibility: >-
-  Python 3.11+, Altair 6, and core Dysonsphere 4.0.0. Local Python execution
+  Python 3.11+, Altair 6, and core Dysonsphere 4.1.0. Local Python execution
   is needed to render figures; image inspection is needed for visual verification.
 metadata:
-  dysonsphere: "4.0.0"
+  dysonsphere: "4.1.0"
 ---
 
 # Dysonsphere
@@ -28,7 +28,7 @@ composite marks, annotations, statistics, and corrected exports. This skill cove
    Do not install or upgrade packages, reorganize files, or switch plotting libraries unnecessarily.
    If a required dependency is absent, explain the blocker and use the project's installation policy.
 3. Check the executing interpreter's installed versions with `importlib.metadata.version("dysonsphere")`
-   and `importlib.metadata.version("altair")`. These references target Dysonsphere 4.0.0. If the
+   and `importlib.metadata.version("altair")`. These references target Dysonsphere 4.1.0. If the
    environment differs, confirm relevant signatures with `inspect.signature()` and installed docstrings.
    Do not invent aliases or silently upgrade to match an example.
 4. Inspect only the data needed: schema, row counts, units, category values/order, missing and non-finite
