@@ -29,6 +29,30 @@ class TestLabelExpr:
         assert "datum.value == 'it\\'s' ? '5\\' UTR'" in expr
         assert "'back\\\\slash'" in expr
 
+    @pytest.mark.parametrize(
+        "character,escaped",
+        [("\n", r"\n"), ("\r", r"\r"), ("\u2028", r"\u2028"), ("\u2029", r"\u2029")],
+    )
+    def test_line_terminators_are_escaped_in_keys_and_labels(self, character, escaped):
+        expr = label_expr({f"raw{character}key": [f"first{character}line", "second"]})
+        assert character not in expr
+        assert f"raw{escaped}key" in expr
+        assert f"first{escaped}line" in expr
+
+    @pytest.mark.parametrize("character", ["\n", "\r", "\u2028", "\u2029"])
+    def test_line_terminators_survive_export(self, tmp_path, character):
+        from dysonsphere.export import save
+        from dysonsphere.metadata import read
+
+        raw = f"raw{character}key"
+        data = pl.DataFrame({"g": [raw, "other"], "v": [1.0, 2.0]})
+        expr = label_expr({raw: f"Alpha{character}Beta"})
+        chart = alt.Chart(data).mark_point().encode(x=alt.X("g:N", axis=alt.Axis(labelExpr=expr)), y="v:Q")
+        save(chart, tmp_path / "escaped", format=["svg", "json"], background="light")
+        svg = (tmp_path / "escaped.svg").read_text()
+        assert "Alpha" in svg and "Beta" in svg
+        assert read(tmp_path / "escaped.json", what="data").equals(data)
+
     def test_multiline_label_renders_array(self):
         expr = label_expr({"tnf": ["TNF-α", "(10 ng/mL)"]})
         assert "? ['TNF-α', '(10 ng/mL)']" in expr

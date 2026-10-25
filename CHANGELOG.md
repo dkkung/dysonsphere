@@ -6,6 +6,7 @@
 
 - P-values below 1 that would round to 1 now display a precision-aware bound, such as `P > 0.999`.
 - Strip and violin plots now handle punctuation in column names without renaming exported data.
+- Display-label mappings now escape line breaks safely.
 
 ## [4.0.0] - 2026-09-26
 
