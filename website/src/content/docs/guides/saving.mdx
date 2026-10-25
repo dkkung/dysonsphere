@@ -23,7 +23,7 @@ By default, this writes `figure.svg` and `figure.json`. Set `format=` to `"svg"`
 backgrounds are exported, filenames use `_light` and `_dark` suffixes; a single background uses the
 base filename.
 
-For programmatic format checks, use `ds.SAVE_FORMATS`: the immutable tuple
+For programmatic format checks, use `ds.export.SAVE_FORMATS`: the immutable tuple
 `("svg", "png", "tiff", "json", "html")`. It is shared by `save()` and `theme(saveFormat=...)`
 validation. It lists supported names, not the active defaults or whether rendering dependencies
 are available in the current environment.

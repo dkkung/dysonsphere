@@ -167,7 +167,7 @@ def save(
         Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled
         in), as a single string or a list. ``None`` (default) uses the theme option
         ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises.
-        ``dysonsphere.SAVE_FORMATS`` is the immutable tuple of accepted format names,
+        ``dysonsphere.export.SAVE_FORMATS`` is the immutable tuple of accepted format names,
         shared with theme validation. It lists supported names, not runtime dependency
         availability or the active default formats.
 

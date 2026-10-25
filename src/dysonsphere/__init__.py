@@ -1,9 +1,9 @@
 # Expose support modules without importing their contents into the root namespace.
-from . import ext, metadata, palettes, stats, transforms  # noqa: F401
+from . import export, ext, metadata, palettes, stats, transforms  # noqa: F401
 from .annotations import *  # noqa: F403
 from .assembly import *  # noqa: F403
 from .display_labels import *  # noqa: F403
-from .export import *  # noqa: F403
+from .export import load, save, show
 from .ext import extensions, load_extension
 from .marks import *  # noqa: F403
 from .multilabel import *  # noqa: F403
@@ -14,12 +14,12 @@ from .theme import *  # noqa: F403
 
 # Limit names exported by package-level star imports to this explicit list.
 __all__ = [
-    "SAVE_FORMATS",
     "add_log_ticks",
     "add_multilabel",
     "add_pow_ticks",
     "assemble",
     "create_config",
+    "export",
     "extensions",
     "label_expr",
     "labels",

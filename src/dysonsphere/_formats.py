@@ -1,4 +1,4 @@
-"""Shared export choices, exposed publicly as dysonsphere.SAVE_FORMATS."""
+"""Shared export choices, exposed publicly as dysonsphere.export.SAVE_FORMATS."""
 
 from typing import Final
 
