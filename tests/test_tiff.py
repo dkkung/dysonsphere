@@ -139,9 +139,10 @@ def test_tiff_reproducible(chart, tmp_path, monkeypatch, transparent):
 
 
 def test_reader_accepts_tif_extension(chart, tmp_path):
-    ds.save(chart, tmp_path / "figure", format="tiff")
+    ds.save(chart, tmp_path / "figure", format="tiff", description="TIFF caption")
     (tmp_path / "figure.tiff").rename(tmp_path / "figure.tif")
     assert ds.metadata.read(tmp_path / "figure.tif", what="metadata")["provenance"]
+    assert ds.metadata.read(tmp_path / "figure.tif", what="description") == "TIFF caption"
 
 
 def test_reader_rejects_tiff_without_dysonsphere_metadata(tmp_path):

@@ -64,6 +64,8 @@ extra columns to make a strict schema check pass. Select columns separately when
   intended style/configuration. Theme settings apply to the figure, not independently to each subchart.
 - In reusable code, use `if not ds.is_theme_initialized(): ds.theme()` to apply defaults without
   replacing the caller's settings. The check returns a boolean and does not initialize or change settings.
+  Bare Altair serialization before initialization uses built-in defaults only, without reading config files;
+  call `ds.theme()` before `ds.save()`.
 - `ds.theme(palette=...)` sets the master palette and overrides every palette role. For a specific
   use, set a per-type option such as `categoryPalette`, `divergingPalette`, `heatmapPalette`,
   `ordinalPalette`, or `rampPalette`; their `*Darkmode` counterparts apply only in dark mode. Without

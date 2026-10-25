@@ -483,6 +483,31 @@ class TestCallExpression:
         assert "chart" not in prov
 
 
+class TestReadDescription:
+    @pytest.mark.parametrize("description", [None, "", "Caption α & <value>\r\nSecond line 😀"])
+    @pytest.mark.parametrize("save_metadata", [False, True])
+    def test_read_description_across_formats(self, simple_chart, tmp_path, capsys, description, save_metadata):
+        import dysonsphere as ds
+
+        ds.save(
+            simple_chart,
+            tmp_path / "description",
+            format=["svg", "png", "tiff", "json"],
+            background="light",
+            description=description,
+            saveMetadata=save_metadata,
+        )
+        for suffix in ("svg", "png", "tiff", "json"):
+            path = tmp_path / f"description.{suffix}"
+            assert ds.metadata.read(path, what="description") == description
+            if not save_metadata:
+                with pytest.raises(ValueError, match="no dysonsphere metadata"):
+                    ds.metadata.read(path, what="metadata")
+                with pytest.raises(ValueError, match="no dysonsphere metadata"):
+                    ds.metadata.verify(path)
+        assert capsys.readouterr().out == ""
+
+
 class TestReadLoad:
     @pytest.fixture
     def saved(self, tmp_path):
@@ -568,12 +593,13 @@ class TestReadLoad:
         with pytest.raises(ValueError, match="what must be"):
             ds.metadata.read(str(saved / "t.json"), what="bogus")
 
-    def test_read_unsupported_extension_raises(self, tmp_path):
+    @pytest.mark.parametrize("what", ["report", "description"])
+    def test_read_unsupported_extension_raises(self, tmp_path, what):
         import dysonsphere as ds
 
         (tmp_path / "x.txt").write_text("hi")
         with pytest.raises(ValueError, match="supports .png"):
-            ds.metadata.read(str(tmp_path / "x.txt"))
+            ds.metadata.read(str(tmp_path / "x.txt"), what=what)
 
     def test_load_returns_composable_object(self, saved):
         import dysonsphere as ds

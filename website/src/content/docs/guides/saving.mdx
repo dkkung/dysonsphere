@@ -231,12 +231,19 @@ and error bars. Data absent from the specification cannot be recovered.
 ds.metadata.read("figure.json")                    # the human-readable report (default)
 ds.metadata.read("figure.json", what="statistics") # structured records (list of dicts)
 ds.metadata.read("figure.json", what="metadata")   # the whole dysonsphere block (shown above)
+ds.metadata.read("figure.png", what="description") # description text, or None when absent
 ds.metadata.read("figure.json", what="data")       # the original DataFrame
 ```
 
 `ds.metadata.read()` reads metadata and reports from JSON, SVG, PNG, and TIFF. Use `what="data"` for JSON
 only; JSON carries the full data. `what="data"` returns the user's frame. Choose its output type
 with `output=` (`"polars"`, `"pandas"`, `"duckdb"`, or `"records"`).
+
+Use `what="description"` to read the user-supplied description from JSON, SVG, PNG, or TIFF
+(`.tiff`/`.tif`), including files saved with `saveMetadata=False`. It returns the text without
+printing it, preserves empty strings, Unicode, and line endings, and returns `None` when no description
+was supplied. This reads text only; it does not verify provenance. Reading structured metadata or
+verifying a file still requires its Dysonsphere metadata block.
 
 ## Verifying a figure
 
