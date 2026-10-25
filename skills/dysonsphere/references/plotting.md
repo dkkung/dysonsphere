@@ -67,10 +67,14 @@ extra columns to make a strict schema check pass. Select columns separately when
   `ordinalPalette`, or `rampPalette`; their `*Darkmode` counterparts apply only in dark mode. Without
   explicit category options, the light/dark category defaults are `cat1`/`cat2`; diverging defaults
   are `div1`/`div2`, and heatmap/ramp/ordinal defaults are `viridis`/`viridis`/`greys` in both modes.
-- `ds.palette("YlGnBu", n=3)` samples colors from the named catalogue, while `ds.colors["cat1"]`
-  gives the full stored color list for that name. Both return colors without changing theme settings.
+- `ds.palette("YlGnBu", n=3)` selects stored colors from the named catalogue, while
+  `ds.palettes.colors["cat1"]` gives the full stored color list. Both leave theme settings unchanged.
   Names are case-sensitive. Use categorical palettes for unordered groups, sequential ramps for
   ordered magnitude, and diverging ramps only when there is a meaningful center.
+- For a dense image color table, use `ds.palette("focus", n=256, interpolate=True)`. It blends
+  existing stops in Oklab and returns 8-bit hex strings, preserving endpoints and supporting
+  `reverse=True`. Without interpolation, requesting extra entries repeats stored colors. Imported
+  palettes interpolate the stored stops rather than reproducing exact upstream tables.
 - `ds.palettes.categorical(members=1, palette="cat1")` returns a flat color sequence for unrelated
   categories. `members` greater than one returns hue-major blocks for related levels that should be
   adjacent in the category order; it is not the total number of categories. `cat1` allows up to ten
