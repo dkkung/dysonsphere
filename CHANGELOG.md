@@ -5,6 +5,7 @@
 ### New features
 
 - Added TIFF export with LZW compression, RGB/RGBA output, resolution tags, and embedded metadata.
+- Added `SAVE_FORMATS`, the immutable tuple of supported export format names.
 
 ### Bug fixes
 

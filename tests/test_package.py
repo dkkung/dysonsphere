@@ -12,6 +12,7 @@ import json
 import re
 from pathlib import Path
 from types import ModuleType
+from typing import Any, cast
 
 import polars as pl
 import pytest
@@ -96,6 +97,15 @@ class TestPackageNamespace:
             assert importlib.util.find_spec(f"dysonsphere.{name}") is None
             assert not hasattr(ds, name)
             assert name not in ds.__all__
+
+    def test_save_formats_is_public_and_immutable(self):
+        assert isinstance(ds.SAVE_FORMATS, tuple)
+        assert ds.SAVE_FORMATS == ("svg", "png", "tiff", "json", "html")
+        assert "SAVE_FORMATS" in ds.__all__
+        assert importlib.import_module("dysonsphere.export").SAVE_FORMATS is ds.SAVE_FORMATS
+        assert importlib.import_module("dysonsphere.theme")._SAVE_FORMATS is ds.SAVE_FORMATS
+        with pytest.raises(TypeError):
+            cast(Any, ds.SAVE_FORMATS)[0] = "pdf"
 
     def test_every_module_defines_all(self):
         for mod in [*_MODULES, ds.stats, ds.transforms, ds.metadata, ds.palettes, ds.ext]:
