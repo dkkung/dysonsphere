@@ -1,15 +1,19 @@
 import hashlib
 import json
+import subprocess
+import sys
 from typing import Any, cast
 
 import altair as alt
 import pytest
 
+import dysonsphere as ds
 from dysonsphere.palettes import colors
 from dysonsphere.theme import (
     _dysonsphere_theme,
     _load_style_overrides,
     create_config,
+    is_theme_initialized,
     theme,
 )
 
@@ -19,6 +23,50 @@ def reset_theme():
     theme()
     yield
     theme()
+
+
+class TestThemeInitialization:
+    def test_import_and_fallback_reads_do_not_initialize(self):
+        code = """
+import altair as alt
+import dysonsphere as ds
+assert alt.theme.active == "dysonsphere"
+options = dict(alt.theme.options)
+assert ds.is_theme_initialized() is False
+assert ds.ext.opt("fontSize") == 6
+assert ds.ext.opt("markSize") == 10
+assert ds.is_theme_initialized() is False
+assert alt.theme.options == options
+with alt.theme.enable("none", config={"background": "white"}):
+    assert ds.is_theme_initialized() is False
+"""
+        subprocess.run([sys.executable, "-c", code], check=True)
+
+    @pytest.mark.parametrize("options", [{}, {"fontSize": 8, "width": 120, "markFill": "red"}])
+    def test_successful_theme_initializes_without_query_resetting_settings(self, options, monkeypatch):
+        monkeypatch.setattr(alt.theme, "options", {})
+        assert is_theme_initialized() is False
+        theme(**options)
+        assert ds.is_theme_initialized is is_theme_initialized
+        assert ds.is_theme_initialized() is True
+        before = dict(alt.theme.options)
+        if not ds.is_theme_initialized():
+            ds.theme()
+        assert alt.theme.options == before
+        assert ds.ext.opt("fontSize") == options.get("fontSize", 6)
+
+    @pytest.mark.parametrize("initialized", [False, True])
+    def test_failed_theme_call_preserves_initialization(self, initialized, monkeypatch):
+        if initialized:
+            theme(fontSize=9)
+        else:
+            monkeypatch.setattr(alt.theme, "options", {})
+        before = dict(alt.theme.options)
+        assert is_theme_initialized() is initialized
+        with pytest.raises(ValueError, match="fontSize"):
+            theme(fontSize=0)
+        assert is_theme_initialized() is initialized
+        assert alt.theme.options == before
 
 
 class TestThemeDefaults:

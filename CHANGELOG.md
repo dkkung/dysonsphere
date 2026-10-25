@@ -4,6 +4,7 @@
 
 ### New features
 
+- Added `is_theme_initialized()` to check for initialized theme settings without changing them.
 - Added TIFF export with LZW compression, RGB/RGBA output, resolution tags, and embedded metadata.
 - Added `palette(..., interpolate=True)` for smooth color tables sampled from existing stops in Oklab.
 - Added `export.SAVE_FORMATS`, the immutable tuple of supported export format names.

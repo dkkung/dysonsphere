@@ -35,6 +35,7 @@ from ._svg_typography import (
     _typeset_scripts,
 )
 from .theme import _opt
+from .theme import is_theme_initialized as _is_theme_initialized
 from .utils import _apply_spec_fixes, _json_safe
 
 # Public names re-exported by dysonsphere.
@@ -266,7 +267,7 @@ def save(
     # Capture the chart expression from the caller when source is available.
     _chart_expression = metadata._call_expression(sys._getframe(1)) if saveMetadata else None
 
-    if not alt.theme.options:
+    if not _is_theme_initialized():
         raise RuntimeError("ds.theme() must be called before ds.save().")
 
     # Validate format and background before resolving charts.
