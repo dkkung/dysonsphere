@@ -326,8 +326,11 @@ def _grouped_offsets(
     Shared ``with_row_index`` / ``group_by`` / ``map_groups`` / ``sort`` / ``drop`` operations for
     :func:`beeswarm` and :func:`quasirandom` (both compute one x-offset per row, per group).
     """
+    index_col = "__offset_idx"
+    while index_col in df.columns or index_col == outCol:
+        index_col += "_"
     return (
-        df.with_row_index("__offset_idx")
+        df.with_row_index(index_col)
         .group_by(*groupBy)
         .map_groups(
             lambda g: g.with_columns(
@@ -340,8 +343,8 @@ def _grouped_offsets(
                 )
             )
         )
-        .sort("__offset_idx")
-        .drop("__offset_idx")
+        .sort(index_col)
+        .drop(index_col)
     )
 
 

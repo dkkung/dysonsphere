@@ -1,3 +1,4 @@
+import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -26,6 +27,9 @@ class _UnsetType:
 
 
 _UNSET: Final[_UnsetType] = _UnsetType()
+
+# Composite marks cannot reliably handle these characters in generated field names.
+_FIELD_SPECIAL = frozenset("\\.[]'\"")
 
 
 @dataclass
@@ -74,6 +78,21 @@ class _MarkScaffold:
             self.xLabelAngle = _opt("xLabelAngle")
         self.x_title: str | list[str] | None = self.x_col if isinstance(self.xTitle, _UnsetType) else self.xTitle
         self.y_title: str | list[str] | None = self.y_col if isinstance(self.yTitle, _UnsetType) else self.yTitle
+        self._fields: dict[str, str] = {}
+        used = set(self.df.columns)
+        for axis, name in (("x", self.x_col), ("y", self.y_col)):
+            if name not in self._fields and any(char in name for char in _FIELD_SPECIAL):
+                alias = f"__ds_mark_{axis}"
+                while alias in used:
+                    alias += "_"
+                used.add(alias)
+                self._fields[name] = alias
+
+    def chart(self, data: "pl.DataFrame | pd.DataFrame") -> alt.Chart:
+        """Keep the source frame intact; calculate safe field names only during rendering."""
+        aliases = {alias: f"datum[{json.dumps(raw)}]" for raw, alias in self._fields.items() if raw in data.columns}
+        chart = alt.Chart(data)
+        return chart.transform_calculate(**aliases) if aliases else chart
 
     def x_axis(self) -> alt.Axis:
         """The x-axis: label rotation (align derived from the angle's sign) + label mapping."""
@@ -94,7 +113,8 @@ class _MarkScaffold:
             **({"paddingOuter": padding_outer} if padding_outer is not None else {}),
         }
         return alt.X(
-            f"{self.x_col}:N",
+            field=self._fields.get(self.x_col, self.x_col),
+            type="nominal",
             sort=self.categories,
             scale=alt.Scale(domain=self.categories, **scale_kwargs),
             title=self.x_title,
@@ -102,7 +122,8 @@ class _MarkScaffold:
         )
 
     def y(self, field: str | None = None) -> alt.Y:
-        return alt.Y(field if field is not None else f"{self.y_col}:Q", title=self.y_title)
+        name = self.y_col if field is None else field
+        return alt.Y(field=self._fields.get(name, name), type="quantitative", title=self.y_title)
 
     def color(
         self,
@@ -122,8 +143,10 @@ class _MarkScaffold:
         # Pin the domain so category-to-color mapping survives shared-scale merges.
         range_kwargs: dict[str, Any] = {} if pal is None else {"range": pal}
         scale = alt.Scale(domain=self.categories, **range_kwargs)
+        name = self.x_col if field is None else field
         return alt.Color(
-            field if field is not None else f"{self.x_col}:N",
+            field=self._fields.get(name, name),
+            type="nominal",
             sort=self.categories,
             title=title,
             legend=alt.Legend(**legend_kwargs) if self.legend else None,
@@ -454,11 +477,11 @@ def mark_violin(
         # padding=0: the precomputed pixel coordinates assume the full panel width
         # range – theme(viewPadding=...) must not compress this internal scale
         "x": alt.X("__x:Q", scale=alt.Scale(domain=[0, chart_width], padding=0), axis=None),
-        "y": s.y("__y:Q"),
+        "y": s.y("__y"),
         "order": alt.Order("__order:Q"),
     }
     if s.fill is None:
-        violin_encoding["color"] = s.color(field="__group:N", title=None, symbolType="circle")
+        violin_encoding["color"] = s.color(field="__group", title=None, symbolType="circle")
     else:
         violin_encoding["detail"] = alt.Detail("__group:N")
 
@@ -466,7 +489,7 @@ def mark_violin(
 
     if inner == "box":
         boxplot = (
-            alt.Chart(data)
+            s.chart(data)
             .mark_boxplot(
                 color=boxplotColor,
                 ticks=False,
@@ -487,7 +510,7 @@ def mark_violin(
     # an extra dataset in read(what="data"). Use a bar mark because a point mark makes
     # Vega-Lite type x:N as a point scale. Matching rect padding keeps this band scale
     # aligned with the pixel-computed silhouette and boxplot.
-    axis_host = alt.Chart(data).transform_filter("false").mark_bar(opacity=0).encode(x=violin_x)
+    axis_host = s.chart(data).transform_filter("false").mark_bar(opacity=0).encode(x=violin_x)
     layers: list[Any] = [violin]
 
     if inner in ("quartiles", "median"):
@@ -513,7 +536,7 @@ def mark_violin(
                 .encode(
                     x=alt.X("__x:Q", scale=pixel_x_scale, axis=None),
                     x2=alt.X2("__x2:Q"),
-                    y=s.y("__y:Q"),
+                    y=s.y("__y"),
                 )
             )
         # The median band polygon (see the row builder above). Fill/stroke pinned to
@@ -525,7 +548,7 @@ def mark_violin(
             .encode(
                 x=alt.X("__x:Q", scale=pixel_x_scale, axis=None),
                 x2=alt.X2("__x2:Q"),
-                y=s.y("__y:Q"),
+                y=s.y("__y"),
                 detail=alt.Detail("__group:N"),
             )
         )
@@ -685,7 +708,7 @@ def mark_strip(
         point_mark_kwargs["fill"] = s.fill
 
     points = (
-        alt.Chart(data)
+        s.chart(data)
         # Set the stroke explicitly because config.circle has no outline. Keep it black in
         # dark mode too, where it outlines light palette fills.
         .mark_circle(**point_mark_kwargs)
@@ -696,7 +719,7 @@ def mark_strip(
         # Median indicator: a boxplot with everything but the median tick hidden, so the
         # tick inherits the theme's median styling and band placement exactly.
         median = (
-            alt.Chart(data)
+            s.chart(data)
             .mark_boxplot(
                 ticks=False,
                 box={"fillOpacity": 0, "strokeOpacity": 0},
@@ -724,11 +747,11 @@ def mark_strip(
     )
 
     errorbar_layer = (
-        alt.Chart(summary)
+        s.chart(summary)
         .mark_errorbar()
         .encode(
             x=x_encoding,
-            y=s.y("__mean:Q"),
+            y=s.y("__mean"),
             yError=alt.YError("__error:Q"),
         )
     )
@@ -736,11 +759,11 @@ def mark_strip(
     # Use the mean so the tick is centered between the error-bar caps, even for skewed data.
     # Inherit config.tick styling so its color follows the background at render time.
     mean_tick = (
-        alt.Chart(summary)
+        s.chart(summary)
         .mark_tick()
         .encode(
             x=x_encoding,
-            y=s.y("__mean:Q"),
+            y=s.y("__mean"),
         )
     )
 

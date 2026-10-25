@@ -7,7 +7,9 @@ from typing import Any
 __all__ = ["label_expr"]
 
 # Escapes for embedding a Python string inside a single-quoted Vega expression literal.
-_JS_ESCAPE = str.maketrans({"\\": "\\\\", "'": "\\'"})
+_JS_ESCAPE = str.maketrans(
+    {"\\": "\\\\", "'": "\\'", "\n": "\\n", "\r": "\\r", "\u2028": "\\u2028", "\u2029": "\\u2029"}
+)
 
 
 def _js_literal(value: Any) -> str:

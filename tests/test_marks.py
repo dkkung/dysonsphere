@@ -8,6 +8,7 @@ import pytest
 
 from dysonsphere.export import save
 from dysonsphere.marks import mark_strip, mark_violin
+from dysonsphere.metadata import read
 from dysonsphere.palettes import colors
 from dysonsphere.theme import theme
 from dysonsphere.utils import _band_geometry
@@ -199,6 +200,73 @@ def _violin_rows(spec):
 
 def _median_area(spec):
     return next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "area")
+
+
+@pytest.mark.parametrize(
+    "group_col,value_col",
+    [
+        ("group.name", "value.name"),
+        ("group[0]", "value[0]"),
+        ("group:name", "value:name"),
+        ("group'name", "value'name"),
+        ('group"name', 'value"name'),
+        ("group\\name", "value\\name"),
+        (r"group\.name", r"value\[0]"),
+        ("mean(group)", "mean(value)"),
+    ],
+)
+class TestLiteralColumnNames:
+    @pytest.fixture
+    def data(self, group_col, value_col):
+        return pl.DataFrame({group_col: ["A"] * 4 + ["B"] * 4, value_col: [1.0, 2.0, 3.0, 4.0, 2.0, 3.0, 4.0, 5.0]})
+
+    @pytest.mark.parametrize("errorbars", [False, True])
+    def test_strip_renders_all_points_and_preserves_columns(self, tmp_path, data, group_col, value_col, errorbars):
+        chart = mark_strip(data, group_col, value_col, ["A", "B"], errorbars=errorbars, legend=True)
+        save(chart, tmp_path / "literal", format=["svg", "json"], background="light")
+        root = ET.fromstring((tmp_path / "literal.svg").read_text())
+        circles = [node for node in root.iter() if node.get("aria-roledescription") == "circle"]
+        assert len(circles) == data.height
+        assert all(node.get("opacity") != "0" for node in circles)
+        assert read(tmp_path / "literal.json", what="data").select(data.columns).equals(data)
+
+        control_data = data.rename({group_col: "group", value_col: "value"})
+        control = mark_strip(control_data, "group", "value", ["A", "B"], errorbars=errorbars, legend=True)
+        save(control, tmp_path / "control", format="svg", background="light")
+        control_root = ET.fromstring((tmp_path / "control.svg").read_text())
+        control_circles = [node for node in control_root.iter() if node.get("aria-roledescription") == "circle"]
+        assert [node.get("transform") for node in circles] == [node.get("transform") for node in control_circles]
+
+    @pytest.mark.parametrize("inner", ["quartiles", "box"])
+    def test_violin_renders_with_literal_columns(self, tmp_path, data, group_col, value_col, inner):
+        chart = mark_violin(data, group_col, value_col, ["A", "B"], inner=inner, legend=True)
+        save(chart, tmp_path / "violin", format=["svg", "json"], background="light")
+        root = ET.fromstring((tmp_path / "violin.svg").read_text())
+        outlines = [node for node in root.iter() if node.get("aria-roledescription") == "line mark"]
+        assert len(outlines) == 2
+        assert all(node.get("d") for node in outlines)
+        assert read(tmp_path / "violin.json", what="data").equals(data)
+
+
+@pytest.mark.parametrize("constructor,options", [(mark_strip, {"errorbars": False}), (mark_violin, {"inner": "box"})])
+def test_render_aliases_do_not_replace_existing_columns(tmp_path, constructor, options):
+    data = pl.DataFrame(
+        {
+            "group.name": ["A"] * 4 + ["B"] * 4,
+            "value.name": [1.0, 2.0, 3.0, 4.0, 2.0, 3.0, 4.0, 5.0],
+            "__ds_mark_x": list(range(8)),
+            "__ds_mark_x_": list(range(10, 18)),
+            "__ds_mark_y": list(range(20, 28)),
+            "__ds_mark_y_": list(range(30, 38)),
+        }
+    )
+    chart = constructor(data, "group.name", "value.name", ["A", "B"], **options)
+    for layer in chart.to_dict()["layer"]:
+        for transform in layer.get("transform", []):
+            if "calculate" in transform:
+                assert transform["as"] not in data.columns
+    save(chart, tmp_path / "aliases", format=["svg", "json"], background="light")
+    assert read(tmp_path / "aliases.json", what="data").select(data.columns).equals(data)
 
 
 class TestMarkColors:

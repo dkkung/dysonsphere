@@ -159,6 +159,33 @@ class TestQuasirandom:
             quasirandom(data, column="value", groupBy=["group"])
 
 
+@pytest.mark.parametrize("transform", [beeswarm, quasirandom])
+def test_grouped_offsets_preserve_existing_index_columns(transform):
+    data = pl.DataFrame(
+        {
+            "group": ["B", "A", "B", "A", "A", "B"],
+            "value": [4.0, 1.0, 3.0, 2.0, 1.5, 2.5],
+            "__offset_idx": list(range(10, 16)),
+            "__offset_idx_": list(range(20, 26)),
+            "__offset_idx__": list(range(30, 36)),
+        }
+    )
+    result = transform(data, "value", ["group"])
+    assert result.select(data.columns).equals(data)
+    assert result.width == data.width + 1
+    assert result[result.columns[-1]].is_finite().all()
+
+
+@pytest.mark.parametrize("transform", [beeswarm, quasirandom])
+@pytest.mark.parametrize("out_col", ["__offset_idx", "__offset_idx_", "__offset_idx__"])
+def test_grouped_offsets_allow_index_like_output_names(transform, out_col, group_df):
+    control = transform(group_df, "value", ["group"], outCol="offset")
+    result = transform(group_df, "value", ["group"], outCol=out_col)
+    assert result.select(group_df.columns).equals(group_df)
+    assert result[out_col].equals(control["offset"].rename(out_col))
+    assert result.width == group_df.width + 1
+
+
 class TestVanDerCorput:
     def test_length_and_range(self):
         seq = _van_der_corput(8)
